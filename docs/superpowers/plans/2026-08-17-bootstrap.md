@@ -692,7 +692,7 @@ git commit -m "feat(summarize): add tempo and prometheus clients"
 - Consumes: `TempoClient.search`, `PrometheusClient.query`, `EmptyWindowError` from Task 4; verified names from the spike notes.
 - Produces: `report.summarize(service: str, start: int, end: int, tempo: TempoClient | None = None, prometheus: PrometheusClient | None = None) -> dict` returning the compact report defined in the spec; constants `ODD_VERSION = "1"`, `HTTP_DURATION_METRIC`, `TOP_SPANS_LIMIT = 5`.
 
-**Adjustment rule:** if the spike notes recorded different Prometheus/Tempo names, substitute them in `HTTP_DURATION_METRIC`, the status-code label, and `DB_SPAN_QUERY` — and keep the report's *output* field names exactly as in the spec (they are the contract).
+**Adjustment rule:** if the spike notes recorded different Prometheus/Tempo names, substitute them in `HTTP_DURATION_METRIC`, the status-code label, and `DB_SPAN_QUERY` — and keep the report's *output* field names exactly as in the spec (they are the contract). (Spike outcome: all names matched the defaults; the query FORM was adjusted to `last_over_time` cumulative reads per the spike notes' deviation #1 — already reflected in the code below.)
 
 - [ ] **Step 1: Write the fixtures**
 
@@ -884,22 +884,26 @@ def summarize(
     prometheus = prometheus or PrometheusClient()
     window = f"{end - start}s"
 
+    # last_over_time (cumulative read), not increase(): a short run finishes
+    # inside one metric-export interval, so the counter's first sample already
+    # holds the final value and increase() evaluates to 0/NaN (see the spike
+    # notes). Assumes one fresh app process per measured run.
     p95 = _scalar(
         prometheus.query(
             f"histogram_quantile(0.95, sum by (le) "
-            f'(increase({HTTP_DURATION_METRIC}_bucket{{job="{service}"}}[{window}])))',
+            f'(last_over_time({HTTP_DURATION_METRIC}_bucket{{job="{service}"}}[{window}])))',
             time=end,
         )
     )
     request_count = _scalar(
         prometheus.query(
-            f'sum(increase({HTTP_DURATION_METRIC}_count{{job="{service}"}}[{window}]))',
+            f'sum(last_over_time({HTTP_DURATION_METRIC}_count{{job="{service}"}}[{window}]))',
             time=end,
         )
     )
     error_count = _scalar(
         prometheus.query(
-            f"sum(increase({HTTP_DURATION_METRIC}_count"
+            f"sum(last_over_time({HTTP_DURATION_METRIC}_count"
             f'{{job="{service}", {STATUS_CODE_LABEL}=~"5.."}}[{window}]))',
             time=end,
         )
@@ -992,7 +996,7 @@ Expected: the integration test shows as deselected; unit tests still pass.
 
 - [ ] **Step 3: Run it for real**
 
-Bring the stack up, seed, run the instrumented N+1 variant, run the load (exact commands in Task 3 Step 2), then:
+Bring the stack up, seed, run the instrumented N+1 variant, run the load (exact commands in Task 3 Step 2), wait at least 60 seconds for Tempo to make the run searchable (see the spike notes' timing caveat: immediate searches can return stale block data), then:
 
 Run: `uv run pytest tests/ -m integration -o addopts="" -v`
 Expected: PASS. Sanity-check the printed/observed values against the spike notes (same order of magnitude). If the test fails on names (empty results), reconcile `report.py` constants with the spike notes — this is the checkpoint that catches any drift.
@@ -1078,6 +1082,7 @@ uv run python -m app.seed
 env OTEL_SERVICE_NAME=n-plus-one \
     OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 \
     OTEL_SEMCONV_STABILITY_OPT_IN=http \
+    OTEL_METRIC_EXPORT_INTERVAL=5000 \
     uv run opentelemetry-instrument uvicorn app.main:app --port 8000
 
 # 3. In another terminal: replay the load scenario
