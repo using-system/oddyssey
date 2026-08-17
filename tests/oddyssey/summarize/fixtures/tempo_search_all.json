@@ -1,0 +1,31 @@
+{
+  "traces": [
+    {
+      "traceID": "aaa111",
+      "spanSets": [
+        {
+          "matched": 3,
+          "spans": [
+            {"spanID": "s1", "name": "GET /users", "durationNanos": "340000000"},
+            {"spanID": "s2", "name": "SELECT posts", "durationNanos": "1500000"},
+            {"spanID": "s3", "name": "SELECT posts", "durationNanos": "1300000"}
+          ]
+        }
+      ]
+    },
+    {
+      "traceID": "bbb222",
+      "spanSets": [
+        {
+          "matched": 3,
+          "spans": [
+            {"spanID": "s4", "name": "GET /users", "durationNanos": "320000000"},
+            {"spanID": "s5", "name": "SELECT users", "durationNanos": "2000000"},
+            {"spanID": "s6", "name": "SELECT posts", "durationNanos": "1200000"}
+          ]
+        }
+      ]
+    }
+  ],
+  "metrics": {}
+}
