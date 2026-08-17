@@ -45,10 +45,12 @@ repo/  (= APM package "oddyssey")
 ├── src/
 │   ├── summarize/               # project 1: the summarizer (existing code migrated)
 │   │   ├── pyproject.toml
-│   │   └── app/                 # tempo.py, prometheus.py, report.py, errors.py
+│   │   └── app/
+│   │       └── oddyssey_summarize/   # tempo.py, prometheus.py, report.py, errors.py
 │   └── mcp-server/              # project 2: the MCP server
 │       ├── pyproject.toml
-│       └── app/                 # server.py, stack.py, baseline.py, budget.py, resources/
+│       └── app/
+│           └── oddyssey_mcp/    # server.py, stack.py, baseline.py, budget.py, resources/
 ├── tests/
 │   ├── summarize/               # migrated unit tests + fixtures + integration test
 │   └── mcp-server/              # unit tests for stack/baseline/diff/budget
@@ -67,7 +69,7 @@ repo/  (= APM package "oddyssey")
 | Tool language | Python ≥3.12, uv, pytest — one self-contained uv project per `src/` entry |
 | MCP SDK | `mcp==2.0.0` (official Python SDK; exact FastMCP import path verified against SDK 2.0 docs at implementation time) |
 | New pins (verified on PyPI 2026-08-17) | `mcp==2.0.0`, `pyyaml==6.0.3`; all prior pins unchanged (httpx==0.28.1, pytest==9.1.1, grafana/otel-lgtm:0.30.2, demo deps) |
-| Import names | Code folders are `app/`; wheels remap them (hatchling `sources`) to unique import names `oddyssey_summarize` and `oddyssey_mcp` so both projects coexist in one venv. Internal imports are relative. |
+| Import names | Code folders are `app/`; the inner package directory carries the unique import name (`app/oddyssey_summarize/`, `app/oddyssey_mcp/`), packaged with hatchling `packages = ["app/<name>"]` (prefix strip — editable-safe; a prefix *change* via `sources` is rejected by hatchling in dev mode). Internal imports are relative. |
 | Project dependency | `src/mcp-server` depends on `src/summarize` via a uv path source (`editable = true`) |
 | Language / commits | Committed content in English; Conventional Commits |
 
