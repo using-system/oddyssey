@@ -165,8 +165,8 @@ nothing reads it yet.
 ## Testing strategy
 
 - **Unit tests**: pytest on aggregation and client parsing logic, driven by
-  JSON fixtures recorded from real Tempo/Prometheus responses captured during
-  the spike. CI passes without Docker.
+  hand-written JSON fixtures matching the real Tempo/Prometheus response
+  shapes verified during the spike. Deterministic; CI passes without Docker.
 - **Integration test**: marked `@pytest.mark.integration`, requires the running
   `otel-lgtm` stack and the demo app; excluded from the default run.
 - Test tree mirrors the source tree: `tests/oddyssey/summarize/`.
