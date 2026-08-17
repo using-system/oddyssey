@@ -1,1 +1,1 @@
-"""Demo app package."""
+"""Summarize module: turns raw telemetry into a compact run report."""
