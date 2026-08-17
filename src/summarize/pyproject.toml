@@ -14,11 +14,14 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling==1.32.0"]
-build-backend = "hatchling.build"
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.build.targets.wheel]
-packages = ["app/oddyssey_summarize"]
+[tool.setuptools]
+packages = ["oddyssey_summarize"]
+
+[tool.setuptools.package-dir]
+oddyssey_summarize = "app"
 
 [tool.pytest.ini_options]
 addopts = "-m \"not integration\""
