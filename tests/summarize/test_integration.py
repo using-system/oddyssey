@@ -5,7 +5,8 @@ Prerequisites (see README):
 2. seed + run the instrumented demo app
 3. run the load scenario within the last 15 minutes
 
-Run with: uv run pytest tests/ -m integration -o addopts=""
+Run with: uv run --project src/summarize pytest -c src/summarize/pyproject.toml \
+    tests/summarize -m integration -o addopts=""
 """
 
 import time
