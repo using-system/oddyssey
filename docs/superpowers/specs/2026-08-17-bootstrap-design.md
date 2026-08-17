@@ -45,14 +45,17 @@ The full product roadmap (from the founding design discussion) is:
 
 ## Repository layout
 
-Each Python project is self-contained with its own `pyproject.toml`. There is no
-root `pyproject.toml`. The root `tests/` directory mirrors the `src/` tree of
-the `oddyssey/` project.
+The repo root is the oddyssey project itself, using the standard Python src
+layout (`pyproject.toml`, `src/`, `tests/` at the root, `tests/` mirroring
+`src/`). The demo is a separate self-contained uv project under `examples/`.
 
 ```
 repo/
 ├── README.md                    # rewritten: positioning + ideal-session transcript
 ├── LICENSE                      # MIT, already in place
+├── pyproject.toml               # the oddyssey project (src layout)
+├── uv.lock
+├── pytest.ini
 ├── .odd/
 │   └── perf-budget.yml          # budget format, versioned (not enforced yet — step 3)
 ├── docker-compose/
@@ -64,15 +67,13 @@ repo/
 │           ├── main.py          # GET /users → users + posts, classic N+1
 │           ├── seed.py          # deterministic dataset (50 users × posts)
 │           └── load.py          # replays the scenario: 200 requests, deterministic
-├── oddyssey/
-│   ├── pyproject.toml
-│   └── src/
-│       └── oddyssey/
-│           └── summarize/
-│               └── app/
-│                   ├── tempo.py       # minimal Tempo API client (TraceQL search)
-│                   ├── prometheus.py  # minimal Prometheus API client
-│                   └── report.py      # aggregation into the compact report
+├── src/
+│   └── oddyssey/
+│       └── summarize/
+│           └── app/
+│               ├── tempo.py       # minimal Tempo API client (TraceQL search)
+│               ├── prometheus.py  # minimal Prometheus API client
+│               └── report.py      # aggregation into the compact report
 └── tests/
     └── oddyssey/
         └── summarize/

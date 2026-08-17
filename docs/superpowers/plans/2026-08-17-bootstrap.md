@@ -4,7 +4,7 @@
 
 **Goal:** Bootstrap the oddyssey repo through roadmap steps 0-2: a measurable N+1 demo app, real spike numbers, the Tempo/Prometheus summarizer module with tests, and a README written from measured data.
 
-**Architecture:** Two self-contained uv projects (`examples/n-plus-one` demo, `oddyssey/` tool). The demo app is auto-instrumented with OpenTelemetry and exports OTLP to a pinned `grafana/otel-lgtm` container. The summarizer queries the Tempo and Prometheus HTTP APIs and aggregates into a compact, versioned JSON report using OTel semantic-convention field names.
+**Architecture:** The repo root is the oddyssey project (standard Python src layout); the demo is a separate self-contained uv project in `examples/n-plus-one`. The demo app is auto-instrumented with OpenTelemetry and exports OTLP to a pinned `grafana/otel-lgtm` container. The summarizer queries the Tempo and Prometheus HTTP APIs and aggregates into a compact, versioned JSON report using OTel semantic-convention field names.
 
 **Tech Stack:** Python 3.12+, uv, FastAPI, SQLAlchemy 2 (SQLite), OpenTelemetry auto-instrumentation, httpx, pytest, Docker Compose, grafana/otel-lgtm.
 
@@ -15,7 +15,7 @@
 - All committed content (code, comments, docs, commit messages) is English. Conversation language does not leak into files.
 - Conventional Commits on branch `features/bootstrap`. Every commit message ends with `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
 - Exact version pins (`==`) in every `pyproject.toml`; `uv.lock` committed per project. Pinned set (verified 2026-08-17): `grafana/otel-lgtm:0.30.2`, `fastapi==0.141.1`, `uvicorn==0.52.3`, `sqlalchemy==2.0.52`, `opentelemetry-distro==0.65b0`, `opentelemetry-exporter-otlp==1.44.0`, `opentelemetry-instrumentation-fastapi==0.65b0`, `opentelemetry-instrumentation-sqlalchemy==0.65b0`, `httpx==0.28.1`, `pytest==9.1.1`.
-- No root `pyproject.toml`. Root `tests/` mirrors `oddyssey/src/`. Docker Compose lives in `docker-compose/`.
+- The repo root is the oddyssey project: `pyproject.toml`, `src/`, and `tests/` at the root, `tests/` mirroring `src/`. The demo is a separate uv project in `examples/n-plus-one`. Docker Compose lives in `docker-compose/`.
 - README numbers must come from the spike measurements recorded in Task 3 — never invented.
 - `requires-python = ">=3.12"` in both projects.
 
@@ -34,8 +34,8 @@ The OTel → Prometheus/Tempo names below are the plan's best knowledge. **Task 
 - Create: `docker-compose/docker-compose.yml`
 - Create: `.odd/perf-budget.yml`
 - Create: `pytest.ini`
-- Create: `oddyssey/pyproject.toml`
-- Create: `oddyssey/src/oddyssey/__init__.py`, `oddyssey/src/oddyssey/summarize/__init__.py`, `oddyssey/src/oddyssey/summarize/app/__init__.py`
+- Create: `pyproject.toml` (repo root)
+- Create: `src/oddyssey/__init__.py`, `src/oddyssey/summarize/__init__.py`, `src/oddyssey/summarize/app/__init__.py`
 - Create: `examples/n-plus-one/pyproject.toml`, `examples/n-plus-one/app/__init__.py`
 - Modify: `.gitignore` (append demo artifacts)
 
@@ -46,7 +46,7 @@ The OTel → Prometheus/Tempo names below are the plan's best knowledge. **Task 
 - [ ] **Step 1: Verify the pinned build backend version**
 
 Run: `curl -s https://pypi.org/pypi/hatchling/json | python3 -c "import sys,json;print(json.load(sys.stdin)['info']['version'])"`
-Use the printed version in the `hatchling==<version>` pin in `oddyssey/pyproject.toml` below (do the same substitution nowhere else).
+Use the printed version in the `hatchling==<version>` pin in the root `pyproject.toml` below (do the same substitution nowhere else).
 
 - [ ] **Step 2: Write `docker-compose/docker-compose.yml`**
 
@@ -80,7 +80,7 @@ budget:
     max_increase: 0       # DB query count must not grow vs baseline
 ```
 
-- [ ] **Step 4: Write `oddyssey/pyproject.toml`**
+- [ ] **Step 4: Write the root `pyproject.toml`**
 
 ```toml
 [project]
@@ -141,7 +141,7 @@ markers =
 
 - [ ] **Step 7: Create the empty package files**
 
-`oddyssey/src/oddyssey/__init__.py`, `oddyssey/src/oddyssey/summarize/__init__.py`, `oddyssey/src/oddyssey/summarize/app/__init__.py`, `examples/n-plus-one/app/__init__.py` — each containing only a one-line docstring, e.g. `"""oddyssey — observability-driven development for CLI coding agents."""` for the top package and `"""Demo app package."""` for the example.
+`src/oddyssey/__init__.py`, `src/oddyssey/summarize/__init__.py`, `src/oddyssey/summarize/app/__init__.py`, `examples/n-plus-one/app/__init__.py` — each containing only a one-line docstring, e.g. `"""oddyssey — observability-driven development for CLI coding agents."""` for the top package and `"""Demo app package."""` for the example.
 
 - [ ] **Step 8: Append demo artifacts to `.gitignore`**
 
@@ -154,18 +154,18 @@ examples/n-plus-one/demo.db
 
 - [ ] **Step 9: Lock and sync both projects**
 
-Run: `uv sync --project oddyssey` then `uv sync --project examples/n-plus-one`
+Run from repo root: `uv sync` then `uv sync --project examples/n-plus-one`
 Expected: both create `.venv` and write `uv.lock` with the exact pinned versions; no resolution errors.
 
 - [ ] **Step 10: Verify scaffold**
 
-Run: `docker compose -f docker-compose/docker-compose.yml config -q && uv run --project oddyssey python -c "import oddyssey; print('ok')"`
+Run: `docker compose -f docker-compose/docker-compose.yml config -q && uv run python -c "import oddyssey; print('ok')"`
 Expected: no compose errors, prints `ok`.
 
 - [ ] **Step 11: Commit**
 
 ```bash
-git add docker-compose .odd pytest.ini oddyssey examples/n-plus-one/pyproject.toml examples/n-plus-one/app examples/n-plus-one/uv.lock .gitignore
+git add docker-compose .odd pytest.ini pyproject.toml uv.lock src examples/n-plus-one/pyproject.toml examples/n-plus-one/app examples/n-plus-one/uv.lock .gitignore
 git commit -m "chore: scaffold project layout"
 ```
 
@@ -457,9 +457,9 @@ git commit -m "docs: record spike measurements for both demo variants"
 ### Task 4: Summarizer clients (errors, Tempo, Prometheus)
 
 **Files:**
-- Create: `oddyssey/src/oddyssey/summarize/app/errors.py`
-- Create: `oddyssey/src/oddyssey/summarize/app/tempo.py`
-- Create: `oddyssey/src/oddyssey/summarize/app/prometheus.py`
+- Create: `src/oddyssey/summarize/app/errors.py`
+- Create: `src/oddyssey/summarize/app/tempo.py`
+- Create: `src/oddyssey/summarize/app/prometheus.py`
 - Test: `tests/oddyssey/summarize/test_tempo.py`, `tests/oddyssey/summarize/test_prometheus.py`
 
 **Interfaces:**
@@ -548,12 +548,12 @@ def test_unreachable_raises_explicit_error():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run from repo root: `uv run --project oddyssey pytest tests/oddyssey/summarize/ -v`
+Run from repo root: `uv run pytest tests/oddyssey/summarize/ -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'oddyssey.summarize.app.errors'` (or similar import errors).
 
 - [ ] **Step 3: Write the implementation**
 
-`oddyssey/src/oddyssey/summarize/app/errors.py`:
+`src/oddyssey/summarize/app/errors.py`:
 
 ```python
 """Exceptions raised by the summarize module."""
@@ -567,7 +567,7 @@ class EmptyWindowError(RuntimeError):
     """No telemetry was found in the requested time window."""
 ```
 
-`oddyssey/src/oddyssey/summarize/app/tempo.py`:
+`src/oddyssey/summarize/app/tempo.py`:
 
 ```python
 """Minimal Tempo HTTP API client (TraceQL search)."""
@@ -621,7 +621,7 @@ class TempoClient:
         return response.json()
 ```
 
-`oddyssey/src/oddyssey/summarize/app/prometheus.py`:
+`src/oddyssey/summarize/app/prometheus.py`:
 
 ```python
 """Minimal Prometheus HTTP API client (instant queries)."""
@@ -669,13 +669,13 @@ class PrometheusClient:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `uv run --project oddyssey pytest tests/oddyssey/summarize/ -v`
+Run: `uv run pytest tests/oddyssey/summarize/ -v`
 Expected: 5 tests PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add oddyssey/src/oddyssey/summarize/app tests/oddyssey/summarize
+git add src/oddyssey/summarize/app tests/oddyssey/summarize
 git commit -m "feat(summarize): add tempo and prometheus clients"
 ```
 
@@ -684,7 +684,7 @@ git commit -m "feat(summarize): add tempo and prometheus clients"
 ### Task 5: Report aggregation
 
 **Files:**
-- Create: `oddyssey/src/oddyssey/summarize/app/report.py`
+- Create: `src/oddyssey/summarize/app/report.py`
 - Test: `tests/oddyssey/summarize/test_report.py`
 - Create: `tests/oddyssey/summarize/fixtures/tempo_search_all.json`, `tests/oddyssey/summarize/fixtures/tempo_search_db.json`
 
@@ -812,10 +812,10 @@ def test_empty_window_raises():
 
 - [ ] **Step 3: Run tests to verify they fail**
 
-Run: `uv run --project oddyssey pytest tests/oddyssey/summarize/test_report.py -v`
+Run: `uv run pytest tests/oddyssey/summarize/test_report.py -v`
 Expected: FAIL with `ImportError: cannot import name 'summarize'` (or module not found).
 
-- [ ] **Step 4: Write `oddyssey/src/oddyssey/summarize/app/report.py`**
+- [ ] **Step 4: Write `src/oddyssey/summarize/app/report.py`**
 
 ```python
 """Aggregate Tempo and Prometheus data into the compact ODD report.
@@ -929,13 +929,13 @@ def summarize(
 
 - [ ] **Step 5: Run the full unit suite**
 
-Run: `uv run --project oddyssey pytest tests/ -v`
+Run: `uv run pytest tests/ -v`
 Expected: 8 tests PASS (5 from Task 4, 3 from this task).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add oddyssey/src/oddyssey/summarize/app/report.py tests/oddyssey/summarize
+git add src/oddyssey/summarize/app/report.py tests/oddyssey/summarize
 git commit -m "feat(summarize): add report aggregation"
 ```
 
@@ -960,7 +960,7 @@ Prerequisites (see README):
 2. seed + run the instrumented demo app
 3. run the load scenario within the last 15 minutes
 
-Run with: uv run --project oddyssey pytest tests/ -m integration -o addopts=""
+Run with: uv run pytest tests/ -m integration -o addopts=""
 """
 
 import time
@@ -987,14 +987,14 @@ def test_summarize_against_live_stack():
 
 - [ ] **Step 2: Verify it is excluded from the default run**
 
-Run: `uv run --project oddyssey pytest tests/ -v`
+Run: `uv run pytest tests/ -v`
 Expected: the integration test shows as deselected; unit tests still pass.
 
 - [ ] **Step 3: Run it for real**
 
 Bring the stack up, seed, run the instrumented N+1 variant, run the load (exact commands in Task 3 Step 2), then:
 
-Run: `uv run --project oddyssey pytest tests/ -m integration -o addopts="" -v`
+Run: `uv run pytest tests/ -m integration -o addopts="" -v`
 Expected: PASS. Sanity-check the printed/observed values against the spike notes (same order of magnitude). If the test fails on names (empty results), reconcile `report.py` constants with the spike notes — this is the checkpoint that catches any drift.
 
 - [ ] **Step 4: Tear down and commit**
@@ -1084,7 +1084,7 @@ env OTEL_SERVICE_NAME=n-plus-one \
 cd examples/n-plus-one && uv run python -m app.load
 
 # 4. Summarize the run
-cd ../.. && uv run --project oddyssey python -c "
+cd ../.. && uv run python -c "
 import json, time
 from oddyssey.summarize.app.report import summarize
 end = int(time.time())
@@ -1099,7 +1099,7 @@ and compare the reports.
 
 - `examples/n-plus-one` — reproducible demo app; both variants live in
   the same file, toggled by `ODD_FIXED=1`.
-- `oddyssey/` — the summarizer: queries Tempo and Prometheus over a time
+- `src/oddyssey/` — the summarizer: queries Tempo and Prometheus over a time
   window and emits a compact JSON report keyed by OpenTelemetry semantic
   conventions.
 - `.odd/perf-budget.yml` — the budget format (not enforced yet).
@@ -1123,8 +1123,8 @@ to the Tempo and Prometheus HTTP APIs on :3200 and :9090.
 ## Development
 
 ```bash
-uv run --project oddyssey pytest tests/            # unit tests (no Docker needed)
-uv run --project oddyssey pytest tests/ -m integration -o addopts=""   # needs the stack + a fresh run
+uv run pytest tests/            # unit tests (no Docker needed)
+uv run pytest tests/ -m integration -o addopts=""   # needs the stack + a fresh run
 ```
 
 ## License
@@ -1134,7 +1134,7 @@ uv run --project oddyssey pytest tests/ -m integration -o addopts=""   # needs t
 
 - [ ] **Step 2: Verify no tokens remain and the suite is green**
 
-Run: `grep -n "{{" README.md; uv run --project oddyssey pytest tests/`
+Run: `grep -n "{{" README.md; uv run pytest tests/`
 Expected: grep prints nothing; unit tests pass.
 
 - [ ] **Step 3: Commit**
