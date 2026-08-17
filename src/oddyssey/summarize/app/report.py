@@ -20,7 +20,10 @@ ODD_VERSION = "1"
 HTTP_DURATION_METRIC = "http_server_request_duration_seconds"
 STATUS_CODE_LABEL = "http_response_status_code"
 DB_SPAN_QUERY = '{{resource.service.name="{service}" && span.db.system != nil}}'
-ALL_SPAN_QUERY = '{{resource.service.name="{service}"}}'
+# `select(name)` is required: TraceQL search omits the `name` intrinsic from
+# the returned spans unless it is explicitly selected, and _top_spans groups
+# by span name.
+ALL_SPAN_QUERY = '{{resource.service.name="{service}"}} | select(name)'
 TOP_SPANS_LIMIT = 5
 
 
