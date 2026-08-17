@@ -81,6 +81,30 @@ repo/
             └── test_integration.py   # marked `integration`, requires the stack
 ```
 
+## Dependency pinning
+
+All dependencies are pinned to exact versions (`==`) in each project's
+`pyproject.toml`, and `uv.lock` files are committed. The Docker image tag is
+pinned as well. Versions below were verified against PyPI and Docker Hub on
+2026-08-17:
+
+| Dependency | Pinned version | Used by |
+| --- | --- | --- |
+| `grafana/otel-lgtm` (Docker) | `0.30.2` | docker-compose |
+| `fastapi` | `0.141.1` | n-plus-one |
+| `uvicorn` | `0.52.3` | n-plus-one |
+| `sqlalchemy` | `2.0.52` | n-plus-one |
+| `opentelemetry-distro` | `0.65b0` | n-plus-one |
+| `opentelemetry-exporter-otlp` | `1.44.0` | n-plus-one |
+| `opentelemetry-instrumentation-fastapi` | `0.65b0` | n-plus-one |
+| `opentelemetry-instrumentation-sqlalchemy` | `0.65b0` | n-plus-one |
+| `httpx` | `0.28.1` | n-plus-one (load.py), oddyssey |
+| `pytest` | `9.1.1` | oddyssey (dev) |
+
+Note: the `0.x b0` versions are the normal versioning scheme of the OTel Python
+instrumentation packages (contrib repo); they are the stable releases matching
+core `1.44.0`.
+
 ## Step 0 — The spike (demo app)
 
 The demo app exposes `GET /users` returning users with their posts. The default
