@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from oddyssey.summarize.app.errors import EmptyWindowError
-from oddyssey.summarize.app.report import summarize
+from oddyssey_summarize.errors import EmptyWindowError
+from oddyssey_summarize.report import summarize
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

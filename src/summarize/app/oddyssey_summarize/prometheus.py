@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import httpx
 
-from oddyssey.summarize.app.errors import StackUnreachableError
+from .errors import StackUnreachableError
 
 DEFAULT_BASE_URL = "http://localhost:9090"
 

@@ -1,8 +1,8 @@
 import httpx
 import pytest
 
-from oddyssey.summarize.app.errors import StackUnreachableError
-from oddyssey.summarize.app.prometheus import PrometheusClient
+from oddyssey_summarize.errors import StackUnreachableError
+from oddyssey_summarize.prometheus import PrometheusClient
 
 
 def _success(result: list[dict]) -> dict:

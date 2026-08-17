@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from oddyssey.summarize.app.errors import EmptyWindowError
-from oddyssey.summarize.app.prometheus import PrometheusClient
-from oddyssey.summarize.app.tempo import TempoClient
+from .errors import EmptyWindowError
+from .prometheus import PrometheusClient
+from .tempo import TempoClient
 
 ODD_VERSION = "1"
 # Backend-side names, verified against the live stack during the spike

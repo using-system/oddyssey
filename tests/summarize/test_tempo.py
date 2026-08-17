@@ -1,8 +1,8 @@
 import httpx
 import pytest
 
-from oddyssey.summarize.app.errors import StackUnreachableError
-from oddyssey.summarize.app.tempo import TempoClient
+from oddyssey_summarize.errors import StackUnreachableError
+from oddyssey_summarize.tempo import TempoClient
 
 
 def test_search_returns_parsed_json():

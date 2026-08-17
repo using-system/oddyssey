@@ -12,7 +12,7 @@ import time
 
 import pytest
 
-from oddyssey.summarize.app.report import summarize
+from oddyssey_summarize.report import summarize
 
 pytestmark = pytest.mark.integration
 
