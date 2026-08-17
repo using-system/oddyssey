@@ -62,9 +62,9 @@ def odd_baseline(service: str, window_seconds: int = 900) -> dict:
 @mcp.tool()
 def odd_diff(service: str, window_seconds: int = 900) -> dict:
     """Measure the service now, compare against the stored baseline, and give a budget verdict."""
+    stored = baseline_store.load_baseline()
     start, end = _window(window_seconds)
     current = summarize(service, start, end)
-    stored = baseline_store.load_baseline()
     return build_diff(stored, current, load_budget())
 
 

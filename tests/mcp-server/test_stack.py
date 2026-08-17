@@ -7,7 +7,8 @@ from oddyssey_mcp.stack import compose_file, stack_status
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_packaged_compose_matches_repo_copy():
+def test_packaged_compose_matches_repo_copy(monkeypatch):
+    monkeypatch.delenv("ODD_COMPOSE_FILE", raising=False)
     packaged = compose_file().read_text()
     canonical = (REPO_ROOT / "docker-compose" / "docker-compose.yml").read_text()
     assert packaged == canonical, (

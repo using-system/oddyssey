@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .budget import evaluate_budget
+from .errors import BaselineMismatchError
 
 
 def _delta_entry(before: object, after: object) -> dict:
@@ -15,6 +16,13 @@ def _delta_entry(before: object, after: object) -> dict:
 
 
 def build_diff(baseline: dict, current: dict, budget: dict | None) -> dict:
+    baseline_service = baseline.get("service")
+    current_service = current.get("service")
+    if baseline_service != current_service:
+        raise BaselineMismatchError(
+            f"stored baseline is for service {baseline_service!r}, not "
+            f"{current_service!r}; run odd_baseline for this service first"
+        )
     baseline_metrics = baseline.get("metrics", {})
     current_metrics = current.get("metrics", {})
     delta = {

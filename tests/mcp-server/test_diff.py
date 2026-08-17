@@ -1,4 +1,7 @@
+import pytest
+
 from oddyssey_mcp.diff import build_diff
+from oddyssey_mcp.errors import BaselineMismatchError
 
 P95 = "http.server.request.duration.p95"
 DB = "db.client.operation.count"
@@ -51,3 +54,11 @@ def test_diff_without_budget():
     diff = build_diff(_report(0.02, 400), _report(0.01, 400), None)
     assert diff["verdict"] == "no_budget"
     assert diff["violations"] == []
+
+
+def test_diff_rejects_baseline_from_another_service():
+    baseline = _report(0.02, 400)
+    baseline["service"] = "other-service"
+
+    with pytest.raises(BaselineMismatchError, match="other-service"):
+        build_diff(baseline, _report(0.01, 400), None)

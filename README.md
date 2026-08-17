@@ -167,7 +167,9 @@ print(json.dumps(odd_baseline('n-plus-one', 300), indent=2))"
 # 6. Diff: size window_seconds so the window covers the fixed run and nothing
 #    else. The budget is read from the same directory as the baseline
 #    ($ODD_DIR/perf-budget.yml, default .odd/perf-budget.yml; ODD_BUDGET_FILE
-#    overrides the path). No budget file means verdict "no_budget".
+#    overrides the path). No budget file means verdict "no_budget", so if you
+#    exported a scratch ODD_DIR, copy the committed budget into it first.
+[ -n "$ODD_DIR" ] && cp .odd/perf-budget.yml "$ODD_DIR/"
 uv run --project src/mcp-server python -c "
 from oddyssey_mcp.server import odd_diff
 import json
