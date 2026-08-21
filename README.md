@@ -35,12 +35,15 @@ Six tools:
 | `odd_baseline` | Measure and store the reference report (`.odd/baseline.json`) |
 | `odd_diff` | Measure again, pair every metric `before → after`, verdict against `.odd/perf-budget.yml` (`max` / `max_increase` rules → `pass` / `fail` / `no_budget`) |
 
-## The skills
+## The skills and agents
 
-| Skill | When the agent uses it |
+| Primitive | Role |
 | --- | --- |
-| [`measure-change-impact`](skills/measure-change-impact/SKILL.md) | Measure what a code change really did: baseline before, diff after, iterate until the budget passes |
-| [`observe-local-run`](skills/observe-local-run/SKILL.md) | Look at what a running service is doing: `odd_summarize` overview, then curl drill-down through the Grafana proxy (TraceQL, PromQL, LogQL) |
+| [`measure-change-impact`](skills/measure-change-impact/SKILL.md) (skill) | Measure what a code change really did: baseline before, diff after, iterate until the budget passes |
+| [`observe-local-run`](agents/observe-local-run.agent.md) (agent) | Observe a running service (metrics, traces, logs, profiles via the [gcx](https://github.com/grafana/gcx) skills) and hand back every input needed to build a spec-driven plan of fixes and improvements |
+
+The loop: **observe** (agent) → **spec & implement** (the main agent's
+spec-driven workflow) → **measure** (skill) — telemetry on both ends.
 
 ## Install
 
