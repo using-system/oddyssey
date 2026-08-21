@@ -11,7 +11,7 @@ def _success(result: list[dict]) -> dict:
 
 def test_query_returns_result_vector():
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/api/v1/query"
+        assert request.url.path == "/api/datasources/proxy/uid/prometheus/api/v1/query"
         assert request.url.params["query"] == "up"
         assert request.url.params["time"] == "123"
         return httpx.Response(200, json=_success([{"metric": {}, "value": [123, "1"]}]))

@@ -7,7 +7,7 @@ from oddyssey_summarize.tempo import TempoClient
 
 def test_search_returns_parsed_json():
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/api/search"
+        assert request.url.path == "/api/datasources/proxy/uid/tempo/api/search"
         assert request.url.params["q"] == '{resource.service.name="demo"}'
         assert request.url.params["start"] == "100"
         assert request.url.params["end"] == "200"

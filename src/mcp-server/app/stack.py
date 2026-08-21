@@ -11,8 +11,11 @@ from pathlib import Path
 
 import httpx
 
-PROMETHEUS_READY = "http://localhost:9090/-/ready"
-TEMPO_READY = "http://localhost:3200/ready"
+# Readiness is probed through the Grafana datasource proxy: one request
+# checks both Grafana and the backend behind it, and only Grafana's port
+# needs to be exposed.
+PROMETHEUS_READY = "http://localhost:3000/api/datasources/proxy/uid/prometheus/-/ready"
+TEMPO_READY = "http://localhost:3000/api/datasources/proxy/uid/tempo/ready"
 GRAFANA_URL = "http://localhost:3000"
 OTLP_ENDPOINT = "http://localhost:4317"
 STARTUP_TIMEOUT_S = 120
