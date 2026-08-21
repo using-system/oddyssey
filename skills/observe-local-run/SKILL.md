@@ -19,59 +19,82 @@ with). The app must be exporting OTLP to `http://localhost:4317`; see the
    (first run pulls the Docker image). Everything below goes through
    Grafana on :3000 — no other port is exposed.
 2. **Overview first.** Call `odd_summarize(service=<service>,
-   window_seconds=<covering the run>)` for the compact numbers: p95
-   latency, request and error counts, DB operation count, heaviest spans.
-3. **Drill down with the Grafana datasource proxy.** All queries are plain
-   `curl` against `http://localhost:3000/api/datasources/proxy/uid/<uid>/...`
-   (no credentials needed on the local stack). Compute the window as unix
-   epoch seconds.
+   window_seconds=<covering the run>)` for a quick HTTP-centric summary.
+   It only covers standard HTTP/DB signals — the app's own telemetry
+   (custom metrics, domain spans, log fields) is what the drill-down
+   below is for.
+3. **Drill down with the Grafana datasource proxy.** Every service emits
+   its own metrics, spans, and logs, so NEVER assume names: **discover
+   first, then query what you found**. All calls are plain `curl` against
+   `http://localhost:3000/api/datasources/proxy/uid/<uid>/...` (no
+   credentials on the local stack). Windows are unix epoch seconds
+   (nanoseconds for Loki).
 
-   **Traces (Tempo, uid `tempo`)** — find traces, then fetch one:
+   **Traces (Tempo, uid `tempo`)** — discover the attributes, search, fetch:
 
    ```bash
-   # TraceQL search: all traces of the service in the window
-   curl -s -G "http://localhost:3000/api/datasources/proxy/uid/tempo/api/search" \
+   BASE=http://localhost:3000/api/datasources/proxy/uid/tempo
+
+   # What attribute names exist on this service's spans?
+   curl -s -G "$BASE/api/v2/search/tags" --data-urlencode 'scope=span'
+   # What values does one attribute take?
+   curl -s "$BASE/api/v2/search/tag/span.<attribute>/values"
+
+   # Search traces with TraceQL — start from the service, then narrow with
+   # whatever attributes/durations the discovery showed:
+   curl -s -G "$BASE/api/search" \
      --data-urlencode 'q={resource.service.name="<service>"}' \
      --data-urlencode "start=<epoch>" --data-urlencode "end=<epoch>" \
      --data-urlencode "limit=20"
+   #   ... && span.<attribute> = "<value>"     attribute filter
+   #   ... && duration > 100ms                 slow traces
+   #   ... && status = error                   failed spans
 
-   # Narrow with TraceQL, e.g. only traces containing DB spans, or slow ones
-   #   q={resource.service.name="<service>" && span.db.system != nil}
-   #   q={resource.service.name="<service>" && duration > 100ms}
-
-   # Full span tree of one trace
-   curl -s "http://localhost:3000/api/datasources/proxy/uid/tempo/api/traces/<traceID>"
+   # Full span tree of one trace (all spans, attributes, events):
+   curl -s "$BASE/api/traces/<traceID>"
    ```
 
-   **Metrics (Prometheus, uid `prometheus`)** — instant queries:
+   **Metrics (Prometheus, uid `prometheus`)** — discover the series, then
+   query them:
 
    ```bash
-   # p95 latency of the service (seconds)
-   curl -s -G "http://localhost:3000/api/datasources/proxy/uid/prometheus/api/v1/query" \
-     --data-urlencode 'query=histogram_quantile(0.95, sum by (le) (http_server_request_duration_seconds_bucket{job="<service>"}))'
+   BASE=http://localhost:3000/api/datasources/proxy/uid/prometheus
 
-   # Request count by route and status code
-   curl -s -G "http://localhost:3000/api/datasources/proxy/uid/prometheus/api/v1/query" \
-     --data-urlencode 'query=sum by (http_route, http_response_status_code) (http_server_request_duration_seconds_count{job="<service>"})'
+   # Which metrics does this service export? (job = OTEL_SERVICE_NAME)
+   curl -s -G "$BASE/api/v1/series" --data-urlencode 'match[]={job="<service>"}'
+   # Which labels does one metric carry?
+   curl -s -G "$BASE/api/v1/series" --data-urlencode 'match[]=<metric_name>{job="<service>"}'
 
-   # What metrics exist for this service
-   curl -s -G "http://localhost:3000/api/datasources/proxy/uid/prometheus/api/v1/series" \
-     --data-urlencode 'match[]={job="<service>"}'
+   # Then query the metrics you discovered — instant value or over time:
+   curl -s -G "$BASE/api/v1/query" \
+     --data-urlencode 'query=<any PromQL over the discovered metrics>'
+   curl -s -G "$BASE/api/v1/query_range" \
+     --data-urlencode 'query=<PromQL>' \
+     --data-urlencode "start=<epoch>" --data-urlencode "end=<epoch>" \
+     --data-urlencode "step=15"
+   # Histograms come as <name>_bucket/_sum/_count series; quantiles via
+   # histogram_quantile(0.95, sum by (le) (<name>_bucket{job="<service>"})).
    ```
 
-   **Logs (Loki, uid `loki`)** — LogQL range queries (nanosecond epochs):
+   **Logs (Loki, uid `loki`)** — discover the streams, then query:
 
    ```bash
-   curl -s -G "http://localhost:3000/api/datasources/proxy/uid/loki/loki/api/v1/query_range" \
+   BASE=http://localhost:3000/api/datasources/proxy/uid/loki
+
+   # Which labels/streams exist? (OTel logs carry service_name)
+   curl -s "$BASE/loki/api/v1/labels"
+   curl -s "$BASE/loki/api/v1/label/<label>/values"
+
+   # Then LogQL over the discovered streams:
+   curl -s -G "$BASE/loki/api/v1/query_range" \
      --data-urlencode 'query={service_name="<service>"}' \
      --data-urlencode "start=<epoch_ns>" --data-urlencode "end=<epoch_ns>"
-
-   # Only errors:  query={service_name="<service>"} |= "error"
+   # Narrow with the app's own log content: |= "text", | json | <field>=...
    ```
 
-4. **Report what the telemetry shows** — request rates, latency
-   distribution, error spans with their attributes, the SQL statements
-   behind an endpoint — with numbers and trace IDs, not adjectives.
+4. **Report what the telemetry shows**, in the app's own vocabulary — the
+   spans, metric names, and log fields you actually discovered — with
+   numbers and trace IDs, not adjectives.
 
 ## Rules
 
