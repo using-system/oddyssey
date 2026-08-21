@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Oddyssey demo artifacts
+examples/n-plus-one/demo.db
+.odd/baseline.json

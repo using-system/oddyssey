@@ -1,0 +1,30 @@
+[project]
+name = "oddyssey-summarize"
+version = "0.1.0"
+description = "Oddyssey summarizer: turns raw telemetry into a compact run report"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+    "httpx==0.28.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+]
+
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["oddyssey_summarize"]
+
+[tool.setuptools.package-dir]
+oddyssey_summarize = "app"
+
+[tool.pytest.ini_options]
+addopts = "-m \"not integration\""
+markers = [
+    "integration: requires the running otel-lgtm stack and a freshly loaded demo app",
+]

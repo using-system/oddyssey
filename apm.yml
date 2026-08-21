@@ -1,0 +1,14 @@
+name: oddyssey
+version: 0.1.0
+description: Observability-Driven Development for CLI coding agents
+
+dependencies:
+  mcp:
+    - name: oddyssey
+      registry: false
+      transport: stdio
+      command: uvx
+      args:
+        - "--from"
+        - "git+https://github.com/using-system/oddyssey#subdirectory=src/mcp-server"
+        - "oddyssey-mcp"

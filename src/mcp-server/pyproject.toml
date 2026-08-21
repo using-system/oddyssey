@@ -1,0 +1,40 @@
+[project]
+name = "oddyssey-mcp"
+version = "0.1.0"
+description = "Oddyssey MCP server: ODD measurement tools for CLI coding agents"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+    "mcp==2.0.0",
+    "pyyaml==6.0.3",
+    "httpx==0.28.1",
+    "oddyssey-summarize",
+]
+
+[project.scripts]
+oddyssey-mcp = "oddyssey_mcp.server:main"
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+]
+
+[tool.uv.sources]
+oddyssey-summarize = { path = "../summarize", editable = true }
+
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["oddyssey_mcp", "oddyssey_mcp.resources"]
+
+[tool.setuptools.package-dir]
+oddyssey_mcp = "app"
+"oddyssey_mcp.resources" = "app/resources"
+
+[tool.setuptools.package-data]
+"oddyssey_mcp.resources" = ["*.yml"]
+
+[tool.pytest.ini_options]
+addopts = ""

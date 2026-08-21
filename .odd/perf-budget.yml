@@ -1,0 +1,12 @@
+# Performance budget for the demo scenario (format v1).
+# Read by the odd_diff tool: `max` caps the current value; `max_increase`
+# caps growth versus the stored baseline.
+odd_version: "1"
+service: n-plus-one
+budget:
+  http.server.request.duration.p95:
+    max: 0.150            # seconds
+  http.server.error.count:
+    max_increase: 0       # errors must not increase vs baseline
+  db.client.operation.count:
+    max_increase: 0       # DB query count must not grow vs baseline

@@ -1,0 +1,7 @@
+{
+  "traces": [
+    {"traceID": "aaa111", "spanSets": [{"matched": 2, "spans": []}]},
+    {"traceID": "bbb222", "spanSets": [{"matched": 2, "spans": []}]}
+  ],
+  "metrics": {}
+}
