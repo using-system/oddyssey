@@ -73,4 +73,6 @@ and a Collector.
   2026-08); the fetched official page always overrides them — re-verify any
   stability or version claim you rely on.
 - A local export target is one `odd_stack_up` away: OTLP on
-  `http://localhost:4317` (gRPC) / `:4318` (HTTP).
+  `http://localhost:4317` (gRPC) / `:4318` (HTTP). `localhost` holds only
+  for host processes — a containerized app needs the host reachable from
+  inside the container (e.g. `host.docker.internal`).
