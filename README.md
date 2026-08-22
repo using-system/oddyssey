@@ -17,6 +17,16 @@ Same command for every other supported CLI agent — swap the target:
 `windsurf`. Drop `--global` to install into the current repository
 only.
 
+To update an existing install to the latest version:
+
+```bash
+uvx --from 'apm-cli==0.28.0' apm update --global --target claude using-system/oddyssey
+```
+
+It shows the update plan and asks for confirmation (`--yes` to skip,
+`--dry-run` to only look); `apm outdated` tells you whether an update
+is worth running.
+
 ## The idea
 
 ODD complements Spec-Driven Development: observe a running service — local
@@ -131,6 +141,11 @@ Then deploy, observe remotely, and start the loop again.
 - **What's missing is a finding too.** Telemetry gaps — absent spans,
   logs without trace IDs, missing histograms — are deliverables of the
   observation and feed the next instrumentation wave.
+- **One telemetry, two consumers.** The metrics, traces, and logs do not
+  serve ODD alone: the same data feeds classic runtime observability —
+  dashboards, alerting, incident investigation. Instrument once, and the
+  development loop and the operation of the system read from the same
+  source of truth.
 
 ## Prerequisites
 
