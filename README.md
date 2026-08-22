@@ -32,7 +32,10 @@ oddyssey provides:
   local or remote, that delivers a complete observation report your CLI
   agent turns into a spec-driven plan of fixes and improvements;
 - **a complete local observability stack** based on Grafana, piloted by
-  the oddyssey MCP server.
+  the oddyssey MCP server;
+- **persistent run-observation reports** stored in the observed repo
+  (`.odd/observe-run-reports/`), versioned with the code and recalled
+  as the baseline of the next run.
 
 Everything is packaged for any coding agent
 ([APM](https://microsoft.github.io/apm/): Claude Code, Copilot, Cursor,
@@ -56,6 +59,22 @@ Codex, Gemini, and friends).
 - **Maturity spaces observation out.** The time between remote
   observations grows as the service matures: a young service gets
   observed often, a stable one only when something is worth learning.
+- **Evidence over impressions.** Every claim about a service comes from
+  a query and its result — numbers, trace IDs, log lines — never "it
+  seems faster".
+- **Cross-confirm before concluding.** Never conclude from one signal
+  what two could confirm (traces, metrics, logs, profiles); a
+  single-signal anomaly is always labeled as such.
+- **The memory lives with the code.** Observation reports are stored in
+  the observed repo under `.odd/` — version that directory (do not add
+  it to `.gitignore`): the reports get reviewed in PRs, shared by the
+  whole team, and the git history reads observed → fixed → verified.
+- **Verify by replaying, not by re-measuring differently.** A fix is
+  proven by replaying the recorded scenario identically; one changed
+  variable invalidates the before/after comparison.
+- **What's missing is a finding too.** Telemetry gaps — absent spans,
+  logs without trace IDs, missing histograms — are deliverables of the
+  observation and feed the next instrumentation wave.
 
 ## Prerequisites
 
