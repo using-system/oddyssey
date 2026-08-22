@@ -4,11 +4,14 @@ on:
   push:
     branches:
       - main
+  # Manual bootstrap/backfill: build and publish the CURRENT version to
+  # PyPI without any bump (used once to seed the first package).
+  workflow_dispatch:
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    if: "!startsWith(github.event.head_commit.message, 'chore(release)')"
+    if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release)')"
     permissions:
       contents: write
     outputs:
@@ -51,11 +54,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: release
-    if: needs.release.outputs.released == 'true'
+    if: always() && (needs.release.outputs.released == 'true' || github.event_name == 'workflow_dispatch')
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release.outputs.tag }}
+          ref: ${{ needs.release.outputs.tag || github.sha }}
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       - name: Build the MCP server package
         run: uv build src/mcp-server --out-dir dist
@@ -69,6 +72,7 @@ jobs:
     # only ever exists in this job, which runs no project code.
     runs-on: ubuntu-latest
     needs: build
+    if: always() && needs.build.result == 'success'
     environment: pypi
     permissions:
       id-token: write
