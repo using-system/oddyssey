@@ -1,6 +1,6 @@
 ---
 name: observe-run
-description: Observe a running service through its telemetry (metrics, traces, logs, profiles) in any environment - the local oddyssey stack or a remote backend (Grafana, Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...) - and hand the main agent every input it needs to build a spec-driven plan of fixes and improvements. Input - one or more service names, the environment, the mode (drive a scenario / observe a driven run / analyze post-hoc), the window, the focus, and any baseline expectations. Uses the observability-cli-guides skill for the environment's CLI. Read-only against code - it may drive requests at the service but never changes it.
+description: Observe a running service through its telemetry (metrics, traces, logs, profiles) in any environment - the local oddyssey stack or a remote backend (Grafana, Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...) - and hand the main agent every input it needs to build a spec-driven plan of fixes and improvements. Input - one or more service names, the environment, the mode (drive a scenario / observe a driven run / analyze post-hoc), the window, the focus, and any baseline expectations. Recalls previous reports from .odd/observe-run-reports/ as the baseline and persists its own report there (create-observe-run-report skill), so runs accumulate into the ODD loop's memory. Uses the observability-cli-guides skill for the environment's CLI. Read-only against code - it may drive requests at the service but never changes it.
 ---
 
 # Observe a Run
@@ -50,7 +50,9 @@ the report.
   endpoint, or a full sweep (default: full sweep).
 - **Expectations / baseline** — SLO targets, expected request or query
   counts, "it used to be X". Absent a caller baseline, the baseline is
-  within-run (see Investigation).
+  the latest stored report for the same service and environment (see
+  Setup step 4); absent that too, the baseline is within-run (see
+  Investigation).
 
 ## Setup
 
@@ -77,6 +79,14 @@ the report.
    empty window. If **some** signals are missing, continue on what exists
    and record each absence in **Telemetry gaps** with the query that came
    back empty.
+4. **Recall the memory.** When the mission already names a baseline
+   report, use that report as the recalled baseline and skip the recall.
+   Otherwise load the baseline with the `create-observe-run-report`
+   skill's recall procedure — the skill owns the matching rules. Either
+   way, the recalled report's numbers and findings are what the new
+   observations diff against. No match is a normal first run — record
+   "no previous report" in section 1 and fall back to the within-run
+   baseline.
 
 ## Investigation
 
@@ -131,10 +141,13 @@ Then go from aggregates to explanations:
   until it holds only the tail), and an error one if errors exist. Diff
   their span trees: where the extra time or the failure lives is the
   finding. Aggregates locate, exemplars explain.
-- **Baseline** — with no caller expectations, compare within the run: p99
-  against p50 per operation, an endpoint against its siblings, the first
-  half of the window against the second. Always say what you compared
-  against.
+- **Baseline** — with no caller expectations, compare against the
+  recalled report (Setup step 4): the same operations' previous numbers,
+  the previous findings (fixed, still there, worse?), and the previous
+  measurement protocol's before-values. With no recalled report either,
+  compare within the run: p99 against p50 per operation, an endpoint
+  against its siblings, the first half of the window against the second.
+  Always say what you compared against.
 - **Cross-signal** — a slow trace names the span, the span's window narrows
   the metric query, the trace ID filters the logs. Every anomaly ends up
   either cross-confirmed in a second signal or explicitly labeled
@@ -142,13 +155,17 @@ Then go from aggregates to explanations:
 
 ## The report (your only deliverable)
 
-Return these seven sections, in this order:
+Build these seven sections, in this order — then persist the whole
+report with the `create-observe-run-report` skill (frontmatter, naming,
+storage path, no-secrets rule all come from there) and return it along
+with its stored path:
 
 1. **Mission and run record** — the mission as understood (services,
    environment and backend, mode, window, focus, expectations) and every
-   default you applied. In drive mode, include the scenario record from the
-   `run-scenario` skill: the exact commands, counts, and UTC start/end, so
-   the run replays verbatim.
+   default you applied, plus the recalled baseline: the previous report's
+   path, or "no previous report". In drive mode, include the scenario
+   record from the `run-scenario` skill: the exact commands, counts, and
+   UTC start/end, so the run replays verbatim.
 2. **Observed behavior** — start with the per-operation summary table:
 
    | Operation | Requests | Rate | p50 | p95 | p99 | Error % | DB/downstream calls per req | Notable |
@@ -157,7 +174,10 @@ Return these seven sections, in this order:
    vocabulary — request rates, latency distribution, error rates, query
    volumes, hottest spans, notable log lines — every number carrying the
    query that produced it and a sample (trace ID, metric series, log line).
-   Close with the service graph: who calls whom, and how often.
+   With a recalled baseline, follow with the deltas: per operation,
+   improved / regressed / unchanged / new against the previous report's
+   numbers, and the fate of its findings. Close with the service graph:
+   who calls whom, and how often.
 3. **Anomalies and probable causes** — ranked table first:
 
    | # | Finding | Severity | Confidence | Evidence | Expected gain |
@@ -177,11 +197,13 @@ Return these seven sections, in this order:
 6. **Decisions the spec must settle** — the open questions telemetry cannot
    answer (intended behavior, acceptable trade-offs, priorities). Anything
    you actually concluded belongs in section 3 with its evidence, not here.
-7. **Measurement protocol for the fix** — the exact scenario to replay (the
-   same commands as section 1, via the `run-scenario` skill), the
-   observation window to use, and every verification query with its
-   before-value and its pass threshold, so the improvement is verified with
-   numbers, not impressions.
+7. **Measurement protocol for the fix** — how the next run must observe:
+   in drive mode, the exact scenario to replay (the same commands as
+   section 1, via the `run-scenario` skill); otherwise, the window and
+   conditions a comparable run needs. Then every verification check with
+   its before-value and its pass criterion — a threshold to meet, an
+   error that must be gone, a gap that must be filled — so the
+   improvement is verified with evidence, not impressions.
 
 ## Rules
 
@@ -208,4 +230,6 @@ Return these seven sections, in this order:
   section 5; every table row and every finding carries its query and
   result; every improvement carries a number and a verification query with
   a before-value; every single-signal or unprobed claim is marked
-  `suspected`.
+  `suspected`; the memory was recalled (section 1 names the previous
+  report or says there was none) and the report was persisted per the
+  `create-observe-run-report` skill, with its stored path in the reply.

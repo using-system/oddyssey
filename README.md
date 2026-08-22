@@ -4,6 +4,12 @@
 
 **A CLI toolbox for Observability-Driven Development (ODD).**
 
+## Install
+
+```bash
+apm install using-system/oddyssey
+```
+
 ## The idea
 
 ODD complements Spec-Driven Development: observe a running service — local
@@ -26,11 +32,49 @@ oddyssey provides:
   local or remote, that delivers a complete observation report your CLI
   agent turns into a spec-driven plan of fixes and improvements;
 - **a complete local observability stack** based on Grafana, piloted by
-  the oddyssey MCP server.
+  the oddyssey MCP server;
+- **persistent run-observation reports** stored in the observed repo
+  (`.odd/observe-run-reports/`), versioned with the code and recalled
+  as the baseline of the next run.
 
 Everything is packaged for any coding agent
 ([APM](https://microsoft.github.io/apm/): Claude Code, Copilot, Cursor,
 Codex, Gemini, and friends).
+
+## The ODD principles
+
+- **The system must be observable locally.** Prefer a docker-compose
+  that starts your whole stack, and mocks for the remote systems it
+  queries — the oddyssey MCP server provides the local observability
+  backend the telemetry lands in.
+- **Instrument with the expert.** Bring OpenTelemetry into your
+  services through the `otel-instrumentation-expert` agent rather than
+  by hand.
+- **One design loop, always the same.** Every feature follows: SDD to
+  develop it → observe a local run → fix and improve → repeat those
+  last two steps until satisfied. Then deploy to the target
+  environments. After some time, run a remote observation on the
+  environment to seed the next SDD wave — and the loop starts again
+  from the local run.
+- **Maturity spaces observation out.** The time between remote
+  observations grows as the service matures: a young service gets
+  observed often, a stable one only when something is worth learning.
+- **Evidence over impressions.** Every claim about a service comes from
+  a query and its result — numbers, trace IDs, log lines — never "it
+  seems faster".
+- **Cross-confirm before concluding.** Never conclude from one signal
+  what two could confirm (traces, metrics, logs, profiles); a
+  single-signal anomaly is always labeled as such.
+- **The memory lives with the code.** Observation reports are stored in
+  the observed repo under `.odd/` — version that directory (do not add
+  it to `.gitignore`): the reports get reviewed in PRs, shared by the
+  whole team, and the git history reads observed → fixed → verified.
+- **Verify by replaying, not by re-measuring differently.** A fix is
+  proven by replaying the recorded scenario identically; one changed
+  variable invalidates the before/after comparison.
+- **What's missing is a finding too.** Telemetry gaps — absent spans,
+  logs without trace IDs, missing histograms — are deliverables of the
+  observation and feed the next instrumentation wave.
 
 ## Prerequisites
 
@@ -75,17 +119,17 @@ than the local otel-lgtm container.
 | [`setup-local-stack`](.apm/skills/setup-local-stack/SKILL.md) (skill) | Configure gcx against the local stack without touching the user's contexts, with the datasource UIDs and the push-model caveats |
 | [`observability-cli-guides`](.apm/skills/observability-cli-guides/SKILL.md) (skill) | Curated map of every major backend's terminal query surface: Grafana (gcx), Datadog (Pup), Dynatrace (dtctl), Azure Monitor (az), CloudWatch (aws), Splunk |
 | [`run-scenario`](.apm/skills/run-scenario/SKILL.md) (skill) | Drive a reproducible request scenario against a local service and record it verbatim, so the same numbers are measurable before a fix and after it |
+| [`create-observe-run-report`](.apm/skills/create-observe-run-report/SKILL.md) (skill) | The ODD loop's memory: persist each observation report into the observed repo (`.odd/observe-run-reports/`) and recall the previous ones as the next run's baseline |
 | [`/odd-observe`](.apm/prompts/odd-observe.prompt.md) (prompt) | Entry point: build a well-formed mission from your arguments and invoke the `observe-run` agent |
 | [`/odd-instrument`](.apm/prompts/odd-instrument.prompt.md) (prompt) | Entry point: point the `otel-instrumentation-expert` agent at a codebase |
+| [`/odd-verify`](.apm/prompts/odd-verify.prompt.md) (prompt) | Entry point: replay a stored report's protocol through the `observe-run` agent — a full observation report again, this time ruling on everything the previous one recorded: measurements, anomalies, telemetry gaps |
 
 The loop: **investigate** (agents) → **spec & implement** (the main
-agent's spec-driven workflow) → **observe again** — telemetry on both ends.
-
-## Install
-
-```bash
-apm install using-system/oddyssey
-```
+agent's spec-driven workflow) → **observe again** — telemetry on both
+ends. Each observation report is stored in the observed repo
+(`.odd/observe-run-reports/`), versioned by git and shared with the whole
+team, and becomes the baseline the next run diffs against — the loop
+accumulates knowledge instead of starting blind.
 
 ## Development
 
