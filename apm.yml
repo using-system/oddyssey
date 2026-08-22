@@ -9,6 +9,4 @@ dependencies:
       transport: stdio
       command: uvx
       args:
-        - "--from"
-        - "git+https://github.com/using-system/oddyssey#subdirectory=src/mcp-server"
-        - "oddyssey-mcp"
+        - "oddyssey-mcp==0.1.0"
