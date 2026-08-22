@@ -1,5 +1,7 @@
 # oddyssey
 
+![The oddyssey: coding agents sailing the telemetry sea through the pantheon of observability gods](assets/images/banner.png)
+
 **A CLI toolbox for Observability-Driven Development (ODD).**
 
 ## The idea
