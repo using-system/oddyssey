@@ -20,6 +20,15 @@ This repo is a toolbox for that loop, packaged for any coding agent
 Codex, Gemini, and friends) — not a fixed measurement product: the agents
 and skills compose with whatever the investigation needs.
 
+## Prerequisites
+
+- **[Docker](https://docs.docker.com/get-docker/)** — runs the local
+  observability stack (the MCP server drives it directly).
+- **[gcx](https://github.com/grafana/gcx)** — the Grafana CLI the agents
+  use to observe runs on the Grafana stack (metrics, traces, logs,
+  profiles): `brew install gcx`, or
+  `curl -fsSL https://raw.githubusercontent.com/grafana/gcx/main/scripts/install.sh | sh`.
+
 ## The MCP server
 
 One job: **pilot a local Grafana stack with an OpenTelemetry endpoint**.
