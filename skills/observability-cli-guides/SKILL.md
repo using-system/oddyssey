@@ -26,9 +26,9 @@ Each reference covers: setup and authentication, the discovery-then-query
 commands per signal (metrics, traces, logs, profiles where the backend has
 them), and Planning notes with the backend's coverage gaps and quirks.
 
-For the **local oddyssey stack** (the Grafana case), the `gcx-local-stack`
-skill carries the ready-made context — isolated config, datasource UIDs,
-and a plain-`curl` fallback through the Grafana datasource proxy.
+For the **local oddyssey stack** (the Grafana case), the `setup-local-stack`
+skill carries the ready-made gcx context — isolated config and datasource
+UIDs. gcx is the stack's mandatory query CLI.
 
 ## Rules
 

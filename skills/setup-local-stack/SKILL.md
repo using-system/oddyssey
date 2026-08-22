@@ -1,6 +1,6 @@
 ---
-name: gcx-local-stack
-description: Configure gcx against the local oddyssey Grafana stack and query its four signals (metrics, traces, logs, profiles) without touching the user's own gcx contexts. Use when querying the local stack on http://localhost:3000, when configuring gcx locally, when a command needs the Tempo, Prometheus, Loki, or Pyroscope datasource UID, or when gcx is unavailable and the queries must go through plain curl.
+name: setup-local-stack
+description: Configure gcx against the local oddyssey Grafana stack and query its four signals (metrics, traces, logs, profiles) without touching the user's own gcx contexts. Use when querying the local stack on http://localhost:3000, when configuring gcx locally, when a command needs the Tempo, Prometheus, Loki, or Pyroscope datasource UID. gcx is the mandatory query CLI for the stack - install it if missing (README prerequisites).
 ---
 
 # gcx on the local oddyssey stack
@@ -73,38 +73,3 @@ stream selecting it.
 
 Also absent from this stack: `gcx assistant` and investigations — Grafana
 Cloud features the local anonymous instance does not serve.
-
-## curl fallback
-
-If gcx cannot be installed or configured, the same queries go over plain
-HTTP through the datasource proxy —
-`http://localhost:3000/api/datasources/proxy/uid/<uid>/...`, basic auth
-`admin:admin`:
-
-```bash
-# Metrics (Prometheus API under the proxy)
-curl -s -u admin:admin --get \
-  'http://localhost:3000/api/datasources/proxy/uid/prometheus/api/v1/query' \
-  --data-urlencode 'query=sum by (job) (target_info)'
-
-# Traces (Tempo search, then the full trace)
-curl -s -u admin:admin --get \
-  'http://localhost:3000/api/datasources/proxy/uid/tempo/api/search' \
-  --data-urlencode 'q={resource.service.name="<svc>"}'
-curl -s -u admin:admin \
-  'http://localhost:3000/api/datasources/proxy/uid/tempo/api/traces/<trace-id>'
-
-# Logs (Loki range query)
-curl -s -u admin:admin --get \
-  'http://localhost:3000/api/datasources/proxy/uid/loki/loki/api/v1/query_range' \
-  --data-urlencode 'query={service_name="<svc>"}' --data-urlencode 'limit=50'
-
-# Profiles (Pyroscope render; verified live against the local stack)
-curl -s -u admin:admin --get \
-  'http://localhost:3000/api/datasources/proxy/uid/pyroscope/pyroscope/render' \
-  --data-urlencode 'query=process_cpu:cpu:nanoseconds:cpu:nanoseconds{service_name="<svc>"}' \
-  --data-urlencode 'from=now-30m'
-```
-
-The proxy path shape is the same on any Grafana, so a query written here
-also runs against a remote stack once the UIDs are swapped.

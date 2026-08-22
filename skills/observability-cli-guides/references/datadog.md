@@ -16,7 +16,7 @@ of Pup. **`datadog-ci`** is a real, current, actively maintained tool, but it
 is **write-only** — it uploads CI/CD artifacts (test results, sourcemaps,
 deployment markers, coverage) to Datadog and has no command to query metrics,
 logs, or traces. For any signal, the raw HTTP API (`DD-API-KEY` /
-`DD-APPLICATION-KEY` headers) is always available as a curl fallback,
+`DD-APPLICATION-KEY` headers) is the underlying surface Pup wraps,
 including from environments where Pup isn't installed.
 
 ## Setup
@@ -39,16 +39,16 @@ including from environments where Pup isn't installed.
 | Metrics | `pup metrics query --query=<v2-metric-query> --from=<t> --to=<t>` | [pup README examples](https://raw.githubusercontent.com/DataDog/pup/main/README.md) | v2 timeseries query, e.g. `avg:system.cpu.user{*}`, `sum:app.requests{env:prod} by {service}`. `--from`/`--to` accept `1h`/`30m`/`7d`, RFC3339, Unix ms, or `now`. |
 | Metrics | `pup metrics search --query=<v1-metric-query> --from=<t> --to=<t>` | same | v1 query API; kept for compatibility (the underlying REST "Search metrics" op is marked deprecated in the [API reference](https://docs.datadoghq.com/api/latest/metrics.md#search-metrics) — prefer `metrics query`). |
 | Metrics | `pup metrics list [--filter=<pattern>] [--tag-filter=<tags>]`, `pup metrics metadata get <name>`, `pup metrics tags list <name>` | same | Discovery commands: list active metric names, get type/unit/description metadata, list a metric's tags. |
-| Metrics | curl fallback | [Query timeseries points (v1)](https://docs.datadoghq.com/api/latest/metrics.md#query-timeseries-points), [Query across multiple products (v2)](https://docs.datadoghq.com/api/latest/metrics.md#query-timeseries-data-across-multiple-products) | `GET https://api.<site>/api/v1/query?query=...` with `DD-API-KEY`/`DD-APPLICATION-KEY` headers; use when Pup isn't installed. |
+| Metrics | REST API (what Pup wraps) | [Query timeseries points (v1)](https://docs.datadoghq.com/api/latest/metrics.md#query-timeseries-points), [Query across multiple products (v2)](https://docs.datadoghq.com/api/latest/metrics.md#query-timeseries-data-across-multiple-products) | `GET https://api.<site>/api/v1/query?query=...` with `DD-API-KEY`/`DD-APPLICATION-KEY` headers; the API behind `pup metrics`. |
 | Traces / APM | `pup traces search --query=<span-query> [--from=<t>] [--to=<t>] [--limit=1..1000] [--sort=timestamp\|-timestamp] [--live] [--cursor=<c>]` | [pup source: TracesActions::Search](https://raw.githubusercontent.com/DataDog/pup/main/src/main.rs) (doc comment; not yet in a rendered doc page) | Searches individual spans (service, resource, duration, tags, trace IDs). `--live` pins the window end to now, hitting Datadog's live unsampled trace buffer instead of the indexed store — page backwards through it with `--cursor`. Requires OAuth2 `apm_read` scope, or API+APP keys. |
 | Traces / APM | `pup traces aggregate --query=<span-query> --compute=<fn> [--group-by=<facet>] [--from=<t>] [--to=<t>]` | same | Statistical buckets, not individual spans: `count`, `avg(@duration)`, `percentile(@duration, 99)`, etc., optionally grouped by a facet like `service` or `resource_name`. |
 | Traces / APM | `pup apm services list/stats/operations/resources`, `pup apm entities list`, `pup apm dependencies list`, `pup apm flow-map` | [docs/EXAMPLES.md](https://raw.githubusercontent.com/DataDog/pup/main/docs/EXAMPLES.md) | Service-level APM views (throughput/latency/error-rate stats, dependency graph) rather than raw span search — use alongside `traces search`/`traces aggregate`. |
-| Traces / APM | curl fallback | [Search spans](https://docs.datadoghq.com/api/latest/spans.md#search-spans), [Aggregate spans](https://docs.datadoghq.com/api/latest/spans.md#aggregate-spans) | `POST https://api.<site>/api/v2/spans/events/search`; same header auth as metrics. |
+| Traces / APM | REST API (what Pup wraps) | [Search spans](https://docs.datadoghq.com/api/latest/spans.md#search-spans), [Aggregate spans](https://docs.datadoghq.com/api/latest/spans.md#aggregate-spans) | `POST https://api.<site>/api/v2/spans/events/search`; same header auth as metrics. |
 | Logs | `pup logs search --query=<q> [--from=<t>] [--to=<t>] [--limit=1..1000] [--index=<idx,...>] [--storage=auto\|indexes\|online-archives\|flex]` | [docs/COMMANDS.md](https://raw.githubusercontent.com/DataDog/pup/main/docs/COMMANDS.md) | v1 log search. Long lookback windows may need `--storage=flex` or `online-archives` for full retention. |
 | Logs | `pup logs query --query=<q> [--from=<t>] [--to=<t>] [--limit] [--cursor] [--sort] [--storage] [--index] [--timezone]`, `pup logs list [--query=*] ...` | same | v2 search/list — `query` requires an explicit query, `list` defaults to `*`. |
 | Logs | `pup logs aggregate --query=<q> --compute=<fn,...> [--group-by=<f,...>] [--interval=<dur>]` | same | Bucketed stats over logs (`count`, `avg(@duration)`, `percentile(@duration, 95)`, comma-separated for multiple computes); pass `--interval` (e.g. `5m`) to get a timeseries instead of scalar groups. |
 | Logs | `pup logs patterns --query=<q> --pattern-field=<field> [--from] [--to] [--group-by]` | same | Clusters similar log messages by a field (e.g. `message`) — useful for triage before a targeted search. |
-| Logs | curl fallback | [Search logs (POST)](https://docs.datadoghq.com/api/latest/logs.md#search-logs-post) | `POST https://api.<site>/api/v2/logs/events/search`; same header auth. |
+| Logs | REST API (what Pup wraps) | [Search logs (POST)](https://docs.datadoghq.com/api/latest/logs.md#search-logs-post) | `POST https://api.<site>/api/v2/logs/events/search`; same header auth. |
 
 ## Planning notes
 

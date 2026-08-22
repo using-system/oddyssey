@@ -61,8 +61,8 @@ the report.
    that reference, not from memory.
 2. **Local environment.** The local stack is the Grafana case: call the
    oddyssey MCP tool `odd_stack_status`, then `odd_stack_up` if needed, and
-   configure gcx with the `gcx-local-stack` skill (isolated config,
-   datasource UIDs, plain-`curl` datasource-proxy fallback).
+   configure gcx with the `setup-local-stack` skill (isolated config,
+   datasource UIDs) — gcx is the stack's mandatory query CLI.
 3. **Preflight every named service.** Before any analysis, prove its
    telemetry exists in the window, with the backend's own query surface:
    - **traces** — a search scoped to the service returns traces;
