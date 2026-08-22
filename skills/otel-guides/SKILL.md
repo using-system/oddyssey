@@ -8,8 +8,9 @@ description: Curated map of the official OpenTelemetry documentation by language
 A selection map over the official OpenTelemetry docs
 (https://opentelemetry.io/docs/languages/). Pick the language of the code
 you are instrumenting, read its reference file, then fetch the linked
-official pages you need — every linked page is raw markdown (URLs end in
-`index.md`), so read them directly instead of paraphrasing from memory.
+official pages you need — links ending in `index.md` return the page as raw
+markdown (the rest are external redirects), so read them directly instead of
+paraphrasing from memory.
 
 ## Pick the language
 
@@ -63,7 +64,7 @@ and a Collector.
   writing any manual instrumentation.
 - The registry pages render client-side, so a text fetch of them often
   returns nothing. When that happens, fall back in order: the language's
-  contrib repository on GitHub (`opentelemetry-<lang>-contrib`, whose
+  contrib repository on GitHub (`opentelemetry-<lang>-contrib` — for Java it is `opentelemetry-java-instrumentation` — whose
   README lists the instrumentation packages), then the package index search
   (`pip index`, `npm search @opentelemetry`, Maven Central, NuGet,
   crates.io). If a page cannot be fetched at all, say so and mark whatever
