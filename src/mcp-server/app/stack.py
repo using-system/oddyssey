@@ -32,7 +32,9 @@ def compose_file() -> Path:
     global _materialized
     if _materialized is None or not _materialized.exists():
         content = (
-            importlib.resources.files("oddyssey_mcp") / "resources" / "docker-compose.yml"
+            importlib.resources.files("oddyssey_mcp")
+            / "resources"
+            / "docker-compose.yml"
         ).read_text()
         target = Path(tempfile.gettempdir()) / "oddyssey-docker-compose.yml"
         target.write_text(content)
@@ -60,6 +62,7 @@ def _compose(*args: str) -> subprocess.CompletedProcess:
         ["docker", "compose", "-f", str(compose_file()), *args],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 
@@ -71,9 +74,15 @@ def stack_up() -> dict:
     while time.monotonic() < deadline:
         status = stack_status()
         if status["running"]:
-            return {"running": True, "grafana_url": GRAFANA_URL, "otlp_endpoint": OTLP_ENDPOINT}
+            return {
+                "running": True,
+                "grafana_url": GRAFANA_URL,
+                "otlp_endpoint": OTLP_ENDPOINT,
+            }
         time.sleep(POLL_INTERVAL_S)
-    raise RuntimeError(f"stack did not become ready within {STARTUP_TIMEOUT_S}s: {status}")
+    raise RuntimeError(
+        f"stack did not become ready within {STARTUP_TIMEOUT_S}s: {status}"
+    )
 
 
 def stack_down() -> dict:
