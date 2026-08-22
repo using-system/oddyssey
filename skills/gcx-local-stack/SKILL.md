@@ -97,8 +97,7 @@ curl -s -u admin:admin --get \
   'http://localhost:3000/api/datasources/proxy/uid/loki/loki/api/v1/query_range' \
   --data-urlencode 'query={service_name="<svc>"}' --data-urlencode 'limit=50'
 
-# Profiles (Pyroscope render; confirm the path against the datasource first,
-# it is the least stable of the four)
+# Profiles (Pyroscope render; verified live against the local stack)
 curl -s -u admin:admin --get \
   'http://localhost:3000/api/datasources/proxy/uid/pyroscope/pyroscope/render' \
   --data-urlencode 'query=process_cpu:cpu:nanoseconds:cpu:nanoseconds{service_name="<svc>"}' \
