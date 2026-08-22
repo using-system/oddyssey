@@ -5,6 +5,7 @@ on:
     paths:
       - "src/mcp-server/**"
       - "tests/mcp-server/**"
+      - "integration-tests/mcp-server/**"
       - ".github/workflows/ci-mcp-server.yml"
 
 env:
@@ -43,38 +44,5 @@ jobs:
           node-version: "22"
       - name: Install the MCP server
         run: uv sync --project src/mcp-server
-      - name: "MCP client: the three stack tools are exposed"
-        run: |
-          npx -y @modelcontextprotocol/inspector@"$INSPECTOR_VERSION" --cli \
-            src/mcp-server/.venv/bin/oddyssey-mcp --method tools/list > tools.json
-          jq -e '[.tools[].name] | sort == ["odd_stack_down", "odd_stack_status", "odd_stack_up"]' tools.json
-      - name: "MCP client: odd_stack_status reports down before start"
-        run: |
-          npx -y @modelcontextprotocol/inspector@"$INSPECTOR_VERSION" --cli \
-            src/mcp-server/.venv/bin/oddyssey-mcp --method tools/call --tool-name odd_stack_status > status-down.json
-          jq -e '.content[0].text | contains("\"running\": false")' status-down.json
-      - name: "MCP client: odd_stack_up starts the real stack"
-        env:
-          # The tool call carries the whole cost on its own - image pull plus
-          # stack startup - so the server's autonomy is what gets tested.
-          MCP_SERVER_REQUEST_TIMEOUT: "420000"
-        run: |
-          npx -y @modelcontextprotocol/inspector@"$INSPECTOR_VERSION" --cli \
-            src/mcp-server/.venv/bin/oddyssey-mcp --method tools/call --tool-name odd_stack_up > up.json
-          jq -e '.content[0].text | contains("\"running\": true")' up.json
-      - name: "MCP client: odd_stack_status confirms it is up"
-        run: |
-          npx -y @modelcontextprotocol/inspector@"$INSPECTOR_VERSION" --cli \
-            src/mcp-server/.venv/bin/oddyssey-mcp --method tools/call --tool-name odd_stack_status > status-up.json
-          jq -e '.content[0].text | contains("\"running\": true")' status-up.json
-      - name: "MCP client: odd_stack_down stops it"
-        run: |
-          npx -y @modelcontextprotocol/inspector@"$INSPECTOR_VERSION" --cli \
-            src/mcp-server/.venv/bin/oddyssey-mcp --method tools/call --tool-name odd_stack_down > down.json
-          jq -e '.content[0].text | contains("\"running\": false")' down.json
-          test -z "$(docker ps --filter name=oddyssey-lgtm --quiet)"
-      - name: "MCP client: odd_stack_status confirms it is down"
-        run: |
-          npx -y @modelcontextprotocol/inspector@"$INSPECTOR_VERSION" --cli \
-            src/mcp-server/.venv/bin/oddyssey-mcp --method tools/call --tool-name odd_stack_status > status-final.json
-          jq -e '.content[0].text | contains("\"running\": false")' status-final.json
+      - name: Run the integration tests
+        run: bash integration-tests/mcp-server/run.sh
