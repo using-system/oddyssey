@@ -1,8 +1,0 @@
-services:
-  lgtm:
-    image: grafana/otel-lgtm:0.30.2
-    container_name: oddyssey-lgtm
-    ports:
-      - "3000:3000"   # Grafana UI + datasource proxy (Tempo/Prometheus/Loki queries)
-      - "4317:4317"   # OTLP gRPC
-      - "4318:4318"   # OTLP HTTP

@@ -19,8 +19,9 @@ and skills compose with whatever the investigation needs.
 
 One job: **pilot a local Grafana stack with an OpenTelemetry endpoint**.
 One container ([grafana/otel-lgtm](https://github.com/grafana/docker-otel-lgtm),
-pinned) exposes Grafana on `:3000` and OTLP on `:4317`/`:4318`; apps export
-their telemetry there. Tempo traces, Prometheus metrics, and Loki logs are
+pinned, its definition embedded in the server — Docker is the only
+prerequisite) exposes Grafana on `:3000` and OTLP on `:4317`/`:4318`; apps
+export their telemetry there. Tempo traces, Prometheus metrics, and Loki logs are
 all queried through the Grafana datasource proxy
 (`:3000/api/datasources/proxy/uid/...`), so the same paths work against any
 Grafana; on remote environments the stack behind it can be something other
