@@ -31,13 +31,14 @@ contexts:
       org-id: 1
     default-prometheus-datasource: prometheus
     default-loki-datasource: loki
+    default-tempo-datasource: tempo
+    default-pyroscope-datasource: pyroscope
 EOF
 gcx config check
 ```
 
-The two `default-*-datasource` entries make the `-d` flag unnecessary for
-most metric and log commands; Tempo and Pyroscope still take `-d tempo` /
-`-d pyroscope` explicitly.
+The four `default-*-datasource` entries make the `-d` flag unnecessary; the
+commands below keep it for explicitness, but it can be dropped.
 
 Each shell invocation starts fresh, so `export GCX_CONFIG=...` again in every
 command block (or prefix the command with it) — the file itself persists, so

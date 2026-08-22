@@ -68,7 +68,7 @@ is also the observation window for every query run against this scenario.
 
 Telemetry lags the last request. Before querying:
 
-- **~10 s** for metrics to be exported and scraped into Prometheus;
+- **~10 s** for metrics to be exported and written into Prometheus (the stack is push-based);
 - **~60 s** for traces to become searchable in Tempo (a full trace fetch by
   ID may work before search does — cross-check a suspicious search result
   against a fetch).
