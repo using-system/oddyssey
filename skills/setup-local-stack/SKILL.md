@@ -1,6 +1,6 @@
 ---
 name: setup-local-stack
-description: Configure gcx against the local oddyssey Grafana stack and query its four signals (metrics, traces, logs, profiles) without touching the user's own gcx contexts. Use when querying the local stack on http://localhost:3000, when configuring gcx locally, when a command needs the Tempo, Prometheus, Loki, or Pyroscope datasource UID. gcx is the mandatory query CLI for the stack - install it if missing (README prerequisites).
+description: Configure gcx against the local oddyssey Grafana stack and query its four signals (metrics, traces, logs, profiles) without touching the user's own gcx contexts. Use when querying the local stack on http://localhost:3000, when configuring gcx locally, when a command needs the Tempo, Prometheus, Loki, or Pyroscope datasource UID. gcx is the mandatory query CLI for the stack - install it if missing (brew install gcx, or the official install script from github.com/grafana/gcx).
 ---
 
 # gcx on the local oddyssey stack
@@ -43,8 +43,8 @@ commands below keep it for explicitness, but it can be dropped.
 Each shell invocation starts fresh, so `export GCX_CONFIG=...` again in every
 command block (or prefix the command with it) — the file itself persists, so
 the write and `gcx config check` happen only once per session. If gcx
-itself is missing, install it per the README prerequisites (`brew install
-gcx` or the official install script); for this stack the block above is
+itself is missing, install it (`brew install gcx`, or the official install
+script from https://github.com/grafana/gcx); for this stack the block above is
 the whole setup.
 
 ## Datasources

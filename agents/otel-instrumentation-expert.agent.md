@@ -47,7 +47,8 @@ service runs, so derive it per service (step 4) instead of writing
    fetch the linked official pages that matter for this service (zero-code
    instrumentation availability, the instrumentation libraries covering its
    frameworks — check the registry section — exporters, SDK configuration),
-   plus, via `references/semconv.md`, the semantic conventions page for
+   plus, via the `otel-guides` skill's semconv reference, the semantic
+   conventions page for
    every domain this service names things in. Recommendations must come
    from the fetched pages, not memory: package names, setup calls, and env
    vars change between SDK versions.
@@ -98,8 +99,8 @@ service runs, so derive it per service (step 4) instead of writing
    Every entry carries its rationale; nothing here is an unlabeled default.
 4. **Decisions the spec must settle** — sampling strategy; **Collector
    topology**: direct OTLP export vs an OpenTelemetry Collector (agent /
-   sidecar vs central gateway — see `references/collector.md` for the
-   documented patterns), with rationale — for the local oddyssey
+   sidecar vs central gateway — see the `otel-guides` skill's Collector
+   reference for the documented patterns), with rationale — for the local oddyssey
    stack direct export is the default (otel-lgtm embeds a collector), and
    for a remote backend state which Collector features (tail sampling,
    redaction, retry buffering) would justify one; migration vs coexistence
@@ -147,8 +148,8 @@ service runs, so derive it per service (step 4) instead of writing
   configuration change, never a code change.
 - Follow the OpenTelemetry semantic conventions for every name (spans,
   metrics, attributes): fetch the conventions page for each domain you name
-  things in — HTTP, database, messaging, RPC — via `references/semconv.md`
-  and cite it. Invent a name only where no convention exists, and say so.
+  things in — HTTP, database, messaging, RPC — via the `otel-guides`
+  skill's semconv reference, and cite it. Invent a name only where no convention exists, and say so.
 - Watch metric cardinality: no unbounded attribute values (user IDs, raw
   URLs); flag any high-cardinality attribute the plan would create.
 - State each signal's maturity in the target language (stable / beta /
