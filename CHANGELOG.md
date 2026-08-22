@@ -1,3 +1,8 @@
+## [0.1.1] - 2026-08-22
+
+### 🐛 Bug Fixes
+
+- *(mcp)* Match the no-such-container error case-insensitively (#13)
 ## [0.1.0] - 2026-08-22
 
 ### 🚀 Features
@@ -19,3 +24,4 @@
 - *(mcp-server)* Add lint, unit-test, and mcp-client integration jobs (#4)
 - *(release)* Auto version bump, github release, and pypi publish (#10)
 - *(release)* Git-history-driven release flow (git-cliff) with approved release pr (#11)
+- *(release)* 0.1.0 (#12)
