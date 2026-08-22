@@ -14,7 +14,8 @@ import functools
 import logging
 import os
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from importlib import metadata as importlib_metadata
 
 from opentelemetry import metrics, trace
@@ -158,3 +159,17 @@ def traced_tool(fn: Callable[..., dict]) -> Callable[..., dict]:
                     )
 
     return wrapper
+
+
+@contextmanager
+def docker_span(verb: str, container: str) -> Iterator[trace.Span]:
+    """Span for one docker subprocess call - bounded attributes only.
+
+    No semconv exists for subprocess execution; names follow the OTel
+    custom-naming rules with the app prefix (spec 2026-08-22, frozen).
+    """
+    with _tracer.start_as_current_span(
+        f"oddyssey.docker.{verb}",
+        attributes={"oddyssey.docker.container": container},
+    ) as span:
+        yield span

@@ -11,6 +11,8 @@ import time
 
 import httpx
 
+from . import telemetry
+
 IMAGE = "grafana/otel-lgtm:0.30.2"
 CONTAINER_NAME = "oddyssey-lgtm"
 PORTS = ("3000:3000", "4317:4317", "4318:4318")
@@ -33,12 +35,15 @@ def run_args() -> list[str]:
 
 
 def _docker(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["docker", *args],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    with telemetry.docker_span(args[0], container=CONTAINER_NAME) as span:
+        result = subprocess.run(
+            ["docker", *args],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        span.set_attribute("oddyssey.docker.exit_code", result.returncode)
+        return result
 
 
 def _container_state() -> str:
@@ -72,7 +77,11 @@ def stack_up() -> dict:
         if result.returncode != 0:
             raise RuntimeError(f"docker start failed: {result.stderr.strip()}")
     elif state == "absent":
-        result = subprocess.run(run_args(), capture_output=True, text=True, check=False)
+        with telemetry.docker_span("run", container=CONTAINER_NAME) as span:
+            result = subprocess.run(
+                run_args(), capture_output=True, text=True, check=False
+            )
+            span.set_attribute("oddyssey.docker.exit_code", result.returncode)
         if result.returncode != 0:
             raise RuntimeError(f"docker run failed: {result.stderr.strip()}")
     status = stack_status()
@@ -93,6 +102,7 @@ def stack_up() -> dict:
 
 def stack_down() -> dict:
     """Destroy the stack container (and its data); absent is already down."""
+    telemetry.force_flush()
     result = _docker("rm", "--force", "--volumes", CONTAINER_NAME)
     if result.returncode != 0 and "no such container" not in result.stderr.lower():
         raise RuntimeError(f"docker rm failed: {result.stderr.strip()}")

@@ -97,3 +97,13 @@ def test_traced_tool_records_exception_and_reraises(span_capture):
     (span,) = span_capture.get_finished_spans()
     assert not span.status.is_ok
     assert span.events[0].name == "exception"
+
+
+def test_docker_span_names_and_attributes(span_capture):
+    with telemetry.docker_span("inspect", container="oddyssey-lgtm") as span:
+        span.set_attribute("oddyssey.docker.exit_code", 0)
+
+    (finished,) = span_capture.get_finished_spans()
+    assert finished.name == "oddyssey.docker.inspect"
+    assert finished.attributes["oddyssey.docker.container"] == "oddyssey-lgtm"
+    assert finished.attributes["oddyssey.docker.exit_code"] == 0
