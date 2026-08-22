@@ -67,6 +67,25 @@ endpoint changes).
   the plan.
 - Every package name, API call, and env var in the report must trace to a
   fetched official doc page; link it.
+- Always check the latest version of every SDK and instrumentation package
+  you recommend (package index or registry) and **pin exact versions** in
+  the report — never "latest".
+- Configure through the standard `OTEL_*` environment variables, never
+  hardcoded in code, so the same build moves across environments. Set the
+  environment via `OTEL_RESOURCE_ATTRIBUTES` (`deployment.environment.name`
+  per current semantic conventions) alongside `service.name` and
+  `service.version`.
+- Recommend OTLP export only (vendor-neutral): switching backends — local
+  Grafana stack, Datadog, Dynatrace, Azure Monitor, ... — must be a
+  configuration change, never a code change.
+- Follow the OpenTelemetry semantic conventions for every name (spans,
+  metrics, attributes); invent a name only where no convention exists, and
+  say so.
+- Watch metric cardinality: no unbounded attribute values (user IDs, raw
+  URLs); flag any high-cardinality attribute the plan would create.
+- State each signal's maturity in the target language (stable / beta /
+  experimental) and recommend the documented stability opt-ins where they
+  apply.
 - Flag uncertainty explicitly (e.g. a framework with no instrumentation
   library in the registry) instead of papering over it — those become spec
   decisions.
