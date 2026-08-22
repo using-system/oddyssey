@@ -10,13 +10,16 @@ toward a tool result.
 
 from __future__ import annotations
 
+import functools
 import logging
 import os
+import time
 from collections.abc import Callable
 from importlib import metadata as importlib_metadata
 
 from opentelemetry import metrics, trace
 from opentelemetry.metrics import Histogram
+from opentelemetry.trace import SpanKind, Status, StatusCode
 
 _INSTRUMENTATION_NAME = "oddyssey-mcp"
 
@@ -114,3 +117,44 @@ def force_flush(timeout_ms: int = 2000) -> None:
         provider.force_flush(timeout_ms)
     except Exception:  # noqa: BLE001, S110 - flushing is strictly best-effort
         pass
+
+
+def traced_tool(fn: Callable[..., dict]) -> Callable[..., dict]:
+    """Wrap a tool handler in its MCP server span + duration metric.
+
+    Applied UNDER ``@mcp.tool()`` with ``functools.wraps`` so the name,
+    docstring, and signature reach MCP registration unchanged. The MCP
+    error path is untouched: exceptions are recorded and re-raised.
+    """
+    tool_name = fn.__name__
+    metric_attributes = {
+        "mcp.method.name": "tools/call",
+        "gen_ai.tool.name": tool_name,
+    }
+
+    @functools.wraps(fn)
+    def wrapper(*args: object, **kwargs: object) -> dict:
+        start = time.monotonic()
+        with _tracer.start_as_current_span(
+            f"tools/call {tool_name}",
+            kind=SpanKind.SERVER,
+            attributes={
+                "mcp.method.name": "tools/call",
+                "gen_ai.tool.name": tool_name,
+                "network.transport": "pipe",
+                "jsonrpc.protocol.version": "2.0",
+            },
+        ) as span:
+            try:
+                return fn(*args, **kwargs)
+            except Exception as exc:
+                span.record_exception(exc)
+                span.set_status(Status(StatusCode.ERROR, str(exc)))
+                raise
+            finally:
+                if _duration_histogram is not None:
+                    _duration_histogram.record(
+                        time.monotonic() - start, metric_attributes
+                    )
+
+    return wrapper

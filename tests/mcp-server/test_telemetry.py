@@ -3,6 +3,12 @@ import sys
 
 import pytest
 from oddyssey_mcp import telemetry
+from opentelemetry.sdk.trace import TracerProvider as SdkTracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+    InMemorySpanExporter,
+)
+from opentelemetry.trace import SpanKind
 
 
 @pytest.fixture()
@@ -50,3 +56,44 @@ def test_enabled_setup_writes_nothing_to_stdout():
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout == ""
+
+
+@pytest.fixture()
+def span_capture(monkeypatch):
+    exporter = InMemorySpanExporter()
+    provider = SdkTracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(telemetry, "_tracer", provider.get_tracer("test"))
+    return exporter
+
+
+def test_traced_tool_emits_server_span_and_passes_through(span_capture):
+    @telemetry.traced_tool
+    def odd_dummy() -> dict:
+        """Dummy tool."""
+        return {"ok": True}
+
+    assert odd_dummy.__name__ == "odd_dummy"
+    assert odd_dummy.__doc__ == "Dummy tool."
+    assert odd_dummy() == {"ok": True}
+
+    (span,) = span_capture.get_finished_spans()
+    assert span.name == "tools/call odd_dummy"
+    assert span.kind == SpanKind.SERVER
+    assert span.attributes["mcp.method.name"] == "tools/call"
+    assert span.attributes["gen_ai.tool.name"] == "odd_dummy"
+    assert span.attributes["network.transport"] == "pipe"
+    assert span.attributes["jsonrpc.protocol.version"] == "2.0"
+
+
+def test_traced_tool_records_exception_and_reraises(span_capture):
+    @telemetry.traced_tool
+    def odd_broken() -> dict:
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        odd_broken()
+
+    (span,) = span_capture.get_finished_spans()
+    assert not span.status.is_ok
+    assert span.events[0].name == "exception"
