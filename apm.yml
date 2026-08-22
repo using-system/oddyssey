@@ -1,5 +1,5 @@
 name: oddyssey
-version: 0.1.1
+version: 1.0.0
 description: Observability-Driven Development for CLI coding agents
 
 dependencies:
@@ -9,4 +9,4 @@ dependencies:
       transport: stdio
       command: uvx
       args:
-        - "oddyssey-mcp==0.1.1"
+        - "oddyssey-mcp==1.0.0"

@@ -1,8 +1,17 @@
+## [1.0.0] - 2026-08-22
+
+### 🚀 Features
+
+- *(apm)* [**breaking**] Restructure primitives under .apm, entry prompts, full-target ci (#19)
 ## [0.1.1] - 2026-08-22
 
 ### 🐛 Bug Fixes
 
 - *(mcp)* Match the no-such-container error case-insensitively (#13)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 0.1.1 (#14)
 ## [0.1.0] - 2026-08-22
 
 ### 🚀 Features
