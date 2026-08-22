@@ -75,11 +75,16 @@ than the local otel-lgtm container.
 | [`setup-local-stack`](.apm/skills/setup-local-stack/SKILL.md) (skill) | Configure gcx against the local stack without touching the user's contexts, with the datasource UIDs and the push-model caveats |
 | [`observability-cli-guides`](.apm/skills/observability-cli-guides/SKILL.md) (skill) | Curated map of every major backend's terminal query surface: Grafana (gcx), Datadog (Pup), Dynatrace (dtctl), Azure Monitor (az), CloudWatch (aws), Splunk |
 | [`run-scenario`](.apm/skills/run-scenario/SKILL.md) (skill) | Drive a reproducible request scenario against a local service and record it verbatim, so the same numbers are measurable before a fix and after it |
+| [`create-observe-run-report`](.apm/skills/create-observe-run-report/SKILL.md) (skill) | The ODD loop's memory: persist each observation report into the observed repo (`.odd/observe-run-reports/`) and recall the previous ones as the next run's baseline |
 | [`/odd-observe`](.apm/prompts/odd-observe.prompt.md) (prompt) | Entry point: build a well-formed mission from your arguments and invoke the `observe-run` agent |
 | [`/odd-instrument`](.apm/prompts/odd-instrument.prompt.md) (prompt) | Entry point: point the `otel-instrumentation-expert` agent at a codebase |
 
 The loop: **investigate** (agents) → **spec & implement** (the main
-agent's spec-driven workflow) → **observe again** — telemetry on both ends.
+agent's spec-driven workflow) → **observe again** — telemetry on both
+ends. Each observation report is stored in the observed repo
+(`.odd/observe-run-reports/`), versioned by git and shared with the whole
+team, and becomes the baseline the next run diffs against — the loop
+accumulates knowledge instead of starting blind.
 
 ## Install
 
