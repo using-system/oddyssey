@@ -9,36 +9,45 @@ from __future__ import annotations
 from mcp.server import MCPServer
 
 from . import stack as stack_ops
+from . import telemetry
 
 mcp = MCPServer("oddyssey")
 
 
 @mcp.tool()
+@telemetry.traced_tool
 def odd_stack_up() -> dict:
     """Start the local LGTM observability stack (Grafana, Tempo, Prometheus, Loki, OTLP)."""
     return stack_ops.stack_up()
 
 
 @mcp.tool()
+@telemetry.traced_tool
 def odd_stack_down() -> dict:
     """Stop and remove the local LGTM stack; stored telemetry does not survive."""
     return stack_ops.stack_down()
 
 
 @mcp.tool()
+@telemetry.traced_tool
 def odd_stack_status() -> dict:
     """Check whether the local LGTM stack is up (Prometheus and Tempo ready)."""
     return stack_ops.stack_status()
 
 
 @mcp.tool()
+@telemetry.traced_tool
 def odd_stack_reset() -> dict:
     """Wipe all stored telemetry (traces, metrics, logs, profiles) and return a fresh, ready stack."""
     return stack_ops.stack_reset()
 
 
 def main() -> None:
-    mcp.run()
+    shutdown = telemetry.setup_telemetry()
+    try:
+        mcp.run()
+    finally:
+        shutdown()
 
 
 if __name__ == "__main__":
