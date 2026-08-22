@@ -19,7 +19,7 @@ In order of preference:
 2. **Traces already in the stack** — the operations Tempo has seen for this
    service (`gcx traces query` on `{resource.service.name="<svc>"}`, group by
    span name) are what the service actually serves. Configure gcx against
-   the local stack with the `gcx-local-stack` skill first.
+   the local stack with the `setup-local-stack` skill first.
 3. **The service's own contract** — an OpenAPI/Swagger document, a route
    table, a CLI entry point in the repository (read-only).
 

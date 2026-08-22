@@ -42,15 +42,15 @@ service runs, so derive it per service (step 4) instead of writing
    auto-patching of the same libraries — and carry **migration vs
    coexistence** into the report as a decision the spec must settle; never
    plan OpenTelemetry alongside a vendor tracer without addressing it.
-3. **Map each service to the official docs** using the
-   `otel-guides` skill: open the language's reference file, then
-   fetch the linked official pages that matter for this service (zero-code
-   instrumentation availability, the instrumentation libraries covering its
-   frameworks — check the registry section — exporters, SDK configuration),
-   plus, via `references/semconv.md`, the semantic conventions page for
-   every domain this service names things in. Recommendations must come
-   from the fetched pages, not memory: package names, setup calls, and env
-   vars change between SDK versions.
+3. **Map each service to the official docs** using the `otel-guides` skill:
+   open the language's reference file, then fetch the linked official pages
+   that matter for this service (zero-code instrumentation availability, the
+   instrumentation libraries covering its frameworks — check the registry
+   section — exporters, SDK configuration), plus, via the `otel-guides`
+   skill's semconv reference, the semantic conventions page for every domain
+   this service names things in. Recommendations must come from the fetched
+   pages, not memory: package names, setup calls, and env vars change between
+   SDK versions.
 4. **Decide the recommended approach per service**:
    - zero-code agent vs instrumentation libraries vs manual API;
    - which signals to enable first (traces / metrics / logs, with their
@@ -98,20 +98,20 @@ service runs, so derive it per service (step 4) instead of writing
    Every entry carries its rationale; nothing here is an unlabeled default.
 4. **Decisions the spec must settle** — sampling strategy; **Collector
    topology**: direct OTLP export vs an OpenTelemetry Collector (agent /
-   sidecar vs central gateway — see `references/collector.md` for the
-   documented patterns), with rationale — for the local oddyssey
-   stack direct export is the default (otel-lgtm embeds a collector), and
-   for a remote backend state which Collector features (tail sampling,
+   sidecar vs central gateway — see the `otel-guides` skill's Collector
+   reference for the documented patterns), with rationale — for the local
+   oddyssey stack direct export is the default (otel-lgtm embeds a collector),
+   and for a remote backend state which Collector features (tail sampling,
    redaction, retry buffering) would justify one; migration vs coexistence
    with any vendor agent found in step 2; context propagation across the
-   discovered boundaries; log correlation; naming conventions for services
-   and custom spans/metrics; what NOT to instrument. Anything you decided
-   belongs in section 3 with its rationale — anything you did not belongs
-   here, stated as an open question.
+   discovered boundaries; log correlation; naming conventions for services and
+   custom spans/metrics; what NOT to instrument. Anything you decided belongs
+   in section 3 with its rationale — anything you did not belongs here, stated
+   as an open question.
 5. **Verification protocol** — how to prove instrumentation works once
    implemented: start the local stack (`odd_stack_up`), run each service
    with its `OTEL_*` block, exercise one scenario, and confirm each signal
-   arrives (the `observe-local-run` agent can do the confirmation).
+   arrives (the `observe-run` agent can do the confirmation).
 
 ## Rules
 
@@ -147,8 +147,9 @@ service runs, so derive it per service (step 4) instead of writing
   configuration change, never a code change.
 - Follow the OpenTelemetry semantic conventions for every name (spans,
   metrics, attributes): fetch the conventions page for each domain you name
-  things in — HTTP, database, messaging, RPC — via `references/semconv.md`
-  and cite it. Invent a name only where no convention exists, and say so.
+  things in — HTTP, database, messaging, RPC — via the `otel-guides` skill's
+  semconv reference, and cite it. Invent a name only where no convention
+  exists, and say so.
 - Watch metric cardinality: no unbounded attribute values (user IDs, raw
   URLs); flag any high-cardinality attribute the plan would create.
 - State each signal's maturity in the target language (stable / beta /
