@@ -12,6 +12,7 @@ This page does not itself list SDKs as docs pages; instead it points to the comm
 
 ## Planning notes
 
+- Languages hosted on another runtime are already covered: JVM-hosted ones (Scala, Clojure, Groovy) by the Java SDK and its zero-code agent, Node-hosted ones by the JavaScript SDK — check [references/java.md](java.md) and [references/js.md](js.md) before treating such a language as unsupported.
 - OpenTelemetry is designed to be implementable in any language, so a target language having no official docs page here does not mean no SDK exists — check the Registry before concluding instrumentation is impossible.
 - Community/unofficial implementations in the Registry vary widely in maturity and maintenance status; verify activity and spec compliance before depending on one.
 - If nothing suitable is found, raising or gauging interest on a SIG-formation issue (as with Lua, Perl, Julia) is the documented path toward an official implementation, not something usable today.

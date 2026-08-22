@@ -37,7 +37,7 @@ One job: **pilot a local Grafana stack with an OpenTelemetry endpoint**.
 One container ([grafana/otel-lgtm](https://github.com/grafana/docker-otel-lgtm),
 pinned, its definition embedded in the server — Docker is the only
 prerequisite) exposes Grafana on `:3000` and OTLP on `:4317`/`:4318`; apps
-export their telemetry there. Tempo traces, Prometheus metrics, and Loki logs are
+export their telemetry there. Tempo traces, Prometheus metrics, Loki logs, and Pyroscope profiles are
 all queried through the Grafana datasource proxy
 (`:3000/api/datasources/proxy/uid/...`), so the same paths work against any
 Grafana; on remote environments the stack behind it can be something other
@@ -53,9 +53,11 @@ than the local otel-lgtm container.
 
 | Primitive | Role |
 | --- | --- |
-| [`plan-otel-instrumentation`](agents/plan-otel-instrumentation.agent.md) (agent) | Investigate a codebase and hand back every input for a spec-driven plan to implement OpenTelemetry: stack inventory, per-service approach sourced from the official docs, open decisions, verification protocol |
+| [`otel-instrumentation-expert`](agents/otel-instrumentation-expert.agent.md) (agent) | Investigate a codebase and hand back every input for a spec-driven plan to implement OpenTelemetry: stack inventory, per-service approach sourced from the official docs, open decisions, verification protocol |
 | [`observe-local-run`](agents/observe-local-run.agent.md) (agent) | Observe a running service (metrics, traces, logs, profiles via the [gcx](https://github.com/grafana/gcx) skills) and hand back every input for a spec-driven plan of fixes and improvements |
-| [`otel-language-guides`](skills/otel-language-guides/SKILL.md) (skill) | Curated map of the official OpenTelemetry docs for all supported languages — pick the language, follow the linked sections (traces, metrics, logs, libraries, exporters, SDK config) |
+| [`otel-guides`](skills/otel-guides/SKILL.md) (skill) | Curated map of the official OpenTelemetry docs: every supported language plus the cross-language guides (SDK configuration, semantic conventions, Collector deployment) |
+| [`gcx-local-stack`](skills/gcx-local-stack/SKILL.md) (skill) | Configure gcx against the local stack without touching the user's contexts, with the datasource UIDs, the push-model caveats, and the curl proxy fallback |
+| [`run-scenario`](skills/run-scenario/SKILL.md) (skill) | Drive a reproducible request scenario against a local service and record it verbatim, so the same numbers are measurable before a fix and after it |
 
 The loop: **investigate** (agents) → **spec & implement** (the main
 agent's spec-driven workflow) → **observe again** — telemetry on both ends.
