@@ -4,6 +4,12 @@
 
 **A CLI toolbox for Observability-Driven Development (ODD).**
 
+## Install
+
+```bash
+apm install using-system/oddyssey
+```
+
 ## The idea
 
 ODD complements Spec-Driven Development: observe a running service — local
@@ -31,6 +37,25 @@ oddyssey provides:
 Everything is packaged for any coding agent
 ([APM](https://microsoft.github.io/apm/): Claude Code, Copilot, Cursor,
 Codex, Gemini, and friends).
+
+## The ODD principles
+
+- **The system must be observable locally.** Prefer a docker-compose
+  that starts your whole stack, and mocks for the remote systems it
+  queries — the oddyssey MCP server provides the local observability
+  backend the telemetry lands in.
+- **Instrument with the expert.** Bring OpenTelemetry into your
+  services through the `otel-instrumentation-expert` agent rather than
+  by hand.
+- **One design loop, always the same.** Every feature follows: SDD to
+  develop it → observe a local run → fix and improve → repeat those
+  last two steps until satisfied. Then deploy to the target
+  environments. After some time, run a remote observation on the
+  environment to seed the next SDD wave — and the loop starts again
+  from the local run.
+- **Maturity spaces observation out.** The time between remote
+  observations grows as the service matures: a young service gets
+  observed often, a stable one only when something is worth learning.
 
 ## Prerequisites
 
@@ -86,12 +111,6 @@ ends. Each observation report is stored in the observed repo
 (`.odd/observe-run-reports/`), versioned by git and shared with the whole
 team, and becomes the baseline the next run diffs against — the loop
 accumulates knowledge instead of starting blind.
-
-## Install
-
-```bash
-apm install using-system/oddyssey
-```
 
 ## Development
 
