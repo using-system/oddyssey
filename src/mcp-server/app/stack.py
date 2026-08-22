@@ -24,6 +24,7 @@ PROMETHEUS_READY = "http://localhost:3000/api/datasources/proxy/uid/prometheus/-
 TEMPO_READY = "http://localhost:3000/api/datasources/proxy/uid/tempo/ready"
 GRAFANA_URL = "http://localhost:3000"
 OTLP_ENDPOINT = "http://localhost:4317"
+OTLP_HTTP_INGEST = "http://localhost:4318/v1/traces"
 STARTUP_TIMEOUT_S = 120
 POLL_INTERVAL_S = 2
 
@@ -61,6 +62,20 @@ def _probe(client: httpx.Client, url: str) -> bool:
         return False
 
 
+def _otlp_ingest_ready(client: httpx.Client) -> bool:
+    """True once the OTLP HTTP listener answers - any HTTP response counts.
+
+    The Grafana-proxy readiness probes can pass before the embedded
+    collector accepts OTLP, and spans exported into that gap are dropped
+    (observation report finding 3). Only a transport error means not-ready.
+    """
+    try:
+        client.post(OTLP_HTTP_INGEST, content=b"")
+        return True
+    except httpx.TransportError:
+        return False
+
+
 def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
     """Probe readiness endpoints; a down stack is a status, not an error."""
     with httpx.Client(timeout=3.0, transport=transport) as client:
@@ -88,6 +103,13 @@ def stack_up() -> dict:
     deadline = time.monotonic() + STARTUP_TIMEOUT_S
     while time.monotonic() < deadline:
         if status["running"]:
+            with httpx.Client(timeout=3.0) as client:
+                while time.monotonic() < deadline and not _otlp_ingest_ready(client):
+                    time.sleep(POLL_INTERVAL_S)
+            # Push spans queued while the stack was down/booting into the
+            # just-ready backend (best effort - already-dropped batches are
+            # gone, and that residual loss is accepted by the spec).
+            telemetry.force_flush()
             return {
                 "running": True,
                 "grafana_url": GRAFANA_URL,

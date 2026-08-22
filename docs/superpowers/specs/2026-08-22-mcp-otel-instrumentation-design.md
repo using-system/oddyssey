@@ -214,3 +214,13 @@ Driven by the first observation report
   histogram buckets are pinned in code to 0.05…300 s (the original spec
   was silent); user-facing docs are in scope (README documents the
   default-on behavior).
+- **Canonical tool span**: mcp 2.0's default `OpenTelemetryMiddleware` is
+  removed at server construction - the decorator span (frozen contract,
+  exception recording, histogram attachment) is the single tool span.
+  Revisit via a new revision when the mcp v2 middleware API stabilizes;
+  its inbound `_meta` trace-context extraction is the natural path for
+  the §8 propagation hook.
+- **"Ready" includes OTLP ingest**: `odd_stack_up` now also waits for the
+  OTLP HTTP listener (`:4318/v1/traces`) to answer, then force-flushes
+  queued spans into the newborn backend. Batches the exporter already
+  dropped during boot remain lost - accepted residual.

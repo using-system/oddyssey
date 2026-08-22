@@ -15,6 +15,21 @@ from . import telemetry
 
 mcp = MCPServer("oddyssey")
 
+# mcp 2.0 ships its own OpenTelemetryMiddleware on by default, which would
+# duplicate every tool span (and double the spanmetrics counts). The
+# decorator span below is the canonical one - the spec froze its contract,
+# and the SDK marks its middleware API as subject to change before v2
+# final. Defensive: if the SDK moves the class, keep the duplicates rather
+# than crash the server.
+try:
+    from mcp.server._otel import OpenTelemetryMiddleware
+
+    mcp.middleware[:] = [
+        m for m in mcp.middleware if not isinstance(m, OpenTelemetryMiddleware)
+    ]
+except Exception:  # noqa: BLE001, S110 - degraded telemetry beats a dead server
+    pass
+
 
 @mcp.tool()
 @telemetry.traced_tool
