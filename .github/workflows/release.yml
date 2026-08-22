@@ -4,58 +4,119 @@ on:
   push:
     branches:
       - main
+  # Manual bootstrap/backfill: build and publish the CURRENT version to
+  # PyPI without any bump (used once to seed the first package).
+  workflow_dispatch:
 
 jobs:
-  release:
+  propose-release:
+    # Computes the next semver purely from git history (tags + conventional
+    # commits, via git-cliff) and maintains the chore(release) PR carrying
+    # the version bumps and CHANGELOG. Nothing is ever pushed to main
+    # directly - a human approves and merges that PR.
     runs-on: ubuntu-latest
-    if: "!startsWith(github.event.head_commit.message, 'chore(release)')"
+    if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release)')"
     permissions:
       contents: write
-    outputs:
-      released: ${{ steps.semver.outputs.new_version != '' }}
-      version: ${{ steps.semver.outputs.new_version }}
-      tag: ${{ steps.semver.outputs.new_tag }}
+      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Compute the next version from conventional commits
-        id: semver
-        uses: mathieudutour/github-tag-action@a22cf08638b34d5badda920f9daf6e72c477b07b # v6.2
+      - name: Compute the bumped version and regenerate the changelog
+        id: bump
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4.8.0
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          dry_run: true
-          default_bump: false
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        if: steps.semver.outputs.new_version != ''
-      - name: Bump versions, tag, and publish the GitHub release
-        if: steps.semver.outputs.new_version != ''
+          args: --bump -o CHANGELOG.md
+      - name: Decide whether a release is due
+        id: check
         env:
-          VERSION: ${{ steps.semver.outputs.new_version }}
-          TAG: ${{ steps.semver.outputs.new_tag }}
-          CHANGELOG: ${{ steps.semver.outputs.changelog }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEXT_RAW: ${{ steps.bump.outputs.version }}
+        run: |
+          NEXT="${NEXT_RAW#v}"
+          LATEST="$(git describe --tags --abbrev=0 2>/dev/null || echo '')"
+          if [ -z "$NEXT" ] || [ "v${NEXT}" = "$LATEST" ]; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "No release-worthy commits since ${LATEST:-the beginning}."
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            echo "version=${NEXT}" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        if: steps.check.outputs.proceed == 'true'
+      - name: Bump the version files
+        if: steps.check.outputs.proceed == 'true'
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
         run: |
           sed -i "s/^version: .*/version: ${VERSION}/" apm.yml
           sed -i "s/oddyssey-mcp==[^\"]*/oddyssey-mcp==${VERSION}/" apm.yml
           sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" src/mcp-server/pyproject.toml
           uv lock --project src/mcp-server
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add apm.yml src/mcp-server/pyproject.toml src/mcp-server/uv.lock
-          git commit -m "chore(release): ${VERSION}"
-          git tag "${TAG}"
-          git push origin main "${TAG}"
-          gh release create "${TAG}" --title "${TAG}" --notes "${CHANGELOG}"
+      - name: Generate the release-PR notes
+        id: notes
+        if: steps.check.outputs.proceed == 'true'
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4.8.0
+        with:
+          args: --bump --unreleased --strip all -o /tmp/release-notes.md
+      - name: Open or update the release PR
+        if: steps.check.outputs.proceed == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          branch: release/pending
+          delete-branch: true
+          commit-message: "chore(release): ${{ steps.check.outputs.version }}"
+          title: "chore(release): ${{ steps.check.outputs.version }}"
+          body: ${{ steps.notes.outputs.content }}
+          add-paths: |
+            apm.yml
+            src/mcp-server/pyproject.toml
+            src/mcp-server/uv.lock
+            CHANGELOG.md
 
-  build:
+  tag-and-release:
+    # Runs on the merge of the chore(release) PR: tags the merge commit and
+    # publishes the GitHub release with the git-cliff notes.
     runs-on: ubuntu-latest
-    needs: release
-    if: needs.release.outputs.released == 'true'
+    if: "github.event_name == 'push' && startsWith(github.event.head_commit.message, 'chore(release)')"
+    permissions:
+      contents: write
+    outputs:
+      released: ${{ steps.tag.outputs.released }}
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release.outputs.tag }}
+          fetch-depth: 0
+      - name: Tag the release
+        id: tag
+        run: |
+          VERSION="$(grep '^version:' apm.yml | awk '{print $2}')"
+          TAG="v${VERSION}"
+          git tag "${TAG}"
+          git push origin "${TAG}"
+          echo "released=true" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+      - name: Generate the release notes
+        id: notes
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4.8.0
+        with:
+          args: --latest --strip all -o /tmp/release-notes.md
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          NOTES: ${{ steps.notes.outputs.content }}
+        run: gh release create "${TAG}" --title "${TAG}" --notes "${NOTES}"
+
+  build:
+    runs-on: ubuntu-latest
+    needs: tag-and-release
+    if: always() && (needs.tag-and-release.outputs.released == 'true' || github.event_name == 'workflow_dispatch')
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.tag-and-release.outputs.tag || github.sha }}
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       - name: Build the MCP server package
         run: uv build src/mcp-server --out-dir dist
@@ -69,6 +130,7 @@ jobs:
     # only ever exists in this job, which runs no project code.
     runs-on: ubuntu-latest
     needs: build
+    if: always() && needs.build.result == 'success'
     environment: pypi
     permissions:
       id-token: write
