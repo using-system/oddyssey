@@ -1,3 +1,8 @@
+## [1.2.1] - 2026-08-22
+
+### 📚 Documentation
+
+- *(readme)* Update command and one-telemetry-two-consumers principle (#28)
 ## [1.2.0] - 2026-08-22
 
 ### 🚀 Features
@@ -7,6 +12,10 @@
 ### 📚 Documentation
 
 - *(readme)* Document the claude install command and the other targets (#24)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.2.0 (#27)
 ## [1.1.0] - 2026-08-22
 
 ### 🚀 Features
