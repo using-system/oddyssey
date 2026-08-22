@@ -111,7 +111,7 @@ service runs, so derive it per service (step 4) instead of writing
 5. **Verification protocol** — how to prove instrumentation works once
    implemented: start the local stack (`odd_stack_up`), run each service
    with its `OTEL_*` block, exercise one scenario, and confirm each signal
-   arrives (the `observe-local-run` agent can do the confirmation).
+   arrives (the `observe-run` agent can do the confirmation).
 
 ## Rules
 

@@ -42,9 +42,10 @@ commands below keep it for explicitness, but it can be dropped.
 
 Each shell invocation starts fresh, so `export GCX_CONFIG=...` again in every
 command block (or prefix the command with it) — the file itself persists, so
-the write and `gcx config check` happen only once per session. Use the
-`setup-gcx` skill only if gcx itself is missing or broken at machine level;
-for this stack the block above is the whole setup.
+the write and `gcx config check` happen only once per session. If gcx
+itself is missing, install it per the README prerequisites (`brew install
+gcx` or the official install script); for this stack the block above is
+the whole setup.
 
 ## Datasources
 
@@ -63,8 +64,8 @@ names its own telemetry — never assume a metric, label, or stream exists.
 
 Apps push OTLP into the stack; Prometheus scrapes nothing here. So
 `up{job="<service>"}` is **empty for every service, healthy or not** — it
-proves nothing, and any workflow that gates on it (including the
-`debug-with-grafana` liveness step) must skip it. Prove a service is present
+proves nothing, and any workflow that gates on a scrape-style liveness
+check must skip it. Prove a service is present
 with its own data instead: a Tempo search for
 `{resource.service.name="<svc>"}`, a Prometheus series carrying it
 (`target_info{service_name="<svc>"}` or whatever discovery returns), a Loki
