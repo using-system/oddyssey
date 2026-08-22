@@ -20,7 +20,11 @@ jobs:
         run: |
           echo "## apm install — files materialized per target" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          for target in claude copilot cursor codex gemini grok-build opencode windsurf kiro; do
+          # grok-build is excluded: it has no MCP client, and this package
+          # declares an MCP server, which apm rightly refuses to drop.
+          echo "_target \`grok-build\` skipped: no MCP client for the declared server._" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          for target in claude copilot cursor codex gemini opencode windsurf kiro; do
             dir="$(mktemp -d)"
             git init -q "$dir/consumer"
             (
