@@ -116,6 +116,14 @@ than the local otel-lgtm container.
 | `odd_stack_status` | Probe whether it is up |
 | `odd_stack_reset` | Wipe all stored telemetry and return a fresh, ready stack — the next run starts from a clean slate |
 
+The server is instrumented with OpenTelemetry and, by default, exports its
+own traces and metrics to the local stack (`http://localhost:4318`, OTLP
+`http/protobuf` — the protocol is fixed, `OTEL_EXPORTER_OTLP_PROTOCOL` set
+to anything else is not honored). Any `OTEL_*` variable set in the MCP
+client's env block overrides the defaults, and `OTEL_SDK_DISABLED=true`
+turns telemetry off entirely. When the stack is down, telemetry is silently
+dropped — the normal state, and never a failure of the server.
+
 ## The agents and skills
 
 | Primitive | Role |

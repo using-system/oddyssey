@@ -33,6 +33,24 @@ _DEFAULT_ENV = {
     "OTEL_SEMCONV_STABILITY_OPT_IN": "http",
 }
 
+# The metric is in seconds; the SDK's default explicit buckets are
+# millisecond-shaped (5, 10, 25, ... 10000) and would collapse every
+# sub-5s tool call into the first bucket.
+_DURATION_BUCKETS_SECONDS = [
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1,
+    2.5,
+    5,
+    10,
+    30,
+    60,
+    120,
+    300,
+]
+
 # Module globals read at call time by traced_tool/docker_span: the no-op
 # API tracer until setup_telemetry installs the real one.
 _tracer: trace.Tracer = trace.get_tracer(_INSTRUMENTATION_NAME)
@@ -49,62 +67,73 @@ def setup_telemetry() -> Callable[[], None]:
     if os.environ.get("OTEL_SDK_DISABLED", "").strip().lower() == "true":
         return lambda: None
 
-    # Export failures (stack down) are normal: never let the exporters
-    # spam the client's stderr view.
-    logging.getLogger("opentelemetry").setLevel(logging.CRITICAL)
+    try:
+        # Export failures (stack down) are normal: never let the exporters
+        # spam the client's stderr view.
+        logging.getLogger("opentelemetry").setLevel(logging.CRITICAL)
 
-    for var, value in _DEFAULT_ENV.items():
-        os.environ.setdefault(var, value)
+        for var, value in _DEFAULT_ENV.items():
+            os.environ.setdefault(var, value)
 
-    from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
-        OTLPMetricExporter,
-    )
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-        OTLPSpanExporter,
-    )
-    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-    from opentelemetry.sdk.metrics import MeterProvider
-    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-    from opentelemetry.sdk.resources import Resource
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+            OTLPMetricExporter,
+        )
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+            OTLPSpanExporter,
+        )
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+        from opentelemetry.sdk.metrics import MeterProvider
+        from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-    attributes = {
-        "service.version": importlib_metadata.version("oddyssey-mcp"),
-    }
-    # Resource.create lets explicitly passed attributes win over
-    # OTEL_RESOURCE_ATTRIBUTES, so only inject the default environment
-    # name when the user did not state one.
-    if "deployment.environment.name=" not in os.environ.get(
-        "OTEL_RESOURCE_ATTRIBUTES", ""
-    ):
-        attributes["deployment.environment.name"] = "local"
-    resource = Resource.create(attributes)
+        attributes = {
+            "service.version": importlib_metadata.version("oddyssey-mcp"),
+        }
+        # Resource.create lets explicitly passed attributes win over
+        # OTEL_RESOURCE_ATTRIBUTES, so only inject the default environment
+        # name when the user did not state one.
+        if "deployment.environment.name=" not in os.environ.get(
+            "OTEL_RESOURCE_ATTRIBUTES", ""
+        ):
+            attributes["deployment.environment.name"] = "local"
+        resource = Resource.create(attributes)
 
-    tracer_provider = TracerProvider(resource=resource)
-    tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-    trace.set_tracer_provider(tracer_provider)
+        tracer_provider = TracerProvider(resource=resource)
+        tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+        trace.set_tracer_provider(tracer_provider)
 
-    meter_provider = MeterProvider(
-        resource=resource,
-        metric_readers=[PeriodicExportingMetricReader(OTLPMetricExporter())],
-    )
-    metrics.set_meter_provider(meter_provider)
+        meter_provider = MeterProvider(
+            resource=resource,
+            metric_readers=[PeriodicExportingMetricReader(OTLPMetricExporter())],
+        )
+        metrics.set_meter_provider(meter_provider)
 
-    global _tracer, _duration_histogram, _tracer_provider
-    _tracer_provider = tracer_provider
-    _tracer = trace.get_tracer(_INSTRUMENTATION_NAME)
-    _duration_histogram = metrics.get_meter(_INSTRUMENTATION_NAME).create_histogram(
-        "mcp.server.operation.duration",
-        unit="s",
-        description="Duration of MCP server tool operations",
-    )
+        global _tracer, _duration_histogram, _tracer_provider
+        _tracer_provider = tracer_provider
+        _tracer = trace.get_tracer(_INSTRUMENTATION_NAME)
+        _duration_histogram = metrics.get_meter(_INSTRUMENTATION_NAME).create_histogram(
+            "mcp.server.operation.duration",
+            unit="s",
+            description="Duration of MCP server tool operations",
+            explicit_bucket_boundaries_advisory=_DURATION_BUCKETS_SECONDS,
+        )
 
-    HTTPXClientInstrumentor().instrument()
+        HTTPXClientInstrumentor().instrument()
+    except Exception:  # noqa: BLE001 - telemetry must never take the server down
+        # A broken bootstrap (missing package metadata, an OTEL_* value an
+        # exporter rejects, ...) degrades to no telemetry, never no server.
+        return lambda: None
 
     def shutdown() -> None:
-        tracer_provider.shutdown()
-        meter_provider.shutdown()
+        # Best-effort: a flush/shutdown error must not mask mcp.run()'s
+        # own exit through main()'s finally block.
+        try:
+            tracer_provider.shutdown()
+            meter_provider.shutdown()
+        except Exception:  # noqa: BLE001, S110 - shutdown is best-effort
+            pass
 
     return shutdown
 

@@ -3,6 +3,8 @@ import sys
 
 import pytest
 from oddyssey_mcp import telemetry
+from opentelemetry.sdk.metrics import MeterProvider as SdkMeterProvider
+from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from opentelemetry.sdk.trace import TracerProvider as SdkTracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
@@ -58,6 +60,22 @@ def test_enabled_setup_writes_nothing_to_stdout():
     assert result.stdout == ""
 
 
+def test_bootstrap_failure_degrades_to_no_telemetry(clean_otel_env, monkeypatch):
+    # Anything blowing up in the enabled path (missing package metadata, an
+    # OTEL_* value an exporter rejects, ...) must cost telemetry, never the
+    # server. The patch point is called BEFORE any global provider is set,
+    # so no half-installed provider leaks into the rest of the session.
+    def boom(*args, **kwargs):
+        raise RuntimeError("no package metadata")
+
+    monkeypatch.setattr(telemetry.importlib_metadata, "version", boom)
+
+    shutdown = telemetry.setup_telemetry()
+
+    assert callable(shutdown)
+    shutdown()  # must not raise either
+
+
 @pytest.fixture()
 def span_capture(monkeypatch):
     exporter = InMemorySpanExporter()
@@ -97,6 +115,42 @@ def test_traced_tool_records_exception_and_reraises(span_capture):
     (span,) = span_capture.get_finished_spans()
     assert not span.status.is_ok
     assert span.events[0].name == "exception"
+
+
+@pytest.fixture()
+def metric_capture(monkeypatch):
+    reader = InMemoryMetricReader()
+    provider = SdkMeterProvider(metric_readers=[reader])
+    histogram = provider.get_meter("test").create_histogram(
+        "mcp.server.operation.duration",
+        unit="s",
+        description="Duration of MCP server tool operations",
+    )
+    monkeypatch.setattr(telemetry, "_duration_histogram", histogram)
+    return reader
+
+
+def test_traced_tool_records_duration_histogram(span_capture, metric_capture):
+    @telemetry.traced_tool
+    def odd_measured() -> dict:
+        return {"ok": True}
+
+    odd_measured()
+
+    points = [
+        point
+        for resource_metric in metric_capture.get_metrics_data().resource_metrics
+        for scope_metric in resource_metric.scope_metrics
+        for metric in scope_metric.metrics
+        if metric.name == "mcp.server.operation.duration"
+        for point in metric.data.data_points
+    ]
+
+    assert len(points) == 1
+    (point,) = points
+    assert point.attributes["mcp.method.name"] == "tools/call"
+    assert point.attributes["gen_ai.tool.name"] == "odd_measured"
+    assert point.count == 1
 
 
 def test_docker_span_names_and_attributes(span_capture):
