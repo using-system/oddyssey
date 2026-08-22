@@ -1,5 +1,5 @@
 ---
-name: plan-otel-instrumentation
+name: otel-instrumentation-expert
 description: Investigate a codebase or stack and hand the main agent every input it needs to build a complete spec-driven plan for implementing OpenTelemetry instrumentation. Input - the path (or repo) to investigate and, if known, the export target. Read-only - this agent investigates and reports; it never writes instrumentation code.
 ---
 
