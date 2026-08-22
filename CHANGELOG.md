@@ -1,8 +1,17 @@
+## [1.1.1] - 2026-08-22
+
+### 📚 Documentation
+
+- *(readme)* Document the claude install command and the other targets (#24)
 ## [1.1.0] - 2026-08-22
 
 ### 🚀 Features
 
 - *(apm)* In-repo observation memory and /odd-verify verification pass (#22)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.1.0 (#23)
 ## [1.0.0] - 2026-08-22
 
 ### 🚀 Features
