@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 # mcp 2.0 renamed the high-level server: `mcp.server.fastmcp.FastMCP` is gone,
 # the equivalent is `mcp.server.MCPServer` (canonically
 # `mcp.server.mcpserver.MCPServer`). The `@server.tool()` decorator and the
@@ -43,6 +45,11 @@ def odd_stack_reset() -> dict:
 
 
 def main() -> None:
+    # The mcp SDK configures INFO logging, which lets httpx announce every
+    # readiness probe on stderr (28 lines per observed session). Quiet the
+    # HTTP client loggers; real errors still surface at WARNING+.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     shutdown = telemetry.setup_telemetry()
     try:
         mcp.run()

@@ -99,6 +99,17 @@ def setup_telemetry() -> Callable[[], None]:
         ):
             attributes["deployment.environment.name"] = "local"
         resource = Resource.create(attributes)
+        # SDK 1.44 generates a service.instance.id UUID by default; spec
+        # decision #9 forbids it (per-session Prometheus label growth).
+        # Keep it only when the user asked for one explicitly.
+        if "service.instance.id=" not in os.environ.get("OTEL_RESOURCE_ATTRIBUTES", ""):
+            resource = Resource(
+                {
+                    k: v
+                    for k, v in resource.attributes.items()
+                    if k != "service.instance.id"
+                }
+            )
 
         tracer_provider = TracerProvider(resource=resource)
         tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))

@@ -161,3 +161,29 @@ def test_docker_span_names_and_attributes(span_capture):
     assert finished.name == "oddyssey.docker.inspect"
     assert finished.attributes["oddyssey.docker.container"] == "oddyssey-lgtm"
     assert finished.attributes["oddyssey.docker.exit_code"] == 0
+
+
+def test_resource_has_no_service_instance_id():
+    # SDK 1.44 Resource.create() generates a service.instance.id UUID by
+    # default -> one Prometheus series set per MCP session (observation
+    # report finding 2, spec decision #9 says: not set). Full bootstrap in
+    # a subprocess (global providers are set-once); verdict via stderr,
+    # stdout must stay empty.
+    code = (
+        "import sys; from opentelemetry import trace; "
+        "from oddyssey_mcp import telemetry; "
+        "shutdown = telemetry.setup_telemetry(); "
+        "attrs = trace.get_tracer_provider().resource.attributes; "
+        "sys.stderr.write('instance_id_present=%s' % ('service.instance.id' in attrs)); "
+        "shutdown()"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ""
+    assert "instance_id_present=False" in result.stderr

@@ -197,3 +197,20 @@ verification uses the ODD loop itself:
 - **Remote export**: works already via user-set `OTEL_*` env vars
   (endpoint + `OTEL_EXPORTER_OTLP_HEADERS` from a secret source); no
   code change anticipated.
+
+## Revision 2026-08-23 (post-observation fix wave)
+
+Driven by the first observation report
+(`.odd/observe-run-reports/2026-08-22-2154-mcp-otel-instrumentation-verification.md`).
+
+- **Decision #9 enforced in code**: opentelemetry-sdk 1.44 generates a
+  `service.instance.id` UUID by default; `setup_telemetry` now strips it
+  unless the user sets one in `OTEL_RESOURCE_ATTRIBUTES`.
+- **stderr hygiene**: `httpx`/`httpcore` loggers capped at WARNING in
+  `main()` — the mcp SDK's INFO logging otherwise announces every
+  readiness probe.
+- Corrections to earlier text: `Resource.create` gives PASSED attributes
+  precedence over `OTEL_RESOURCE_ATTRIBUTES` (§5.1 said the opposite);
+  histogram buckets are pinned in code to 0.05…300 s (the original spec
+  was silent); user-facing docs are in scope (README documents the
+  default-on behavior).
