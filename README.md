@@ -69,15 +69,6 @@ Or wire the server into any `mcpServers` config:
 From a clone, run it from the working tree instead:
 `uv run --project src/mcp-server oddyssey-mcp`.
 
-## The demo
-
-`examples/n-plus-one` is a FastAPI app whose `GET /users` runs one query
-per user; `ODD_FIXED=1` switches to a single joined query. Both variants
-print byte-identical stdout — only the telemetry sees the difference
-(measured: 52 vs 2 DB spans per request, p95 22.8 ms vs 4.9 ms —
-[spike notes](docs/superpowers/spike-notes-2026-08-17.md)). A good target
-for trying the agents.
-
 ## Development
 
 ```bash
