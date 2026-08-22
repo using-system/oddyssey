@@ -3,6 +3,11 @@ version: 0.1.0
 description: Observability-Driven Development for CLI coding agents
 
 dependencies:
+  apm:
+    # Specialized Grafana skills used by the observe-local-run agent
+    - grafana/gcx/claude-plugin/skills/gcx
+    - grafana/gcx/claude-plugin/skills/setup-gcx
+    - grafana/gcx/claude-plugin/skills/debug-with-grafana
   mcp:
     - name: oddyssey
       registry: false

@@ -1,9 +1,9 @@
 ---
-name: odd
-description: Observability-Driven Development loop for local runs. Use when asked to measure the performance impact of a change, hunt a regression or an N+1 query, verify an optimization actually worked, or set up local observability (traces/metrics) for a dev run. Uses the oddyssey MCP tools (odd_stack_up, odd_summarize, odd_baseline, odd_diff).
+name: measure-change-impact
+description: Measure the impact of a code change with real telemetry - baseline before, diff after, budget verdict. Use when asked to measure the performance impact of a change, hunt a regression or an N+1 query, or verify an optimization actually worked. Uses the oddyssey MCP tools (odd_stack_up, odd_baseline, odd_diff).
 ---
 
-# Observability-Driven Development
+# Measure Change Impact
 
 You have MCP tools from the `oddyssey` server to measure what code changes
 actually do to a running service — latency, error counts, DB query volume —

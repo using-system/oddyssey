@@ -6,7 +6,10 @@ import httpx
 
 from .errors import StackUnreachableError
 
-DEFAULT_BASE_URL = "http://localhost:9090"
+# Queries go through the Grafana datasource proxy: only Grafana's port is
+# exposed, and the same path works against any Grafana that has a
+# "prometheus" datasource (the otel-lgtm image provisions that UID).
+DEFAULT_BASE_URL = "http://localhost:3000/api/datasources/proxy/uid/prometheus"
 
 _UNREACHABLE_HINT = (
     "Is the otel-lgtm stack running? "
