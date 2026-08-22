@@ -92,8 +92,8 @@ def stack_up() -> dict:
 
 
 def stack_down() -> dict:
-    """Remove the stack container; an absent container is already down."""
-    result = _docker("rm", "--force", CONTAINER_NAME)
+    """Destroy the stack container (and its data); absent is already down."""
+    result = _docker("rm", "--force", "--volumes", CONTAINER_NAME)
     if result.returncode != 0 and "No such container" not in result.stderr:
         raise RuntimeError(f"docker rm failed: {result.stderr.strip()}")
     return {"running": False}

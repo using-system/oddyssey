@@ -46,7 +46,7 @@ than the local otel-lgtm container.
 | Tool | What it does |
 | --- | --- |
 | `odd_stack_up` | Start the local stack and wait until it is ready |
-| `odd_stack_down` | Stop it |
+| `odd_stack_down` | Destroy it — stored telemetry does not survive |
 | `odd_stack_status` | Probe whether it is up |
 | `odd_stack_reset` | Wipe all stored telemetry and return a fresh, ready stack — the next run starts from a clean slate |
 

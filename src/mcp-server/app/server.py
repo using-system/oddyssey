@@ -21,7 +21,7 @@ def odd_stack_up() -> dict:
 
 @mcp.tool()
 def odd_stack_down() -> dict:
-    """Stop the local LGTM observability stack."""
+    """Stop and remove the local LGTM stack; stored telemetry does not survive."""
     return stack_ops.stack_down()
 
 
