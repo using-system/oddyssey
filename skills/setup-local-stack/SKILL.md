@@ -65,11 +65,10 @@ names its own telemetry — never assume a metric, label, or stream exists.
 Apps push OTLP into the stack; Prometheus scrapes nothing here. So
 `up{job="<service>"}` is **empty for every service, healthy or not** — it
 proves nothing, and any workflow that gates on a scrape-style liveness
-check must skip it. Prove a service is present
-with its own data instead: a Tempo search for
-`{resource.service.name="<svc>"}`, a Prometheus series carrying it
-(`target_info{service_name="<svc>"}` or whatever discovery returns), a Loki
-stream selecting it.
+check must skip it. Prove a service is present with its own data instead: a
+Tempo search for `{resource.service.name="<svc>"}`, a Prometheus series
+carrying it (`target_info{service_name="<svc>"}` or whatever discovery
+returns), a Loki stream selecting it.
 
 Also absent from this stack: `gcx assistant` and investigations — Grafana
 Cloud features the local anonymous instance does not serve.

@@ -95,8 +95,9 @@ explicitly authorized driving a **remote** service, only `run-scenario`'s
 scenario-record protocol applies: the endpoints, payloads, and counts come
 from the caller (never invented, never discovered by probing), the base URL
 is the caller's, not `localhost`, and the flush wait before querying is the
-backend's own ingest lag from its `observability-cli-guides` reference file
-— not the local stack's ~10 s / ~60 s.
+backend's documented ingest latency — check its official docs via the
+`observability-cli-guides` reference; absent a documented figure, prove data
+has landed with a bounded query — not the local stack's ~10 s / ~60 s.
 
 Every service emits its **own** metrics, spans, and logs — **discover
 first, then query what you found; never assume names**:
