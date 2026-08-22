@@ -90,7 +90,13 @@ isolating the run matters — call `odd_stack_reset` before the scenario:
 everything the stack then contains IS the run, and the window becomes
 trivial. Reset wipes ALL stored telemetry for every service, so never use
 it on a stack whose history the caller still needs (and there is no reset
-on remote backends — scope with the window instead).
+on remote backends — scope with the window instead). When the caller has
+explicitly authorized driving a **remote** service, only `run-scenario`'s
+scenario-record protocol applies: the endpoints, payloads, and counts come
+from the caller (never invented, never discovered by probing), the base URL
+is the caller's, not `localhost`, and the flush wait before querying is the
+backend's own ingest lag from its `observability-cli-guides` reference file
+— not the local stack's ~10 s / ~60 s.
 
 Every service emits its **own** metrics, spans, and logs — **discover
 first, then query what you found; never assume names**:

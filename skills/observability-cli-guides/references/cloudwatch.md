@@ -32,6 +32,7 @@ mirror was found; fetch and convert, don't guess at raw links.
 | Traces (search) | `aws xray get-trace-summaries --start-time <epoch-s> --end-time <epoch-s> --filter-expression 'service("api.example.com")'` | [get-trace-summaries](https://docs.aws.amazon.com/cli/latest/reference/xray/get-trace-summaries.html) | Returns trace IDs + annotation summaries matching the filter, not full trace bodies — feed the IDs to `batch-get-traces` for detail. `--time-range-type` can key the search on `TraceId` (default), `Event`, or `Service`. |
 | Traces (full detail) | `aws xray batch-get-traces --trace-ids <id1> <id2> ...` | [batch-get-traces](https://docs.aws.amazon.com/cli/latest/reference/xray/batch-get-traces.html) | Returns full segment/subsegment JSON per trace ID (duration, resources, exceptions, annotations). Does not work if the account has Transaction Search enabled — traces then aren't indexed in classic X-Ray and must be queried differently. |
 | Traces (service map) | `aws xray get-service-graph --start-time <epoch-s> --end-time <epoch-s>` | [get-service-graph](https://docs.aws.amazon.com/cli/latest/reference/xray/get-service-graph.html) | The node/edge graph backing the X-Ray console's Service Map — use for a topology view rather than individual trace inspection. |
+| Profiles | Not a CloudWatch signal — profiling lives in the separate Amazon CodeGuru Profiler service: `aws codeguruprofiler list-profiling-groups --include-description` then `aws codeguruprofiler get-profile --profiling-group-name <name> --period P1D --accept application/json <outfile>` | [codeguruprofiler CLI reference](https://docs.aws.amazon.com/cli/latest/reference/codeguruprofiler/index.html), [get-profile](https://docs.aws.amazon.com/cli/latest/reference/codeguruprofiler/get-profile.html), [list-profiling-groups](https://docs.aws.amazon.com/cli/latest/reference/codeguruprofiler/list-profiling-groups.html), [What is CodeGuru Profiler](https://docs.aws.amazon.com/codeguru/latest/profiler-ug/what-is-codeguru-profiler.html) | `get-profile` writes the aggregated profile to a positional `<outfile>`; pick the window with 1 or 2 of `--start-time`/`--end-time`/`--period` (ISO 8601, e.g. `P1DT1H1M1S`), max range **7 days**. `--accept` defaults to `application/x-amzn-ion` — pass `application/json` for a readable profile. `--max-depth` (1–10000) caps stack depth. Requires the CodeGuru Profiler agent in the application and a profiling group; supported runtimes are JVM languages and Python 3.6+. No `aws cloudwatch`/`aws logs`/`aws xray` command returns profiles. |
 
 ## Planning notes
 
@@ -53,6 +54,12 @@ mirror was found; fetch and convert, don't guess at raw links.
   enabled on the account (traces stop being indexed in classic X-Ray) — a
   quirk worth checking for before assuming this path works in a given
   account.
+- Profiles are not part of CloudWatch or X-Ray: continuous profiling is
+  Amazon CodeGuru Profiler, a separate service with its own `aws
+  codeguruprofiler` command group, its own agent in the application, its
+  own profiling groups, and JVM/Python-only runtime support. If the account
+  has no profiling group, profiles are a genuine telemetry gap on this
+  backend — say so rather than substituting CPU metrics for them.
 - Auth scope: SSO/Identity Center credentials are short-lived and cached
   per `sso-session`; automation (CI, long-running agents) should prefer a
   static IAM user, assumed role, or instance/container role over an
