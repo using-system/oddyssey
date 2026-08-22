@@ -85,26 +85,6 @@ agent's spec-driven workflow) → **observe again** — telemetry on both ends.
 apm install using-system/oddyssey
 ```
 
-Or wire the server into any `mcpServers` config:
-
-```json
-{
-  "mcpServers": {
-    "oddyssey": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/using-system/oddyssey#subdirectory=src/mcp-server",
-        "oddyssey-mcp"
-      ]
-    }
-  }
-}
-```
-
-From a clone, run it from the working tree instead:
-`uv run --project src/mcp-server oddyssey-mcp`.
-
 ## Development
 
 ```bash
