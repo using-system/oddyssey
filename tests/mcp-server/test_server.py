@@ -6,6 +6,7 @@ EXPECTED_TOOLS = {
     "odd_stack_up",
     "odd_stack_down",
     "odd_stack_status",
+    "odd_stack_reset",
 }
 
 

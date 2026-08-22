@@ -97,3 +97,15 @@ def stack_down() -> dict:
     if result.returncode != 0 and "No such container" not in result.stderr:
         raise RuntimeError(f"docker rm failed: {result.stderr.strip()}")
     return {"running": False}
+
+
+def stack_reset() -> dict:
+    """Wipe all stored telemetry and return a fresh, ready stack.
+
+    The stack runs without volumes, so destroying the container erases every
+    stored signal (traces, metrics, logs, profiles) by construction; a new
+    container then starts from the image. After a reset, everything the
+    stack contains IS the next run - no window arithmetic needed.
+    """
+    stack_down()
+    return stack_up()

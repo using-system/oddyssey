@@ -31,6 +31,12 @@ def odd_stack_status() -> dict:
     return stack_ops.stack_status()
 
 
+@mcp.tool()
+def odd_stack_reset() -> dict:
+    """Wipe all stored telemetry (traces, metrics, logs, profiles) and return a fresh, ready stack."""
+    return stack_ops.stack_reset()
+
+
 def main() -> None:
     mcp.run()
 
