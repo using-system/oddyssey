@@ -48,6 +48,55 @@ Everything is packaged for any coding agent
 ([APM](https://microsoft.github.io/apm/): Claude Code, Copilot, Cursor,
 Codex, Gemini, and friends).
 
+## How to
+
+The loop in three prompts — every example below links to a real artifact
+from this repository: oddyssey instrumented, observed, and verified its
+own MCP server.
+
+**Step 1 — Instrument OpenTelemetry.**
+
+```text
+/odd-instrument add OpenTelemetry to my project XXX
+```
+
+The `otel-instrumentation-expert` agent investigates the codebase and
+hands back everything a spec-driven wave needs. Real output of that wave
+on this repo: the
+[design spec](docs/superpowers/specs/2026-08-22-mcp-otel-instrumentation-design.md)
+and the
+[implementation plan](docs/superpowers/plans/2026-08-22-mcp-otel-instrumentation.md)
+generated with [superpowers](https://github.com/obra/superpowers) from
+the agent's investigation report.
+
+**Step 2 — Observe a local run.**
+
+```text
+/odd-observe check that my project XXX starts and answers requests on the /user endpoint
+```
+
+The `observe-run` agent drives the run, queries the telemetry, and
+stores its report in `.odd/observe-run-reports/` — findings, evidence,
+and the replay protocol the verification will consume. Real example: the
+[first observation report](.odd/observe-run-reports/2026-08-22-2154-mcp-otel-instrumentation-verification.md)
+(4 confirmed findings) and the
+[fix-wave plan](docs/superpowers/plans/2026-08-23-mcp-otel-fix-wave.md)
+the next SDD wave built from it.
+
+**Step 3 — Verify the fixes the SDD wave delivered.**
+
+```text
+/odd-verify check that report XXX from .odd has been fixed
+```
+
+The same agent replays the stored report's protocol and rules on every
+recorded item — before-value, after-value, pass criterion. Real example:
+the
+[verification report](.odd/observe-run-reports/2026-08-22-2227-mcp-otel-fix-wave-verification.md)
+— 9/9 checks pass, all 4 findings fixed, measured not assumed.
+
+Then deploy, observe remotely, and start the loop again.
+
 ## The ODD principles
 
 - **The system must be observable locally.** Prefer a docker-compose
@@ -115,6 +164,14 @@ than the local otel-lgtm container.
 | `odd_stack_down` | Destroy it — stored telemetry does not survive |
 | `odd_stack_status` | Probe whether it is up |
 | `odd_stack_reset` | Wipe all stored telemetry and return a fresh, ready stack — the next run starts from a clean slate |
+
+The server is instrumented with OpenTelemetry and, by default, exports its
+own traces and metrics to the local stack (`http://localhost:4318`, OTLP
+`http/protobuf` — the protocol is fixed, `OTEL_EXPORTER_OTLP_PROTOCOL` set
+to anything else is not honored). Any `OTEL_*` variable set in the MCP
+client's env block overrides the defaults, and `OTEL_SDK_DISABLED=true`
+turns telemetry off entirely. When the stack is down, telemetry is silently
+dropped — the normal state, and never a failure of the server.
 
 ## The agents and skills
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 # mcp 2.0 renamed the high-level server: `mcp.server.fastmcp.FastMCP` is gone,
 # the equivalent is `mcp.server.MCPServer` (canonically
 # `mcp.server.mcpserver.MCPServer`). The `@server.tool()` decorator and the
@@ -9,36 +11,65 @@ from __future__ import annotations
 from mcp.server import MCPServer
 
 from . import stack as stack_ops
+from . import telemetry
 
 mcp = MCPServer("oddyssey")
 
+# mcp 2.0 ships its own OpenTelemetryMiddleware on by default, which would
+# duplicate every tool span (and double the spanmetrics counts). The
+# decorator span below is the canonical one - the spec froze its contract,
+# and the SDK marks its middleware API as subject to change before v2
+# final. Defensive: if the SDK moves the class, keep the duplicates rather
+# than crash the server.
+try:
+    from mcp.server._otel import OpenTelemetryMiddleware
+
+    mcp.middleware[:] = [
+        m for m in mcp.middleware if not isinstance(m, OpenTelemetryMiddleware)
+    ]
+except Exception:  # noqa: BLE001, S110 - degraded telemetry beats a dead server
+    pass
+
 
 @mcp.tool()
+@telemetry.traced_tool
 def odd_stack_up() -> dict:
     """Start the local LGTM observability stack (Grafana, Tempo, Prometheus, Loki, OTLP)."""
     return stack_ops.stack_up()
 
 
 @mcp.tool()
+@telemetry.traced_tool
 def odd_stack_down() -> dict:
     """Stop and remove the local LGTM stack; stored telemetry does not survive."""
     return stack_ops.stack_down()
 
 
 @mcp.tool()
+@telemetry.traced_tool
 def odd_stack_status() -> dict:
     """Check whether the local LGTM stack is up (Prometheus and Tempo ready)."""
     return stack_ops.stack_status()
 
 
 @mcp.tool()
+@telemetry.traced_tool
 def odd_stack_reset() -> dict:
     """Wipe all stored telemetry (traces, metrics, logs, profiles) and return a fresh, ready stack."""
     return stack_ops.stack_reset()
 
 
 def main() -> None:
-    mcp.run()
+    # The mcp SDK configures INFO logging, which lets httpx announce every
+    # readiness probe on stderr (28 lines per observed session). Quiet the
+    # HTTP client loggers; real errors still surface at WARNING+.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    shutdown = telemetry.setup_telemetry()
+    try:
+        mcp.run()
+    finally:
+        shutdown()
 
 
 if __name__ == "__main__":

@@ -11,6 +11,8 @@ import time
 
 import httpx
 
+from . import telemetry
+
 IMAGE = "grafana/otel-lgtm:0.30.2"
 CONTAINER_NAME = "oddyssey-lgtm"
 PORTS = ("3000:3000", "4317:4317", "4318:4318")
@@ -22,6 +24,7 @@ PROMETHEUS_READY = "http://localhost:3000/api/datasources/proxy/uid/prometheus/-
 TEMPO_READY = "http://localhost:3000/api/datasources/proxy/uid/tempo/ready"
 GRAFANA_URL = "http://localhost:3000"
 OTLP_ENDPOINT = "http://localhost:4317"
+OTLP_HTTP_INGEST = "http://localhost:4318/v1/traces"
 STARTUP_TIMEOUT_S = 120
 POLL_INTERVAL_S = 2
 
@@ -33,12 +36,15 @@ def run_args() -> list[str]:
 
 
 def _docker(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["docker", *args],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    with telemetry.docker_span(args[0], container=CONTAINER_NAME) as span:
+        result = subprocess.run(
+            ["docker", *args],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        span.set_attribute("oddyssey.docker.exit_code", result.returncode)
+        return result
 
 
 def _container_state() -> str:
@@ -52,6 +58,20 @@ def _container_state() -> str:
 def _probe(client: httpx.Client, url: str) -> bool:
     try:
         return client.get(url).status_code == 200
+    except httpx.TransportError:
+        return False
+
+
+def _otlp_ingest_ready(client: httpx.Client) -> bool:
+    """True once the OTLP HTTP listener answers - any HTTP response counts.
+
+    The Grafana-proxy readiness probes can pass before the embedded
+    collector accepts OTLP, and spans exported into that gap are dropped
+    (observation report finding 3). Only a transport error means not-ready.
+    """
+    try:
+        client.post(OTLP_HTTP_INGEST, content=b"")
+        return True
     except httpx.TransportError:
         return False
 
@@ -72,13 +92,24 @@ def stack_up() -> dict:
         if result.returncode != 0:
             raise RuntimeError(f"docker start failed: {result.stderr.strip()}")
     elif state == "absent":
-        result = subprocess.run(run_args(), capture_output=True, text=True, check=False)
+        with telemetry.docker_span("run", container=CONTAINER_NAME) as span:
+            result = subprocess.run(
+                run_args(), capture_output=True, text=True, check=False
+            )
+            span.set_attribute("oddyssey.docker.exit_code", result.returncode)
         if result.returncode != 0:
             raise RuntimeError(f"docker run failed: {result.stderr.strip()}")
     status = stack_status()
     deadline = time.monotonic() + STARTUP_TIMEOUT_S
     while time.monotonic() < deadline:
         if status["running"]:
+            with httpx.Client(timeout=3.0) as client:
+                while time.monotonic() < deadline and not _otlp_ingest_ready(client):
+                    time.sleep(POLL_INTERVAL_S)
+            # Push spans queued while the stack was down/booting into the
+            # just-ready backend (best effort - already-dropped batches are
+            # gone, and that residual loss is accepted by the spec).
+            telemetry.force_flush()
             return {
                 "running": True,
                 "grafana_url": GRAFANA_URL,
@@ -93,6 +124,7 @@ def stack_up() -> dict:
 
 def stack_down() -> dict:
     """Destroy the stack container (and its data); absent is already down."""
+    telemetry.force_flush()
     result = _docker("rm", "--force", "--volumes", CONTAINER_NAME)
     if result.returncode != 0 and "no such container" not in result.stderr.lower():
         raise RuntimeError(f"docker rm failed: {result.stderr.strip()}")
