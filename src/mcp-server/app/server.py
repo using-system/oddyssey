@@ -21,7 +21,7 @@ def odd_stack_up() -> dict:
 
 @mcp.tool()
 def odd_stack_down() -> dict:
-    """Stop the local LGTM observability stack."""
+    """Stop and remove the local LGTM stack; stored telemetry does not survive."""
     return stack_ops.stack_down()
 
 
@@ -29,6 +29,12 @@ def odd_stack_down() -> dict:
 def odd_stack_status() -> dict:
     """Check whether the local LGTM stack is up (Prometheus and Tempo ready)."""
     return stack_ops.stack_status()
+
+
+@mcp.tool()
+def odd_stack_reset() -> dict:
+    """Wipe all stored telemetry (traces, metrics, logs, profiles) and return a fresh, ready stack."""
+    return stack_ops.stack_reset()
 
 
 def main() -> None:

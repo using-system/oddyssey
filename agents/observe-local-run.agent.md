@@ -79,6 +79,11 @@ have).
 
 In **drive** mode, produce the traffic first with the `run-scenario` skill
 and keep its verbatim record — sections 1 and 7 of the report both quote it.
+When the mission asks for a clean base — or isolating the run matters —
+call `odd_stack_reset` before the scenario: everything the stack then
+contains IS the run, and the window becomes trivial. Reset wipes ALL stored
+telemetry for every service, so never use it on a stack whose history the
+caller still needs.
 
 Every service emits its **own** metrics, spans, and logs — **discover
 first, then query what you found; never assume names**:
