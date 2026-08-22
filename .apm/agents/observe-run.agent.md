@@ -197,9 +197,10 @@ with its stored path:
    you actually concluded belongs in section 3 with its evidence, not here.
 7. **Measurement protocol for the fix** — the exact scenario to replay (the
    same commands as section 1, via the `run-scenario` skill), the
-   observation window to use, and every verification query with its
-   before-value and its pass threshold, so the improvement is verified with
-   numbers, not impressions.
+   observation window to use, and every verification check with its
+   before-value and its pass criterion — a threshold to meet, an error
+   that must be gone, a gap that must be filled — so the improvement is
+   verified with evidence, not impressions.
 
 ## Rules
 
