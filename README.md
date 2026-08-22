@@ -19,10 +19,10 @@ backend (Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...).
 
 oddyssey provides:
 
-- **an OpenTelemetry expert** ([`otel-instrumentation-expert`](agents/otel-instrumentation-expert.agent.md))
+- **an OpenTelemetry expert** ([`otel-instrumentation-expert`](.apm/agents/otel-instrumentation-expert.agent.md))
   that investigates your stack and hands your CLI agent everything needed
   to integrate OpenTelemetry and deploy collectors;
-- **a run investigation agent** ([`observe-run`](agents/observe-run.agent.md)),
+- **a run investigation agent** ([`observe-run`](.apm/agents/observe-run.agent.md)),
   local or remote, that delivers a complete observation report your CLI
   agent turns into a spec-driven plan of fixes and improvements;
 - **a complete local observability stack** based on Grafana, piloted by
@@ -41,7 +41,7 @@ Codex, Gemini, and friends).
   `brew install gcx`, or
   `curl -fsSL https://raw.githubusercontent.com/grafana/gcx/main/scripts/install.sh | sh`.
 - **Other backends** need their own CLI, each covered by the
-  [`observability-cli-guides`](skills/observability-cli-guides/SKILL.md)
+  [`observability-cli-guides`](.apm/skills/observability-cli-guides/SKILL.md)
   skill: Datadog ([Pup](https://github.com/DataDog/pup)), Dynatrace
   ([dtctl](https://github.com/dynatrace-oss/dtctl)), Azure Monitor
   (`az`), AWS CloudWatch/X-Ray (`aws`), Splunk (`splunk`).
@@ -69,12 +69,14 @@ than the local otel-lgtm container.
 
 | Primitive | Role |
 | --- | --- |
-| [`otel-instrumentation-expert`](agents/otel-instrumentation-expert.agent.md) (agent) | Investigate a codebase and hand back every input for a spec-driven plan to implement OpenTelemetry: stack inventory, per-service approach sourced from the official docs, open decisions, verification protocol |
-| [`observe-run`](agents/observe-run.agent.md) (agent) | Observe a running service — on the local stack or any remote backend — through its telemetry (metrics, traces, logs, profiles) and hand back every input for a spec-driven plan of fixes and improvements |
-| [`otel-guides`](skills/otel-guides/SKILL.md) (skill) | Curated map of the official OpenTelemetry docs: every supported language plus the cross-language guides (SDK configuration, semantic conventions, Collector deployment) |
-| [`setup-local-stack`](skills/setup-local-stack/SKILL.md) (skill) | Configure gcx against the local stack without touching the user's contexts, with the datasource UIDs and the push-model caveats |
-| [`observability-cli-guides`](skills/observability-cli-guides/SKILL.md) (skill) | Curated map of every major backend's terminal query surface: Grafana (gcx), Datadog (Pup), Dynatrace (dtctl), Azure Monitor (az), CloudWatch (aws), Splunk |
-| [`run-scenario`](skills/run-scenario/SKILL.md) (skill) | Drive a reproducible request scenario against a local service and record it verbatim, so the same numbers are measurable before a fix and after it |
+| [`otel-instrumentation-expert`](.apm/agents/otel-instrumentation-expert.agent.md) (agent) | Investigate a codebase and hand back every input for a spec-driven plan to implement OpenTelemetry: stack inventory, per-service approach sourced from the official docs, open decisions, verification protocol |
+| [`observe-run`](.apm/agents/observe-run.agent.md) (agent) | Observe a running service — on the local stack or any remote backend — through its telemetry (metrics, traces, logs, profiles) and hand back every input for a spec-driven plan of fixes and improvements |
+| [`otel-guides`](.apm/skills/otel-guides/SKILL.md) (skill) | Curated map of the official OpenTelemetry docs: every supported language plus the cross-language guides (SDK configuration, semantic conventions, Collector deployment) |
+| [`setup-local-stack`](.apm/skills/setup-local-stack/SKILL.md) (skill) | Configure gcx against the local stack without touching the user's contexts, with the datasource UIDs and the push-model caveats |
+| [`observability-cli-guides`](.apm/skills/observability-cli-guides/SKILL.md) (skill) | Curated map of every major backend's terminal query surface: Grafana (gcx), Datadog (Pup), Dynatrace (dtctl), Azure Monitor (az), CloudWatch (aws), Splunk |
+| [`run-scenario`](.apm/skills/run-scenario/SKILL.md) (skill) | Drive a reproducible request scenario against a local service and record it verbatim, so the same numbers are measurable before a fix and after it |
+| [`/odd-observe`](.apm/prompts/odd-observe.prompt.md) (prompt) | Entry point: build a well-formed mission from your arguments and invoke the `observe-run` agent |
+| [`/odd-instrument`](.apm/prompts/odd-instrument.prompt.md) (prompt) | Entry point: point the `otel-instrumentation-expert` agent at a codebase |
 
 The loop: **investigate** (agents) → **spec & implement** (the main
 agent's spec-driven workflow) → **observe again** — telemetry on both ends.

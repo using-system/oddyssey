@@ -1,0 +1,42 @@
+name: ci-apm
+
+on:
+  pull_request:
+
+env:
+  APM_CLI_VERSION: "0.28.0"
+
+jobs:
+  validate:
+    # grok-build is excluded from the matrix: it has no MCP client, and
+    # this package declares an MCP server, which apm rightly refuses.
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          [claude, copilot, cursor, codex, gemini, opencode, windsurf, kiro]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Consumer install, materialized tree in the run summary
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          dir="$(mktemp -d)"
+          git init -q "$dir/consumer"
+          cd "$dir/consumer"
+          uvx --from apm-cli=="$APM_CLI_VERSION" apm install "$GITHUB_WORKSPACE" --target "$TARGET"
+          {
+            echo "### apm install --target ${TARGET}"
+            echo ""
+            echo '```text'
+            git ls-files --others | grep -v '^apm_modules/' | sort
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Validate the package's own manifest (install + audit)
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          uvx --from apm-cli=="$APM_CLI_VERSION" apm install --target "$TARGET"
+          uvx --from apm-cli=="$APM_CLI_VERSION" apm audit
