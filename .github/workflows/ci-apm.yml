@@ -1,0 +1,22 @@
+name: ci-apm
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+env:
+  APM_CLI_VERSION: "0.28.0"
+
+jobs:
+  validate-manifest:
+    # Runs only when the PR carries the validate-apm label: apm resolution
+    # is slower and network-bound, so it is opt-in per PR.
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'validate-apm')
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Install the package with the real APM CLI
+        run: uvx --from apm-cli=="$APM_CLI_VERSION" apm install
+      - name: Audit the installed primitives
+        run: uvx --from apm-cli=="$APM_CLI_VERSION" apm audit
