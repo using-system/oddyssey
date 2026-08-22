@@ -141,6 +141,11 @@ Then deploy, observe remotely, and start the loop again.
 - **What's missing is a finding too.** Telemetry gaps — absent spans,
   logs without trace IDs, missing histograms — are deliverables of the
   observation and feed the next instrumentation wave.
+- **One telemetry, two consumers.** The metrics, traces, and logs do not
+  serve ODD alone: the same data feeds classic runtime observability —
+  dashboards, alerting, incident investigation. Instrument once, and the
+  development loop and the operation of the system read from the same
+  source of truth.
 
 ## Prerequisites
 
