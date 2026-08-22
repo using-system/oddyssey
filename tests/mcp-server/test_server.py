@@ -6,13 +6,10 @@ EXPECTED_TOOLS = {
     "odd_stack_up",
     "odd_stack_down",
     "odd_stack_status",
-    "odd_summarize",
-    "odd_baseline",
-    "odd_diff",
 }
 
 
-def test_all_six_tools_registered():
+def test_all_stack_tools_registered():
     tools = asyncio.run(server.mcp.list_tools())
     assert {tool.name for tool in tools} == EXPECTED_TOOLS
 

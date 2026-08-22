@@ -1,14 +1,12 @@
 [project]
 name = "oddyssey-mcp"
 version = "0.1.0"
-description = "Oddyssey MCP server: ODD measurement tools for CLI coding agents"
+description = "Oddyssey MCP server: pilots the local observability stack for CLI coding agents"
 requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
     "mcp==2.0.0",
-    "pyyaml==6.0.3",
     "httpx==0.28.1",
-    "oddyssey-summarize",
 ]
 
 [project.scripts]
@@ -18,9 +16,6 @@ oddyssey-mcp = "oddyssey_mcp.server:main"
 dev = [
     "pytest==9.1.1",
 ]
-
-[tool.uv.sources]
-oddyssey-summarize = { path = "../summarize", editable = true }
 
 [build-system]
 requires = ["setuptools==84.0.0"]
