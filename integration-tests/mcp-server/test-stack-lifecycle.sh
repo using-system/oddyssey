@@ -8,9 +8,9 @@ source "$(dirname "$0")/lib.sh"
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 
-step "the three stack tools are exposed"
+step "the four stack tools are exposed"
 mcp_list_tools > "$workdir/tools.json"
-jq -e '[.tools[].name] | sort == ["odd_stack_down", "odd_stack_status", "odd_stack_up"]' \
+jq -e '[.tools[].name] | sort == ["odd_stack_down", "odd_stack_reset", "odd_stack_status", "odd_stack_up"]' \
   "$workdir/tools.json" > /dev/null
 
 step "odd_stack_status reports down before start"
