@@ -6,13 +6,6 @@ on:
       - "src/mcp-server/**"
       - "tests/mcp-server/**"
       - ".github/workflows/ci-mcp-server.yml"
-  push:
-    branches:
-      - main
-    paths:
-      - "src/mcp-server/**"
-      - "tests/mcp-server/**"
-      - ".github/workflows/ci-mcp-server.yml"
 
 env:
   RUFF_VERSION: "0.16.4"
