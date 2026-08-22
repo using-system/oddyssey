@@ -1,8 +1,17 @@
+## [1.1.0] - 2026-08-22
+
+### 🚀 Features
+
+- *(apm)* In-repo observation memory and /odd-verify verification pass (#22)
 ## [1.0.0] - 2026-08-22
 
 ### 🚀 Features
 
 - *(apm)* [**breaking**] Restructure primitives under .apm, entry prompts, full-target ci (#19)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.0.0 (#21)
 ## [0.1.1] - 2026-08-22
 
 ### 🐛 Bug Fixes
