@@ -16,7 +16,29 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-      - name: Install the package with the real APM CLI
-        run: uvx --from apm-cli=="$APM_CLI_VERSION" apm install --target claude
-      - name: Audit the installed primitives
-        run: uvx --from apm-cli=="$APM_CLI_VERSION" apm audit
+      - name: Consumer install for every target, tree in the run summary
+        run: |
+          echo "## apm install — files materialized per target" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          for target in claude copilot cursor codex gemini grok-build opencode windsurf kiro; do
+            dir="$(mktemp -d)"
+            git init -q "$dir/consumer"
+            (
+              cd "$dir/consumer"
+              uvx --from apm-cli=="$APM_CLI_VERSION" apm install "$GITHUB_WORKSPACE" --target "$target"
+              {
+                echo "<details><summary><b>${target}</b></summary>"
+                echo ""
+                echo '```text'
+                git ls-files --others | grep -v '^apm_modules/' | sort
+                echo '```'
+                echo "</details>"
+                echo ""
+              } >> "$GITHUB_STEP_SUMMARY"
+            )
+            rm -rf "$dir"
+          done
+      - name: Validate the package's own manifest (install + audit)
+        run: |
+          uvx --from apm-cli=="$APM_CLI_VERSION" apm install --target claude
+          uvx --from apm-cli=="$APM_CLI_VERSION" apm audit
