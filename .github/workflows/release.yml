@@ -9,56 +9,33 @@ on:
   workflow_dispatch:
 
 jobs:
-  release:
+  release-please:
+    # Maintains a release PR (chore: release x.y.z) with the version bumps
+    # and CHANGELOG; merging that PR (human-approved) creates the tag and
+    # the GitHub release. Nothing is ever pushed to main directly.
     runs-on: ubuntu-latest
-    if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release)')"
+    if: github.event_name == 'push'
     permissions:
       contents: write
+      pull-requests: write
     outputs:
-      released: ${{ steps.semver.outputs.new_version != '' }}
-      version: ${{ steps.semver.outputs.new_version }}
-      tag: ${{ steps.semver.outputs.new_tag }}
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
         with:
-          fetch-depth: 0
-      - name: Compute the next version from conventional commits
-        id: semver
-        uses: mathieudutour/github-tag-action@a22cf08638b34d5badda920f9daf6e72c477b07b # v6.2
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          dry_run: true
-          default_bump: false
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        if: steps.semver.outputs.new_version != ''
-      - name: Bump versions, tag, and publish the GitHub release
-        if: steps.semver.outputs.new_version != ''
-        env:
-          VERSION: ${{ steps.semver.outputs.new_version }}
-          TAG: ${{ steps.semver.outputs.new_tag }}
-          CHANGELOG: ${{ steps.semver.outputs.changelog }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          sed -i "s/^version: .*/version: ${VERSION}/" apm.yml
-          sed -i "s/oddyssey-mcp==[^\"]*/oddyssey-mcp==${VERSION}/" apm.yml
-          sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" src/mcp-server/pyproject.toml
-          uv lock --project src/mcp-server
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add apm.yml src/mcp-server/pyproject.toml src/mcp-server/uv.lock
-          git commit -m "chore(release): ${VERSION}"
-          git tag "${TAG}"
-          git push origin main "${TAG}"
-          gh release create "${TAG}" --title "${TAG}" --notes "${CHANGELOG}"
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 
   build:
     runs-on: ubuntu-latest
-    needs: release
-    if: always() && (needs.release.outputs.released == 'true' || github.event_name == 'workflow_dispatch')
+    needs: release-please
+    if: always() && (needs.release-please.outputs.release_created == 'true' || github.event_name == 'workflow_dispatch')
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release.outputs.tag || github.sha }}
+          ref: ${{ needs.release-please.outputs.tag_name || github.sha }}
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       - name: Build the MCP server package
         run: uv build src/mcp-server --out-dir dist
