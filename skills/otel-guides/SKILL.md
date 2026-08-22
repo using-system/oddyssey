@@ -1,5 +1,5 @@
 ---
-name: otel-language-guides
+name: otel-guides
 description: Curated map of the official OpenTelemetry documentation by language. Use when planning or implementing OpenTelemetry instrumentation for a codebase - pick the language, open its reference file, and follow the linked official docs for traces, metrics, logs, instrumentation libraries, exporters, and SDK configuration. Covers C++, .NET, Erlang/Elixir, Go, Java, JavaScript, Kotlin, PHP, Python, Ruby, Rust, Swift, and other community SDKs, plus the cross-language references for SDK configuration, semantic conventions, and the Collector.
 ---
 

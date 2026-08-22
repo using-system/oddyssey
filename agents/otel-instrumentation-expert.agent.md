@@ -43,7 +43,7 @@ service runs, so derive it per service (step 4) instead of writing
    coexistence** into the report as a decision the spec must settle; never
    plan OpenTelemetry alongside a vendor tracer without addressing it.
 3. **Map each service to the official docs** using the
-   `otel-language-guides` skill: open the language's reference file, then
+   `otel-guides` skill: open the language's reference file, then
    fetch the linked official pages that matter for this service (zero-code
    instrumentation availability, the instrumentation libraries covering its
    frameworks — check the registry section — exporters, SDK configuration),
