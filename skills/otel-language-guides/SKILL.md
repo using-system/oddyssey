@@ -1,6 +1,6 @@
 ---
 name: otel-language-guides
-description: Curated map of the official OpenTelemetry documentation by language. Use when planning or implementing OpenTelemetry instrumentation for a codebase - pick the language, open its reference file, and follow the linked official docs for traces, metrics, logs, instrumentation libraries, exporters, and SDK configuration. Covers C++, .NET, Erlang/Elixir, Go, Java, JavaScript, Kotlin, PHP, Python, Ruby, Rust, Swift, and other community SDKs.
+description: Curated map of the official OpenTelemetry documentation by language. Use when planning or implementing OpenTelemetry instrumentation for a codebase - pick the language, open its reference file, and follow the linked official docs for traces, metrics, logs, instrumentation libraries, exporters, and SDK configuration. Covers C++, .NET, Erlang/Elixir, Go, Java, JavaScript, Kotlin, PHP, Python, Ruby, Rust, Swift, and other community SDKs, plus the cross-language references for SDK configuration, semantic conventions, and the Collector.
 ---
 
 # OpenTelemetry Language Guides
@@ -35,12 +35,23 @@ what it covers and what to do with it when planning instrumentation
 zero-code instrumentation where it exists, exporters, resources, sampling,
 API references, registry).
 
-## Cross-language SDK configuration
+## Cross-language references
 
-Whatever the language, the exporter and resource knobs are the same
-environment variables (`OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`,
-`OTEL_RESOURCE_ATTRIBUTES`, ...):
-[references/sdk-configuration.md](references/sdk-configuration.md).
+Three things are the same whatever the language: the environment variables
+that configure the SDK (`OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`,
+`OTEL_RESOURCE_ATTRIBUTES`, ...), the conventions that name what you emit
+(resource, HTTP, database, messaging, RPC, ...), and the option of putting
+a Collector between the app and the backend (agent, gateway, or neither).
+
+| Topic | Reference |
+| --- | --- |
+| SDK configuration | [references/sdk-configuration.md](references/sdk-configuration.md) |
+| Semantic conventions | [references/semconv.md](references/semconv.md) |
+| Collector | [references/collector.md](references/collector.md) |
+
+Open the semantic conventions reference for every domain you name things
+in, and the Collector reference before deciding between direct OTLP export
+and a Collector.
 
 ## Rules
 
@@ -50,5 +61,16 @@ environment variables (`OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`,
 - Prefer zero-code/automatic instrumentation and existing instrumentation
   libraries over manual spans; check the language's registry section before
   writing any manual instrumentation.
+- The registry pages render client-side, so a text fetch of them often
+  returns nothing. When that happens, fall back in order: the language's
+  contrib repository on GitHub (`opentelemetry-<lang>-contrib`, whose
+  README lists the instrumentation packages), then the package index search
+  (`pip index`, `npm search @opentelemetry`, Maven Central, NuGet,
+  crates.io). If a page cannot be fetched at all, say so and mark whatever
+  you derived from it as unverified — never present an unfetched claim as
+  sourced.
+- The planning notes in each reference file are a snapshot (last verified
+  2026-08); the fetched official page always overrides them — re-verify any
+  stability or version claim you rely on.
 - A local export target is one `odd_stack_up` away: OTLP on
   `http://localhost:4317` (gRPC) / `:4318` (HTTP).
