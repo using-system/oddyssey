@@ -82,3 +82,8 @@ jobs:
             src/mcp-server/.venv/bin/oddyssey-mcp --method tools/call --tool-name odd_stack_down > down.json
           jq -e '.content[0].text | contains("\"running\": false")' down.json
           test -z "$(docker ps --filter name=oddyssey-lgtm --quiet)"
+      - name: "MCP client: odd_stack_status confirms it is down"
+        run: |
+          npx -y @modelcontextprotocol/inspector@"$INSPECTOR_VERSION" --cli \
+            src/mcp-server/.venv/bin/oddyssey-mcp --method tools/call --tool-name odd_stack_status > status-final.json
+          jq -e '.content[0].text | contains("\"running\": false")' status-final.json
