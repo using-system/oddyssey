@@ -50,8 +50,9 @@ the report.
   endpoint, or a full sweep (default: full sweep).
 - **Expectations / baseline** — SLO targets, expected request or query
   counts, "it used to be X". Absent a caller baseline, the baseline is
-  the latest stored report for the same service (see Setup step 4);
-  absent that too, the baseline is within-run (see Investigation).
+  the latest stored report for the same service and environment (see
+  Setup step 4); absent that too, the baseline is within-run (see
+  Investigation).
 
 ## Setup
 
@@ -78,13 +79,14 @@ the report.
    empty window. If **some** signals are missing, continue on what exists
    and record each absence in **Telemetry gaps** with the query that came
    back empty.
-4. **Recall the memory.** With the `create-observe-run-report` skill,
-   load the previous reports for the mission's services from
-   `.odd/observe-run-reports/` in the observed repo. The latest match is
-   the recalled baseline: its per-operation numbers and findings are what
-   the new observations diff against. No match is a normal first run —
-   record "no previous report" in section 1 and fall back to the
-   within-run baseline.
+4. **Recall the memory.** When the mission already names a baseline
+   report, use that report as the recalled baseline and skip the recall.
+   Otherwise load the baseline with the `create-observe-run-report`
+   skill's recall procedure — the skill owns the matching rules. Either
+   way, the recalled report's numbers and findings are what the new
+   observations diff against. No match is a normal first run — record
+   "no previous report" in section 1 and fall back to the within-run
+   baseline.
 
 ## Investigation
 
@@ -195,12 +197,13 @@ with its stored path:
 6. **Decisions the spec must settle** — the open questions telemetry cannot
    answer (intended behavior, acceptable trade-offs, priorities). Anything
    you actually concluded belongs in section 3 with its evidence, not here.
-7. **Measurement protocol for the fix** — the exact scenario to replay (the
-   same commands as section 1, via the `run-scenario` skill), the
-   observation window to use, and every verification check with its
-   before-value and its pass criterion — a threshold to meet, an error
-   that must be gone, a gap that must be filled — so the improvement is
-   verified with evidence, not impressions.
+7. **Measurement protocol for the fix** — how the next run must observe:
+   in drive mode, the exact scenario to replay (the same commands as
+   section 1, via the `run-scenario` skill); otherwise, the window and
+   conditions a comparable run needs. Then every verification check with
+   its before-value and its pass criterion — a threshold to meet, an
+   error that must be gone, a gap that must be filled — so the
+   improvement is verified with evidence, not impressions.
 
 ## Rules
 

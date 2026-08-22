@@ -58,14 +58,17 @@ Before a new run, load the baseline:
 
 1. List `.odd/observe-run-reports/` in the observed repo (missing or
    empty directory = first run, no baseline — say so, do not fail).
-2. Filter by frontmatter: keep reports whose `services` intersect the
-   mission's and whose `environment` matches.
-3. The most recent match (filenames sort chronologically) is the
-   baseline. Read its per-operation numbers, findings, and measurement
-   protocol; diff the new observations against them and report the
-   deltas — improved, regressed, unchanged, new.
-4. Older matches are history: use them only when a trend matters
-   (e.g. a number degrading run after run).
+2. Walk the listing newest first (filenames sort chronologically),
+   reading **frontmatter blocks only** — never whole files at this
+   stage. A report matches when its `services` intersect the mission's
+   and its `environment` is the mission's.
+3. The first match is the baseline: read that one report in full — its
+   per-operation numbers, findings, and measurement protocol are the
+   before-values the new run compares against. What the comparison must
+   report belongs to the calling agent's contract, not to this skill.
+4. Older matches are history: only when a trend matters (a number
+   degrading run after run), read at most the few most recent matches,
+   and only the numbers in question — never the full files.
 
 ## Rules
 
