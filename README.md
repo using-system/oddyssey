@@ -4,13 +4,18 @@
 
 ## The idea
 
-Spec-Driven Development gets a coding agent to write the right code. ODD is
-the step around it: the agent works **with the telemetry**, not against
-stdout — it observes what a service really does before planning, and
-verifies with real signals after implementing. An N+1 query is invisible in
-logs and unmissable in a trace.
+ODD complements Spec-Driven Development: observe a running service — local
+or remote — through its telemetry, turn what you see into the next SDD wave
+(spec, plan, implement), then observe again. A continuous improvement loop,
+indefinitely.
 
-This repo is a toolbox for that, packaged for any coding agent
+Everything is built on OpenTelemetry. For **local** observation, the MCP
+server pilots a complete Grafana stack (UI, traces, metrics, logs) that
+agents use to observe and fix. For **remote** environments, observation
+works against a Grafana stack or any other OpenTelemetry backend (Datadog,
+Dynatrace, Azure Monitor, ...).
+
+This repo is a toolbox for that loop, packaged for any coding agent
 ([APM](https://microsoft.github.io/apm/): Claude Code, Copilot, Cursor,
 Codex, Gemini, and friends) — not a fixed measurement product: the agents
 and skills compose with whatever the investigation needs.
