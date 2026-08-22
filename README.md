@@ -17,6 +17,16 @@ Same command for every other supported CLI agent — swap the target:
 `windsurf`. Drop `--global` to install into the current repository
 only.
 
+To update an existing install to the latest version:
+
+```bash
+uvx --from 'apm-cli==0.28.0' apm update --global --target claude using-system/oddyssey
+```
+
+It shows the update plan and asks for confirmation (`--yes` to skip,
+`--dry-run` to only look); `apm outdated` tells you whether an update
+is worth running.
+
 ## The idea
 
 ODD complements Spec-Driven Development: observe a running service — local
