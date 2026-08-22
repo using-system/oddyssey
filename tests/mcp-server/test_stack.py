@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import httpx
-
 from oddyssey_mcp.stack import compose_file, stack_status
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

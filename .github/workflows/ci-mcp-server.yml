@@ -1,0 +1,48 @@
+name: ci-mcp-server
+
+on:
+  pull_request:
+    paths:
+      - "src/mcp-server/**"
+      - "tests/mcp-server/**"
+      - "integration-tests/mcp-server/**"
+      - ".github/workflows/ci-mcp-server.yml"
+
+env:
+  RUFF_VERSION: "0.16.4"
+  INSPECTOR_VERSION: "2.3.0"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Ruff lint
+        run: uvx ruff@"$RUFF_VERSION" check src/mcp-server tests/mcp-server
+      - name: Ruff format check
+        run: uvx ruff@"$RUFF_VERSION" format --check src/mcp-server tests/mcp-server
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Sync project
+        run: uv sync --project src/mcp-server
+      - name: Run unit tests
+        run: uv run --project src/mcp-server pytest -c src/mcp-server/pyproject.toml tests/mcp-server -v
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: [lint, unit-tests]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      - name: Install the MCP server
+        run: uv sync --project src/mcp-server
+      - name: Run the integration tests
+        run: bash integration-tests/mcp-server/run.sh
