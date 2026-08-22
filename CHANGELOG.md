@@ -1,0 +1,21 @@
+## [0.1.0] - 2026-08-22
+
+### 🚀 Features
+
+- Bootstrap oddyssey as an apm package for observability-driven development (#1)
+- Grafana proxy routing, observe-local-run agent, simplified readme (#2)
+- [**breaking**] Reposition as an odd toolbox with otel instrumentation planning (#3)
+- *(mcp)* Drive docker directly without a compose file (#5)
+- *(agents)* Harden both agents into true experts with supporting skills (#7)
+- *(mcp)* Add odd_stack_reset tool (#8)
+- *(agents)* [**breaking**] Generalize observe-run to any observability backend (#9)
+
+### 📚 Documentation
+
+- Add the oddyssey banner to the readme (#6)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(mcp-server)* Add lint, unit-test, and mcp-client integration jobs (#4)
+- *(release)* Auto version bump, github release, and pypi publish (#10)
+- *(release)* Git-history-driven release flow (git-cliff) with approved release pr (#11)
