@@ -6,9 +6,16 @@
 
 ## Install
 
+With [APM](https://microsoft.github.io/apm/), for Claude Code:
+
 ```bash
-apm install using-system/oddyssey
+uvx --from 'apm-cli==0.28.0' apm install --global --target claude using-system/oddyssey
 ```
+
+Same command for every other supported CLI agent — swap the target:
+`--target opencode`, `copilot`, `kiro`, `cursor`, `codex`, `gemini`,
+`windsurf`. Drop `--global` to install into the current repository
+only.
 
 ## The idea
 
