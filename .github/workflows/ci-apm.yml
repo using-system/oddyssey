@@ -7,38 +7,36 @@ env:
   APM_CLI_VERSION: "0.28.0"
 
 jobs:
-  validate-manifest:
+  validate:
+    # grok-build is excluded from the matrix: it has no MCP client, and
+    # this package declares an MCP server, which apm rightly refuses.
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          [claude, copilot, cursor, codex, gemini, opencode, windsurf, kiro]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-      - name: Consumer install for every target, tree in the run summary
+      - name: Consumer install, materialized tree in the run summary
+        env:
+          TARGET: ${{ matrix.target }}
         run: |
-          echo "## apm install — files materialized per target" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          # grok-build is excluded: it has no MCP client, and this package
-          # declares an MCP server, which apm rightly refuses to drop.
-          echo "_target \`grok-build\` skipped: no MCP client for the declared server._" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          for target in claude copilot cursor codex gemini opencode windsurf kiro; do
-            dir="$(mktemp -d)"
-            git init -q "$dir/consumer"
-            (
-              cd "$dir/consumer"
-              uvx --from apm-cli=="$APM_CLI_VERSION" apm install "$GITHUB_WORKSPACE" --target "$target"
-              {
-                echo "<details><summary><b>${target}</b></summary>"
-                echo ""
-                echo '```text'
-                git ls-files --others | grep -v '^apm_modules/' | sort
-                echo '```'
-                echo "</details>"
-                echo ""
-              } >> "$GITHUB_STEP_SUMMARY"
-            )
-            rm -rf "$dir"
-          done
+          dir="$(mktemp -d)"
+          git init -q "$dir/consumer"
+          cd "$dir/consumer"
+          uvx --from apm-cli=="$APM_CLI_VERSION" apm install "$GITHUB_WORKSPACE" --target "$TARGET"
+          {
+            echo "### apm install --target ${TARGET}"
+            echo ""
+            echo '```text'
+            git ls-files --others | grep -v '^apm_modules/' | sort
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Validate the package's own manifest (install + audit)
+        env:
+          TARGET: ${{ matrix.target }}
         run: |
-          uvx --from apm-cli=="$APM_CLI_VERSION" apm install --target claude
+          uvx --from apm-cli=="$APM_CLI_VERSION" apm install --target "$TARGET"
           uvx --from apm-cli=="$APM_CLI_VERSION" apm audit
