@@ -46,12 +46,11 @@ exporting OTLP to `http://localhost:4317`.
 
 ## Investigation
 
-Start with the oddyssey MCP tool `odd_summarize(service, window_seconds)`
-for a quick HTTP-centric overview, then investigate each signal with the
-specialized gcx skills: the `gcx` skill for command discovery (`gcx
-help-tree`), and the `debug-with-grafana` skill for the investigation
-method. Every service emits its **own** metrics, spans, and logs —
-**discover first, then query what you found; never assume names**:
+Investigate each signal with the specialized gcx skills: the `gcx` skill
+for command discovery (`gcx help-tree`), and the `debug-with-grafana`
+skill for the investigation method. Every service emits its **own**
+metrics, spans, and logs — **discover first, then query what you found;
+never assume names**:
 
 - **Metrics** — `gcx metrics labels` / `series` / `metadata` to learn what
   the service exports, then `gcx metrics query` (PromQL) on the discovered
@@ -86,9 +85,10 @@ Return these four sections, in this order:
    (e.g. "collapsing the per-user query loop should cut DB operations from
    ~52 to ~2 per request").
 4. **Measurement protocol for the fix** — a reproducible scenario (exact
-   requests to replay), the observation window to use, and suggested
-   `.odd/perf-budget.yml` rules (`max` / `max_increase`), so the main agent
-   can verify its implementation with the `measure-change-impact` skill.
+   requests to replay), the observation window to use, and the queries
+   (with expected before-values) the main agent should re-run after
+   implementing, so the improvement is verified with numbers, not
+   impressions.
 
 ## Rules
 
