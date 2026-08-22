@@ -1,15 +1,19 @@
-"""LGTM stack lifecycle: compose file resolution, status probe, up/down."""
+"""LGTM stack lifecycle: the server drives Docker directly, no compose file.
+
+The container definition is embedded here (image pin, name, ports), so the
+server is standalone: Docker is the only prerequisite.
+"""
 
 from __future__ import annotations
 
-import importlib.resources
-import os
 import subprocess
-import tempfile
 import time
-from pathlib import Path
 
 import httpx
+
+IMAGE = "grafana/otel-lgtm:0.30.2"
+CONTAINER_NAME = "oddyssey-lgtm"
+PORTS = ("3000:3000", "4317:4317", "4318:4318")
 
 # Readiness is probed through the Grafana datasource proxy: one request
 # checks both Grafana and the backend behind it, and only Grafana's port
@@ -21,25 +25,28 @@ OTLP_ENDPOINT = "http://localhost:4317"
 STARTUP_TIMEOUT_S = 120
 POLL_INTERVAL_S = 2
 
-_materialized: Path | None = None
+
+def run_args() -> list[str]:
+    """The docker run command that creates the stack container."""
+    port_flags = [flag for mapping in PORTS for flag in ("-p", mapping)]
+    return ["docker", "run", "-d", "--name", CONTAINER_NAME, *port_flags, IMAGE]
 
 
-def compose_file() -> Path:
-    """The compose file to drive: env override, else the packaged copy."""
-    override = os.environ.get("ODD_COMPOSE_FILE")
-    if override:
-        return Path(override)
-    global _materialized
-    if _materialized is None or not _materialized.exists():
-        content = (
-            importlib.resources.files("oddyssey_mcp")
-            / "resources"
-            / "docker-compose.yml"
-        ).read_text()
-        target = Path(tempfile.gettempdir()) / "oddyssey-docker-compose.yml"
-        target.write_text(content)
-        _materialized = target
-    return _materialized
+def _docker(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["docker", *args],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _container_state() -> str:
+    """One of "running", "stopped", or "absent"."""
+    result = _docker("inspect", "--format", "{{.State.Running}}", CONTAINER_NAME)
+    if result.returncode != 0:
+        return "absent"
+    return "running" if result.stdout.strip() == "true" else "stopped"
 
 
 def _probe(client: httpx.Client, url: str) -> bool:
@@ -57,22 +64,20 @@ def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
     return {"running": prometheus and tempo, "prometheus": prometheus, "tempo": tempo}
 
 
-def _compose(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["docker", "compose", "-f", str(compose_file()), *args],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-
 def stack_up() -> dict:
-    result = _compose("up", "-d")
-    if result.returncode != 0:
-        raise RuntimeError(f"docker compose up failed: {result.stderr.strip()}")
+    """Start the stack container (idempotent) and wait until it is ready."""
+    state = _container_state()
+    if state == "stopped":
+        result = _docker("start", CONTAINER_NAME)
+        if result.returncode != 0:
+            raise RuntimeError(f"docker start failed: {result.stderr.strip()}")
+    elif state == "absent":
+        result = subprocess.run(run_args(), capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(f"docker run failed: {result.stderr.strip()}")
+    status = stack_status()
     deadline = time.monotonic() + STARTUP_TIMEOUT_S
     while time.monotonic() < deadline:
-        status = stack_status()
         if status["running"]:
             return {
                 "running": True,
@@ -80,13 +85,15 @@ def stack_up() -> dict:
                 "otlp_endpoint": OTLP_ENDPOINT,
             }
         time.sleep(POLL_INTERVAL_S)
+        status = stack_status()
     raise RuntimeError(
         f"stack did not become ready within {STARTUP_TIMEOUT_S}s: {status}"
     )
 
 
 def stack_down() -> dict:
-    result = _compose("down")
-    if result.returncode != 0:
-        raise RuntimeError(f"docker compose down failed: {result.stderr.strip()}")
+    """Remove the stack container; an absent container is already down."""
+    result = _docker("rm", "--force", CONTAINER_NAME)
+    if result.returncode != 0 and "No such container" not in result.stderr:
+        raise RuntimeError(f"docker rm failed: {result.stderr.strip()}")
     return {"running": False}

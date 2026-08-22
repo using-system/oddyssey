@@ -4,23 +4,38 @@
 
 ## The idea
 
-Spec-Driven Development gets a coding agent to write the right code. ODD is
-the step around it: the agent works **with the telemetry**, not against
-stdout — it observes what a service really does before planning, and
-verifies with real signals after implementing. An N+1 query is invisible in
-logs and unmissable in a trace.
+ODD complements Spec-Driven Development: observe a running service — local
+or remote — through its telemetry, turn what you see into the next SDD wave
+(spec, plan, implement), then observe again. A continuous improvement loop,
+indefinitely.
 
-This repo is a toolbox for that, packaged for any coding agent
+Everything is built on OpenTelemetry. For **local** observation, the MCP
+server pilots a complete Grafana stack (UI, traces, metrics, logs) that
+agents use to observe and fix. For **remote** environments, observation
+works against a Grafana stack or any other OpenTelemetry backend (Datadog,
+Dynatrace, Azure Monitor, ...).
+
+This repo is a toolbox for that loop, packaged for any coding agent
 ([APM](https://microsoft.github.io/apm/): Claude Code, Copilot, Cursor,
 Codex, Gemini, and friends) — not a fixed measurement product: the agents
 and skills compose with whatever the investigation needs.
+
+## Prerequisites
+
+- **[Docker](https://docs.docker.com/get-docker/)** — runs the local
+  observability stack (the MCP server drives it directly).
+- **[gcx](https://github.com/grafana/gcx)** — the Grafana CLI the agents
+  use to observe runs on the Grafana stack (metrics, traces, logs,
+  profiles): `brew install gcx`, or
+  `curl -fsSL https://raw.githubusercontent.com/grafana/gcx/main/scripts/install.sh | sh`.
 
 ## The MCP server
 
 One job: **pilot a local Grafana stack with an OpenTelemetry endpoint**.
 One container ([grafana/otel-lgtm](https://github.com/grafana/docker-otel-lgtm),
-pinned) exposes Grafana on `:3000` and OTLP on `:4317`/`:4318`; apps export
-their telemetry there. Tempo traces, Prometheus metrics, and Loki logs are
+pinned, its definition embedded in the server — Docker is the only
+prerequisite) exposes Grafana on `:3000` and OTLP on `:4317`/`:4318`; apps
+export their telemetry there. Tempo traces, Prometheus metrics, and Loki logs are
 all queried through the Grafana datasource proxy
 (`:3000/api/datasources/proxy/uid/...`), so the same paths work against any
 Grafana; on remote environments the stack behind it can be something other

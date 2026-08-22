@@ -22,14 +22,10 @@ requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["oddyssey_mcp", "oddyssey_mcp.resources"]
+packages = ["oddyssey_mcp"]
 
 [tool.setuptools.package-dir]
 oddyssey_mcp = "app"
-"oddyssey_mcp.resources" = "app/resources"
-
-[tool.setuptools.package-data]
-"oddyssey_mcp.resources" = ["*.yml"]
 
 [tool.pytest.ini_options]
 addopts = ""

@@ -1,26 +1,17 @@
-from pathlib import Path
-
 import httpx
-from oddyssey_mcp.stack import compose_file, stack_status
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from oddyssey_mcp.stack import CONTAINER_NAME, IMAGE, PORTS, run_args, stack_status
 
 
-def test_packaged_compose_matches_repo_copy(monkeypatch):
-    monkeypatch.delenv("ODD_COMPOSE_FILE", raising=False)
-    packaged = compose_file().read_text()
-    canonical = (REPO_ROOT / "docker-compose" / "docker-compose.yml").read_text()
-    assert packaged == canonical, (
-        "src/mcp-server/app/resources/docker-compose.yml drifted from "
-        "docker-compose/docker-compose.yml — keep both copies identical"
-    )
+def test_run_args_build_the_pinned_container():
+    args = run_args()
 
-
-def test_compose_file_env_override(tmp_path, monkeypatch):
-    override = tmp_path / "custom.yml"
-    override.write_text("services: {}\n")
-    monkeypatch.setenv("ODD_COMPOSE_FILE", str(override))
-    assert compose_file() == override
+    assert args[:2] == ["docker", "run"]
+    assert args[-1] == IMAGE
+    assert IMAGE == "grafana/otel-lgtm:0.30.2"
+    assert CONTAINER_NAME in args
+    for mapping in PORTS:
+        assert mapping in args
+    assert {"3000:3000", "4317:4317", "4318:4318"} == set(PORTS)
 
 
 def test_stack_status_all_ready():
