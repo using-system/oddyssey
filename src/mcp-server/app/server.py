@@ -41,7 +41,7 @@ def odd_stack_up() -> dict:
 @mcp.tool()
 @telemetry.traced_tool
 def odd_stack_down() -> dict:
-    """Stop and remove the local LGTM stack; stored telemetry does not survive."""
+    """Stop and remove the local LGTM stack; stored telemetry does not survive. The stack is shared by every project on this machine, so their data is destroyed too."""
     return stack_ops.stack_down()
 
 
@@ -55,7 +55,19 @@ def odd_stack_status() -> dict:
 @mcp.tool()
 @telemetry.traced_tool
 def odd_stack_reset() -> dict:
-    """Wipe all stored telemetry (traces, metrics, logs, profiles) and return a fresh, ready stack."""
+    """Wipe ALL stored telemetry (traces, metrics, logs, profiles) and return a fresh, ready stack.
+
+    The wipe is machine-wide and irreversible: one shared stack per machine, so
+    data from every project ever observed on it is destroyed, not just the
+    current one. The result's services_wiped field lists the service.name
+    values that were stored. If it may contain services outside the current
+    project, warn the user before calling this tool.
+
+    services_wiped always includes oddyssey-mcp (this server observes itself
+    and exports to the stack it pilots) and otelcol-contrib (the embedded
+    collector's own metrics): those two are never another project's leftover
+    state - only other names are.
+    """
     return stack_ops.stack_reset()
 
 
