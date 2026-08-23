@@ -85,9 +85,11 @@ oddyssey provides:
   agent turns into a spec-driven plan of fixes and improvements;
 - **a complete local observability stack** based on Grafana, piloted by
   the oddyssey MCP server;
-- **persistent run-observation reports** stored in the observed repo
-  (`.odd/observe-run-reports/`), versioned with the code and recalled
-  as the baseline of the next run.
+- **an ODD memory carried by the repo itself** — every observation and
+  instrumentation report lands in `.odd/`, committed and versioned with
+  the code, shared with the whole team, and recalled as the baseline of
+  the next run: the loop accumulates knowledge instead of starting
+  blind.
 
 Everything is packaged for any coding agent
 ([APM](https://microsoft.github.io/apm/): Claude Code, Copilot, Cursor,
