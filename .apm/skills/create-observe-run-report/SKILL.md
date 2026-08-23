@@ -80,5 +80,10 @@ Before a new run, load the baseline:
 - Write the file exactly where the contract says: the report belongs to
   the **observed** repository, not to the oddyssey package, a home
   directory, or a temp path.
-- After writing, state the stored path so the caller can commit it with
-  the changes the run inspired.
+- **After writing, commit the report file on its own**:
+  `git add <report file>` then
+  `git commit -m "docs(odd): observation report <run_name>"` — never
+  stage anything else; a dirty working tree stays untouched otherwise.
+  If committing is impossible (not a git repository, or the caller said
+  not to), state the path and leave the commit to the caller.
+- Either way, state the stored path in the reply.

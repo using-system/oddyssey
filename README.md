@@ -85,9 +85,11 @@ oddyssey provides:
   agent turns into a spec-driven plan of fixes and improvements;
 - **a complete local observability stack** based on Grafana, piloted by
   the oddyssey MCP server;
-- **persistent run-observation reports** stored in the observed repo
-  (`.odd/observe-run-reports/`), versioned with the code and recalled
-  as the baseline of the next run.
+- **an ODD memory carried by the repo itself** — every observation and
+  instrumentation report lands in `.odd/`, committed and versioned with
+  the code, shared with the whole team, and recalled as the baseline of
+  the next run: the loop accumulates knowledge instead of starting
+  blind.
 
 Everything is packaged for any coding agent
 ([APM](https://microsoft.github.io/apm/): Claude Code, Copilot, Cursor,
@@ -105,9 +107,10 @@ own MCP server.
 /odd-instrument add OpenTelemetry to my project XXX
 ```
 
-The `otel-instrumentation-expert` agent investigates the codebase and
-hands back everything a spec-driven wave needs. Real output of that wave
-on this repo: the
+The `otel-instrumentation-expert` agent investigates the codebase,
+stores its report in `.odd/otel-instrumentation-reports/` (committed —
+the next investigation starts from it), and hands back everything a
+spec-driven wave needs. Real output of that wave on this repo: the
 [design spec](docs/superpowers/specs/2026-08-22-mcp-otel-instrumentation-design.md)
 and the
 [implementation plan](docs/superpowers/plans/2026-08-22-mcp-otel-instrumentation.md)
@@ -181,6 +184,11 @@ Then deploy, observe remotely, and start the loop again.
   dashboards, alerting, incident investigation. Instrument once, and the
   development loop and the operation of the system read from the same
   source of truth.
+- **Agents observe, they never fix.** The investigation agents only
+  observe and report — they never modify the code directly. Their report
+  is a universal input: feed it to any spec-driven framework for the
+  spec-and-implement wave, turn it into JIRA tickets, or hand it to a
+  human — what happens next stays your call.
 
 ## Prerequisites
 
@@ -234,6 +242,7 @@ dropped — the normal state, and never a failure of the server.
 | [`observability-cli-guides`](.apm/skills/observability-cli-guides/SKILL.md) (skill) | Curated map of every major backend's terminal query surface: Grafana (gcx), Datadog (Pup), Dynatrace (dtctl), Azure Monitor (az), CloudWatch (aws), Splunk |
 | [`run-scenario`](.apm/skills/run-scenario/SKILL.md) (skill) | Drive a reproducible request scenario against a local service and record it verbatim, so the same numbers are measurable before a fix and after it |
 | [`create-observe-run-report`](.apm/skills/create-observe-run-report/SKILL.md) (skill) | The ODD loop's memory: persist each observation report into the observed repo (`.odd/observe-run-reports/`) and recall the previous ones as the next run's baseline |
+| [`create-otel-instrumentation-report`](.apm/skills/create-otel-instrumentation-report/SKILL.md) (skill) | Same memory for the instrumentation side: persist each investigation into the investigated repo (`.odd/otel-instrumentation-reports/`) and recall it before the next one |
 | [`/odd-observe`](.apm/prompts/odd-observe.prompt.md) (prompt) | Entry point: build a well-formed mission from your arguments and invoke the `observe-run` agent |
 | [`/odd-instrument`](.apm/prompts/odd-instrument.prompt.md) (prompt) | Entry point: point the `otel-instrumentation-expert` agent at a codebase |
 | [`/odd-verify`](.apm/prompts/odd-verify.prompt.md) (prompt) | Entry point: replay a stored report's protocol through the `observe-run` agent — a full observation report again, this time ruling on everything the previous one recorded: measurements, anomalies, telemetry gaps |
