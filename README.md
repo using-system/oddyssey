@@ -6,6 +6,8 @@
 
 ## Install
 
+### With APM (every CLI)
+
 With [APM](https://microsoft.github.io/apm/), for Claude Code:
 
 ```bash
@@ -26,6 +28,39 @@ uvx --from 'apm-cli==0.28.0' apm update --global --target claude using-system/od
 It shows the update plan and asks for confirmation (`--yes` to skip,
 `--dry-run` to only look); `apm outdated` tells you whether an update
 is worth running.
+
+### From the native marketplaces (no APM)
+
+**Claude Code**
+
+```
+/plugin marketplace add using-system/oddyssey
+/plugin install oddyssey@oddyssey-plugin
+```
+
+**GitHub Copilot CLI**
+
+```
+copilot plugin marketplace add using-system/oddyssey
+copilot plugin install oddyssey@oddyssey-plugin
+```
+
+**Kimi Code**
+
+```
+/plugin marketplace add using-system/oddyssey
+/plugin install oddyssey@oddyssey-plugin
+```
+
+**Codex** — this repository publishes the Codex manifest at
+`.agents/plugins/marketplace.json`; add the repository as a plugin
+source in your Codex plugins settings.
+
+The native artifacts are generated from the APM package on every
+release (`marketplace/`, built by `scripts/build-marketplace.sh`) and
+carry the same agents, commands, skills, and pinned MCP server. The
+other CLIs (opencode, Cursor, Windsurf, Kiro, Gemini) install via APM
+above.
 
 ## The idea
 
