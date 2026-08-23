@@ -227,15 +227,6 @@ than the local otel-lgtm container.
 | `odd_stack_status` | Probe whether it is up |
 | `odd_stack_reset` | Wipe all stored telemetry and return a fresh, ready stack — the next run starts from a clean slate |
 
-One stack per machine: every project observed on the same workstation shares
-it, so `odd_stack_reset` (and `odd_stack_down`) destroys the telemetry of
-every project, not just the current one. The reset result's `services_wiped`
-field lists the `service.name` values that were stored, so an unexpected
-name is the cue to warn before wiping. Two names are always present and are
-never leftover project state: `oddyssey-mcp` (the server observes itself and
-exports to the stack it pilots, so even a fresh stack contains the reset's
-own trace) and `otelcol-contrib` (the embedded collector's own metrics).
-
 The server is instrumented with OpenTelemetry and, by default, exports its
 own traces and metrics to the local stack (`http://localhost:4318`, OTLP
 `http/protobuf` — the protocol is fixed, `OTEL_EXPORTER_OTLP_PROTOCOL` set
