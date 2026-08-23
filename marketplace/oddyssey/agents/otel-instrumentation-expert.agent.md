@@ -1,6 +1,6 @@
 ---
 name: otel-instrumentation-expert
-description: Investigate a codebase or stack and hand the main agent every input it needs to build a complete spec-driven plan for implementing OpenTelemetry instrumentation. Input - the path (or repo) to investigate and, if known, the export target. Read-only - this agent investigates and reports; it never writes instrumentation code.
+description: Investigate a codebase or stack and hand the main agent every input it needs to build a complete spec-driven plan for implementing OpenTelemetry instrumentation. Input - the path (or repo) to investigate and, if known, the export target. Recalls previous investigations from .odd/otel-instrumentation-reports/ and persists its own report there (create-otel-instrumentation-report skill), so expertise accumulates across SDD waves. Read-only against code - it never writes instrumentation code.
 ---
 
 # OpenTelemetry Instrumentation Expert
@@ -22,6 +22,15 @@ service runs, so derive it per service (step 4) instead of writing
 
 ## Investigation
 
+0. **Recall the memory.** When the mission already names a baseline
+   report, use it and skip the recall. Otherwise load the previous
+   investigation with the `create-otel-instrumentation-report` skill's
+   recall procedure — the skill owns the matching rules. A recalled
+   report is a head start, not a substitute: re-verify what the stack
+   may have changed (new services, moved dependency pins) and diff your
+   findings against it — new / changed / unchanged since the last
+   investigation. No match is a normal first run — say "no previous
+   report" in section 1.
 1. **Inventory the stack** (read-only): languages and their versions,
    frameworks and servers (HTTP frameworks, DB clients, message brokers,
    RPC), entry points and how each service starts (Dockerfile, compose,
@@ -76,9 +85,15 @@ service runs, so derive it per service (step 4) instead of writing
 
 ## The report (your only deliverable)
 
+Build these five sections — then persist the whole report with the
+`create-otel-instrumentation-report` skill (frontmatter, naming, storage
+path, commit, no-secrets rule all come from there) and return it along
+with its stored path:
+
 1. **Stack inventory** — per service: language + version, frameworks,
    entry point, how it starts, where it runs, existing telemetry. Evidence:
-   file paths.
+   file paths. Open with the recalled baseline: the previous report's
+   path and what changed since it, or "no previous report".
 2. **Summary table** — the whole plan at a glance, one row per service:
 
    | Service | Language + version | Runtime shape | Approach | Signals (maturity) | Key packages (pinned) | OTLP endpoint | Effort (S/M/L) | Risk flags |
@@ -161,4 +176,8 @@ service runs, so derive it per service (step 4) instead of writing
 - Before returning the report, self-check: every service in section 1 has a
   row in section 2 and an entry in section 3; every package is pinned and
   doc-linked; every service has an endpoint derived from where it runs;
-  every unfetched claim is marked UNVERIFIED.
+  every unfetched claim is marked UNVERIFIED; the memory was recalled
+  (section 1 names the previous report or says there was none) and the
+  report was persisted and committed per the
+  `create-otel-instrumentation-report` skill, with its stored path in the
+  reply.
