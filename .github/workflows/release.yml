@@ -1,12 +1,26 @@
 name: release
 
 on:
-  push:
-    branches:
-      - main
-  # Manual bootstrap/backfill: build and publish the CURRENT version to
-  # PyPI without any bump (used once to seed the first package).
+  # Fully manual release flow, two acts:
+  #   1. Run workflow -> propose : opens/updates the chore(release) PR
+  #   2. review it, then Run workflow -> publish
+  # publish merges the (single) open chore(release) PR - failing clearly
+  # when there is none or more than one - then tags, creates the GitHub
+  # release, builds, and publishes to PyPI. Every step is skipped when
+  # already done (tag/release exist, skip-existing on PyPI), so publish
+  # also serves as bootstrap/backfill and is safe to re-run.
   workflow_dispatch:
+    inputs:
+      mode:
+        description: >-
+          propose = open/update the release PR from git history;
+          publish = merge the release PR, tag, GitHub release, build and
+          publish to PyPI - idempotent, safe to re-run.
+        type: choice
+        default: propose
+        options:
+          - propose
+          - publish
 
 jobs:
   propose-release:
@@ -15,7 +29,7 @@ jobs:
     # the version bumps and CHANGELOG. Nothing is ever pushed to main
     # directly - a human approves and merges that PR.
     runs-on: ubuntu-latest
-    if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release)')"
+    if: inputs.mode == 'propose'
     permissions:
       contents: write
       pull-requests: write
@@ -82,26 +96,62 @@ jobs:
             marketplace/
 
   tag-and-release:
-    # Runs on the merge of the chore(release) PR: tags the merge commit and
-    # publishes the GitHub release with the git-cliff notes.
+    # Run workflow -> publish: merges the open chore(release) PR (exactly
+    # one must exist, unless the version was already merged/tagged), then
+    # tags main's version and creates the GitHub release, both only if
+    # missing - re-running is a no-op.
     runs-on: ubuntu-latest
-    if: "github.event_name == 'push' && startsWith(github.event.head_commit.message, 'chore(release)')"
+    if: inputs.mode == 'publish'
     permissions:
       contents: write
+      pull-requests: write
     outputs:
       released: ${{ steps.tag.outputs.released }}
       tag: ${{ steps.tag.outputs.tag }}
     steps:
+      - name: Merge the release PR
+        id: merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRS="$(gh pr list -R "${GITHUB_REPOSITORY}" --state open --json number,title \
+            --jq '[.[] | select(.title | startswith("chore(release)"))]')"
+          COUNT="$(echo "$PRS" | jq 'length')"
+          if [ "$COUNT" -gt 1 ]; then
+            echo "::error::multiple open chore(release) PRs - close the stale ones first:"
+            echo "$PRS" | jq -r '.[] | "#\(.number) \(.title)"'
+            exit 1
+          fi
+          if [ "$COUNT" -eq 0 ]; then
+            echo "merged=false" >> "$GITHUB_OUTPUT"
+            echo "No open chore(release) PR - only legitimate as a re-run (the tag guard below decides)."
+          else
+            NUMBER="$(echo "$PRS" | jq -r '.[0].number')"
+            TITLE="$(echo "$PRS" | jq -r '.[0].title')"
+            echo "Merging release PR #${NUMBER}: ${TITLE}"
+            gh pr merge -R "${GITHUB_REPOSITORY}" "${NUMBER}" --squash
+            echo "merged=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           fetch-depth: 0
-      - name: Tag the release
+      - name: Tag the release (if not already tagged)
         id: tag
+        env:
+          MERGED: ${{ steps.merge.outputs.merged }}
         run: |
           VERSION="$(grep '^version:' apm.yml | awk '{print $2}')"
           TAG="v${VERSION}"
-          git tag "${TAG}"
-          git push origin "${TAG}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "${TAG} already exists - leaving it in place."
+          elif [ "$MERGED" != "true" ]; then
+            echo "::error::${TAG} is untagged and no chore(release) PR was open - run propose (and merge review) first."
+            exit 1
+          else
+            git tag "${TAG}"
+            git push origin "${TAG}"
+          fi
           echo "released=true" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
       - name: Generate the release notes
@@ -109,21 +159,26 @@ jobs:
         uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4.8.0
         with:
           args: --latest --strip all -o /tmp/release-notes.md
-      - name: Publish the GitHub release
+      - name: Publish the GitHub release (if not already published)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
           NOTES: ${{ steps.notes.outputs.content }}
-        run: gh release create "${TAG}" --title "${TAG}" --notes "${NOTES}"
+        run: |
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "${TAG} release already exists - leaving it in place."
+          else
+            gh release create "${TAG}" --title "${TAG}" --notes "${NOTES}"
+          fi
 
   build:
     runs-on: ubuntu-latest
     needs: tag-and-release
-    if: always() && (needs.tag-and-release.outputs.released == 'true' || github.event_name == 'workflow_dispatch')
+    if: needs.tag-and-release.outputs.released == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.tag-and-release.outputs.tag || github.sha }}
+          ref: ${{ needs.tag-and-release.outputs.tag }}
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       - name: Build the MCP server package
         run: uv build src/mcp-server --out-dir dist
@@ -148,3 +203,7 @@ jobs:
           path: dist/
       - name: Publish to PyPI (trusted publishing)
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          # Publish is idempotent end to end: a re-run with the version
+          # already on PyPI succeeds instead of failing on duplicates.
+          skip-existing: true

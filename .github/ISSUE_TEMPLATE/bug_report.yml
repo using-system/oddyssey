@@ -1,0 +1,45 @@
+name: Bug report
+description: Something in oddyssey misbehaves - a tool, an agent contract, a skill, the stack
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The house style (set by our first external consumer): state what you **confirmed** with a command and its output vs what you only **observed** once. Self-contained reports get fixed fastest.
+  - type: input
+    id: version
+    attributes:
+      label: oddyssey version
+      description: Package version (apm) or git commit, and oddyssey-mcp version if relevant
+      placeholder: "1.4.0"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Docker version, otel-lgtm image tag, target CLI (claude / copilot / opencode / ...)
+      placeholder: "macOS 15, Docker 29, grafana/otel-lgtm:0.30.2, claude"
+    validations:
+      required: true
+  - type: dropdown
+    id: confidence
+    attributes:
+      label: Status
+      options:
+        - "confirmed - reproduced with a command and its output"
+        - "observed - seen once, not yet isolated"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens, and what you expected
+      description: Include the reproduction commands and their real output where possible.
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Suggested fix, workaround you used, related issues.

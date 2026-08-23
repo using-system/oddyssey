@@ -1,0 +1,23 @@
+name: Feature request
+description: An improvement to the ODD loop, the agents/skills, the MCP server, or the distribution
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The friction
+      description: What real situation does the current behavior make painful? Concrete beats abstract.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What you would change, and - if there are options - the trade-offs you see.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Workaround today
+      description: How you cope without it (helps calibrate priority).
