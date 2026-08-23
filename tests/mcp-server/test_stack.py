@@ -54,9 +54,11 @@ def test_stack_status_down_is_not_an_error():
 def test_stack_status_is_not_running_until_every_signal_is_ready():
     # Issue #36: readiness must cover all four signals the tool claims to
     # make ready - a stack whose logs backend is still booting is not up.
+    # A booting backend behind the Grafana proxy answers 503 (the proxy
+    # relays it), not a transport error - the down-stack test covers that.
     def handler(request: httpx.Request) -> httpx.Response:
         if "uid/loki" in str(request.url):
-            raise httpx.ConnectError("loki still booting")
+            return httpx.Response(503)
         return httpx.Response(200)
 
     status = stack_status(transport=httpx.MockTransport(handler))
