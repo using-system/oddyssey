@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or idea to discuss
+    url: https://github.com/using-system/oddyssey/discussions
+    about: Questions and open-ended ideas belong in Discussions - issues are for bugs and scoped features.
+  - name: Security vulnerability
+    url: https://github.com/using-system/oddyssey/security/advisories/new
+    about: Please report vulnerabilities privately, never in a public issue.

@@ -4,6 +4,10 @@
 
 **A CLI toolbox for Observability-Driven Development (ODD).**
 
+[![CI](https://github.com/using-system/oddyssey/actions/workflows/ci-mcp-server.yml/badge.svg)](https://github.com/using-system/oddyssey/actions/workflows/ci-mcp-server.yml)
+[![PyPI](https://img.shields.io/pypi/v/oddyssey-mcp)](https://pypi.org/project/oddyssey-mcp/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 ## Install
 
 ### With APM (every CLI)
@@ -263,6 +267,16 @@ bash integration-tests/mcp-server/run.sh   # end-to-end via an MCP client; needs
 
 The project under `src/` is a self-contained uv project (own
 `pyproject.toml`); `tests/` mirrors `src/`.
+
+## Contributing
+
+Issues, docs fixes, and code are welcome — see
+[CONTRIBUTING.md](CONTRIBUTING.md) for the layout, the exact build/test
+commands, and the PR conventions (squash titles drive the released
+version). Questions and ideas belong in
+[Discussions](https://github.com/using-system/oddyssey/discussions);
+two [good first issues](https://github.com/using-system/oddyssey/issues?q=is%3Aopen+label%3A%22good+first+issue%22)
+are waiting.
 
 ## License
 
