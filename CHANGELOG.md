@@ -1,8 +1,17 @@
+## [1.4.1] - 2026-08-23
+
+### ⚙️ Miscellaneous Tasks
+
+- *(community)* Community health files and manual release proposing (#45)
 ## [1.4.0] - 2026-08-23
 
 ### 🚀 Features
 
 - *(apm)* In-repo instrumentation memory and committed odd reports (#32)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.4.0 (#33)
 ## [1.3.0] - 2026-08-23
 
 ### 🚀 Features
