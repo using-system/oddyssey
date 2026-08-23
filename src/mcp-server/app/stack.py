@@ -22,6 +22,17 @@ PORTS = ("3000:3000", "4317:4317", "4318:4318")
 # needs to be exposed.
 PROMETHEUS_READY = "http://localhost:3000/api/datasources/proxy/uid/prometheus/-/ready"
 TEMPO_READY = "http://localhost:3000/api/datasources/proxy/uid/tempo/ready"
+TEMPO_SERVICE_NAMES = (
+    "http://localhost:3000/api/datasources/proxy/uid/tempo"
+    "/api/search/tag/service.name/values"
+)
+PROMETHEUS_JOB_VALUES = (
+    "http://localhost:3000/api/datasources/proxy/uid/prometheus/api/v1/label/job/values"
+)
+LOKI_SERVICE_NAMES = (
+    "http://localhost:3000/api/datasources/proxy/uid/loki"
+    "/loki/api/v1/label/service_name/values"
+)
 GRAFANA_URL = "http://localhost:3000"
 OTLP_ENDPOINT = "http://localhost:4317"
 OTLP_HTTP_INGEST = "http://localhost:4318/v1/traces"
@@ -122,6 +133,38 @@ def stack_up() -> dict:
     )
 
 
+def stored_services(transport: httpx.BaseTransport | None = None) -> list[str]:
+    """Best-effort list of service.name values currently stored in the stack.
+
+    Union across the queryable backends, since a service may have emitted
+    only one signal: Tempo's service.name tag values, Loki's service_name
+    label values, and Prometheus job values (OTLP ingestion maps
+    service.name onto job, prefixed by service.namespace/ when one is
+    set). The list exists to warn before a wipe, so every failure degrades
+    to fewer names, never to an error.
+    """
+    services: set[str] = set()
+    with httpx.Client(timeout=3.0, transport=transport) as client:
+        try:
+            tag_values = client.get(TEMPO_SERVICE_NAMES).json().get("tagValues", [])
+            services.update(v for v in tag_values if isinstance(v, str))
+        except (httpx.HTTPError, ValueError, AttributeError):
+            pass
+        try:
+            names = client.get(LOKI_SERVICE_NAMES).json().get("data", [])
+            services.update(v for v in names if isinstance(v, str))
+        except (httpx.HTTPError, ValueError, AttributeError):
+            pass
+        try:
+            jobs = client.get(PROMETHEUS_JOB_VALUES).json().get("data", [])
+            services.update(
+                job.rsplit("/", 1)[-1] for job in jobs if isinstance(job, str)
+            )
+        except (httpx.HTTPError, ValueError, AttributeError):
+            pass
+    return sorted(services)
+
+
 def stack_down() -> dict:
     """Destroy the stack container (and its data); absent is already down."""
     telemetry.force_flush()
@@ -138,6 +181,11 @@ def stack_reset() -> dict:
     stored signal (traces, metrics, logs, profiles) by construction; a new
     container then starts from the image. After a reset, everything the
     stack contains IS the next run - no window arithmetic needed.
+
+    The stack is shared machine-wide (issue #35), so the wipe is never
+    scoped to one project: the result names the services that were stored
+    so the destruction is at least visible to the caller.
     """
+    services = stored_services()
     stack_down()
-    return stack_up()
+    return {**stack_up(), "services_wiped": services}

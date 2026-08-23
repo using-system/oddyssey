@@ -56,6 +56,10 @@ MCP_SERVER_REQUEST_TIMEOUT="${MCP_SERVER_REQUEST_TIMEOUT:-420000}" \
   mcp_call odd_stack_reset > "$workdir/reset.json"
 assert_result_contains "$workdir/reset.json" '"running": true'
 
+step "the reset names the services it wiped (issue #35)"
+assert_result_contains "$workdir/reset.json" 'services_wiped'
+assert_result_contains "$workdir/reset.json" 'reset-proof'
+
 step "the OTLP->Loki pipeline is live again (post-reset canary)"
 inject_log "$CANARY"
 wait_for_hits "$CANARY"
