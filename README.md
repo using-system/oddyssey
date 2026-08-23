@@ -184,6 +184,11 @@ Then deploy, observe remotely, and start the loop again.
   dashboards, alerting, incident investigation. Instrument once, and the
   development loop and the operation of the system read from the same
   source of truth.
+- **Agents observe, they never fix.** The investigation agents only
+  observe and report — they never modify the code directly. Their report
+  is a universal input: feed it to any spec-driven framework for the
+  spec-and-implement wave, turn it into JIRA tickets, or hand it to a
+  human — what happens next stays your call.
 
 ## Prerequisites
 
