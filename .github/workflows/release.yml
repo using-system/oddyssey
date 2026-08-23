@@ -51,8 +51,12 @@ jobs:
         run: |
           sed -i "s/^version: .*/version: ${VERSION}/" apm.yml
           sed -i "s/oddyssey-mcp==[^\"]*/oddyssey-mcp==${VERSION}/" apm.yml
+          sed -i "s/^      version: .*/      version: ${VERSION}/" apm.yml
           sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" src/mcp-server/pyproject.toml
           uv lock --project src/mcp-server
+      - name: Regenerate the marketplace artifacts
+        if: steps.check.outputs.proceed == 'true'
+        run: bash scripts/build-marketplace.sh
       - name: Generate the release-PR notes
         id: notes
         if: steps.check.outputs.proceed == 'true'
@@ -73,6 +77,9 @@ jobs:
             src/mcp-server/pyproject.toml
             src/mcp-server/uv.lock
             CHANGELOG.md
+            .claude-plugin/marketplace.json
+            .agents/plugins/marketplace.json
+            marketplace/
 
   tag-and-release:
     # Runs on the merge of the chore(release) PR: tags the merge commit and

@@ -1,0 +1,16 @@
+{
+  "name": "oddyssey",
+  "owner": {
+    "name": "using-system",
+    "url": "https://github.com/using-system"
+  },
+  "plugins": [
+    {
+      "name": "oddyssey",
+      "description": "Observability-Driven Development for CLI coding agents: OTel expert agent, run-observation agent, verification pass, local Grafana stack via MCP",
+      "version": "1.2.0",
+      "category": "Observability",
+      "source": "./marketplace/oddyssey"
+    }
+  ]
+}
