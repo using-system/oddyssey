@@ -210,7 +210,7 @@ def test_stack_reset_still_wipes_a_stopped_container_that_cannot_boot(monkeypatc
             raise RuntimeError("container will not start")
         return UP_RESULT
 
-    calls, result = _trace_reset(monkeypatch, "stopped", up=up)
+    _, result = _trace_reset(monkeypatch, "stopped", up=up)
 
     assert result["running"] is True
     assert result["services_wiped"] == ["billing", "checkout"]
