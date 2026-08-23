@@ -1,8 +1,22 @@
+## [1.5.0] - 2026-08-23
+
+### 🚀 Features
+
+- *(mcp)* Make odd_stack_reset machine-wide wipe visible (#49)
+
+### 🐛 Bug Fixes
+
+- *(mcp)* Probe all four signal backends for stack readiness (#51)
+
+### 📚 Documentation
+
+- *(skill)* Align setup-local-stack with the verified gcx surface (#52)
 ## [1.4.1] - 2026-08-23
 
 ### ⚙️ Miscellaneous Tasks
 
 - *(community)* Community health files and manual release proposing (#45)
+- *(release)* 1.4.1 (#47)
 ## [1.4.0] - 2026-08-23
 
 ### 🚀 Features
