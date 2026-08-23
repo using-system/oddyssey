@@ -1,4 +1,8 @@
 name: release
+# The mode is in the run name so the two acts are tellable apart in the
+# run list; inputs is only populated on workflow_dispatch, the sole
+# trigger here.
+run-name: "release: ${{ inputs.mode }}"
 
 on:
   # Fully manual release flow, two acts:
