@@ -28,7 +28,13 @@ def test_stack_status_all_ready():
         return httpx.Response(200)
 
     status = stack_status(transport=httpx.MockTransport(handler))
-    assert status == {"running": True, "prometheus": True, "tempo": True}
+    assert status == {
+        "running": True,
+        "prometheus": True,
+        "tempo": True,
+        "loki": True,
+        "pyroscope": True,
+    }
 
 
 def test_stack_status_down_is_not_an_error():
@@ -36,7 +42,29 @@ def test_stack_status_down_is_not_an_error():
         raise httpx.ConnectError("connection refused")
 
     status = stack_status(transport=httpx.MockTransport(handler))
-    assert status == {"running": False, "prometheus": False, "tempo": False}
+    assert status == {
+        "running": False,
+        "prometheus": False,
+        "tempo": False,
+        "loki": False,
+        "pyroscope": False,
+    }
+
+
+def test_stack_status_is_not_running_until_every_signal_is_ready():
+    # Issue #36: readiness must cover all four signals the tool claims to
+    # make ready - a stack whose logs backend is still booting is not up.
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "uid/loki" in str(request.url):
+            raise httpx.ConnectError("loki still booting")
+        return httpx.Response(200)
+
+    status = stack_status(transport=httpx.MockTransport(handler))
+    assert status["running"] is False
+    assert status["loki"] is False
+    assert status["prometheus"] is True
+    assert status["tempo"] is True
+    assert status["pyroscope"] is True
 
 
 def test_otlp_ingest_ready_true_on_any_http_response():

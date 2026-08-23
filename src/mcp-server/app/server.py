@@ -48,7 +48,7 @@ def odd_stack_down() -> dict:
 @mcp.tool()
 @telemetry.traced_tool
 def odd_stack_status() -> dict:
-    """Check whether the local LGTM stack is up (Prometheus and Tempo ready)."""
+    """Check whether the local LGTM stack is up (Prometheus, Tempo, Loki, and Pyroscope ready)."""
     return stack_ops.stack_status()
 
 

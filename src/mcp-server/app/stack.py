@@ -19,9 +19,12 @@ PORTS = ("3000:3000", "4317:4317", "4318:4318")
 
 # Readiness is probed through the Grafana datasource proxy: one request
 # checks both Grafana and the backend behind it, and only Grafana's port
-# needs to be exposed.
+# needs to be exposed. All four signal backends are probed (issue #36):
+# gating on a subset only covers the others by boot-timing coincidence.
 PROMETHEUS_READY = "http://localhost:3000/api/datasources/proxy/uid/prometheus/-/ready"
 TEMPO_READY = "http://localhost:3000/api/datasources/proxy/uid/tempo/ready"
+LOKI_READY = "http://localhost:3000/api/datasources/proxy/uid/loki/ready"
+PYROSCOPE_READY = "http://localhost:3000/api/datasources/proxy/uid/pyroscope/ready"
 TEMPO_SERVICE_NAMES = (
     "http://localhost:3000/api/datasources/proxy/uid/tempo"
     "/api/search/tag/service.name/values"
@@ -98,9 +101,13 @@ def _otlp_ingest_ready(client: httpx.Client) -> bool:
 def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
     """Probe readiness endpoints; a down stack is a status, not an error."""
     with httpx.Client(timeout=3.0, transport=transport) as client:
-        prometheus = _probe(client, PROMETHEUS_READY)
-        tempo = _probe(client, TEMPO_READY)
-    return {"running": prometheus and tempo, "prometheus": prometheus, "tempo": tempo}
+        signals = {
+            "prometheus": _probe(client, PROMETHEUS_READY),
+            "tempo": _probe(client, TEMPO_READY),
+            "loki": _probe(client, LOKI_READY),
+            "pyroscope": _probe(client, PYROSCOPE_READY),
+        }
+    return {"running": all(signals.values()), **signals}
 
 
 def stack_up() -> dict:
