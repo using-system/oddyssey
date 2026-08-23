@@ -14,20 +14,21 @@ Python MCP server:
 | `.apm/agents/`, `.apm/skills/`, `.apm/prompts/` | The product's primitives (markdown contracts). Cross-references between them are **by name only** — never by path — so they survive materialization into any CLI. |
 | `src/mcp-server/` | The `oddyssey-mcp` Python package (self-contained uv project). `tests/` mirrors `src/`. |
 | `marketplace/`, `.claude-plugin/`, `.agents/plugins/` | **GENERATED** by `scripts/build-marketplace.sh` at release time — never edit them by hand; edit `.apm/` and `apm.yml` instead. |
-| `.odd/` | The repo's own ODD memory: observation and instrumentation reports, committed. Part of the product's dogfooding — do not delete. |
+| `.odd/` | The repo's own ODD memory: committed observation reports (instrumentation reports join them as investigations run). Part of the product's dogfooding — do not delete. |
 | `docs/superpowers/` | Specs and implementation plans of past waves — the design record. |
 
 ## Building and testing
 
-Everything runs from the repo root:
+Everything runs from the repo root. The pinned tool versions below are
+the CI ones — `.github/workflows/` is canonical if they ever disagree:
 
 ```bash
 # Unit tests (no Docker needed)
 uv run --project src/mcp-server pytest -c src/mcp-server/pyproject.toml tests/mcp-server -v
 
-# Lint + format (CI enforces both, pinned version)
+# Lint + format check (exactly what CI enforces; drop --check to apply fixes)
 uvx ruff@0.16.4 check src/mcp-server tests/mcp-server
-uvx ruff@0.16.4 format src/mcp-server tests/mcp-server
+uvx ruff@0.16.4 format --check src/mcp-server tests/mcp-server
 
 # Integration tests (needs Docker; drives the real stack)
 bash integration-tests/mcp-server/run.sh
@@ -36,14 +37,14 @@ bash integration-tests/mcp-server/run.sh
 uvx --from apm-cli==0.28.0 apm install --target claude && uvx --from apm-cli==0.28.0 apm audit
 ```
 
-Two hard constraints on the MCP server:
+Two hard constraints on the MCP server (owned by the
+[instrumentation spec](docs/superpowers/specs/2026-08-22-mcp-otel-instrumentation-design.md)
+§2 — it wins if this summary ever drifts):
 
-- **stdout is the JSON-RPC wire.** Nothing may ever print to stdout —
-  console exporters are forbidden, diagnostics go through logging
-  (stderr).
-- **Telemetry never breaks a tool.** Export failure while the stack is
-  down is the normal state; bootstrap failure degrades to no telemetry,
-  never to a dead server.
+- **stdout is the JSON-RPC wire.** Nothing may ever print to stdout.
+- **Telemetry never breaks a tool.** Export failure is the normal
+  state; bootstrap failure degrades to no telemetry, never to a dead
+  server.
 
 ## Pull requests
 
@@ -63,15 +64,15 @@ Two hard constraints on the MCP server:
 
 ## Issues
 
-Use the issue forms (bug / feature). The bar set by our first external
-consumer is the house style: state what you **confirmed** with a
-command and its output vs what you only **observed**, and keep entries
-self-contained. Questions belong in
-[Discussions](https://github.com/using-system/oddyssey/discussions).
+Use the issue forms (bug / feature) — the bug form's fields, including
+its confirmed-vs-observed status, ARE the house style. Questions belong
+in [Discussions](https://github.com/using-system/oddyssey/discussions).
 
 ## Trying your changes end to end
 
 The product tests itself: install your working copy into a scratch
-consumer (`apm install /path/to/your/clone --target claude`), or run
+consumer
+(`uvx --from apm-cli==0.28.0 apm install /path/to/your/clone --target claude`),
+or run
 the ODD loop on the repo itself (`/odd-observe` on `oddyssey-mcp`) —
 the stored reports under `.odd/` show what a healthy run looks like.

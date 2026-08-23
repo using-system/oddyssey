@@ -6,7 +6,7 @@ updates:
       interval: weekly
     commit-message:
       prefix: "ci(deps)"
-  - package-ecosystem: pip
+  - package-ecosystem: uv
     directory: /src/mcp-server
     schedule:
       interval: weekly
