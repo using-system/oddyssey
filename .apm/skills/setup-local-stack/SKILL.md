@@ -5,10 +5,12 @@ description: Configure gcx against the local oddyssey Grafana stack and query it
 
 # gcx on the local oddyssey stack
 
-The local stack is a single otel-lgtm container: Grafana on `:3000` with
-`admin`/`admin`, OTLP on `:4317` (gRPC) and `:4318` (HTTP), and four
-datasources — Tempo, Prometheus, Loki, Pyroscope — behind the Grafana
-datasource proxy. Bring it up with the oddyssey MCP tools (`odd_stack_status`,
+The local stack is a single otel-lgtm container: Grafana on `:3000`, OTLP
+on `:4317` (gRPC) and `:4318` (HTTP), and four datasources — Tempo,
+Prometheus, Loki, Pyroscope — behind the Grafana datasource proxy. Grafana
+serves its API **anonymously** here: no credentials are required, and the
+`admin`/`admin` entries in the context below are accepted but inert (kept
+only so the template also fits an auth-enabled Grafana). Bring it up with the oddyssey MCP tools (`odd_stack_status`,
 `odd_stack_up`) before configuring anything here.
 
 ## Configure an isolated context
@@ -56,9 +58,16 @@ the whole setup.
 | Logs | Loki | `loki` | `gcx logs labels/series/query` | LogQL |
 | Profiles | Pyroscope | `pyroscope` | `gcx profiles list-profile-types/labels/query -d pyroscope` | profile selector |
 
-Discover before you query: `gcx metrics series` / `metadata`, `gcx traces
-labels`, `gcx logs labels`, `gcx profiles list-profile-types`. Every service
-names its own telemetry — never assume a metric, label, or stream exists.
+This table is verified against gcx v1.0.0 and Grafana 13.1.3; the gcx
+command surface moves between versions, so when a documented command
+errors, trust `gcx <group> --help` over this table.
+
+Discover before you query: `gcx metrics labels` / `gcx metrics metadata`,
+`gcx traces labels`, `gcx logs labels`, `gcx profiles list-profile-types`.
+`gcx metrics series` and `gcx logs series` are NOT discovery commands:
+bare, they error — both require at least one selector (e.g. `gcx metrics
+series 'target_info'`). Every service names its own telemetry — never
+assume a metric, label, or stream exists.
 
 ## This stack is push-based
 
