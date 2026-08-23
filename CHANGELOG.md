@@ -1,3 +1,8 @@
+## [1.4.0] - 2026-08-23
+
+### 🚀 Features
+
+- *(apm)* In-repo instrumentation memory and committed odd reports (#32)
 ## [1.3.0] - 2026-08-23
 
 ### 🚀 Features
@@ -7,6 +12,10 @@
 ### 📚 Documentation
 
 - *(readme)* Update command and one-telemetry-two-consumers principle (#28)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.3.0 (#31)
 ## [1.2.0] - 2026-08-22
 
 ### 🚀 Features
