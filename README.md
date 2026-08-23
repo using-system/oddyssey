@@ -35,21 +35,21 @@ is worth running.
 
 ```
 /plugin marketplace add using-system/oddyssey
-/plugin install oddyssey@oddyssey
+/plugin install oddyssey@oddyssey-plugin
 ```
 
 **GitHub Copilot CLI**
 
 ```
 copilot plugin marketplace add using-system/oddyssey
-copilot plugin install oddyssey@oddyssey
+copilot plugin install oddyssey@oddyssey-plugin
 ```
 
 **Kimi Code**
 
 ```
 /plugin marketplace add using-system/oddyssey
-/plugin install oddyssey@oddyssey
+/plugin install oddyssey@oddyssey-plugin
 ```
 
 **Codex** — this repository publishes the Codex manifest at

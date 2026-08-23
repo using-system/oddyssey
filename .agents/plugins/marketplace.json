@@ -1,7 +1,7 @@
 {
-  "name": "oddyssey",
+  "name": "oddyssey-plugin",
   "interface": {
-    "displayName": "oddyssey"
+    "displayName": "oddyssey-plugin"
   },
   "plugins": [
     {
