@@ -3,17 +3,18 @@ name: release
 on:
   # Fully manual release flow, two acts:
   #   1. Run workflow -> propose : opens/updates the chore(release) PR
-  #   2. merge that PR, then Run workflow -> publish
-  # publish is idempotent: it tags main's current version if the tag is
-  # missing, creates the GitHub release if missing, then builds and
-  # publishes to PyPI (skip-existing) - so it also serves as
-  # bootstrap/backfill and is safe to re-run.
+  #   2. review it, then Run workflow -> publish
+  # publish merges the (single) open chore(release) PR - failing clearly
+  # when there is none or more than one - then tags, creates the GitHub
+  # release, builds, and publishes to PyPI. Every step is skipped when
+  # already done (tag/release exist, skip-existing on PyPI), so publish
+  # also serves as bootstrap/backfill and is safe to re-run.
   workflow_dispatch:
     inputs:
       mode:
         description: >-
           propose = open/update the release PR from git history;
-          publish = tag (if needed), GitHub release (if needed), build and
+          publish = merge the release PR, tag, GitHub release, build and
           publish to PyPI - idempotent, safe to re-run.
         type: choice
         default: propose
@@ -80,6 +81,10 @@ jobs:
         if: steps.check.outputs.proceed == 'true'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
+          # With RELEASE_TOKEN (fine-grained PAT) the release PR triggers
+          # the CI workflows, so main's required status checks can pass;
+          # with the default token they never run and the PR is unmergeable.
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
           branch: release/pending
           delete-branch: true
           commit-message: "chore(release): ${{ steps.check.outputs.version }}"
@@ -95,27 +100,61 @@ jobs:
             marketplace/
 
   tag-and-release:
-    # Run AFTER merging the chore(release) PR (Run workflow -> publish):
-    # tags main's current version and creates the GitHub release, both
-    # only if missing - re-running is a no-op.
+    # Run workflow -> publish: merges the open chore(release) PR (exactly
+    # one must exist, unless the version was already merged/tagged), then
+    # tags main's version and creates the GitHub release, both only if
+    # missing - re-running is a no-op.
     runs-on: ubuntu-latest
     if: inputs.mode == 'publish'
     permissions:
       contents: write
+      pull-requests: write
     outputs:
       released: ${{ steps.tag.outputs.released }}
       tag: ${{ steps.tag.outputs.tag }}
     steps:
+      - name: Merge the release PR
+        id: merge
+        env:
+          # RELEASE_TOKEN (fine-grained PAT) lets the merged PR's checks
+          # exist at all: GITHUB_TOKEN-created PRs never trigger workflows,
+          # so their required checks stay pending forever.
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+        run: |
+          PRS="$(gh pr list -R "${GITHUB_REPOSITORY}" --state open --json number,title \
+            --jq '[.[] | select(.title | startswith("chore(release)"))]')"
+          COUNT="$(echo "$PRS" | jq 'length')"
+          if [ "$COUNT" -gt 1 ]; then
+            echo "::error::multiple open chore(release) PRs - close the stale ones first:"
+            echo "$PRS" | jq -r '.[] | "#\(.number) \(.title)"'
+            exit 1
+          fi
+          if [ "$COUNT" -eq 0 ]; then
+            echo "merged=false" >> "$GITHUB_OUTPUT"
+            echo "No open chore(release) PR - only legitimate as a re-run (the tag guard below decides)."
+          else
+            NUMBER="$(echo "$PRS" | jq -r '.[0].number')"
+            TITLE="$(echo "$PRS" | jq -r '.[0].title')"
+            echo "Merging release PR #${NUMBER}: ${TITLE}"
+            gh pr merge -R "${GITHUB_REPOSITORY}" "${NUMBER}" --squash
+            echo "merged=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           fetch-depth: 0
       - name: Tag the release (if not already tagged)
         id: tag
+        env:
+          MERGED: ${{ steps.merge.outputs.merged }}
         run: |
           VERSION="$(grep '^version:' apm.yml | awk '{print $2}')"
           TAG="v${VERSION}"
           if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
             echo "${TAG} already exists - leaving it in place."
+          elif [ "$MERGED" != "true" ]; then
+            echo "::error::${TAG} is untagged and no chore(release) PR was open - run propose (and merge review) first."
+            exit 1
           else
             git tag "${TAG}"
             git push origin "${TAG}"
