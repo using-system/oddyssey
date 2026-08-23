@@ -39,6 +39,14 @@ OTLP_HTTP_INGEST = "http://localhost:4318/v1/traces"
 STARTUP_TIMEOUT_S = 120
 POLL_INTERVAL_S = 2
 
+# Widest lookback each backend accepts for the pre-wipe service listing:
+# requests beyond the cap are rejected outright (not clamped), so the
+# window sits just under Tempo's 168h search max_duration and Loki's
+# 30d1h max_query_length. Signals older than these windows can be missed;
+# Prometheus (queried without a range) covers its full TSDB.
+TEMPO_SEARCH_WINDOW_S = 167 * 3600
+LOKI_SEARCH_WINDOW_S = 30 * 24 * 3600
+
 
 def run_args() -> list[str]:
     """The docker run command that creates the stack container."""
@@ -139,28 +147,49 @@ def stored_services(transport: httpx.BaseTransport | None = None) -> list[str]:
     Union across the queryable backends, since a service may have emitted
     only one signal: Tempo's service.name tag values, Loki's service_name
     label values, and Prometheus job values (OTLP ingestion maps
-    service.name onto job, prefixed by service.namespace/ when one is
-    set). The list exists to warn before a wipe, so every failure degrades
-    to fewer names, never to an error.
+    service.name onto job, prefixed by one service.namespace/ segment when
+    a namespace is set). Tempo and Loki need an explicit start/end pair:
+    unscoped, Tempo only reads its live store (flushed blocks are
+    invisible) and Loki defaults to a 6-hour lookback, so day-old services
+    would be wiped without ever being listed. The list exists to warn
+    before a wipe, so every failure degrades to fewer names, never to an
+    error.
     """
+    now_s = int(time.time())
+
+    def values(payload: object, field: str) -> list[str]:
+        if not isinstance(payload, dict):
+            return []
+        items = payload.get(field)
+        if not isinstance(items, list):
+            return []
+        return [v for v in items if isinstance(v, str)]
+
     services: set[str] = set()
     with httpx.Client(timeout=3.0, transport=transport) as client:
         try:
-            tag_values = client.get(TEMPO_SERVICE_NAMES).json().get("tagValues", [])
-            services.update(v for v in tag_values if isinstance(v, str))
-        except (httpx.HTTPError, ValueError, AttributeError):
+            tempo = client.get(
+                TEMPO_SERVICE_NAMES,
+                params={"start": now_s - TEMPO_SEARCH_WINDOW_S, "end": now_s},
+            ).json()
+            services.update(values(tempo, "tagValues"))
+        except (httpx.HTTPError, ValueError, TypeError):
             pass
         try:
-            names = client.get(LOKI_SERVICE_NAMES).json().get("data", [])
-            services.update(v for v in names if isinstance(v, str))
-        except (httpx.HTTPError, ValueError, AttributeError):
+            loki = client.get(
+                LOKI_SERVICE_NAMES,
+                params={
+                    "start": (now_s - LOKI_SEARCH_WINDOW_S) * 1_000_000_000,
+                    "end": now_s * 1_000_000_000,
+                },
+            ).json()
+            services.update(values(loki, "data"))
+        except (httpx.HTTPError, ValueError, TypeError):
             pass
         try:
-            jobs = client.get(PROMETHEUS_JOB_VALUES).json().get("data", [])
-            services.update(
-                job.rsplit("/", 1)[-1] for job in jobs if isinstance(job, str)
-            )
-        except (httpx.HTTPError, ValueError, AttributeError):
+            prometheus = client.get(PROMETHEUS_JOB_VALUES).json()
+            services.update(job.split("/", 1)[-1] for job in values(prometheus, "data"))
+        except (httpx.HTTPError, ValueError, TypeError):
             pass
     return sorted(services)
 
@@ -184,8 +213,17 @@ def stack_reset() -> dict:
 
     The stack is shared machine-wide (issue #35), so the wipe is never
     scoped to one project: the result names the services that were stored
-    so the destruction is at least visible to the caller.
+    so the destruction is at least visible to the caller. A stopped
+    container (normal after a host reboot) still holds telemetry but
+    answers nothing on :3000, so it is booted first to be enumerable -
+    best-effort, because wiping a container too broken to boot is also
+    reset's job.
     """
+    if _container_state() == "stopped":
+        try:
+            stack_up()
+        except RuntimeError:
+            pass
     services = stored_services()
     stack_down()
     return {**stack_up(), "services_wiped": services}

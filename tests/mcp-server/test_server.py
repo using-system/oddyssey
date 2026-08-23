@@ -28,6 +28,11 @@ def test_reset_description_states_the_machine_wide_wipe():
     reset = next(tool for tool in tools if tool.name == "odd_stack_reset")
     assert "machine" in reset.description.lower()
     assert "services_wiped" in reset.description
+    # Issue #35 side note: the server observes itself and the embedded
+    # collector self-reports, so these two names are always listed - the
+    # agent must not read them as another project's leftover state.
+    assert "oddyssey-mcp" in reset.description
+    assert "otelcol-contrib" in reset.description
 
 
 def test_sdk_otel_middleware_removed():
