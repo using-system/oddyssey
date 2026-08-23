@@ -81,10 +81,6 @@ jobs:
         if: steps.check.outputs.proceed == 'true'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          # With RELEASE_TOKEN (fine-grained PAT) the release PR triggers
-          # the CI workflows, so main's required status checks can pass;
-          # with the default token they never run and the PR is unmergeable.
-          token: ${{ secrets.RELEASE_TOKEN || github.token }}
           branch: release/pending
           delete-branch: true
           commit-message: "chore(release): ${{ steps.check.outputs.version }}"
@@ -116,10 +112,7 @@ jobs:
       - name: Merge the release PR
         id: merge
         env:
-          # RELEASE_TOKEN (fine-grained PAT) lets the merged PR's checks
-          # exist at all: GITHUB_TOKEN-created PRs never trigger workflows,
-          # so their required checks stay pending forever.
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           PRS="$(gh pr list -R "${GITHUB_REPOSITORY}" --state open --json number,title \
             --jq '[.[] | select(.title | startswith("chore(release)"))]')"
