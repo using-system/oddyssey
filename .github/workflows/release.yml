@@ -1,21 +1,33 @@
 name: release
 
 on:
+  # The push trigger only serves the tag-and-release chain (merge of a
+  # chore(release) PR); proposing a release is a manual act.
   push:
     branches:
       - main
-  # Manual bootstrap/backfill: build and publish the CURRENT version to
-  # PyPI without any bump (used once to seed the first package).
   workflow_dispatch:
+    inputs:
+      mode:
+        description: >-
+          propose = compute the next version from git history and
+          open/update the release PR; publish-current = build and publish
+          the CURRENT version without any bump (bootstrap/backfill).
+        type: choice
+        default: propose
+        options:
+          - propose
+          - publish-current
 
 jobs:
   propose-release:
-    # Computes the next semver purely from git history (tags + conventional
-    # commits, via git-cliff) and maintains the chore(release) PR carrying
-    # the version bumps and CHANGELOG. Nothing is ever pushed to main
-    # directly - a human approves and merges that PR.
+    # Manually triggered (Run workflow -> mode: propose): computes the next
+    # semver purely from git history (tags + conventional commits, via
+    # git-cliff) and maintains the chore(release) PR carrying the version
+    # bumps and CHANGELOG. Nothing is ever pushed to main directly - a
+    # human approves and merges that PR.
     runs-on: ubuntu-latest
-    if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release)')"
+    if: "github.event_name == 'workflow_dispatch' && inputs.mode == 'propose'"
     permissions:
       contents: write
       pull-requests: write
@@ -119,7 +131,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: tag-and-release
-    if: always() && (needs.tag-and-release.outputs.released == 'true' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.tag-and-release.outputs.released == 'true' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'publish-current'))
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
