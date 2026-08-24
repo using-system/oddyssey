@@ -29,13 +29,25 @@ the report.
   `OTEL_SERVICE_NAME`). Downstream services discovered in the traces are in
   scope for correlation even when they are not named in the mission.
 - **Environment** —
-  - **local** (default): the oddyssey stack — Grafana with OTLP on
-    `localhost:4317`/`:4318`, piloted through the MCP tools;
+  - **local**: the oddyssey stack — Grafana and OTLP on the configured
+    host ports (read them from `odd_stack_up`'s result or
+    `odd_config_get`, never assume defaults), piloted through the MCP
+    tools;
   - **remote**: the caller names the observability backend (Grafana,
     Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...) and
     provides the access material — URLs, tenant/workspace identifiers, and
     where the credentials come from. Never invent or hardcode credentials;
     if access is missing, stop and say exactly what is needed.
+  - Default when the mission is silent: the **configured stack**
+    (`odd_config_get`). `grafana` names the Grafana *family*, not a
+    location: WHICH Grafana comes from the CLI's configured context —
+    the one the caller's preflight displayed. A user context targeting a
+    remote Grafana means the run hits that remote; the local stack is
+    the target only when the mission says local or no remote context is
+    configured. By the time you run, the caller's preflight
+    (`check-backend-configuration` skill) has proven the CLI connected:
+    never attempt to authenticate a CLI yourself — a broken or missing
+    setup is a stop-and-report, not something to fix from a subagent.
 - **Mode** —
   - **drive**: you generate the traffic yourself, with the `run-scenario`
     skill, then observe what it produced (local environments; drive a
@@ -58,9 +70,11 @@ the report.
 
 1. **Identify the backend and open its guide.** Use the
    `observability-cli-guides` skill: pick the environment's backend, read
-   its reference file, and set up its CLI exactly as documented there —
-   auth, context, and the discovery and query commands per signal come from
-   that reference, not from memory.
+   its reference file — the discovery and query commands per signal come
+   from that reference, not from memory. The CLI's auth and context are
+   the caller's preflight's job: confirm with the reference's cheapest
+   probe, and if it is not connected, stop and report ("CLI not
+   configured for <backend>") — never authenticate from here.
 2. **Local environment.** The local stack is the Grafana case: call the
    oddyssey MCP tool `odd_stack_status`, then `odd_stack_up` if needed, and
    configure gcx with the `setup-local-stack` skill (isolated config,
