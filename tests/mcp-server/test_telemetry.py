@@ -188,7 +188,9 @@ def test_resource_has_no_service_instance_id():
     assert "instance_id_present=False" in result.stderr
 
 
-def test_export_endpoint_follows_the_configured_otlp_port(tmp_path, monkeypatch):
+def test_export_endpoint_follows_the_configured_otlp_port(
+    clean_otel_env, tmp_path, monkeypatch
+):
     # The exporter is built once at startup, so the configured OTLP port
     # must reach the environment before the SDK reads it.
     from oddyssey_mcp import config

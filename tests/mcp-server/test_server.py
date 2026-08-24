@@ -86,6 +86,35 @@ def test_config_set_resets_the_stack_only_on_port_change_with_container(
     assert resets == [1]
 
 
+def test_config_set_boots_a_stopped_container_before_writing_ports(
+    monkeypatch, tmp_path
+):
+    # A stopped container must be booted while the OLD ports are still
+    # configured: written first, the new ports trip stack_up's mismatch
+    # guard and the pre-wipe enumeration sees a dead container (#35).
+    monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / "config.json")
+    events: list[str] = []
+    real_save = config_module.save
+    monkeypatch.setattr(stack, "_container_state", lambda: "stopped")
+    monkeypatch.setattr(
+        stack, "stack_up", lambda env=None: events.append("up") or {"running": True}
+    )
+    monkeypatch.setattr(
+        config_module,
+        "save",
+        lambda partial, path=None: events.append("save") or real_save(partial, path),
+    )
+    monkeypatch.setattr(
+        stack,
+        "stack_reset",
+        lambda: events.append("reset") or {"running": True, "services_wiped": []},
+    )
+
+    server.odd_config_set({"local": {"grafana_port": 3300}})
+
+    assert events == ["up", "save", "reset"]
+
+
 def test_config_set_description_states_the_wipe_and_the_restart_note():
     tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
     description = tools["odd_config_set"].description
