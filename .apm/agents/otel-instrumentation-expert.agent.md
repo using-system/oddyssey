@@ -18,11 +18,12 @@ OTLP on port `4317` gRPC / `4318` HTTP — one `odd_stack_up` away; remote
 environments may use a different backend, only the OTLP endpoint changes).
 The host part of that endpoint is not a constant: it depends on where each
 service runs, so derive it per service (step 4) instead of writing
-`http://localhost:4317` everywhere. The port is not a constant either: on
-the local stack the effective ports come from the global configuration —
-read them at run time from `odd_config_get` or `odd_stack_up`'s result
-(`otlp_endpoint`); the defaults above are documentation, never the value
-written into an application.
+`http://localhost:4317` everywhere — and deliver it through
+`OTEL_EXPORTER_OTLP_ENDPOINT` (the standard environment variable), so a
+later port or backend change is a configuration change, never a
+re-instrumentation. Checking that a running service's endpoint matches
+the effective configuration is the observe/verify preflight's job, not
+yours.
 
 ## Investigation
 
@@ -112,14 +113,9 @@ with its stored path:
    enable and in what order, where the instrumentation is applied (image /
    startup / environment), and the `OTEL_*` configuration block: service
    name, resource attributes, the OTLP endpoint reachable from where that
-   service runs, and the OTLP protocol — `grpc` or `http/protobuf` on the
-   **effective** ports (`odd_config_get` / `odd_stack_up`'s result) —
-   matching the exporter package recommended. When a service already
-   carries an OTLP endpoint (its env file, compose, launch config) that
-   diverges from the effective one, that divergence is a **finding**: name
-   the current value, the effective value, and the exact correction — you
-   are read-only, the implementing wave applies it. Every entry carries
-   its rationale; nothing here is an unlabeled default.
+   service runs, and the OTLP protocol — `grpc` on `:4317` or
+   `http/protobuf` on `:4318` — matching the exporter package recommended.
+   Every entry carries its rationale; nothing here is an unlabeled default.
 4. **Decisions the spec must settle** — sampling strategy; **Collector
    topology**: direct OTLP export vs an OpenTelemetry Collector (agent /
    sidecar vs central gateway — see the `otel-guides` skill's Collector
