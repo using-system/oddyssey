@@ -102,6 +102,14 @@ Before a new run, load the baseline:
 - **Never write secrets into a report**: no tokens, credentials, cookies,
   or connection strings — these files are made to be committed and
   shared. Refer to access material by variable or secret name only.
+- **A recorded query is a contract only once shown to work**: a check is
+  authored against *broken* data, so "returns NaN/empty" and "the query
+  is wrong" are indistinguishable at authoring time (measured: `rate()`
+  over a single burst makes every `histogram_quantile` NaN by
+  construction, whatever the fix did). Each verification check states
+  how its query was validated — run against a healthy or adjacent
+  series, or a synthetic one — or carries `not validated`, which tells
+  the verify run to suspect the query before the fix.
 - **Record how the backend was started** when it needed configuration:
   the `env` passed to `odd_stack_up` / `odd_stack_reset` belongs in the
   measurement protocol (key names and values — secrets by name only). A
