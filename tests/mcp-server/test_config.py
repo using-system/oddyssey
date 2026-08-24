@@ -8,7 +8,7 @@ def test_load_returns_defaults_when_file_is_missing(tmp_path):
     result = config.load(tmp_path / "config.json")
 
     assert result == {
-        "stack": "grafana",
+        "stack": "local",
         "local": {
             "grafana_port": 3000,
             "otlp_grpc_port": 4317,
@@ -38,7 +38,7 @@ def test_load_tolerates_invalid_values_and_flags_them(tmp_path):
 
     result = config.load(path)
 
-    assert result["stack"] == "grafana"
+    assert result["stack"] == "local"
     assert result["local"]["grafana_port"] == 3000
     assert sorted(result["invalid_ignored"]) == ["local.grafana_port", "stack"]
 
@@ -49,7 +49,7 @@ def test_load_tolerates_unparseable_json(tmp_path):
 
     result = config.load(path)
 
-    assert result["stack"] == "grafana"
+    assert result["stack"] == "local"
     assert result["invalid_ignored"] == ["<file>"]
 
 
@@ -107,3 +107,17 @@ def test_save_creates_parent_directory(tmp_path):
     path = tmp_path / "nested" / "config.json"
     config.save({"stack": "splunk"}, path)
     assert json.loads(path.read_text())["stack"] == "splunk"
+
+
+def test_local_is_a_stack_value_and_the_default():
+    # Issue #67: local is a first-class stack value and the default -
+    # grafana then unambiguously means a remote Grafana. A fresh machine
+    # targets the self-serve local stack.
+    assert "local" in config.STACKS
+    assert config.DEFAULTS["stack"] == "local"
+
+
+def test_save_accepts_the_local_stack(tmp_path):
+    path = tmp_path / "config.json"
+    result = config.save({"stack": "local"}, path)
+    assert result["stack"] == "local"

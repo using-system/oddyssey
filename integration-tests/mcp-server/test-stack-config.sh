@@ -60,7 +60,7 @@ assert_result_contains "$workdir/up.json" '"running": true'
 step "odd_config_get returns the defaults"
 mcp_call odd_config_get > "$workdir/get.json"
 assert_result_contains "$workdir/get.json" '"grafana_port": 3000'
-assert_result_contains "$workdir/get.json" '"stack": "grafana"'
+assert_result_contains "$workdir/get.json" '"stack": "local"'
 
 step "changing the ports auto-resets the stack onto them"
 ports_moved=1

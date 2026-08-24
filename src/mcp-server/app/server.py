@@ -98,8 +98,10 @@ def odd_config_set(config: dict) -> dict:
     """Update the global oddyssey configuration (partial merge).
 
     config example: {"stack": "datadog"} or {"local": {"grafana_port": 3300}}.
-    stack is one of: grafana, azure-monitor, cloudwatch, datadog, dynatrace,
-    splunk. Changing a port while a stack container exists RESETS the stack
+    stack is one of: local (the local stack - the default), grafana (a
+    REMOTE Grafana - the CLI context says which instance), azure-monitor,
+    cloudwatch, datadog, dynatrace, splunk. Switching to the local stack is
+    {"stack": "local"}. Changing a port while a stack container exists RESETS the stack
     immediately so the configuration is always applied: this WIPES all stored
     telemetry machine-wide (the result embeds the reset outcome, including
     services_wiped). That auto-reset recreates the container with the
