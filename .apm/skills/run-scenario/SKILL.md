@@ -59,7 +59,8 @@ endpoint covered once. Note anything you deliberately left out.
 Send a few requests per endpoint (typically 5) before measuring: JIT
 compilation, connection pools, lazy caches, and first-hit schema loads all
 land in the first requests and distort a small sample. Discard the warmup
-from the quoted numbers, and say in the record that it was discarded.
+from the quoted numbers, and say in the record that it was discarded —
+unless an iteration is expensive: see the carve-out in step 3.
 
 ## 3. Iterate enough to quote a number
 
@@ -80,9 +81,11 @@ iteration, and two identical invocations legitimately differ (turn
 count, tool mix, tokens, duration). Then:
 
 - **How many samples to spend is the caller's decision, not yours** —
-  state the count in the record and run that. Skipping the warmup is
-  expected at these prices: keep the first sample and mark it cold
-  instead of discarding it.
+  state the count in the record and run that. When the mission names no
+  count and an iteration is visibly expensive, stop after the first
+  sample and ask: a sample spent is a decision the caller never made.
+  Skipping the warmup is expected at these prices: keep the first
+  sample and mark it cold instead of discarding it.
 - **Never dress samples up as statistics** — quote every number with its
   sample count (`n=2`), and at one or two samples write *observation*,
   never a quantile or a mean. A verify run that diffs two single

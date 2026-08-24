@@ -207,7 +207,11 @@ with its stored path:
    error that must be gone, a gap that must be filled — so the
    improvement is verified with evidence, not impressions. Each check
    states how its query was validated on healthy data, or carries
-   `not validated` (the persistence skill defines the marker).
+   `not validated` (the persistence skill defines the marker). For an
+   expensive or non-deterministic scenario (`run-scenario`'s carve-out),
+   every before-value carries its sample count and pass criteria are
+   structural or magnitude-bounded — never a value from one or two
+   samples.
 
 ## Rules
 
