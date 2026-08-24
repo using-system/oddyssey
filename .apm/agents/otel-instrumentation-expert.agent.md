@@ -78,11 +78,14 @@ yours.
      batch consumers, where the relationship is a span link, not a
      parent-child edge;
    - **where the service runs** (host process, container, Kubernetes pod,
-     FaaS) and therefore which OTLP endpoint is reachable *from there*:
-     `localhost:4317` holds only for a host process; a container talking to
-     a collector on the host needs `host.docker.internal` (Docker Desktop),
-     the compose service name, or an explicit `extra_hosts` entry — say
-     which one and why;
+     FaaS) and therefore which OTLP endpoint is reachable *from there*.
+     On the local stack, read the effective ports from the configuration
+     (`odd_config_get`, or `odd_stack_up`'s `otlp_endpoint`) before
+     deriving — the documented defaults hold only until someone
+     configures otherwise. `localhost` holds only for a host process; a
+     container talking to a collector on the host needs
+     `host.docker.internal` (Docker Desktop), the compose service name,
+     or an explicit `extra_hosts` entry — say which one and why;
    - **where instrumentation is applied**: baked into the image
      (Dockerfile), injected at startup (entrypoint, agent flag), or
      supplied by the environment (compose / Kubernetes env vars, the
