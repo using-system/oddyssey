@@ -59,7 +59,8 @@ endpoint covered once. Note anything you deliberately left out.
 Send a few requests per endpoint (typically 5) before measuring: JIT
 compilation, connection pools, lazy caches, and first-hit schema loads all
 land in the first requests and distort a small sample. Discard the warmup
-from the quoted numbers, and say in the record that it was discarded.
+from the quoted numbers, and say in the record that it was discarded —
+unless an iteration is expensive: see the carve-out in step 3.
 
 ## 3. Iterate enough to quote a number
 
@@ -71,6 +72,29 @@ from the quoted numbers, and say in the record that it was discarded.
 - Keep inputs deterministic: fixed IDs, fixed payloads, a fixed seed. A
   random payload is not replayable; if randomness is unavoidable, record the
   seed.
+
+### When an iteration is expensive or non-deterministic
+
+The counts above assume cheap, repeatable iterations. Some scenarios are
+neither: an LLM-backed job can cost real money and tens of minutes per
+iteration, and two identical invocations legitimately differ (turn
+count, tool mix, tokens, duration). Then:
+
+- **How many samples to spend is the caller's decision, not yours** —
+  state the count in the record and run that. When the mission names no
+  count and an iteration is visibly expensive, stop after the first
+  sample and ask: a sample spent is a decision the caller never made.
+  Skipping the warmup is expected at these prices: keep the first
+  sample and mark it cold instead of discarding it.
+- **Never dress samples up as statistics** — quote every number with its
+  sample count (`n=2`), and at one or two samples write *observation*,
+  never a quantile or a mean. A verify run that diffs two single
+  observations is comparing noise.
+- **Non-deterministic runs are compared by structure and order of
+  magnitude** — same steps present, similar proportions, durations and
+  costs in the same range — never value against value. Record what varied
+  between identical invocations, so the verify run knows what noise
+  looks like.
 
 ## 4. Record verbatim
 
