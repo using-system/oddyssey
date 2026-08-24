@@ -18,7 +18,12 @@ OTLP on port `4317` gRPC / `4318` HTTP — one `odd_stack_up` away; remote
 environments may use a different backend, only the OTLP endpoint changes).
 The host part of that endpoint is not a constant: it depends on where each
 service runs, so derive it per service (step 4) instead of writing
-`http://localhost:4317` everywhere.
+`http://localhost:4317` everywhere — and deliver it through
+`OTEL_EXPORTER_OTLP_ENDPOINT` (the standard environment variable), so a
+later port or backend change is a configuration change, never a
+re-instrumentation. Checking that a running service's endpoint matches
+the effective configuration is the observe/verify preflight's job, not
+yours.
 
 ## Investigation
 
@@ -73,11 +78,14 @@ service runs, so derive it per service (step 4) instead of writing
      batch consumers, where the relationship is a span link, not a
      parent-child edge;
    - **where the service runs** (host process, container, Kubernetes pod,
-     FaaS) and therefore which OTLP endpoint is reachable *from there*:
-     `localhost:4317` holds only for a host process; a container talking to
-     a collector on the host needs `host.docker.internal` (Docker Desktop),
-     the compose service name, or an explicit `extra_hosts` entry — say
-     which one and why;
+     FaaS) and therefore which OTLP endpoint is reachable *from there*.
+     On the local stack, read the effective ports from the configuration
+     (`odd_config_get`, or `odd_stack_up`'s `otlp_endpoint`) before
+     deriving — the documented defaults hold only until someone
+     configures otherwise. `localhost` holds only for a host process; a
+     container talking to a collector on the host needs
+     `host.docker.internal` (Docker Desktop), the compose service name,
+     or an explicit `extra_hosts` entry — say which one and why;
    - **where instrumentation is applied**: baked into the image
      (Dockerfile), injected at startup (entrypoint, agent flag), or
      supplied by the environment (compose / Kubernetes env vars, the
