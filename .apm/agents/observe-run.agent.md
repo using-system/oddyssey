@@ -88,7 +88,10 @@ the report.
    - **logs** — a stream or index carries the service.
 
    If **no** signal carries a named service, stop: report which signals are
-   absent, whether the process is reachable at all, and recommend the
+   absent, whether the process is reachable at all — and on the local
+   stack, whether the service's configured export endpoint matches the
+   effective ports (`odd_config_get`): a divergence is the likely cause,
+   name it instead of a bare "no telemetry" — then recommend the
    `otel-instrumentation-expert` agent. Never fabricate analysis from an
    empty window. If **some** signals are missing, continue on what exists
    and record each absence in **Telemetry gaps** with the query that came

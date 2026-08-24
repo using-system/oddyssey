@@ -106,7 +106,9 @@ def odd_config_set(config: dict) -> dict:
     DEFAULT environment: any env previously applied through odd_stack_up or
     odd_stack_reset is NOT carried over - re-run odd_stack_reset with the
     same env to reapply it. The MCP server's own telemetry export honors a
-    changed OTLP port only after the MCP server restarts.
+    changed OTLP port only after the MCP server restarts, and applications
+    configured against the old ports keep exporting to them - their
+    OTEL_EXPORTER_OTLP_ENDPOINT must be updated to the new otlp_endpoint.
     """
     ports_before = config_ops.load()["local"]
     state_before = stack_ops._container_state()
