@@ -39,13 +39,11 @@ the report.
     where the credentials come from. Never invent or hardcode credentials;
     if access is missing, stop and say exactly what is needed.
   - Default when the mission is silent: the **configured stack**
-    (`odd_config_get`). `grafana` names the Grafana *family*, not a
-    location: WHICH Grafana comes from the CLI's configured context —
-    the one the caller's preflight displayed. A user context targeting a
-    remote Grafana means the run hits that remote; the local stack is
-    the target only when the mission says local or no remote context is
-    configured. By the time you run, the caller's preflight
-    (`check-backend-configuration` skill) has proven the CLI connected:
+    (`odd_config_get`) — `local` is the local stack (the default), and
+    every other value names a remote backend (for `grafana`, the gcx
+    context says which instance). By the time you run, the caller's
+    preflight (`check-backend-configuration` skill) has proven the CLI
+    connected:
     never attempt to authenticate a CLI yourself — a broken or missing
     setup is a stop-and-report, not something to fix from a subagent.
 - **Mode** —
@@ -75,7 +73,8 @@ the report.
    the caller's preflight's job: confirm with the reference's cheapest
    probe, and if it is not connected, stop and report ("CLI not
    configured for <backend>") — never authenticate from here.
-2. **Local environment.** The local stack is the Grafana case: call the
+2. **Local environment.** The local stack is a Grafana (LGTM) stack —
+   use the Grafana reference and gcx: call the
    oddyssey MCP tool `odd_stack_status`, then `odd_stack_up` if needed, and
    configure gcx with the `setup-local-stack` skill (isolated config,
    datasource UIDs) — gcx is the stack's mandatory query CLI.
