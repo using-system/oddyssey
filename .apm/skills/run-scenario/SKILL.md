@@ -72,6 +72,27 @@ from the quoted numbers, and say in the record that it was discarded.
   random payload is not replayable; if randomness is unavoidable, record the
   seed.
 
+### When an iteration is expensive or non-deterministic
+
+The counts above assume cheap, repeatable iterations. Some scenarios are
+neither: an LLM-backed job can cost real money and tens of minutes per
+iteration, and two identical invocations legitimately differ (turn
+count, tool mix, tokens, duration). Then:
+
+- **How many samples to spend is the caller's decision, not yours** —
+  state the count in the record and run that. Skipping the warmup is
+  expected at these prices: keep the first sample and mark it cold
+  instead of discarding it.
+- **Never dress samples up as statistics** — quote every number with its
+  sample count (`n=2`), and at one or two samples write *observation*,
+  never a quantile or a mean. A verify run that diffs two single
+  observations is comparing noise.
+- **Non-deterministic runs are compared by structure and order of
+  magnitude** — same steps present, similar proportions, durations and
+  costs in the same range — never value against value. Record what varied
+  between identical invocations, so the verify run knows what noise
+  looks like.
+
 ## 4. Record verbatim
 
 Record the scenario while running it, not from memory. The record is the
