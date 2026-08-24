@@ -10,7 +10,19 @@ on `:4317` (gRPC) and `:4318` (HTTP), and four datasources — Tempo,
 Prometheus, Loki, Pyroscope — behind the Grafana datasource proxy. Grafana
 serves its API **anonymously** here: no credentials are required, and the
 `admin`/`admin` entries in the context below are accepted but inert (kept
-only so the template also fits an auth-enabled Grafana). Bring it up with the oddyssey MCP tools (`odd_stack_status`,
+only so the template also fits an auth-enabled Grafana).
+
+The stack holds no volume **by design** — a reset wipes everything, and
+the observation report is the only durable artifact. To configure the
+container, pass `env` to `odd_stack_up`/`odd_stack_reset`; env (like the
+embedded defaults, e.g. delta-metric ingestion) applies at container
+creation only, so a container predating the current oddyssey version
+keeps its old definition until its next reset. For anything env cannot
+express (volumes, networks), the supported escape hatch is a manual
+`docker run` reusing the same name and ports — `status`/`up`/`down` keep
+working against it, but a **reset recreates the container from the
+embedded definition plus env**: hand-mounted volumes and networks do not
+survive it. Bring it up with the oddyssey MCP tools (`odd_stack_status`,
 `odd_stack_up`) before configuring anything here.
 
 ## Configure an isolated context

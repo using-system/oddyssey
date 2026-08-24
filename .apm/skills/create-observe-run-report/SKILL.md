@@ -11,6 +11,13 @@ memory: reports live **in the observed repository**, so git versions
 them, PRs review them, and every user of the repo shares them — no
 side-channel storage, nothing opaque.
 
+The report is also the loop's **only durable artifact**: the raw
+telemetry behind it lives in a volume-less container that any
+`odd_stack_reset` — from this project or another on the same machine —
+destroys irreversibly. A question that only occurs at verify time is
+unanswerable unless its numbers were recorded at observe time: when in
+doubt, record the number.
+
 ## Where reports live
 
 ```text
@@ -75,6 +82,11 @@ Before a new run, load the baseline:
 - **Never write secrets into a report**: no tokens, credentials, cookies,
   or connection strings — these files are made to be committed and
   shared. Refer to access material by variable or secret name only.
+- **Record how the backend was started** when it needed configuration:
+  the `env` passed to `odd_stack_up` / `odd_stack_reset` belongs in the
+  measurement protocol (key names and values — secrets by name only). A
+  replayed reset recreates the container bare; only a recorded env lets
+  the verify run pass the same one.
 - One run, one file: never edit a previous report to "update" it — a new
   run writes a new file, the diff lives in the new report.
 - Write the file exactly where the contract says: the report belongs to

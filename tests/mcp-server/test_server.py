@@ -35,6 +35,14 @@ def test_reset_description_states_the_machine_wide_wipe():
     assert "otelcol-contrib" in reset.description
 
 
+def test_up_and_reset_expose_an_env_parameter():
+    # Issue #34: the otel-lgtm image is configured exclusively through
+    # environment variables; both creation paths must accept them.
+    tools = {tool.name: tool for tool in asyncio.run(server.mcp.list_tools())}
+    for name in ("odd_stack_up", "odd_stack_reset"):
+        assert "env" in tools[name].input_schema["properties"], name
+
+
 def test_sdk_otel_middleware_removed():
     # mcp 2.0 installs its own OpenTelemetryMiddleware by default, which
     # duplicated every tool span (observation report finding 1). The

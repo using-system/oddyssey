@@ -1,4 +1,5 @@
 import httpx
+import pytest
 from oddyssey_mcp import stack
 from oddyssey_mcp.stack import (
     CONTAINER_NAME,
@@ -21,6 +22,45 @@ def test_run_args_build_the_pinned_container():
     for mapping in PORTS:
         assert mapping in args
     assert {"3000:3000", "4317:4317", "4318:4318"} == set(PORTS)
+
+
+def test_run_args_enable_delta_to_cumulative_by_default():
+    # Issue #34: CLI coding agents export claude_code.* metrics with delta
+    # temporality, which Prometheus's OTLP receiver silently rejects unless
+    # started with this feature flag. The stack targets those agents, so
+    # storing their telemetry is part of the embedded definition.
+    args = run_args()
+
+    flag_index = args.index("-e")
+    assert (
+        args[flag_index + 1]
+        == "PROMETHEUS_EXTRA_ARGS=--enable-feature=otlp-deltatocumulative"
+    )
+
+
+def _env_entries(args: list[str]) -> list[str]:
+    return [args[i + 1] for i, flag in enumerate(args) if flag == "-e"]
+
+
+def test_run_args_adds_user_env_after_the_defaults():
+    entries = _env_entries(run_args({"GF_LOG_LEVEL": "debug"}))
+
+    assert "PROMETHEUS_EXTRA_ARGS=--enable-feature=otlp-deltatocumulative" in entries
+    assert "GF_LOG_LEVEL=debug" in entries
+
+
+def test_run_args_lets_user_env_override_the_defaults():
+    entries = _env_entries(run_args({"PROMETHEUS_EXTRA_ARGS": "--custom"}))
+
+    assert entries.count("PROMETHEUS_EXTRA_ARGS=--custom") == 1
+    assert not any(e.startswith("PROMETHEUS_EXTRA_ARGS=--enable") for e in entries)
+
+
+def test_run_args_rejects_malformed_env_keys():
+    with pytest.raises(ValueError, match="environment variable name"):
+        run_args({"BAD=KEY": "x"})
+    with pytest.raises(ValueError, match="environment variable name"):
+        run_args({"": "x"})
 
 
 def test_stack_status_all_ready():
@@ -204,9 +244,122 @@ def _trace_reset(monkeypatch, state: str, up=None) -> tuple[list[str], dict]:
         stack, "stack_down", lambda: calls.append("stack_down") or {"running": False}
     )
     monkeypatch.setattr(
-        stack, "stack_up", up or (lambda: calls.append("stack_up") or UP_RESULT)
+        stack,
+        "stack_up",
+        up or (lambda env=None: calls.append("stack_up") or UP_RESULT),
     )
     return calls, stack.stack_reset()
+
+
+def test_stack_up_reports_env_not_applied_on_an_existing_container(monkeypatch):
+    # Docker env only applies at container creation: an up on an existing
+    # container must say so instead of letting the caller believe the
+    # configuration landed (issue #34 / #43 family).
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+
+    result = stack.stack_up(env={"GF_LOG_LEVEL": "debug"})
+
+    assert result["env_applied"] is False
+    assert result["running"] is True
+
+
+def test_stack_up_applies_env_when_it_creates_the_container(monkeypatch):
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(args, **kwargs):
+        captured["args"] = args
+
+        class Result:
+            returncode = 0
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(stack, "_container_state", lambda: "absent")
+    monkeypatch.setattr(stack.subprocess, "run", fake_run)
+    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+
+    result = stack.stack_up(env={"GF_LOG_LEVEL": "debug"})
+
+    assert "GF_LOG_LEVEL=debug" in _env_entries(captured["args"])
+    assert result["env_applied"] is True
+
+
+def test_stack_up_reports_env_not_applied_on_a_stopped_container(monkeypatch):
+    # docker start brings a stopped container up without applying env -
+    # created must stay False on that path (e.g. after a host reboot).
+    class StartOk:
+        returncode = 0
+        stderr = ""
+
+    monkeypatch.setattr(stack, "_container_state", lambda: "stopped")
+    monkeypatch.setattr(stack, "_docker", lambda *args: StartOk())
+    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+
+    result = stack.stack_up(env={"GF_LOG_LEVEL": "debug"})
+
+    assert result["env_applied"] is False
+
+
+def test_stack_up_rejects_malformed_env_before_doing_anything(monkeypatch):
+    # A malformed env must fail up front, not silently report
+    # env_applied: false and steer the caller toward a doomed reset.
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+
+    with pytest.raises(ValueError, match="environment variable name"):
+        stack.stack_up(env={"BAD=KEY": "x"})
+
+
+def test_stack_reset_rejects_malformed_env_before_wiping(monkeypatch):
+    # The validation is pure and free: it must run before the machine-wide
+    # wipe, never after it (a rejected request must destroy nothing).
+    calls: list[str] = []
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(
+        stack, "stored_services", lambda: calls.append("stored_services") or []
+    )
+    monkeypatch.setattr(
+        stack, "stack_down", lambda: calls.append("stack_down") or {"running": False}
+    )
+    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+
+    with pytest.raises(ValueError, match="environment variable name"):
+        stack.stack_reset(env={"BAD=KEY": "x"})
+
+    assert calls == []
+
+
+def test_stack_up_result_shape_is_unchanged_without_env(monkeypatch):
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+
+    assert "env_applied" not in stack.stack_up()
+
+
+def test_stack_reset_passes_env_to_the_new_container(monkeypatch):
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "stored_services", list)
+    monkeypatch.setattr(stack, "stack_down", lambda: {"running": False})
+
+    def fake_up(env=None):
+        seen["env"] = env
+        return {**UP_RESULT, "env_applied": env is not None}
+
+    monkeypatch.setattr(stack, "stack_up", fake_up)
+
+    result = stack.stack_reset(env={"GF_LOG_LEVEL": "debug"})
+
+    assert seen["env"] == {"GF_LOG_LEVEL": "debug"}
+    assert result["env_applied"] is True
 
 
 def test_stack_reset_reports_the_services_it_wiped(monkeypatch):
@@ -234,7 +387,7 @@ def test_stack_reset_still_wipes_a_stopped_container_that_cannot_boot(monkeypatc
     # boot fails, the wipe must proceed rather than error out.
     boots: list[int] = []
 
-    def up():
+    def up(env=None):
         boots.append(1)
         if len(boots) == 1:
             raise RuntimeError("container will not start")
