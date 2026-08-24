@@ -10,6 +10,29 @@ the numbers in an observation report produce the numbers that verify the
 fix. A scenario that cannot be replayed verbatim makes before/after
 comparison an impression, not a measurement.
 
+## 0. A clean backend is not a clean run
+
+`odd_stack_reset` clears the **store**, not the **process**: cumulative
+counters and histograms live in the application and keep their pre-run
+history, while traces and logs are window-scoped — the two signal
+families disagree about what "the run" is. Restart order matters too: an
+old process that outlives the reset flushes its whole cumulative history
+into the brand-new store on its next periodic export.
+
+Start a clean run in this order — the reverse of what feels natural:
+
+1. **Restart the observed process first** — its dying flush lands in the
+   old store;
+2. **then `odd_stack_reset`** — the wipe takes that flush with it;
+3. record the new process's `service.instance.id` in the protocol, and
+   qualify every cumulative-metric query with it — an unfiltered query
+   mixes instances the moment an old one got a last export in.
+
+When restarting is not possible, say so in the record: traces and logs
+stay trustworthy, but cumulative metrics read inside the window include
+pre-window activity — treat them as deltas between the window's edges,
+never as run totals.
+
 ## 1. Decide what to exercise
 
 In order of preference:
@@ -53,6 +76,7 @@ deliverable:
 Scenario: <name>
 Base URL: http://localhost:<port>
 Backend:  odd_stack_reset, env: {"PROMETHEUS_EXTRA_ARGS": "..."}   # or "defaults"
+Instance: service.instance.id=af6070... (process restarted before reset)   # or "not restarted"
 Warmup:   5 requests per endpoint (discarded)
 Load:     30 requests per endpoint, sequential
 Started (UTC): 2026-08-17T10:04:12Z
