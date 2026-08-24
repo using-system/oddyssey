@@ -1,4 +1,5 @@
 import httpx
+import pytest
 from oddyssey_mcp import stack
 from oddyssey_mcp.stack import (
     CONTAINER_NAME,
@@ -56,8 +57,6 @@ def test_run_args_lets_user_env_override_the_defaults():
 
 
 def test_run_args_rejects_malformed_env_keys():
-    import pytest
-
     with pytest.raises(ValueError, match="environment variable name"):
         run_args({"BAD=KEY": "x"})
     with pytest.raises(ValueError, match="environment variable name"):
@@ -287,6 +286,54 @@ def test_stack_up_applies_env_when_it_creates_the_container(monkeypatch):
 
     assert "GF_LOG_LEVEL=debug" in _env_entries(captured["args"])
     assert result["env_applied"] is True
+
+
+def test_stack_up_reports_env_not_applied_on_a_stopped_container(monkeypatch):
+    # docker start brings a stopped container up without applying env -
+    # created must stay False on that path (e.g. after a host reboot).
+    class StartOk:
+        returncode = 0
+        stderr = ""
+
+    monkeypatch.setattr(stack, "_container_state", lambda: "stopped")
+    monkeypatch.setattr(stack, "_docker", lambda *args: StartOk())
+    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+
+    result = stack.stack_up(env={"GF_LOG_LEVEL": "debug"})
+
+    assert result["env_applied"] is False
+
+
+def test_stack_up_rejects_malformed_env_before_doing_anything(monkeypatch):
+    # A malformed env must fail up front, not silently report
+    # env_applied: false and steer the caller toward a doomed reset.
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+
+    with pytest.raises(ValueError, match="environment variable name"):
+        stack.stack_up(env={"BAD=KEY": "x"})
+
+
+def test_stack_reset_rejects_malformed_env_before_wiping(monkeypatch):
+    # The validation is pure and free: it must run before the machine-wide
+    # wipe, never after it (a rejected request must destroy nothing).
+    calls: list[str] = []
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(
+        stack, "stored_services", lambda: calls.append("stored_services") or []
+    )
+    monkeypatch.setattr(
+        stack, "stack_down", lambda: calls.append("stack_down") or {"running": False}
+    )
+    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+
+    with pytest.raises(ValueError, match="environment variable name"):
+        stack.stack_reset(env={"BAD=KEY": "x"})
+
+    assert calls == []
 
 
 def test_stack_up_result_shape_is_unchanged_without_env(monkeypatch):

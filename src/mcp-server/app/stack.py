@@ -59,18 +59,28 @@ TEMPO_SEARCH_WINDOW_S = 167 * 3600
 LOKI_SEARCH_WINDOW_S = 30 * 24 * 3600
 
 
+def _validate_env(env: dict[str, str] | None) -> None:
+    """Reject malformed keys with a clear message.
+
+    Pure and free, so every entry point runs it FIRST: a rejected request
+    must destroy and create nothing (a reset that wipes before validating
+    would trade the whole machine's telemetry for an error). Injection is
+    impossible by construction (argv list, no shell) - only the key shape
+    needs guarding.
+    """
+    for key in env or {}:
+        if not key or "=" in key:
+            raise ValueError(f"invalid environment variable name: {key!r}")
+
+
 def run_args(env: dict[str, str] | None = None) -> list[str]:
     """The docker run command that creates the stack container.
 
     User entries win over the embedded defaults on key collision - what
     the caller states explicitly is what the container gets, same policy
-    as telemetry.py's setdefault handling of OTEL_* variables. Injection
-    is impossible by construction (argv list, no shell), so validation
-    only guards the key shape to fail with a clear message.
+    as telemetry.py's setdefault handling of OTEL_* variables.
     """
-    for key in env or {}:
-        if not key or "=" in key:
-            raise ValueError(f"invalid environment variable name: {key!r}")
+    _validate_env(env)
     merged = dict(entry.split("=", 1) for entry in DEFAULT_ENV)
     merged.update(env or {})
     port_flags = [flag for mapping in PORTS for flag in ("-p", mapping)]
@@ -150,6 +160,7 @@ def stack_up(env: dict[str, str] | None = None) -> dict:
     field (present whenever env was requested) tells the caller whether
     it landed or a reset is needed.
     """
+    _validate_env(env)
     state = _container_state()
     created = False
     if state == "stopped":
@@ -269,6 +280,7 @@ def stack_reset(env: dict[str, str] | None = None) -> dict:
     best-effort, because wiping a container too broken to boot is also
     reset's job.
     """
+    _validate_env(env)
     if _container_state() == "stopped":
         try:
             stack_up()

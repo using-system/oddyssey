@@ -14,10 +14,13 @@ mcp_list_tools() {
     "$SERVER_BIN" --method tools/list
 }
 
-# mcp_call <tool-name> -> JSON of tools/call on stdout
+# mcp_call <tool-name> [key=json-value]... -> JSON of tools/call on stdout
 mcp_call() {
+  local tool="$1"; shift
+  local args=()
+  for arg in "$@"; do args+=(--tool-arg "$arg"); done
   npx -y @modelcontextprotocol/inspector@"$INSPECTOR_VERSION" --cli \
-    "$SERVER_BIN" --method tools/call --tool-name "$1"
+    "$SERVER_BIN" --method tools/call --tool-name "$tool" "${args[@]+"${args[@]}"}"
 }
 
 # assert_result_contains <json-file> <substring> - checks the tool result text
