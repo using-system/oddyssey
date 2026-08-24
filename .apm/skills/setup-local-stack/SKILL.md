@@ -11,8 +11,9 @@ the Grafana datasource proxy. The host ports come from the **global
 configuration** (defaults `3000` / `4317` / `4318`): read the effective
 URLs from `odd_stack_up`'s result (`grafana_url`, `otlp_endpoint`) or
 `odd_config_get` — never assume the defaults, and point an application's
-`OTEL_EXPORTER_OTLP_ENDPOINT` at those values, not at a hardcoded port. Grafana
-serves its API **anonymously** here: no credentials are required, and the
+`OTEL_EXPORTER_OTLP_ENDPOINT` at those values, never at a hardcoded
+port. Grafana serves its API **anonymously** here: no credentials are
+required, and the
 `admin`/`admin` entries in the context below are accepted but inert (kept
 only so the template also fits an auth-enabled Grafana).
 

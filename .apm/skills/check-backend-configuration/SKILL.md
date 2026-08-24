@@ -15,8 +15,12 @@ connected, and guide the user when it is not.
 
 `odd_config_get` names the configured stack (`grafana`, `azure-monitor`,
 `cloudwatch`, `datadog`, `dynatrace`, `splunk`). When the mission or the
-instructions name a different one, they win — and the caller persists the
-switch with `odd_config_set` so the next run starts from it.
+instructions name a different one, they win — whether the switch persists
+is the **caller's call**: `odd-observe` persists it with `odd_config_set`
+so the next run starts from it; `odd-verify` states the divergence and
+does not persist (the stored report is the contract it replays).
+`grafana` may route to the local stack — see Local specificity below
+before treating a missing gcx setup as an error.
 
 ## 2. Resolve the CLI and read its configuration
 
@@ -47,8 +51,13 @@ criterion, not the user's assurance.
 
 ## Local specificity
 
-`grafana` with a local mission is the local stack: apply the
-`setup-local-stack` skill (isolated gcx context, datasource UIDs, ports
-from the global configuration) — that skill owns the local method, this
-one only routes to it. The connection proof is then `gcx config check`
-against the isolated local context.
+`grafana` with a local mission — **or with no remote gcx context
+configured** — is the local stack: apply the `setup-local-stack` skill
+(isolated gcx context, datasource UIDs, ports from the global
+configuration) — that skill owns the local method, this one only routes
+to it, and it is fully self-serve: no user authentication to guide, so a
+missing gcx setup on a fresh machine is NOT a "CLI not configured"
+error. The connection proof is then `gcx config check` against the
+isolated local context. A user context targeting a remote Grafana means
+the run hits that remote — `grafana` names the family, the CLI's context
+says which one.

@@ -12,8 +12,7 @@ Resolve the report first:
 - Expected fields (any order, free-form): the report to verify against -
   a path under `.odd/observe-run-reports/` or enough of a run name to
   find it - and, when that report's environment is remote, the access
-  material the agent will need (or confirmation the backend CLI is
-  already configured).
+  material the agent will need.
 - Default when no report is named: the newest file in
   `.odd/observe-run-reports/` (filenames sort chronologically - read
   frontmatters only, newest first). If the newest reports cover several
