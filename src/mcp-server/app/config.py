@@ -16,12 +16,22 @@ from pathlib import Path
 
 CONFIG_PATH = Path.home() / ".oddyssey" / "config.json"
 
-# The backends of the observability-cli-guides skill. No "local" value:
-# local IS grafana - the specificity lives in the setup-local-stack skill.
-STACKS = ("grafana", "azure-monitor", "cloudwatch", "datadog", "dynatrace", "splunk")
+# "local" is the local stack and the default (a fresh machine is
+# self-serve, #67); every other value is a remote backend of the
+# observability-cli-guides skill - "grafana" means a remote Grafana,
+# the CLI context says which instance.
+STACKS = (
+    "local",
+    "grafana",
+    "azure-monitor",
+    "cloudwatch",
+    "datadog",
+    "dynatrace",
+    "splunk",
+)
 
 DEFAULTS = {
-    "stack": "grafana",
+    "stack": "local",
     "local": {"grafana_port": 3000, "otlp_grpc_port": 4317, "otlp_http_port": 4318},
 }
 
