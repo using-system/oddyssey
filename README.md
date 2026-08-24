@@ -220,12 +220,12 @@ logs, and Pyroscope profiles are all queried through the Grafana proxy
 Grafana; on remote environments the stack behind it can be something other
 than the local otel-lgtm container.
 
-| Tool | What it does |
-| --- | --- |
-| `odd_stack_up` | Start the local stack and wait until it is ready |
-| `odd_stack_down` | Destroy it — stored telemetry does not survive |
-| `odd_stack_status` | Probe whether it is up |
-| `odd_stack_reset` | Wipe all stored telemetry and return a fresh, ready stack — the next run starts from a clean slate |
+| Tool | What it does | Params |
+| --- | --- | --- |
+| `odd_stack_up` | Start the local stack and wait until it is ready | `env` (optional) — container environment; applies at creation only |
+| `odd_stack_down` | Destroy it — stored telemetry does not survive | — |
+| `odd_stack_status` | Probe whether it is up | — |
+| `odd_stack_reset` | Wipe all stored telemetry and return a fresh, ready stack — the next run starts from a clean slate | `env` (optional) — always applies, the container is recreated |
 
 The server is instrumented with OpenTelemetry and, by default, exports its
 own traces and metrics to the local stack (`http://localhost:4318`, OTLP

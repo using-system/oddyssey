@@ -59,10 +59,24 @@ TEMPO_SEARCH_WINDOW_S = 167 * 3600
 LOKI_SEARCH_WINDOW_S = 30 * 24 * 3600
 
 
-def run_args() -> list[str]:
-    """The docker run command that creates the stack container."""
+def run_args(env: dict[str, str] | None = None) -> list[str]:
+    """The docker run command that creates the stack container.
+
+    User entries win over the embedded defaults on key collision - what
+    the caller states explicitly is what the container gets, same policy
+    as telemetry.py's setdefault handling of OTEL_* variables. Injection
+    is impossible by construction (argv list, no shell), so validation
+    only guards the key shape to fail with a clear message.
+    """
+    for key in env or {}:
+        if not key or "=" in key:
+            raise ValueError(f"invalid environment variable name: {key!r}")
+    merged = dict(entry.split("=", 1) for entry in DEFAULT_ENV)
+    merged.update(env or {})
     port_flags = [flag for mapping in PORTS for flag in ("-p", mapping)]
-    env_flags = [flag for entry in DEFAULT_ENV for flag in ("-e", entry)]
+    env_flags = [
+        flag for key, value in merged.items() for flag in ("-e", f"{key}={value}")
+    ]
     return [
         "docker",
         "run",
@@ -128,9 +142,16 @@ def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
     return {"running": all(signals.values()), **signals}
 
 
-def stack_up() -> dict:
-    """Start the stack container (idempotent) and wait until it is ready."""
+def stack_up(env: dict[str, str] | None = None) -> dict:
+    """Start the stack container (idempotent) and wait until it is ready.
+
+    Docker only applies env at container creation, so env reaches the
+    container only when this call creates one; the result's env_applied
+    field (present whenever env was requested) tells the caller whether
+    it landed or a reset is needed.
+    """
     state = _container_state()
+    created = False
     if state == "stopped":
         result = _docker("start", CONTAINER_NAME)
         if result.returncode != 0:
@@ -138,11 +159,12 @@ def stack_up() -> dict:
     elif state == "absent":
         with telemetry.docker_span("run", container=CONTAINER_NAME) as span:
             result = subprocess.run(
-                run_args(), capture_output=True, text=True, check=False
+                run_args(env), capture_output=True, text=True, check=False
             )
             span.set_attribute("oddyssey.docker.exit_code", result.returncode)
         if result.returncode != 0:
             raise RuntimeError(f"docker run failed: {result.stderr.strip()}")
+        created = True
     status = stack_status()
     deadline = time.monotonic() + STARTUP_TIMEOUT_S
     while time.monotonic() < deadline:
@@ -154,11 +176,14 @@ def stack_up() -> dict:
             # just-ready backend (best effort - already-dropped batches are
             # gone, and that residual loss is accepted by the spec).
             telemetry.force_flush()
-            return {
+            up_result = {
                 "running": True,
                 "grafana_url": GRAFANA_URL,
                 "otlp_endpoint": OTLP_ENDPOINT,
             }
+            if env:
+                up_result["env_applied"] = created
+            return up_result
         time.sleep(POLL_INTERVAL_S)
         status = stack_status()
     raise RuntimeError(
@@ -228,7 +253,7 @@ def stack_down() -> dict:
     return {"running": False}
 
 
-def stack_reset() -> dict:
+def stack_reset(env: dict[str, str] | None = None) -> dict:
     """Wipe all stored telemetry and return a fresh, ready stack.
 
     The stack runs without volumes, so destroying the container erases every
@@ -251,4 +276,5 @@ def stack_reset() -> dict:
             pass
     services = stored_services()
     stack_down()
-    return {**stack_up(), "services_wiped": services}
+    # Reset always recreates, so env - unlike on stack_up - always applies.
+    return {**stack_up(env), "services_wiped": services}

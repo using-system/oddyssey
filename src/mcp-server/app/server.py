@@ -33,9 +33,18 @@ except Exception:  # noqa: BLE001, S110 - degraded telemetry beats a dead server
 
 @mcp.tool()
 @telemetry.traced_tool
-def odd_stack_up() -> dict:
-    """Start the local LGTM observability stack (Grafana, Tempo, Prometheus, Loki, Pyroscope, OTLP)."""
-    return stack_ops.stack_up()
+def odd_stack_up(env: dict[str, str] | None = None) -> dict:
+    """Start the local LGTM observability stack (Grafana, Tempo, Prometheus, Loki, Pyroscope, OTLP).
+
+    env adds environment variables to the container - the otel-lgtm image is
+    configured exclusively through them (PROMETHEUS_EXTRA_ARGS,
+    LOKI_EXTRA_ARGS, TEMPO_EXTRA_ARGS, GF_*, ...); explicit entries override
+    the embedded defaults. Docker only applies env at container creation: when
+    a container already exists the result carries env_applied: false and the
+    requested env is NOT active - run odd_stack_reset with the same env to
+    apply it (destroys stored telemetry).
+    """
+    return stack_ops.stack_up(env)
 
 
 @mcp.tool()
@@ -54,8 +63,12 @@ def odd_stack_status() -> dict:
 
 @mcp.tool()
 @telemetry.traced_tool
-def odd_stack_reset() -> dict:
+def odd_stack_reset(env: dict[str, str] | None = None) -> dict:
     """Wipe ALL stored telemetry (traces, metrics, logs, profiles) and return a fresh, ready stack.
+
+    env adds environment variables to the recreated container (see
+    odd_stack_up); unlike on up, a reset always recreates, so env always
+    applies.
 
     The wipe is machine-wide and irreversible: one shared stack per machine, so
     data from every project ever observed on it is destroyed, not just the
@@ -68,7 +81,7 @@ def odd_stack_reset() -> dict:
     collector's own metrics): those two are never another project's leftover
     state - only other names are.
     """
-    return stack_ops.stack_reset()
+    return stack_ops.stack_reset(env)
 
 
 def main() -> None:
