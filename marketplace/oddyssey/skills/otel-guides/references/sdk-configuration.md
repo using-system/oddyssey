@@ -13,5 +13,6 @@ Links ending in `index.md` return the page as raw markdown; links without it are
 
 - These environment variables are cross-language by design (per the OpenTelemetry spec) — they are the primary knobs an instrumentation plan sets regardless of which language SDK is used, though actual per-variable support varies by language (see the linked environment-variable compliance matrix).
 - `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` establish resource identity; if `service.name` is set in both, `OTEL_SERVICE_NAME` wins.
+- A subprocess-driven CLI inherits the parent's environment, so an instrumented CLI exports under the *parent application's* `OTEL_SERVICE_NAME` (observed with the Claude Code CLI): give every instrumented CLI the plan spawns a distinct `OTEL_SERVICE_NAME` in the subprocess environment, or its telemetry lands under the wrong service.
 - `OTEL_EXPORTER_OTLP_ENDPOINT` is the single variable to set for "send everything to my collector" setups; use the signal-specific `_TRACES_`/`_METRICS_`/`_LOGS_ENDPOINT` variants only when signals must be routed differently.
 - Declarative (YAML) configuration is still experimental/limited in language support — default to environment-variable configuration for a new instrumentation plan unless the target is Java or the env-var surface is genuinely insufficient.

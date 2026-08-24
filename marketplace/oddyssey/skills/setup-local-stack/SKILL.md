@@ -1,16 +1,33 @@
 ---
 name: setup-local-stack
-description: Configure gcx against the local oddyssey Grafana stack and query its four signals (metrics, traces, logs, profiles) without touching the user's own gcx contexts. Use when querying the local stack on http://localhost:3000, when configuring gcx locally, when a command needs the Tempo, Prometheus, Loki, or Pyroscope datasource UID. gcx is the mandatory query CLI for the stack - install it if missing (brew install gcx, or the official install script from github.com/grafana/gcx).
+description: Configure gcx against the local oddyssey Grafana stack and query its four signals (metrics, traces, logs, profiles) without touching the user's own gcx contexts. Use when querying the local stack (Grafana host port from the global configuration, default 3000), when configuring gcx locally, when a command needs the Tempo, Prometheus, Loki, or Pyroscope datasource UID. gcx is the mandatory query CLI for the stack - install it if missing (brew install gcx, or the official install script from github.com/grafana/gcx).
 ---
 
 # gcx on the local oddyssey stack
 
-The local stack is a single otel-lgtm container: Grafana on `:3000`, OTLP
-on `:4317` (gRPC) and `:4318` (HTTP), and four datasources — Tempo,
-Prometheus, Loki, Pyroscope — behind the Grafana datasource proxy. Grafana
-serves its API **anonymously** here: no credentials are required, and the
+The local stack is a single otel-lgtm container: Grafana, OTLP (gRPC and
+HTTP), and four datasources — Tempo, Prometheus, Loki, Pyroscope — behind
+the Grafana datasource proxy. The host ports come from the **global
+configuration** (defaults `3000` / `4317` / `4318`): read the effective
+URLs from `odd_stack_up`'s result (`grafana_url`, `otlp_endpoint`) or
+`odd_config_get` — never assume the defaults, and point an application's
+`OTEL_EXPORTER_OTLP_ENDPOINT` at those values, never at a hardcoded
+port. Grafana serves its API **anonymously** here: no credentials are
+required, and the
 `admin`/`admin` entries in the context below are accepted but inert (kept
-only so the template also fits an auth-enabled Grafana). Bring it up with the oddyssey MCP tools (`odd_stack_status`,
+only so the template also fits an auth-enabled Grafana).
+
+The stack holds no volume **by design** — a reset wipes everything, and
+the observation report is the only durable artifact. To configure the
+container, pass `env` to `odd_stack_up`/`odd_stack_reset`; env (like the
+embedded defaults, e.g. delta-metric ingestion) applies at container
+creation only, so a container predating the current oddyssey version
+keeps its old definition until its next reset. For anything env cannot
+express (volumes, networks), the supported escape hatch is a manual
+`docker run` reusing the same name and ports — `status`/`up`/`down` keep
+working against it, but a **reset recreates the container from the
+embedded definition plus env**: hand-mounted volumes and networks do not
+survive it. Bring it up with the oddyssey MCP tools (`odd_stack_status`,
 `odd_stack_up`) before configuring anything here.
 
 ## Configure an isolated context
@@ -27,7 +44,7 @@ current-context: local
 contexts:
   local:
     grafana:
-      server: http://localhost:3000
+      server: http://localhost:3000   # odd_stack_up's grafana_url - default shown
       user: admin
       password: admin
       org-id: 1

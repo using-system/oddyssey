@@ -10,6 +10,34 @@ the numbers in an observation report produce the numbers that verify the
 fix. A scenario that cannot be replayed verbatim makes before/after
 comparison an impression, not a measurement.
 
+## 0. A clean backend is not a clean run
+
+`odd_stack_reset` clears the **store**, not the **process**: cumulative
+counters and histograms live in the application and keep their pre-run
+history, while traces and logs are window-scoped — the two signal
+families disagree about what "the run" is. Restart order matters too: an
+old process that outlives the reset flushes its whole cumulative history
+into the brand-new store on its next periodic export.
+
+Start a clean run in this order — the reverse of what feels natural:
+
+1. **Restart the observed process first** — its dying flush lands in the
+   old store;
+2. **then `odd_stack_reset`** — the wipe takes that flush with it;
+3. record the new process's identity in the protocol —
+   `service.instance.id` when the SDK emits one, or the backend
+   equivalent when it is absent (its start time, a
+   `target_info` label, a container id) — and qualify every
+   cumulative-metric query with it: an unfiltered query mixes instances
+   the moment an old one got a last export in.
+
+When restarting is not possible, say so in the record — and still record
+the identity **and the process start time**: the start time is what
+dates the pre-window history. Traces and logs stay trustworthy, but
+cumulative metrics read inside the window include pre-window activity —
+treat them as deltas between the window's edges, never as run totals
+(valid only within one instance, which the recorded identity proves).
+
 ## 1. Decide what to exercise
 
 In order of preference:
@@ -31,7 +59,8 @@ endpoint covered once. Note anything you deliberately left out.
 Send a few requests per endpoint (typically 5) before measuring: JIT
 compilation, connection pools, lazy caches, and first-hit schema loads all
 land in the first requests and distort a small sample. Discard the warmup
-from the quoted numbers, and say in the record that it was discarded.
+from the quoted numbers, and say in the record that it was discarded —
+unless an iteration is expensive: see the carve-out in step 3.
 
 ## 3. Iterate enough to quote a number
 
@@ -44,6 +73,29 @@ from the quoted numbers, and say in the record that it was discarded.
   random payload is not replayable; if randomness is unavoidable, record the
   seed.
 
+### When an iteration is expensive or non-deterministic
+
+The counts above assume cheap, repeatable iterations. Some scenarios are
+neither: an LLM-backed job can cost real money and tens of minutes per
+iteration, and two identical invocations legitimately differ (turn
+count, tool mix, tokens, duration). Then:
+
+- **How many samples to spend is the caller's decision, not yours** —
+  state the count in the record and run that. When the mission names no
+  count and an iteration is visibly expensive, stop after the first
+  sample and ask: a sample spent is a decision the caller never made.
+  Skipping the warmup is expected at these prices: keep the first
+  sample and mark it cold instead of discarding it.
+- **Never dress samples up as statistics** — quote every number with its
+  sample count (`n=2`), and at one or two samples write *observation*,
+  never a quantile or a mean. A verify run that diffs two single
+  observations is comparing noise.
+- **Non-deterministic runs are compared by structure and order of
+  magnitude** — same steps present, similar proportions, durations and
+  costs in the same range — never value against value. Record what varied
+  between identical invocations, so the verify run knows what noise
+  looks like.
+
 ## 4. Record verbatim
 
 Record the scenario while running it, not from memory. The record is the
@@ -52,6 +104,8 @@ deliverable:
 ```text
 Scenario: <name>
 Base URL: http://localhost:<port>
+Backend:  odd_stack_reset, env: {"PROMETHEUS_EXTRA_ARGS": "..."}   # or "defaults"
+Instance: af6070... (restarted before reset)   # or equivalent identity; add the start time when not restarted
 Warmup:   5 requests per endpoint (discarded)
 Load:     30 requests per endpoint, sequential
 Started (UTC): 2026-08-17T10:04:12Z
@@ -64,6 +118,9 @@ Not reproducible: <auth token / seeded data / time-dependent input, or "none">
 
 Exact commands, exact counts, exact UTC start and end — the start/end pair
 is also the observation window for every query run against this scenario.
+The `Backend:` line records how the stack was (re)started, **including any
+`env`**: a replay must reproduce the backend and not only the requests — a
+bare reset silently drops configuration the run depends on.
 
 ## 5. Wait for the flush
 
