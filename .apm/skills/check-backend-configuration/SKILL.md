@@ -20,8 +20,8 @@ they win — whether the switch persists is the **caller's call**:
 `odd-observe` persists it with `odd_config_set` so the next run starts
 from it; `odd-verify` states the divergence and does not persist (the
 stored report is the contract it replays). `local` routes straight to
-the local stack — see Local specificity below, steps 2-4 do not apply
-to it.
+the local stack — steps 2-4 are **replaced by** the Local specificity
+section below.
 
 ## 2. Resolve the CLI and read its configuration
 
@@ -48,7 +48,10 @@ Point the user at the exact setup steps in the backend's reference, ask
 for the inputs the mission needs (instance URL, tenant, workspace, where
 the credentials come from — by name, never values), and re-run the probe
 once the user says the setup is done. The probe's success is the exit
-criterion, not the user's assurance.
+criterion, not the user's assurance. One check before guiding remote
+auth: on `grafana` with no remote gcx context configured, offer the
+alternative first — if the user meant the local stack, the fix is
+`odd_config_set {"stack": "local"}`, not an authentication.
 
 ## Local specificity
 

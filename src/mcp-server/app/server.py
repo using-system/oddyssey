@@ -88,7 +88,7 @@ def odd_stack_reset(env: dict[str, str] | None = None) -> dict:
 @mcp.tool()
 @telemetry.traced_tool
 def odd_config_get() -> dict:
-    """Read the global oddyssey configuration: stack backend and local stack host ports (defaults applied; invalid stored values are listed in invalid_ignored)."""
+    """Read the global oddyssey configuration: the configured stack (local, or a remote backend) and the local stack host ports (defaults applied; invalid stored values are listed in invalid_ignored)."""
     return config_ops.load()
 
 
@@ -100,10 +100,11 @@ def odd_config_set(config: dict) -> dict:
     config example: {"stack": "datadog"} or {"local": {"grafana_port": 3300}}.
     stack is one of: local (the local stack - the default), grafana (a
     REMOTE Grafana - the CLI context says which instance), azure-monitor,
-    cloudwatch, datadog, dynatrace, splunk. Switching to the local stack is
-    {"stack": "local"}. Changing a port while a stack container exists RESETS the stack
-    immediately so the configuration is always applied: this WIPES all stored
-    telemetry machine-wide (the result embeds the reset outcome, including
+    cloudwatch, datadog, dynatrace, splunk. Switching to the local stack
+    is {"stack": "local"}. Changing a port while a stack container exists
+    RESETS the stack immediately so the configuration is always applied:
+    this WIPES all stored telemetry machine-wide (the result embeds the
+    reset outcome, including
     services_wiped). That auto-reset recreates the container with the
     DEFAULT environment: any env previously applied through odd_stack_up or
     odd_stack_reset is NOT carried over - re-run odd_stack_reset with the

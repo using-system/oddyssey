@@ -73,7 +73,8 @@ the report.
    the caller's preflight's job: confirm with the reference's cheapest
    probe, and if it is not connected, stop and report ("CLI not
    configured for <backend>") — never authenticate from here.
-2. **Local environment.** The local stack is the Grafana case: call the
+2. **Local environment.** The local stack is a Grafana (LGTM) stack —
+   use the Grafana reference and gcx: call the
    oddyssey MCP tool `odd_stack_status`, then `odd_stack_up` if needed, and
    configure gcx with the `setup-local-stack` skill (isolated config,
    datasource UIDs) — gcx is the stack's mandatory query CLI.
