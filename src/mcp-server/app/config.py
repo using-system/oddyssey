@@ -10,6 +10,8 @@ strict (a rejected partial writes nothing).
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 CONFIG_PATH = Path.home() / ".oddyssey" / "config.json"
@@ -73,3 +75,63 @@ def load(path: Path | None = None) -> dict:
     if invalid:
         effective["invalid_ignored"] = invalid
     return effective
+
+
+def save(partial: dict, path: Path | None = None) -> dict:
+    """Validated deep-merge into the stored file; a rejected partial writes nothing.
+
+    Strict where load is tolerant: the caller is a tool, not a hand
+    edit, so a clear error beats a silent fallback. The merged EFFECTIVE
+    ports are validated together, so a partial cannot collide with a
+    stored or default port. Atomic write (temp + os.replace) so a
+    concurrent MCP server never reads a half-written file.
+    """
+    target = CONFIG_PATH if path is None else path
+    unknown = set(partial) - {"stack", "local"}
+    if unknown:
+        raise ValueError(f"unknown configuration keys: {sorted(unknown)}")
+    if "stack" in partial and partial["stack"] not in STACKS:
+        raise ValueError(
+            f"stack must be one of {list(STACKS)}, got {partial['stack']!r}"
+        )
+    local_partial = partial.get("local", {})
+    if not isinstance(local_partial, dict):
+        # Every rejected partial raises ValueError by contract, so one
+        # caller-facing except clause covers the whole validation.
+        raise ValueError("local must be an object of port fields")  # noqa: TRY004
+    unknown_ports = set(local_partial) - set(DEFAULTS["local"])
+    if unknown_ports:
+        raise ValueError(f"unknown local keys: {sorted(unknown_ports)}")
+    for key, value in local_partial.items():
+        if not _valid_port(value):
+            raise ValueError(f"{key} must be an integer port in 1-65535, got {value!r}")
+
+    effective_local = {**load(target)["local"], **local_partial}
+    if len(set(effective_local.values())) != len(effective_local):
+        raise ValueError(f"ports must be pairwise distinct, got {effective_local}")
+
+    try:
+        stored = json.loads(target.read_text())
+        if not isinstance(stored, dict):
+            stored = {}
+    except (OSError, ValueError):
+        stored = {}
+    if "stack" in partial:
+        stored["stack"] = partial["stack"]
+    if local_partial:
+        stored_local = stored.get("local")
+        stored["local"] = {
+            **(stored_local if isinstance(stored_local, dict) else {}),
+            **local_partial,
+        }
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp = tempfile.mkstemp(dir=target.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as handle:
+            json.dump(stored, handle, indent=2)
+        os.replace(temp, target)
+    except BaseException:
+        os.unlink(temp)
+        raise
+    return load(target)
