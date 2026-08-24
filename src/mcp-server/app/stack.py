@@ -1,7 +1,7 @@
 """LGTM stack lifecycle: the server drives Docker directly, no compose file.
 
-The container definition is embedded here (image pin, name, ports), so the
-server is standalone: Docker is the only prerequisite.
+The container definition is embedded here (image pin, name, ports,
+environment), so the server is standalone: Docker is the only prerequisite.
 """
 
 from __future__ import annotations
@@ -16,6 +16,14 @@ from . import telemetry
 IMAGE = "grafana/otel-lgtm:0.30.2"
 CONTAINER_NAME = "oddyssey-lgtm"
 PORTS = ("3000:3000", "4317:4317", "4318:4318")
+
+# Part of the embedded definition, not an option (issue #34): CLI coding
+# agents - the stack's target audience - export their claude_code.*
+# metrics with delta temporality, which Prometheus's OTLP receiver
+# silently rejects (HTTP 200, datapoints dropped) unless started with
+# this feature flag. Experimental on Prometheus's side, but the image is
+# pinned, so the behavior cannot drift until a deliberate bump.
+DEFAULT_ENV = ("PROMETHEUS_EXTRA_ARGS=--enable-feature=otlp-deltatocumulative",)
 
 # Readiness is probed through the Grafana datasource proxy: one request
 # checks both Grafana and the backend behind it, and only Grafana's port
@@ -54,7 +62,17 @@ LOKI_SEARCH_WINDOW_S = 30 * 24 * 3600
 def run_args() -> list[str]:
     """The docker run command that creates the stack container."""
     port_flags = [flag for mapping in PORTS for flag in ("-p", mapping)]
-    return ["docker", "run", "-d", "--name", CONTAINER_NAME, *port_flags, IMAGE]
+    env_flags = [flag for entry in DEFAULT_ENV for flag in ("-e", entry)]
+    return [
+        "docker",
+        "run",
+        "-d",
+        "--name",
+        CONTAINER_NAME,
+        *port_flags,
+        *env_flags,
+        IMAGE,
+    ]
 
 
 def _docker(*args: str) -> subprocess.CompletedProcess:

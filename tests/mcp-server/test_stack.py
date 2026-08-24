@@ -23,6 +23,20 @@ def test_run_args_build_the_pinned_container():
     assert {"3000:3000", "4317:4317", "4318:4318"} == set(PORTS)
 
 
+def test_run_args_enable_delta_to_cumulative_by_default():
+    # Issue #34: CLI coding agents export claude_code.* metrics with delta
+    # temporality, which Prometheus's OTLP receiver silently rejects unless
+    # started with this feature flag. The stack targets those agents, so
+    # storing their telemetry is part of the embedded definition.
+    args = run_args()
+
+    flag_index = args.index("-e")
+    assert (
+        args[flag_index + 1]
+        == "PROMETHEUS_EXTRA_ARGS=--enable-feature=otlp-deltatocumulative"
+    )
+
+
 def test_stack_status_all_ready():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200)
