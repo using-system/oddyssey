@@ -29,13 +29,25 @@ the report.
   `OTEL_SERVICE_NAME`). Downstream services discovered in the traces are in
   scope for correlation even when they are not named in the mission.
 - **Environment** —
-  - **local** (default): the oddyssey stack — Grafana with OTLP on
-    `localhost:4317`/`:4318`, piloted through the MCP tools;
+  - **local**: the oddyssey stack — Grafana and OTLP on the configured
+    host ports (read them from `odd_stack_up`'s result or
+    `odd_config_get`, never assume defaults), piloted through the MCP
+    tools;
   - **remote**: the caller names the observability backend (Grafana,
     Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...) and
     provides the access material — URLs, tenant/workspace identifiers, and
     where the credentials come from. Never invent or hardcode credentials;
     if access is missing, stop and say exactly what is needed.
+  - Default when the mission is silent: the **configured stack**
+    (`odd_config_get`). `grafana` names the Grafana *family*, not a
+    location: WHICH Grafana comes from the CLI's configured context —
+    the one the caller's preflight displayed. A user context targeting a
+    remote Grafana means the run hits that remote; the local stack is
+    the target only when the mission says local or no remote context is
+    configured. By the time you run, the caller's preflight
+    (`check-backend-configuration` skill) has proven the CLI connected:
+    never attempt to authenticate a CLI yourself — a broken or missing
+    setup is a stop-and-report, not something to fix from a subagent.
 - **Mode** —
   - **drive**: you generate the traffic yourself, with the `run-scenario`
     skill, then observe what it produced (local environments; drive a
@@ -58,9 +70,11 @@ the report.
 
 1. **Identify the backend and open its guide.** Use the
    `observability-cli-guides` skill: pick the environment's backend, read
-   its reference file, and set up its CLI exactly as documented there —
-   auth, context, and the discovery and query commands per signal come from
-   that reference, not from memory.
+   its reference file — the discovery and query commands per signal come
+   from that reference, not from memory. The CLI's auth and context are
+   the caller's preflight's job: confirm with the reference's cheapest
+   probe, and if it is not connected, stop and report ("CLI not
+   configured for <backend>") — never authenticate from here.
 2. **Local environment.** The local stack is the Grafana case: call the
    oddyssey MCP tool `odd_stack_status`, then `odd_stack_up` if needed, and
    configure gcx with the `setup-local-stack` skill (isolated config,
@@ -74,7 +88,10 @@ the report.
    - **logs** — a stream or index carries the service.
 
    If **no** signal carries a named service, stop: report which signals are
-   absent, whether the process is reachable at all, and recommend the
+   absent, whether the process is reachable at all — and on the local
+   stack, whether the service's configured export endpoint matches the
+   effective ports (`odd_config_get`): a divergence is the likely cause,
+   name it instead of a bare "no telemetry" — then recommend the
    `otel-instrumentation-expert` agent. Never fabricate analysis from an
    empty window. If **some** signals are missing, continue on what exists
    and record each absence in **Telemetry gaps** with the query that came
@@ -96,9 +113,11 @@ exact commands; the method below is the same everywhere.
 In **drive** mode, produce the traffic first with the `run-scenario` skill
 and keep its verbatim record — sections 1 and 7 of the report both quote
 it. On the local stack, when the mission asks for a clean base — or
-isolating the run matters — call `odd_stack_reset` before the scenario:
-everything the stack then contains IS the run, and the window becomes
-trivial. Reset wipes ALL stored telemetry for every service, so never use
+isolating the run matters — restart the observed process, **then** call
+`odd_stack_reset` before the scenario (`run-scenario` step 0: a clean
+backend is not a clean run, and the order is load-bearing): everything
+the stack then contains IS the run, and the window becomes trivial.
+Reset wipes ALL stored telemetry for every service, so never use
 it on a stack whose history the caller still needs (and there is no reset
 on remote backends — scope with the window instead). When the caller has
 explicitly authorized driving a **remote** service, only `run-scenario`'s
@@ -203,7 +222,13 @@ with its stored path:
    conditions a comparable run needs. Then every verification check with
    its before-value and its pass criterion — a threshold to meet, an
    error that must be gone, a gap that must be filled — so the
-   improvement is verified with evidence, not impressions.
+   improvement is verified with evidence, not impressions. Each check
+   states how its query was validated on healthy data, or carries
+   `not validated` (the persistence skill defines the marker). For an
+   expensive or non-deterministic scenario (`run-scenario`'s carve-out),
+   every before-value carries its sample count and pass criteria are
+   structural or magnitude-bounded — never a value from one or two
+   samples.
 
 ## Rules
 
@@ -217,6 +242,11 @@ with its stored path:
   secret name only.
 - Every anomaly is either cross-confirmed in a second signal or explicitly
   labeled single-signal.
+- Cumulative metrics belong to a process, not a window — in **every**
+  mode, not only drive: record the identity the numbers belong to
+  (`service.instance.id` or its backend equivalent), qualify cumulative
+  queries by it, and treat an unrestarted process's cumulatives as
+  deltas between the window's edges, never as run totals.
 - Leave the environment as you found it: the local stack stays running
   (the main agent measures next — say so in the report); on remote
   backends, run queries only, no configuration changes.
@@ -229,7 +259,8 @@ with its stored path:
   preflighted; all four signals were queried or their absence recorded in
   section 5; every table row and every finding carries its query and
   result; every improvement carries a number and a verification query with
-  a before-value; every single-signal or unprobed claim is marked
+  a before-value; every verification check carries its validation status;
+  every single-signal or unprobed claim is marked
   `suspected`; the memory was recalled (section 1 names the previous
   report or says there was none) and the report was persisted per the
   `create-observe-run-report` skill, with its stored path in the reply.

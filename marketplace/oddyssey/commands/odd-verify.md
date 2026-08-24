@@ -12,13 +12,22 @@ Resolve the report first:
 - Expected fields (any order, free-form): the report to verify against -
   a path under `.odd/observe-run-reports/` or enough of a run name to
   find it - and, when that report's environment is remote, the access
-  material the agent will need (or confirmation the backend CLI is
-  already configured).
+  material the agent will need.
 - Default when no report is named: the newest file in
   `.odd/observe-run-reports/` (filenames sort chronologically - read
   frontmatters only, newest first). If the newest reports cover several
   services, ask which one is being verified before proceeding. If the
   directory has no report, stop and say there is nothing to verify.
+
+Preflight next - in the main conversation, before any dispatch: the
+report's `environment` is the contract being replayed. When it disagrees
+with the configured stack (`odd_config_get`), say so and **follow the
+report** - a verify run replays the baseline's backend, never silently
+retargets the current one (and it does not rewrite the configuration:
+the divergence is stated, not persisted). Then run the
+`check-backend-configuration` skill against the report's backend: show
+the CLI's configuration, fail fast when it is not connected, and ask for
+what is missing before dispatching.
 
 Then build the mission block from that report:
 
@@ -35,7 +44,13 @@ Then build the mission block from that report:
   window in the report's mode), then rule on each item with its
   evidence:
   - every verification check of its measurement protocol: before-value,
-    after-value, recorded pass criterion, pass/fail;
+    after-value, recorded pass criterion, pass/fail. An empty or NaN
+    after-value is a **query-suspect** outcome, not a failure: first
+    doubt the recorded query (evaluate at several times, read the raw
+    series behind it, try an equivalent form), especially when the
+    check is marked `not validated`, and only rule "fix did not land"
+    once the query itself is proven sound. When the query was the
+    problem, reporting its corrected form is part of the verdict;
   - every anomaly it found: fixed, still present, or worse, with the
     query that proves it;
   - every telemetry gap it listed: now filled or still missing, with the

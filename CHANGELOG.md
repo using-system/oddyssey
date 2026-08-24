@@ -1,3 +1,23 @@
+## [1.6.0] - 2026-08-24
+
+### 🚀 Features
+
+- *(mcp)* Stack env passthrough and delta-metric ingestion (#55)
+- *(mcp)* Persistent global configuration - stack backend and local ports (#63)
+- *(apm)* Backend preflight - check-backend-configuration skill and configured-stack resolution (#65)
+
+### 🐛 Bug Fixes
+
+- *(method)* Run-scoped metrics, pinned identities, and validated checks (#56)
+
+### 📚 Documentation
+
+- *(skill)* Run-scenario contract for expensive or non-deterministic scenarios (#57)
+- *(skill)* Otel-guides - three measured pitfalls from real adoption (#58)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Name runs after the chosen mode (#54)
 ## [1.5.0] - 2026-08-23
 
 ### 🚀 Features
@@ -11,6 +31,10 @@
 ### 📚 Documentation
 
 - *(skill)* Align setup-local-stack with the verified gcx surface (#52)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.5.0 (#53)
 ## [1.4.1] - 2026-08-23
 
 ### ⚙️ Miscellaneous Tasks

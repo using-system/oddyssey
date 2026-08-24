@@ -37,6 +37,7 @@ project: oddyssey/src/mcp-server
 target: local                 # local | the remote backend name (grafana, datadog, ...)
 run_name: mcp-server-python
 date: 2026-08-23
+revision: 2299d4c             # optional: commit of the investigated repo
 ---
 
 <the investigation report, verbatim and complete>
@@ -45,7 +46,9 @@ date: 2026-08-23
 - The frontmatter exists so future runs can filter reports **without
   parsing prose**: `project` names what was investigated (repo, or
   repo/path for a scoped investigation), `target` the export target the
-  recommendations were derived for.
+  recommendations were derived for, `revision` which code the findings
+  hold for (`git rev-parse --short HEAD`) — the stack may have changed
+  since.
 - The body is the producing agent's report **as-is** — the report
   contract (sections, tables, evidence rules) belongs to the agent, not
   to this skill. Store the whole thing.
