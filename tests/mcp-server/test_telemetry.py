@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 
@@ -30,8 +31,6 @@ def test_disabled_is_a_no_op(clean_otel_env, monkeypatch):
     shutdown = telemetry.setup_telemetry()
     shutdown()  # callable, does nothing, raises nothing
     # The disabled path must not install defaults into the environment.
-    import os
-
     assert "OTEL_EXPORTER_OTLP_ENDPOINT" not in os.environ
 
 
@@ -187,3 +186,20 @@ def test_resource_has_no_service_instance_id():
     assert result.returncode == 0, result.stderr
     assert result.stdout == ""
     assert "instance_id_present=False" in result.stderr
+
+
+def test_export_endpoint_follows_the_configured_otlp_port(tmp_path, monkeypatch):
+    # The exporter is built once at startup, so the configured OTLP port
+    # must reach the environment before the SDK reads it.
+    from oddyssey_mcp import config
+
+    path = tmp_path / "config.json"
+    path.write_text('{"local": {"otlp_http_port": 4418}}')
+    monkeypatch.setattr(config, "CONFIG_PATH", path)
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+
+    shutdown = telemetry.setup_telemetry()
+    try:
+        assert os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://localhost:4418"
+    finally:
+        shutdown()
