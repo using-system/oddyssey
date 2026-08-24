@@ -10,6 +10,7 @@ import logging
 # synchronous `run()` entrypoint (transport defaults to "stdio") are unchanged.
 from mcp.server import MCPServer
 
+from . import config as config_ops
 from . import stack as stack_ops
 from . import telemetry
 
@@ -82,6 +83,34 @@ def odd_stack_reset(env: dict[str, str] | None = None) -> dict:
     state - only other names are.
     """
     return stack_ops.stack_reset(env)
+
+
+@mcp.tool()
+@telemetry.traced_tool
+def odd_config_get() -> dict:
+    """Read the global oddyssey configuration: stack backend and local stack host ports (defaults applied; invalid stored values are listed in invalid_ignored)."""
+    return config_ops.load()
+
+
+@mcp.tool()
+@telemetry.traced_tool
+def odd_config_set(config: dict) -> dict:
+    """Update the global oddyssey configuration (partial merge).
+
+    config example: {"stack": "datadog"} or {"local": {"grafana_port": 3300}}.
+    stack is one of: grafana, azure-monitor, cloudwatch, datadog, dynatrace,
+    splunk. Changing a port while a stack container exists RESETS the stack
+    immediately so the configuration is always applied: this WIPES all stored
+    telemetry machine-wide (the result embeds the reset outcome, including
+    services_wiped). The MCP server's own telemetry export honors a changed
+    OTLP port only after the MCP server restarts.
+    """
+    ports_before = config_ops.load()["local"]
+    effective = config_ops.save(config)
+    result: dict = {"config": effective}
+    if effective["local"] != ports_before and stack_ops._container_state() != "absent":
+        result["stack_reset"] = stack_ops.stack_reset()
+    return result
 
 
 def main() -> None:
