@@ -234,6 +234,57 @@ def test_stored_services_survives_a_malformed_backend_payload():
     assert stored_services(transport=httpx.MockTransport(handler)) == ["billing"]
 
 
+def _recording_transport(seen: list[int | None]) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.port)
+        if "uid/tempo" in str(request.url):
+            return httpx.Response(200, json={"tagValues": []})
+        return httpx.Response(200, json={"status": "success", "data": []})
+
+    return httpx.MockTransport(handler)
+
+
+def _config_with_grafana_port_3300(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "config.json"
+    path.write_text(
+        '{"local": {"grafana_port": 3300, "otlp_grpc_port": 4417, "otlp_http_port": 4418}}'
+    )
+    monkeypatch.setattr(config, "CONFIG_PATH", path)
+
+
+def test_stored_services_targets_the_actual_container_ports(tmp_path, monkeypatch):
+    # odd_config_set writes the new ports and then resets: the container
+    # about to be wiped still publishes the OLD ones. Enumerating against
+    # the new configuration would hit dead URLs and report services_wiped
+    # [] while destroying real data (issue #35's visibility contract).
+    _config_with_grafana_port_3300(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        stack,
+        "_container_host_ports",
+        lambda: {"grafana_port": 3000, "otlp_grpc_port": 4317, "otlp_http_port": 4318},
+    )
+    seen: list[int | None] = []
+
+    stored_services(transport=_recording_transport(seen))
+
+    assert seen
+    assert all(port == 3000 for port in seen)
+
+
+def test_stored_services_falls_back_to_configured_ports_without_a_container(
+    tmp_path, monkeypatch
+):
+    # No container to inspect (or an unreadable one): the configuration is
+    # the only truth left, and the enumeration must still be attempted.
+    _config_with_grafana_port_3300(tmp_path, monkeypatch)
+    seen: list[int | None] = []
+
+    stored_services(transport=_recording_transport(seen))
+
+    assert seen
+    assert all(port == 3300 for port in seen)
+
+
 UP_RESULT = {
     "running": True,
     "grafana_url": "http://localhost:3000",

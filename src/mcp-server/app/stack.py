@@ -36,8 +36,13 @@ def local_ports() -> dict:
     return config.load()["local"]
 
 
-def grafana_base() -> str:
-    return f"http://localhost:{local_ports()['grafana_port']}"
+def grafana_base(ports: dict | None = None) -> str:
+    """Grafana's base URL, from the configuration unless ports says otherwise.
+
+    The override exists for callers that must reach the container as it
+    is published right now rather than as the configuration describes it.
+    """
+    return f"http://localhost:{(ports or local_ports())['grafana_port']}"
 
 
 def otlp_endpoint() -> str:
@@ -48,11 +53,11 @@ def otlp_http_ingest() -> str:
     return f"http://localhost:{local_ports()['otlp_http_port']}/v1/traces"
 
 
-def _proxy(uid: str, path: str) -> str:
+def _proxy(uid: str, path: str, ports: dict | None = None) -> str:
     # Readiness and metadata are queried through the Grafana datasource
     # proxy: one request checks both Grafana and the backend behind it,
     # and only Grafana's port needs to be exposed.
-    return f"{grafana_base()}/api/datasources/proxy/uid/{uid}{path}"
+    return f"{grafana_base(ports)}/api/datasources/proxy/uid/{uid}{path}"
 
 
 STARTUP_TIMEOUT_S = 120
@@ -264,6 +269,13 @@ def stored_services(transport: httpx.BaseTransport | None = None) -> list[str]:
     before a wipe, so every failure degrades to fewer names, never to an
     error.
     """
+    # The pre-wipe enumeration must see the container about to be
+    # destroyed, not the configuration's future: odd_config_set stores the
+    # new ports and then resets, while the doomed container still
+    # publishes the old ones. Querying the configured port would hit dead
+    # URLs and report an empty wipe over real data (issue #35). Without a
+    # container to inspect, the configuration is the only truth left.
+    ports = _container_host_ports()
     now_s = int(time.time())
 
     def values(payload: object, field: str) -> list[str]:
@@ -278,7 +290,7 @@ def stored_services(transport: httpx.BaseTransport | None = None) -> list[str]:
     with httpx.Client(timeout=3.0, transport=transport) as client:
         try:
             tempo = client.get(
-                _proxy("tempo", "/api/search/tag/service.name/values"),
+                _proxy("tempo", "/api/search/tag/service.name/values", ports),
                 params={"start": now_s - TEMPO_SEARCH_WINDOW_S, "end": now_s},
             ).json()
             services.update(values(tempo, "tagValues"))
@@ -286,7 +298,7 @@ def stored_services(transport: httpx.BaseTransport | None = None) -> list[str]:
             pass
         try:
             loki = client.get(
-                _proxy("loki", "/loki/api/v1/label/service_name/values"),
+                _proxy("loki", "/loki/api/v1/label/service_name/values", ports),
                 params={
                     "start": (now_s - LOKI_SEARCH_WINDOW_S) * 1_000_000_000,
                     "end": now_s * 1_000_000_000,
@@ -297,7 +309,7 @@ def stored_services(transport: httpx.BaseTransport | None = None) -> list[str]:
             pass
         try:
             prometheus = client.get(
-                _proxy("prometheus", "/api/v1/label/job/values")
+                _proxy("prometheus", "/api/v1/label/job/values", ports)
             ).json()
             services.update(job.split("/", 1)[-1] for job in values(prometheus, "data"))
         except (httpx.HTTPError, ValueError, TypeError):
