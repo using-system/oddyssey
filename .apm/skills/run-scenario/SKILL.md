@@ -52,6 +52,7 @@ deliverable:
 ```text
 Scenario: <name>
 Base URL: http://localhost:<port>
+Backend:  odd_stack_reset, env: {"PROMETHEUS_EXTRA_ARGS": "..."}   # or "defaults"
 Warmup:   5 requests per endpoint (discarded)
 Load:     30 requests per endpoint, sequential
 Started (UTC): 2026-08-17T10:04:12Z
@@ -64,6 +65,9 @@ Not reproducible: <auth token / seeded data / time-dependent input, or "none">
 
 Exact commands, exact counts, exact UTC start and end — the start/end pair
 is also the observation window for every query run against this scenario.
+The `Backend:` line records how the stack was (re)started, **including any
+`env`**: a replay must reproduce the backend and not only the requests — a
+bare reset silently drops configuration the run depends on.
 
 ## 5. Wait for the flush
 
