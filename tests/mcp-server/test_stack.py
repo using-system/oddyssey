@@ -266,6 +266,7 @@ def test_stack_up_reports_env_not_applied_on_an_existing_container(monkeypatch):
     # container must say so instead of letting the caller believe the
     # configuration landed (issue #34 / #43 family).
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
     monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
 
@@ -288,6 +289,7 @@ def test_stack_up_applies_env_when_it_creates_the_container(monkeypatch):
         return Result()
 
     monkeypatch.setattr(stack, "_container_state", lambda: "absent")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
     monkeypatch.setattr(stack.subprocess, "run", fake_run)
     monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
@@ -306,6 +308,7 @@ def test_stack_up_reports_env_not_applied_on_a_stopped_container(monkeypatch):
         stderr = ""
 
     monkeypatch.setattr(stack, "_container_state", lambda: "stopped")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
     monkeypatch.setattr(stack, "_docker", lambda *args: StartOk())
     monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
@@ -348,6 +351,7 @@ def test_stack_reset_rejects_malformed_env_before_wiping(monkeypatch):
 
 def test_stack_up_result_shape_is_unchanged_without_env(monkeypatch):
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
     monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
 
@@ -407,3 +411,34 @@ def test_stack_reset_still_wipes_a_stopped_container_that_cannot_boot(monkeypatc
 
     assert result["running"] is True
     assert result["services_wiped"] == ["billing", "checkout"]
+
+
+def test_run_args_map_the_configured_host_ports(tmp_path, monkeypatch):
+    path = tmp_path / "config.json"
+    path.write_text(
+        '{"local": {"grafana_port": 3300, "otlp_grpc_port": 4417, "otlp_http_port": 4418}}'
+    )
+    monkeypatch.setattr(config, "CONFIG_PATH", path)
+
+    args = run_args()
+
+    for mapping in ("3300:3000", "4417:4317", "4418:4318"):
+        assert mapping in args
+
+
+def test_stack_up_fails_fast_on_port_mismatch(tmp_path, monkeypatch):
+    # A hand-edited config while a container runs is the one path the
+    # auto-reset of odd_config_set cannot close: fail immediately with
+    # the remedy, not after a 120 s poll of dead URLs.
+    path = tmp_path / "config.json"
+    path.write_text('{"local": {"grafana_port": 3300}}')
+    monkeypatch.setattr(config, "CONFIG_PATH", path)
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(
+        stack,
+        "_container_host_ports",
+        lambda: {"grafana_port": 3000, "otlp_grpc_port": 4317, "otlp_http_port": 4318},
+    )
+
+    with pytest.raises(RuntimeError, match="odd_stack_reset"):
+        stack.stack_up()

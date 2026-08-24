@@ -7,6 +7,7 @@ standalone: Docker is the only prerequisite.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import time
 
@@ -131,6 +132,28 @@ def _container_state() -> str:
     return "running" if result.stdout.strip() == "true" else "stopped"
 
 
+def _container_host_ports() -> dict | None:
+    """Host ports the existing container actually publishes, or None.
+
+    Read from docker inspect so the guard in stack_up can compare them
+    with the configuration - best-effort: unreadable means no guard,
+    never a blocked start.
+    """
+    result = _docker(
+        "inspect", "--format", "{{json .HostConfig.PortBindings}}", CONTAINER_NAME
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        bindings = json.loads(result.stdout.strip())
+        return {
+            key: int(bindings[f"{container_port}/tcp"][0]["HostPort"])
+            for key, container_port in CONTAINER_PORTS.items()
+        }
+    except (ValueError, KeyError, IndexError, TypeError):
+        return None
+
+
 def _probe(client: httpx.Client, url: str) -> bool:
     try:
         return client.get(url).status_code == 200
@@ -178,6 +201,15 @@ def stack_up(env: dict[str, str] | None = None) -> dict:
     """
     _validate_env(env)
     state = _container_state()
+    if state != "absent":
+        actual = _container_host_ports()
+        configured = local_ports()
+        if actual is not None and actual != configured:
+            raise RuntimeError(
+                f"container publishes host ports {actual} but the configuration "
+                f"says {configured} - run odd_stack_reset to recreate it on the "
+                "configured ports"
+            )
     created = False
     if state == "stopped":
         result = _docker("start", CONTAINER_NAME)
