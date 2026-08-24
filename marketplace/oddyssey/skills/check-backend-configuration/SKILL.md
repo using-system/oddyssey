@@ -13,14 +13,15 @@ connected, and guide the user when it is not.
 
 ## 1. Resolve the stack
 
-`odd_config_get` names the configured stack (`grafana`, `azure-monitor`,
-`cloudwatch`, `datadog`, `dynatrace`, `splunk`). When the mission or the
-instructions name a different one, they win — whether the switch persists
-is the **caller's call**: `odd-observe` persists it with `odd_config_set`
-so the next run starts from it; `odd-verify` states the divergence and
-does not persist (the stored report is the contract it replays).
-`grafana` may route to the local stack — see Local specificity below
-before treating a missing gcx setup as an error.
+`odd_config_get` names the configured stack (`local` — the default —,
+`grafana`, `azure-monitor`, `cloudwatch`, `datadog`, `dynatrace`,
+`splunk`). When the mission or the instructions name a different one,
+they win — whether the switch persists is the **caller's call**:
+`odd-observe` persists it with `odd_config_set` so the next run starts
+from it; `odd-verify` states the divergence and does not persist (the
+stored report is the contract it replays). `local` routes straight to
+the local stack — steps 2-4 are **replaced by** the Local specificity
+section below.
 
 ## 2. Resolve the CLI and read its configuration
 
@@ -47,17 +48,18 @@ Point the user at the exact setup steps in the backend's reference, ask
 for the inputs the mission needs (instance URL, tenant, workspace, where
 the credentials come from — by name, never values), and re-run the probe
 once the user says the setup is done. The probe's success is the exit
-criterion, not the user's assurance.
+criterion, not the user's assurance. One check before guiding remote
+auth: on `grafana` with no remote gcx context configured, offer the
+alternative first — if the user meant the local stack, the fix is
+`odd_config_set {"stack": "local"}`, not an authentication.
 
 ## Local specificity
 
-`grafana` with a local mission — **or with no remote gcx context
-configured** — is the local stack: apply the `setup-local-stack` skill
+`stack: local` is the local stack: apply the `setup-local-stack` skill
 (isolated gcx context, datasource UIDs, ports from the global
 configuration) — that skill owns the local method, this one only routes
 to it, and it is fully self-serve: no user authentication to guide, so a
 missing gcx setup on a fresh machine is NOT a "CLI not configured"
 error. The connection proof is then `gcx config check` against the
-isolated local context. A user context targeting a remote Grafana means
-the run hits that remote — `grafana` names the family, the CLI's context
-says which one.
+isolated local context. `grafana` always means a **remote** Grafana —
+the gcx context says which instance.

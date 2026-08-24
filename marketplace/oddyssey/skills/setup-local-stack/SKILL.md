@@ -1,6 +1,6 @@
 ---
 name: setup-local-stack
-description: Configure gcx against the local oddyssey Grafana stack and query its four signals (metrics, traces, logs, profiles) without touching the user's own gcx contexts. Use when querying the local stack (Grafana host port from the global configuration, default 3000), when configuring gcx locally, when a command needs the Tempo, Prometheus, Loki, or Pyroscope datasource UID. gcx is the mandatory query CLI for the stack - install it if missing (brew install gcx, or the official install script from github.com/grafana/gcx).
+description: Configure gcx against the local oddyssey Grafana stack and query its four signals (metrics, traces, logs, profiles) without touching the user's own gcx contexts. Owns the global configuration's "local" stack value. Use when the configured stack is "local", when querying the local stack (Grafana host port from the global configuration, default 3000), when configuring gcx locally, when a command needs the Tempo, Prometheus, Loki, or Pyroscope datasource UID. gcx is the mandatory query CLI for the stack - install it if missing (brew install gcx, or the official install script from github.com/grafana/gcx).
 ---
 
 # gcx on the local oddyssey stack

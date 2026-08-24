@@ -1,3 +1,8 @@
+## [1.6.1] - 2026-08-24
+
+### 🐛 Bug Fixes
+
+- *(mcp)* Local is a first-class stack value - grafana means remote Grafana (#68)
 ## [1.6.0] - 2026-08-24
 
 ### 🚀 Features
@@ -18,6 +23,7 @@
 ### ⚙️ Miscellaneous Tasks
 
 - *(release)* Name runs after the chosen mode (#54)
+- *(release)* 1.6.0 (#66)
 ## [1.5.0] - 2026-08-23
 
 ### 🚀 Features
