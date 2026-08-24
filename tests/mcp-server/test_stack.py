@@ -1,10 +1,9 @@
 import httpx
 import pytest
-from oddyssey_mcp import stack
+from oddyssey_mcp import config, stack
 from oddyssey_mcp.stack import (
     CONTAINER_NAME,
     IMAGE,
-    PORTS,
     _otlp_ingest_ready,
     run_args,
     stack_status,
@@ -19,9 +18,20 @@ def test_run_args_build_the_pinned_container():
     assert args[-1] == IMAGE
     assert IMAGE == "grafana/otel-lgtm:0.30.2"
     assert CONTAINER_NAME in args
-    for mapping in PORTS:
+    for mapping in ("3000:3000", "4317:4317", "4318:4318"):
         assert mapping in args
-    assert {"3000:3000", "4317:4317", "4318:4318"} == set(PORTS)
+
+
+def test_urls_derive_from_the_configured_ports(tmp_path, monkeypatch):
+    path = tmp_path / "config.json"
+    path.write_text(
+        '{"local": {"grafana_port": 3300, "otlp_grpc_port": 4417, "otlp_http_port": 4418}}'
+    )
+    monkeypatch.setattr(config, "CONFIG_PATH", path)
+
+    assert stack.grafana_base() == "http://localhost:3300"
+    assert stack.otlp_endpoint() == "http://localhost:4417"
+    assert stack.otlp_http_ingest() == "http://localhost:4418/v1/traces"
 
 
 def test_run_args_enable_delta_to_cumulative_by_default():
@@ -224,6 +234,57 @@ def test_stored_services_survives_a_malformed_backend_payload():
     assert stored_services(transport=httpx.MockTransport(handler)) == ["billing"]
 
 
+def _recording_transport(seen: list[int | None]) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.port)
+        if "uid/tempo" in str(request.url):
+            return httpx.Response(200, json={"tagValues": []})
+        return httpx.Response(200, json={"status": "success", "data": []})
+
+    return httpx.MockTransport(handler)
+
+
+def _config_with_grafana_port_3300(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "config.json"
+    path.write_text(
+        '{"local": {"grafana_port": 3300, "otlp_grpc_port": 4417, "otlp_http_port": 4418}}'
+    )
+    monkeypatch.setattr(config, "CONFIG_PATH", path)
+
+
+def test_stored_services_targets_the_actual_container_ports(tmp_path, monkeypatch):
+    # odd_config_set writes the new ports and then resets: the container
+    # about to be wiped still publishes the OLD ones. Enumerating against
+    # the new configuration would hit dead URLs and report services_wiped
+    # [] while destroying real data (issue #35's visibility contract).
+    _config_with_grafana_port_3300(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        stack,
+        "_container_host_ports",
+        lambda: {"grafana_port": 3000, "otlp_grpc_port": 4317, "otlp_http_port": 4318},
+    )
+    seen: list[int | None] = []
+
+    stored_services(transport=_recording_transport(seen))
+
+    assert seen
+    assert all(port == 3000 for port in seen)
+
+
+def test_stored_services_falls_back_to_configured_ports_without_a_container(
+    tmp_path, monkeypatch
+):
+    # No container to inspect (or an unreadable one): the configuration is
+    # the only truth left, and the enumeration must still be attempted.
+    _config_with_grafana_port_3300(tmp_path, monkeypatch)
+    seen: list[int | None] = []
+
+    stored_services(transport=_recording_transport(seen))
+
+    assert seen
+    assert all(port == 3300 for port in seen)
+
+
 UP_RESULT = {
     "running": True,
     "grafana_url": "http://localhost:3000",
@@ -256,6 +317,7 @@ def test_stack_up_reports_env_not_applied_on_an_existing_container(monkeypatch):
     # container must say so instead of letting the caller believe the
     # configuration landed (issue #34 / #43 family).
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
     monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
 
@@ -278,6 +340,7 @@ def test_stack_up_applies_env_when_it_creates_the_container(monkeypatch):
         return Result()
 
     monkeypatch.setattr(stack, "_container_state", lambda: "absent")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
     monkeypatch.setattr(stack.subprocess, "run", fake_run)
     monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
@@ -296,6 +359,7 @@ def test_stack_up_reports_env_not_applied_on_a_stopped_container(monkeypatch):
         stderr = ""
 
     monkeypatch.setattr(stack, "_container_state", lambda: "stopped")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
     monkeypatch.setattr(stack, "_docker", lambda *args: StartOk())
     monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
@@ -338,6 +402,7 @@ def test_stack_reset_rejects_malformed_env_before_wiping(monkeypatch):
 
 def test_stack_up_result_shape_is_unchanged_without_env(monkeypatch):
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
     monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
 
@@ -397,3 +462,34 @@ def test_stack_reset_still_wipes_a_stopped_container_that_cannot_boot(monkeypatc
 
     assert result["running"] is True
     assert result["services_wiped"] == ["billing", "checkout"]
+
+
+def test_run_args_map_the_configured_host_ports(tmp_path, monkeypatch):
+    path = tmp_path / "config.json"
+    path.write_text(
+        '{"local": {"grafana_port": 3300, "otlp_grpc_port": 4417, "otlp_http_port": 4418}}'
+    )
+    monkeypatch.setattr(config, "CONFIG_PATH", path)
+
+    args = run_args()
+
+    for mapping in ("3300:3000", "4417:4317", "4418:4318"):
+        assert mapping in args
+
+
+def test_stack_up_fails_fast_on_port_mismatch(tmp_path, monkeypatch):
+    # A hand-edited config while a container runs is the one path the
+    # auto-reset of odd_config_set cannot close: fail immediately with
+    # the remedy, not after a 120 s poll of dead URLs.
+    path = tmp_path / "config.json"
+    path.write_text('{"local": {"grafana_port": 3300}}')
+    monkeypatch.setattr(config, "CONFIG_PATH", path)
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(
+        stack,
+        "_container_host_ports",
+        lambda: {"grafana_port": 3000, "otlp_grpc_port": 4317, "otlp_http_port": 4318},
+    )
+
+    with pytest.raises(RuntimeError, match="odd_stack_reset"):
+        stack.stack_up()

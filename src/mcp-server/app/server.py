@@ -10,6 +10,7 @@ import logging
 # synchronous `run()` entrypoint (transport defaults to "stdio") are unchanged.
 from mcp.server import MCPServer
 
+from . import config as config_ops
 from . import stack as stack_ops
 from . import telemetry
 
@@ -82,6 +83,56 @@ def odd_stack_reset(env: dict[str, str] | None = None) -> dict:
     state - only other names are.
     """
     return stack_ops.stack_reset(env)
+
+
+@mcp.tool()
+@telemetry.traced_tool
+def odd_config_get() -> dict:
+    """Read the global oddyssey configuration: stack backend and local stack host ports (defaults applied; invalid stored values are listed in invalid_ignored)."""
+    return config_ops.load()
+
+
+@mcp.tool()
+@telemetry.traced_tool
+def odd_config_set(config: dict) -> dict:
+    """Update the global oddyssey configuration (partial merge).
+
+    config example: {"stack": "datadog"} or {"local": {"grafana_port": 3300}}.
+    stack is one of: grafana, azure-monitor, cloudwatch, datadog, dynatrace,
+    splunk. Changing a port while a stack container exists RESETS the stack
+    immediately so the configuration is always applied: this WIPES all stored
+    telemetry machine-wide (the result embeds the reset outcome, including
+    services_wiped). That auto-reset recreates the container with the
+    DEFAULT environment: any env previously applied through odd_stack_up or
+    odd_stack_reset is NOT carried over - re-run odd_stack_reset with the
+    same env to reapply it. The MCP server's own telemetry export honors a
+    changed OTLP port only after the MCP server restarts.
+    """
+    ports_before = config_ops.load()["local"]
+    state_before = stack_ops._container_state()
+    # Read on the RAW partial, before save validates it: a malformed one
+    # is left to save's ValueError contract (isinstance, so this read never
+    # raises first), at worst after a wasted boot - booting is idempotent.
+    local_partial = config.get("local")
+    will_change_ports = isinstance(local_partial, dict) and any(
+        ports_before.get(key) != value for key, value in local_partial.items()
+    )
+    if will_change_ports and state_before == "stopped":
+        # Boot a stopped container BEFORE the write: once the new ports are
+        # saved they diverge from the container's, the reset's pre-boot then
+        # trips the mismatch guard, and the pre-wipe enumeration would report
+        # services_wiped: [] over real data (#35 contract). Booted now, the
+        # old config still matches and the guard passes. Best-effort like the
+        # reset's own pre-boot: a container too broken to boot is still wiped.
+        try:
+            stack_ops.stack_up()
+        except RuntimeError:
+            pass
+    effective = config_ops.save(config)
+    result: dict = {"config": effective}
+    if effective["local"] != ports_before and state_before != "absent":
+        result["stack_reset"] = stack_ops.stack_reset()
+    return result
 
 
 def main() -> None:

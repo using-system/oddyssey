@@ -1,21 +1,22 @@
 """LGTM stack lifecycle: the server drives Docker directly, no compose file.
 
-The container definition is embedded here (image pin, name, ports,
-environment), so the server is standalone: Docker is the only prerequisite.
+The container definition is embedded here (image pin, name, environment;
+host ports come from the global configuration), so the server is
+standalone: Docker is the only prerequisite.
 """
 
 from __future__ import annotations
 
+import json
 import subprocess
 import time
 
 import httpx
 
-from . import telemetry
+from . import config, telemetry
 
 IMAGE = "grafana/otel-lgtm:0.30.2"
 CONTAINER_NAME = "oddyssey-lgtm"
-PORTS = ("3000:3000", "4317:4317", "4318:4318")
 
 # Part of the embedded definition, not an option (issue #34): CLI coding
 # agents - the stack's target audience - export their claude_code.*
@@ -25,28 +26,40 @@ PORTS = ("3000:3000", "4317:4317", "4318:4318")
 # pinned, so the behavior cannot drift until a deliberate bump.
 DEFAULT_ENV = ("PROMETHEUS_EXTRA_ARGS=--enable-feature=otlp-deltatocumulative",)
 
-# Readiness is probed through the Grafana datasource proxy: one request
-# checks both Grafana and the backend behind it, and only Grafana's port
-# needs to be exposed. All four signal backends are probed (issue #36):
-# gating on a subset only covers the others by boot-timing coincidence.
-PROMETHEUS_READY = "http://localhost:3000/api/datasources/proxy/uid/prometheus/-/ready"
-TEMPO_READY = "http://localhost:3000/api/datasources/proxy/uid/tempo/ready"
-LOKI_READY = "http://localhost:3000/api/datasources/proxy/uid/loki/ready"
-PYROSCOPE_READY = "http://localhost:3000/api/datasources/proxy/uid/pyroscope/ready"
-TEMPO_SERVICE_NAMES = (
-    "http://localhost:3000/api/datasources/proxy/uid/tempo"
-    "/api/search/tag/service.name/values"
-)
-PROMETHEUS_JOB_VALUES = (
-    "http://localhost:3000/api/datasources/proxy/uid/prometheus/api/v1/label/job/values"
-)
-LOKI_SERVICE_NAMES = (
-    "http://localhost:3000/api/datasources/proxy/uid/loki"
-    "/loki/api/v1/label/service_name/values"
-)
-GRAFANA_URL = "http://localhost:3000"
-OTLP_ENDPOINT = "http://localhost:4317"
-OTLP_HTTP_INGEST = "http://localhost:4318/v1/traces"
+# Container-side ports are fixed by the image; only the host side is
+# configurable (issue #59). Ports and URLs are resolved at call time so
+# a configuration change is honored without restarting the server.
+CONTAINER_PORTS = {"grafana_port": 3000, "otlp_grpc_port": 4317, "otlp_http_port": 4318}
+
+
+def local_ports() -> dict:
+    return config.load()["local"]
+
+
+def grafana_base(ports: dict | None = None) -> str:
+    """Grafana's base URL, from the configuration unless ports says otherwise.
+
+    The override exists for callers that must reach the container as it
+    is published right now rather than as the configuration describes it.
+    """
+    return f"http://localhost:{(ports or local_ports())['grafana_port']}"
+
+
+def otlp_endpoint() -> str:
+    return f"http://localhost:{local_ports()['otlp_grpc_port']}"
+
+
+def otlp_http_ingest() -> str:
+    return f"http://localhost:{local_ports()['otlp_http_port']}/v1/traces"
+
+
+def _proxy(uid: str, path: str, ports: dict | None = None) -> str:
+    # Readiness and metadata are queried through the Grafana datasource
+    # proxy: one request checks both Grafana and the backend behind it,
+    # and only Grafana's port needs to be exposed.
+    return f"{grafana_base(ports)}/api/datasources/proxy/uid/{uid}{path}"
+
+
 STARTUP_TIMEOUT_S = 120
 POLL_INTERVAL_S = 2
 
@@ -83,7 +96,12 @@ def run_args(env: dict[str, str] | None = None) -> list[str]:
     _validate_env(env)
     merged = dict(entry.split("=", 1) for entry in DEFAULT_ENV)
     merged.update(env or {})
-    port_flags = [flag for mapping in PORTS for flag in ("-p", mapping)]
+    ports = local_ports()
+    port_flags = [
+        flag
+        for key, container_port in CONTAINER_PORTS.items()
+        for flag in ("-p", f"{ports[key]}:{container_port}")
+    ]
     env_flags = [
         flag for key, value in merged.items() for flag in ("-e", f"{key}={value}")
     ]
@@ -119,6 +137,28 @@ def _container_state() -> str:
     return "running" if result.stdout.strip() == "true" else "stopped"
 
 
+def _container_host_ports() -> dict | None:
+    """Host ports the existing container actually publishes, or None.
+
+    Read from docker inspect so the guard in stack_up can compare them
+    with the configuration - best-effort: unreadable means no guard,
+    never a blocked start.
+    """
+    result = _docker(
+        "inspect", "--format", "{{json .HostConfig.PortBindings}}", CONTAINER_NAME
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        bindings = json.loads(result.stdout.strip())
+        return {
+            key: int(bindings[f"{container_port}/tcp"][0]["HostPort"])
+            for key, container_port in CONTAINER_PORTS.items()
+        }
+    except (ValueError, KeyError, IndexError, TypeError):
+        return None
+
+
 def _probe(client: httpx.Client, url: str) -> bool:
     try:
         return client.get(url).status_code == 200
@@ -134,20 +174,24 @@ def _otlp_ingest_ready(client: httpx.Client) -> bool:
     (observation report finding 3). Only a transport error means not-ready.
     """
     try:
-        client.post(OTLP_HTTP_INGEST, content=b"")
+        client.post(otlp_http_ingest(), content=b"")
         return True
     except httpx.TransportError:
         return False
 
 
 def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
-    """Probe readiness endpoints; a down stack is a status, not an error."""
+    """Probe readiness endpoints; a down stack is a status, not an error.
+
+    All four signal backends are probed (issue #36): gating on a subset
+    only covers the others by boot-timing coincidence.
+    """
     with httpx.Client(timeout=3.0, transport=transport) as client:
         signals = {
-            "prometheus": _probe(client, PROMETHEUS_READY),
-            "tempo": _probe(client, TEMPO_READY),
-            "loki": _probe(client, LOKI_READY),
-            "pyroscope": _probe(client, PYROSCOPE_READY),
+            "prometheus": _probe(client, _proxy("prometheus", "/-/ready")),
+            "tempo": _probe(client, _proxy("tempo", "/ready")),
+            "loki": _probe(client, _proxy("loki", "/ready")),
+            "pyroscope": _probe(client, _proxy("pyroscope", "/ready")),
         }
     return {"running": all(signals.values()), **signals}
 
@@ -162,6 +206,15 @@ def stack_up(env: dict[str, str] | None = None) -> dict:
     """
     _validate_env(env)
     state = _container_state()
+    if state != "absent":
+        actual = _container_host_ports()
+        configured = local_ports()
+        if actual is not None and actual != configured:
+            raise RuntimeError(
+                f"container publishes host ports {actual} but the configuration "
+                f"says {configured} - run odd_stack_reset to recreate it on the "
+                "configured ports"
+            )
     created = False
     if state == "stopped":
         result = _docker("start", CONTAINER_NAME)
@@ -189,8 +242,8 @@ def stack_up(env: dict[str, str] | None = None) -> dict:
             telemetry.force_flush()
             up_result = {
                 "running": True,
-                "grafana_url": GRAFANA_URL,
-                "otlp_endpoint": OTLP_ENDPOINT,
+                "grafana_url": grafana_base(),
+                "otlp_endpoint": otlp_endpoint(),
             }
             if env:
                 up_result["env_applied"] = created
@@ -216,6 +269,13 @@ def stored_services(transport: httpx.BaseTransport | None = None) -> list[str]:
     before a wipe, so every failure degrades to fewer names, never to an
     error.
     """
+    # The pre-wipe enumeration must see the container about to be
+    # destroyed, not the configuration's future: odd_config_set stores the
+    # new ports and then resets, while the doomed container still
+    # publishes the old ones. Querying the configured port would hit dead
+    # URLs and report an empty wipe over real data (issue #35). Without a
+    # container to inspect, the configuration is the only truth left.
+    ports = _container_host_ports()
     now_s = int(time.time())
 
     def values(payload: object, field: str) -> list[str]:
@@ -230,7 +290,7 @@ def stored_services(transport: httpx.BaseTransport | None = None) -> list[str]:
     with httpx.Client(timeout=3.0, transport=transport) as client:
         try:
             tempo = client.get(
-                TEMPO_SERVICE_NAMES,
+                _proxy("tempo", "/api/search/tag/service.name/values", ports),
                 params={"start": now_s - TEMPO_SEARCH_WINDOW_S, "end": now_s},
             ).json()
             services.update(values(tempo, "tagValues"))
@@ -238,7 +298,7 @@ def stored_services(transport: httpx.BaseTransport | None = None) -> list[str]:
             pass
         try:
             loki = client.get(
-                LOKI_SERVICE_NAMES,
+                _proxy("loki", "/loki/api/v1/label/service_name/values", ports),
                 params={
                     "start": (now_s - LOKI_SEARCH_WINDOW_S) * 1_000_000_000,
                     "end": now_s * 1_000_000_000,
@@ -248,7 +308,9 @@ def stored_services(transport: httpx.BaseTransport | None = None) -> list[str]:
         except (httpx.HTTPError, ValueError, TypeError):
             pass
         try:
-            prometheus = client.get(PROMETHEUS_JOB_VALUES).json()
+            prometheus = client.get(
+                _proxy("prometheus", "/api/v1/label/job/values", ports)
+            ).json()
             services.update(job.split("/", 1)[-1] for job in values(prometheus, "data"))
         except (httpx.HTTPError, ValueError, TypeError):
             pass
@@ -276,7 +338,7 @@ def stack_reset(env: dict[str, str] | None = None) -> dict:
     scoped to one project: the result names the services that were stored
     so the destruction is at least visible to the caller. A stopped
     container (normal after a host reboot) still holds telemetry but
-    answers nothing on :3000, so it is booted first to be enumerable -
+    answers nothing on Grafana's port, so it is booted first to be enumerable -
     best-effort, because wiping a container too broken to boot is also
     reset's job.
     """

@@ -226,6 +226,8 @@ than the local otel-lgtm container.
 | `odd_stack_down` | Destroy it — stored telemetry does not survive | — |
 | `odd_stack_status` | Probe whether it is up | — |
 | `odd_stack_reset` | Wipe all stored telemetry and return a fresh, ready stack — the next run starts from a clean slate | `env` (optional) — always applies, the container is recreated |
+| `odd_config_get` | Read the global configuration — stack backend and local host ports | — |
+| `odd_config_set` | Update it — a port change resets the stack so the new value applies right away | `config` — partial merge, e.g. `{"local": {"grafana_port": 3300}}` |
 
 The server is instrumented with OpenTelemetry and, by default, exports its
 own traces and metrics to the local stack (`http://localhost:4318`, OTLP

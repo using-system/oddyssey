@@ -28,7 +28,6 @@ _INSTRUMENTATION_NAME = "oddyssey-mcp"
 # env block wins over these.
 _DEFAULT_ENV = {
     "OTEL_SERVICE_NAME": "oddyssey-mcp",
-    "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
     "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
     "OTEL_SEMCONV_STABILITY_OPT_IN": "http",
 }
@@ -71,6 +70,16 @@ def setup_telemetry() -> Callable[[], None]:
         # Export failures (stack down) are normal: never let the exporters
         # spam the client's stderr view.
         logging.getLogger("opentelemetry").setLevel(logging.CRITICAL)
+
+        from . import config
+
+        # Resolved at startup because the exporter is built once: a
+        # changed OTLP port reaches the server's own telemetry after
+        # the next MCP server restart (odd_config_set says so).
+        os.environ.setdefault(
+            "OTEL_EXPORTER_OTLP_ENDPOINT",
+            f"http://localhost:{config.load()['local']['otlp_http_port']}",
+        )
 
         for var, value in _DEFAULT_ENV.items():
             os.environ.setdefault(var, value)

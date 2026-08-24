@@ -1,12 +1,15 @@
 import asyncio
 
-from oddyssey_mcp import server
+from oddyssey_mcp import config as config_module
+from oddyssey_mcp import server, stack
 
 EXPECTED_TOOLS = {
     "odd_stack_up",
     "odd_stack_down",
     "odd_stack_status",
     "odd_stack_reset",
+    "odd_config_get",
+    "odd_config_set",
 }
 
 
@@ -50,3 +53,70 @@ def test_sdk_otel_middleware_removed():
     assert not any(
         type(m).__name__ == "OpenTelemetryMiddleware" for m in server.mcp.middleware
     )
+
+
+def test_config_set_resets_the_stack_only_on_port_change_with_container(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / "config.json")
+    resets: list[int] = []
+    monkeypatch.setattr(
+        stack,
+        "stack_reset",
+        lambda: resets.append(1) or {"running": True, "services_wiped": []},
+    )
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+
+    # stack change alone: no reset
+    result = server.odd_config_set({"stack": "datadog"})
+    assert result["config"]["stack"] == "datadog"
+    assert "stack_reset" not in result
+    assert resets == []
+
+    # port change with a container present: reset embedded
+    result = server.odd_config_set({"local": {"grafana_port": 3300}})
+    assert result["config"]["local"]["grafana_port"] == 3300
+    assert result["stack_reset"]["running"] is True
+    assert resets == [1]
+
+    # port change with no container: no reset
+    monkeypatch.setattr(stack, "_container_state", lambda: "absent")
+    result = server.odd_config_set({"local": {"grafana_port": 3400}})
+    assert "stack_reset" not in result
+    assert resets == [1]
+
+
+def test_config_set_boots_a_stopped_container_before_writing_ports(
+    monkeypatch, tmp_path
+):
+    # A stopped container must be booted while the OLD ports are still
+    # configured: written first, the new ports trip stack_up's mismatch
+    # guard and the pre-wipe enumeration sees a dead container (#35).
+    monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / "config.json")
+    events: list[str] = []
+    real_save = config_module.save
+    monkeypatch.setattr(stack, "_container_state", lambda: "stopped")
+    monkeypatch.setattr(
+        stack, "stack_up", lambda env=None: events.append("up") or {"running": True}
+    )
+    monkeypatch.setattr(
+        config_module,
+        "save",
+        lambda partial, path=None: events.append("save") or real_save(partial, path),
+    )
+    monkeypatch.setattr(
+        stack,
+        "stack_reset",
+        lambda: events.append("reset") or {"running": True, "services_wiped": []},
+    )
+
+    server.odd_config_set({"local": {"grafana_port": 3300}})
+
+    assert events == ["up", "save", "reset"]
+
+
+def test_config_set_description_states_the_wipe_and_the_restart_note():
+    tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
+    description = tools["odd_config_set"].description
+    assert "wipe" in description.lower()
+    assert "restart" in description.lower()
