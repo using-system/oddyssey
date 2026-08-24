@@ -45,6 +45,10 @@ mode: drive                   # drive | observe | post-hoc
 window: 2026-08-22T10:04:12Z/2026-08-22T10:05:03Z
 run_name: checkout-latency-sweep
 date: 2026-08-22
+revision: 2299d4c             # optional: commit of the observed repo at run time
+workload: repo-under-analysis # optional: the input that shaped this run
+instance: af6070c1            # optional: service.instance.id the numbers belong to
+process_restarted: true       # optional: restarted before the window (run-scenario step 0)
 ---
 
 <the observation report, verbatim and complete>
@@ -55,6 +59,19 @@ date: 2026-08-22
   executed (defaults applied, not as requested).
 - `window` is the observed interval as `start/end` in UTC; in drive mode
   it is the scenario's own start and end.
+- `revision` (`git rev-parse --short HEAD` in the observed repo) is what
+  makes a before/after honest: a report is a before-value for a fix
+  wave, and the fix is a diff against some revision.
+- `workload` names the input that shaped the run when the runtime
+  profile depends on what was processed, not only on the service (an
+  analysis service run against two different repositories produces
+  incomparable numbers). Free-form, omit when the service alone defines
+  the profile — and if the workload changes mid-mission, that is a new
+  run, not a note.
+- `instance` and `process_restarted` pin which process the numbers
+  belong to (run-scenario step 0): cumulative-metric queries in the
+  measurement protocol must be qualified by the recorded instance — a
+  number that cannot be attributed to a process is not a before-value.
 - The body is the producing agent's report **as-is** — the report
   contract (sections, tables, evidence rules) belongs to the agent, not
   to this skill. Store the whole thing: a summary cannot feed a diff.
@@ -68,7 +85,10 @@ Before a new run, load the baseline:
 2. Walk the listing newest first (filenames sort chronologically),
    reading **frontmatter blocks only** — never whole files at this
    stage. A report matches when its `services` intersect the mission's
-   and its `environment` is the mission's.
+   and its `environment` is the mission's. When a match's `workload`
+   differs from the mission's (or only one side has one), keep it but
+   **warn**: its numbers were shaped by a different input, and diffing
+   across workloads violates the one-changed-variable rule.
 3. The first match is the baseline: read that one report in full — its
    per-operation numbers, findings, and measurement protocol are the
    before-values the new run compares against. What the comparison must
