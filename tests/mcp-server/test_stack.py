@@ -1,10 +1,9 @@
 import httpx
 import pytest
-from oddyssey_mcp import stack
+from oddyssey_mcp import config, stack
 from oddyssey_mcp.stack import (
     CONTAINER_NAME,
     IMAGE,
-    PORTS,
     _otlp_ingest_ready,
     run_args,
     stack_status,
@@ -19,9 +18,20 @@ def test_run_args_build_the_pinned_container():
     assert args[-1] == IMAGE
     assert IMAGE == "grafana/otel-lgtm:0.30.2"
     assert CONTAINER_NAME in args
-    for mapping in PORTS:
+    for mapping in ("3000:3000", "4317:4317", "4318:4318"):
         assert mapping in args
-    assert {"3000:3000", "4317:4317", "4318:4318"} == set(PORTS)
+
+
+def test_urls_derive_from_the_configured_ports(tmp_path, monkeypatch):
+    path = tmp_path / "config.json"
+    path.write_text(
+        '{"local": {"grafana_port": 3300, "otlp_grpc_port": 4417, "otlp_http_port": 4418}}'
+    )
+    monkeypatch.setattr(config, "CONFIG_PATH", path)
+
+    assert stack.grafana_base() == "http://localhost:3300"
+    assert stack.otlp_endpoint() == "http://localhost:4417"
+    assert stack.otlp_http_ingest() == "http://localhost:4418/v1/traces"
 
 
 def test_run_args_enable_delta_to_cumulative_by_default():
