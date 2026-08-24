@@ -24,14 +24,19 @@ Start a clean run in this order — the reverse of what feels natural:
 1. **Restart the observed process first** — its dying flush lands in the
    old store;
 2. **then `odd_stack_reset`** — the wipe takes that flush with it;
-3. record the new process's `service.instance.id` in the protocol, and
-   qualify every cumulative-metric query with it — an unfiltered query
-   mixes instances the moment an old one got a last export in.
+3. record the new process's identity in the protocol —
+   `service.instance.id` when the SDK emits one, or the backend
+   equivalent when it is absent (its start time, a
+   `target_info` label, a container id) — and qualify every
+   cumulative-metric query with it: an unfiltered query mixes instances
+   the moment an old one got a last export in.
 
-When restarting is not possible, say so in the record: traces and logs
-stay trustworthy, but cumulative metrics read inside the window include
-pre-window activity — treat them as deltas between the window's edges,
-never as run totals.
+When restarting is not possible, say so in the record — and still record
+the identity **and the process start time**: the start time is what
+dates the pre-window history. Traces and logs stay trustworthy, but
+cumulative metrics read inside the window include pre-window activity —
+treat them as deltas between the window's edges, never as run totals
+(valid only within one instance, which the recorded identity proves).
 
 ## 1. Decide what to exercise
 
@@ -76,7 +81,7 @@ deliverable:
 Scenario: <name>
 Base URL: http://localhost:<port>
 Backend:  odd_stack_reset, env: {"PROMETHEUS_EXTRA_ARGS": "..."}   # or "defaults"
-Instance: service.instance.id=af6070... (process restarted before reset)   # or "not restarted"
+Instance: af6070... (restarted before reset)   # or equivalent identity; add the start time when not restarted
 Warmup:   5 requests per endpoint (discarded)
 Load:     30 requests per endpoint, sequential
 Started (UTC): 2026-08-17T10:04:12Z

@@ -38,8 +38,8 @@ Then build the mission block from that report:
     after-value, recorded pass criterion, pass/fail. An empty or NaN
     after-value is a **query-suspect** outcome, not a failure: first
     doubt the recorded query (evaluate at several times, read the raw
-    series behind it, try an equivalent form) — especially when the
-    check is marked `not validated` — and only rule "fix did not land"
+    series behind it, try an equivalent form), especially when the
+    check is marked `not validated`, and only rule "fix did not land"
     once the query itself is proven sound. When the query was the
     problem, reporting its corrected form is part of the verdict;
   - every anomaly it found: fixed, still present, or worse, with the

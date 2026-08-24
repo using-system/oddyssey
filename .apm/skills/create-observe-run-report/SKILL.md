@@ -47,16 +47,17 @@ run_name: checkout-latency-sweep
 date: 2026-08-22
 revision: 2299d4c             # optional: commit of the observed repo at run time
 workload: repo-under-analysis # optional: the input that shaped this run
-instance: af6070c1            # optional: service.instance.id the numbers belong to
-process_restarted: true       # optional: restarted before the window (run-scenario step 0)
+instance: {checkout: af6070c1}   # optional: per service, the identity the numbers belong to
+process_restarted: true       # optional: restarted before the window (or per-service map)
 ---
 
 <the observation report, verbatim and complete>
 ```
 
 - The frontmatter exists so future runs can filter reports **without
-  parsing prose**: every field mirrors the mission the run actually
-  executed (defaults applied, not as requested).
+  parsing prose**: every field mirrors the run as it actually executed —
+  mission parameters and execution environment alike (defaults applied,
+  not as requested).
 - `window` is the observed interval as `start/end` in UTC; in drive mode
   it is the scenario's own start and end.
 - `revision` (`git rev-parse --short HEAD` in the observed repo) is what
@@ -69,9 +70,15 @@ process_restarted: true       # optional: restarted before the window (run-scena
   the profile — and if the workload changes mid-mission, that is a new
   run, not a note.
 - `instance` and `process_restarted` pin which process the numbers
-  belong to (run-scenario step 0): cumulative-metric queries in the
-  measurement protocol must be qualified by the recorded instance — a
-  number that cannot be attributed to a process is not a before-value.
+  belong to (run-scenario step 0). `instance` maps each observed service
+  to its identity: `service.instance.id` when the SDK emits one, or the
+  backend equivalent when it is absent — the process start time, a
+  `target_info` label, a container id. `process_restarted`
+  is one boolean when it holds for every listed service, a per-service
+  map when only some were restarted. Cumulative-metric
+  queries in the measurement protocol must be qualified by the recorded
+  identity — a number that cannot be attributed to a process is not a
+  before-value.
 - The body is the producing agent's report **as-is** — the report
   contract (sections, tables, evidence rules) belongs to the agent, not
   to this skill. Store the whole thing: a summary cannot feed a diff.
@@ -106,10 +113,11 @@ Before a new run, load the baseline:
   authored against *broken* data, so "returns NaN/empty" and "the query
   is wrong" are indistinguishable at authoring time (measured: `rate()`
   over a single burst makes every `histogram_quantile` NaN by
-  construction, whatever the fix did). Each verification check states
-  how its query was validated — run against a healthy or adjacent
-  series, or a synthetic one — or carries `not validated`, which tells
-  the verify run to suspect the query before the fix.
+  construction on any window sampled after the burst, whatever the fix
+  did). Each verification check states how its query was validated —
+  run against a healthy or adjacent series, or a synthetic one — or
+  carries `not validated`, which tells the verify run to suspect the
+  query before the fix.
 - **Record how the backend was started** when it needed configuration:
   the `env` passed to `odd_stack_up` / `odd_stack_reset` belongs in the
   measurement protocol (key names and values — secrets by name only). A

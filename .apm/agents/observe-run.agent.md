@@ -96,9 +96,11 @@ exact commands; the method below is the same everywhere.
 In **drive** mode, produce the traffic first with the `run-scenario` skill
 and keep its verbatim record — sections 1 and 7 of the report both quote
 it. On the local stack, when the mission asks for a clean base — or
-isolating the run matters — call `odd_stack_reset` before the scenario:
-everything the stack then contains IS the run, and the window becomes
-trivial. Reset wipes ALL stored telemetry for every service, so never use
+isolating the run matters — restart the observed process, **then** call
+`odd_stack_reset` before the scenario (`run-scenario` step 0: a clean
+backend is not a clean run, and the order is load-bearing): everything
+the stack then contains IS the run, and the window becomes trivial.
+Reset wipes ALL stored telemetry for every service, so never use
 it on a stack whose history the caller still needs (and there is no reset
 on remote backends — scope with the window instead). When the caller has
 explicitly authorized driving a **remote** service, only `run-scenario`'s
@@ -203,7 +205,9 @@ with its stored path:
    conditions a comparable run needs. Then every verification check with
    its before-value and its pass criterion — a threshold to meet, an
    error that must be gone, a gap that must be filled — so the
-   improvement is verified with evidence, not impressions.
+   improvement is verified with evidence, not impressions. Each check
+   states how its query was validated on healthy data, or carries
+   `not validated` (the persistence skill defines the marker).
 
 ## Rules
 
@@ -217,6 +221,11 @@ with its stored path:
   secret name only.
 - Every anomaly is either cross-confirmed in a second signal or explicitly
   labeled single-signal.
+- Cumulative metrics belong to a process, not a window — in **every**
+  mode, not only drive: record the identity the numbers belong to
+  (`service.instance.id` or its backend equivalent), qualify cumulative
+  queries by it, and treat an unrestarted process's cumulatives as
+  deltas between the window's edges, never as run totals.
 - Leave the environment as you found it: the local stack stays running
   (the main agent measures next — say so in the report); on remote
   backends, run queries only, no configuration changes.
@@ -229,7 +238,8 @@ with its stored path:
   preflighted; all four signals were queried or their absence recorded in
   section 5; every table row and every finding carries its query and
   result; every improvement carries a number and a verification query with
-  a before-value; every single-signal or unprobed claim is marked
+  a before-value; every verification check carries its validation status;
+  every single-signal or unprobed claim is marked
   `suspected`; the memory was recalled (section 1 names the previous
   report or says there was none) and the report was persisted per the
   `create-observe-run-report` skill, with its stored path in the reply.
