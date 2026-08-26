@@ -39,8 +39,13 @@ defaults for every field not specified:
   ("on prod", "on uat"), it is neither the stack nor a mission input:
   carry it into the baseline expectations, so the agent compares it
   against the environment it detects and flags a divergence.
-- If no service name can be determined from the arguments, ask for it
-  before invoking the agent.
+- If no service name can be determined and the ask is an observation
+  mission, ask for it before invoking the agent. A service-less
+  **discovery question** about the stack's telemetry (which services
+  exist, what emits metrics, over what window) is answered directly in
+  the main conversation instead - after the preflight, with the
+  backend's query quoted as evidence, no dispatch and no report -
+  offering the full mission as the follow-up.
 
 Return the agent's report as-is: it is the deliverable the next
 spec-driven wave consumes - do not summarize it away.

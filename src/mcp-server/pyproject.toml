@@ -1,6 +1,6 @@
 [project]
 name = "oddyssey-mcp"
-version = "1.7.1"
+version = "1.7.2"
 description = "Oddyssey MCP server: pilots the local observability stack for CLI coding agents"
 requires-python = ">=3.12"
 license = "MIT"
