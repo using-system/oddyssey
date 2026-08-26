@@ -13,8 +13,8 @@ Resolve the report first:
 - Expected fields (any order, free-form): the report to verify against -
   a path under `.odd/observe-run-reports/` or
   `.odd/otel-instrumentation-reports/`, or enough of a run name to find
-  it in either directory - and, when that report's environment is
-  remote, the access material the agent will need.
+  it in either directory - and, when that report's stack is remote, the
+  access material the agent will need.
 - Default when no report is named: the newest file across
   `.odd/observe-run-reports/` and `.odd/otel-instrumentation-reports/`
   (filenames sort chronologically - read frontmatters only, newest
@@ -33,31 +33,37 @@ Resolve the report first:
   verify against before proceeding.
 
 Preflight next - in the main conversation, before any dispatch: the
-report's `environment` (`target` for an instrumentation report) is the
-contract being replayed. When it disagrees
+report's `stack` is the contract being replayed - both report kinds,
+observation and instrumentation, name it `stack`. When it disagrees
 with the configured stack (`odd_config_get`), say so and **follow the
-report** - a verify run replays the baseline's backend, never silently
+report** - a verify run replays the baseline's stack, never silently
 retargets the current one (and it does not rewrite the configuration:
 the divergence is stated, not persisted). Then run the
-`check-backend-configuration` skill against the report's backend: show
+`check-backend-configuration` skill against the report's stack: show
 the CLI's configuration, fail fast when it is not connected, and ask for
 what is missing before dispatching.
 
 Then build the mission block from that report:
 
-- services and environment come from its frontmatter; mode is drive
-  when the report records a scenario to replay, otherwise the
-  frontmatter's mode. For an **instrumentation report** the frontmatter
-  has no `services` or `mode`: the services are the ones its
-  per-service plan names (summary table), the environment is its
-  `target`, and the mode is drive - the verification protocol runs the
-  services and exercises a scenario. Driving is self-authorized only on
-  a local environment: when the report's environment is remote, ask the
-  user for explicit confirmation before building a drive-mode mission -
-  the agent will not drive a remote service without the caller saying
-  so;
+- services and stack come from its frontmatter; mode is drive when the
+  report records a scenario to replay, otherwise the frontmatter's mode.
+  For an **instrumentation report** the frontmatter has no `services` or
+  `mode`: the services are the ones its per-service plan names (summary
+  table), the stack is its frontmatter's `stack` all the same, and the
+  mode is drive - the verification protocol runs the services and
+  exercises a scenario. Driving is self-authorized only on the local
+  stack: when the report's stack is remote, ask the user for explicit
+  confirmation before building a drive-mode mission - the agent will not
+  drive a remote service without the caller saying so;
 - baseline: the report itself - name its path and tell the agent to use
   it as the recalled baseline;
+- baseline environment: hand the report's `environment` value over with
+  it. The agent detects the environment of its own run, compares it
+  against the one you handed over, and owns the hard stop when the two
+  diverge - no verdict is ever ruled across environments. An
+  **instrumentation report** carries no `environment` by design: say so
+  in the mission block - the comparison is skipped and the environment
+  the run detects is recorded fresh;
 - persistence: state that the run is a **verification** of that report,
   naming its exact filename, so the agent persists per the
   `create-observe-run-report` skill's verification rules —
