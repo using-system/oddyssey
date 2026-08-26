@@ -46,6 +46,7 @@ jobs:
       contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
+      notes_range: ${{ steps.prev.outputs.notes_range }}
     steps:
       - name: Derive the version from the tag
         id: version
@@ -72,6 +73,31 @@ jobs:
           # No credential may linger in .git/config while uv and apm
           # run third-party code below.
           persist-credentials: false
+      - name: Locate the previous version tag
+        id: prev
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          # The notes cannot rely on git-cliff's "unreleased" set: the
+          # trigger tag already exists, so that set is empty (#103).
+          # Hand the notes step an explicit range instead - previous
+          # version tag to the trigger tag. The walk is anchored at the
+          # trigger tag's own ancestry (not main's HEAD), so a backfill
+          # of an old tag still finds ITS previous version, and only
+          # strict vX.Y.Z tags qualify. First release: from the root
+          # commit instead.
+          PREV="$(git describe --tags --abbrev=0 --match "v*" --exclude "${REF_NAME}" "${REF_NAME}^{commit}" 2>/dev/null || echo '')"
+          echo "$PREV" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || PREV=''
+          if [ -n "$PREV" ]; then
+            RANGE="${PREV}..${REF_NAME}"
+          else
+            RANGE="$(git rev-list --max-parents=0 "${REF_NAME}" | tail -1)..${REF_NAME}"
+          fi
+          {
+            echo "notes_range<<GH_OUT"
+            echo "${RANGE}"
+            echo "GH_OUT"
+          } >> "$GITHUB_OUTPUT"
       - name: Regenerate the changelog for the tagged version
         uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4.8.0
         with:
@@ -149,7 +175,9 @@ jobs:
         id: notes
         uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4.8.0
         with:
-          args: --tag v${{ needs.prepare.outputs.version }} --unreleased --strip all -o /tmp/release-notes.md
+          # Explicit range, not --unreleased: the trigger tag already
+          # exists, which makes the unreleased set empty (#103).
+          args: --tag v${{ needs.prepare.outputs.version }} --strip all ${{ needs.prepare.outputs.notes_range }} -o /tmp/release-notes.md
       - name: Open or update the release PR
         id: pr
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
