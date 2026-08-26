@@ -304,7 +304,9 @@ def _trace_reset(monkeypatch, state: str, up=None) -> tuple[list[str], dict]:
         lambda: calls.append("stored_services") or ["billing", "checkout"],
     )
     monkeypatch.setattr(
-        stack, "stack_down", lambda: calls.append("stack_down") or {"running": False}
+        stack,
+        "stack_down",
+        lambda flush=True: calls.append("stack_down") or {"running": False},
     )
     monkeypatch.setattr(
         stack,
@@ -391,7 +393,9 @@ def test_stack_reset_rejects_malformed_env_before_wiping(monkeypatch):
         stack, "stored_services", lambda: calls.append("stored_services") or []
     )
     monkeypatch.setattr(
-        stack, "stack_down", lambda: calls.append("stack_down") or {"running": False}
+        stack,
+        "stack_down",
+        lambda flush=True: calls.append("stack_down") or {"running": False},
     )
     monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
@@ -415,7 +419,7 @@ def test_stack_reset_passes_env_to_the_new_container(monkeypatch):
     seen: dict[str, object] = {}
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
     monkeypatch.setattr(stack, "stored_services", list)
-    monkeypatch.setattr(stack, "stack_down", lambda: {"running": False})
+    monkeypatch.setattr(stack, "stack_down", lambda flush=True: {"running": False})
 
     def fake_up(env=None):
         seen["env"] = env
@@ -558,3 +562,33 @@ def test_container_user_env_is_none_when_an_inspect_fails(monkeypatch):
 def test_container_user_env_is_none_on_malformed_inspect_output(monkeypatch):
     monkeypatch.setattr(stack, "_docker", lambda *args: _Proc(stdout="not json"))
     assert stack.container_user_env() is None
+
+
+def test_stack_down_flushes_queued_telemetry_first(monkeypatch):
+    # Standalone down keeps its flush: the export target may be a remote
+    # store that survives the local container's destruction.
+    flushes: list[int] = []
+    monkeypatch.setattr(stack.telemetry, "force_flush", lambda: flushes.append(1))
+    monkeypatch.setattr(stack, "_docker", lambda *args: _Proc())
+
+    stack.stack_down()
+
+    assert flushes == [1]
+
+
+def test_stack_reset_defers_the_flush_to_the_recreated_store(monkeypatch):
+    # F3 (observation report 2026-08-26): stack_down's flush delivered the
+    # pre-rm spans (the #62 env reads, the pre-wipe enumeration) into the
+    # very store the next line destroys - deterministic loss. From reset,
+    # spans must stay queued so stack_up's post-readiness flush lands them
+    # in the recreated store.
+    flushes: list[int] = []
+    monkeypatch.setattr(stack.telemetry, "force_flush", lambda: flushes.append(1))
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "stored_services", list)
+    monkeypatch.setattr(stack, "_docker", lambda *args: _Proc())
+    monkeypatch.setattr(stack, "stack_up", lambda env=None: {"running": True})
+
+    stack.stack_reset()
+
+    assert flushes == []

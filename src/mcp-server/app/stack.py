@@ -347,9 +347,19 @@ def stored_services(transport: httpx.BaseTransport | None = None) -> list[str]:
     return sorted(services)
 
 
-def stack_down() -> dict:
-    """Destroy the stack container (and its data); absent is already down."""
-    telemetry.force_flush()
+def stack_down(flush: bool = True) -> dict:
+    """Destroy the stack container (and its data); absent is already down.
+
+    flush pushes queued telemetry out before the destruction - right for a
+    standalone down (the export target may be a remote store that survives
+    the local container), wrong from stack_reset: the flushed spans land
+    in the very store the next line destroys, a deterministic loss of the
+    whole pre-rm phase (observation report 2026-08-26, F3). The reset path
+    passes False and lets stack_up's post-readiness flush deliver them to
+    the recreated store instead - best effort, like that flush itself.
+    """
+    if flush:
+        telemetry.force_flush()
     result = _docker("rm", "--force", "--volumes", CONTAINER_NAME)
     if result.returncode != 0 and "no such container" not in result.stderr.lower():
         raise RuntimeError(f"docker rm failed: {result.stderr.strip()}")
@@ -379,6 +389,6 @@ def stack_reset(env: dict[str, str] | None = None) -> dict:
         except RuntimeError:
             pass
     services = stored_services()
-    stack_down()
+    stack_down(flush=False)
     # Reset always recreates, so env - unlike on stack_up - always applies.
     return {**stack_up(env), "services_wiped": services}
