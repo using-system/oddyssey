@@ -12,9 +12,12 @@ Resolve the report first:
 - Arguments: $ARGUMENTS
 - Expected fields (any order, free-form): the report to verify against -
   a path under `.odd/observe-run-reports/` or
-  `.odd/otel-instrumentation-reports/`, or enough of a run name to find
-  it in either directory - and, when that report's stack is remote, the
-  access material the agent will need.
+  `.odd/otel-instrumentation-reports/`, enough of a run name to find
+  it in either directory, or constraints that scope the newest-first
+  resolution below ("my last report for checkout", "my last prod
+  report" - a service, a stack, or a deployment environment, matched
+  against the stored frontmatters) - and, when that report's stack is
+  remote, the access material the agent will need.
 - Default when no report is named: the newest file across
   `.odd/observe-run-reports/` and `.odd/otel-instrumentation-reports/`
   (filenames sort chronologically - read frontmatters only, newest

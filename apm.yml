@@ -1,5 +1,5 @@
 name: oddyssey
-version: 1.7.0
+version: 1.7.1
 license: MIT
 description: Observability-Driven Development for CLI coding agents
 
@@ -10,7 +10,7 @@ dependencies:
       transport: stdio
       command: uvx
       args:
-        - "oddyssey-mcp==1.7.0"
+        - "oddyssey-mcp==1.7.1"
 
 # `apm pack` compiles this block into the native marketplace manifests
 # (.claude-plugin/marketplace.json for Claude Code / Copilot CLI / Kimi
@@ -28,5 +28,5 @@ marketplace:
     - name: oddyssey
       description: "Observability-Driven Development for CLI coding agents: OTel expert agent, run-observation agent, verification pass, local Grafana stack via MCP"
       source: ./marketplace/oddyssey
-      version: 1.7.0
+      version: 1.7.1
       category: Observability

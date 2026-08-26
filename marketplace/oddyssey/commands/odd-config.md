@@ -8,8 +8,10 @@ picks a change.
 
 - Arguments: $ARGUMENTS
 - Expected fields (optional, free-form): a target backend
-  (`switch to datadog`, `use the local stack`) or a targeting value to
-  persist (`persist workspace <guid>`). No arguments = display first.
+  (`switch to datadog`, `use the local stack`), a targeting value to
+  persist (`persist workspace <guid>`), or an explicit local-port
+  change (`set the local Grafana port to 3001`). No arguments =
+  display first.
 
 When the arguments already name a target backend or a persist request,
 skip the display-first flow and route straight to the
@@ -17,6 +19,13 @@ skip the display-first flow and route straight to the
 backend runs the full switch, a bare targeting value enters at its
 `stack_config` step and stands alone. The verification it ends with
 produces the display anyway, so nothing is lost by skipping ahead.
+
+An explicit local-port ask is neither of those - ports never belong in
+`stack_config`. It is an `odd_config_set {"local": {...}}` write this
+prompt performs itself, and only after stating what the user is
+signing up for: changing a port while the stack container exists
+resets it immediately, wiping ALL stored telemetry machine-wide (the
+result embeds the reset outcome).
 
 With no arguments, in this order:
 
