@@ -1,5 +1,6 @@
 ---
 services: [oddyssey-mcp]
+stack: local
 environment: local
 mode: drive
 window: 2026-08-22T21:54:26Z/2026-08-22T21:56:35Z
