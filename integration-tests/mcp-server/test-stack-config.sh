@@ -62,6 +62,11 @@ mcp_call odd_config_get > "$workdir/get.json"
 assert_result_contains "$workdir/get.json" '"grafana_port": 3000'
 assert_result_contains "$workdir/get.json" '"stack": "local"'
 
+step "apply a user env so the port change has something to carry (#62)"
+MCP_SERVER_REQUEST_TIMEOUT="${MCP_SERVER_REQUEST_TIMEOUT:-420000}" \
+  mcp_call odd_stack_reset 'env={"GF_LOG_LEVEL":"debug"}' > "$workdir/reset-env.json"
+assert_result_contains "$workdir/reset-env.json" '"running": true'
+
 step "changing the ports auto-resets the stack onto them"
 ports_moved=1
 MCP_SERVER_REQUEST_TIMEOUT="${MCP_SERVER_REQUEST_TIMEOUT:-420000}" \
@@ -72,6 +77,15 @@ assert_result_contains "$workdir/set.json" '"otlp_http_port": 4418'
 # A container was present, so the change wiped it: the embedded reset result
 # is what makes that machine-wide destruction visible to the caller.
 assert_result_contains "$workdir/set.json" 'services_wiped'
+
+step "the user env survived the auto-reset (#62)"
+# The result names the carried variables (key names only), and the
+# recreated container actually runs with the value.
+assert_result_contains "$workdir/set.json" 'env_preserved'
+assert_result_contains "$workdir/set.json" 'GF_LOG_LEVEL'
+docker inspect --format '{{json .Config.Env}}' oddyssey-lgtm \
+  | grep -q 'GF_LOG_LEVEL=debug' \
+  || { echo "ASSERTION FAILED: GF_LOG_LEVEL=debug not on the recreated container" >&2; exit 1; }
 test "$(http_code "http://localhost:3300$GRAFANA_READY_PATH")" = "200"
 test "$(http_code "http://localhost:3000$GRAFANA_READY_PATH")" != "200"
 

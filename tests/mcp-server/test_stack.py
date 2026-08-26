@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 from oddyssey_mcp import config, stack
@@ -302,7 +304,9 @@ def _trace_reset(monkeypatch, state: str, up=None) -> tuple[list[str], dict]:
         lambda: calls.append("stored_services") or ["billing", "checkout"],
     )
     monkeypatch.setattr(
-        stack, "stack_down", lambda: calls.append("stack_down") or {"running": False}
+        stack,
+        "stack_down",
+        lambda flush=True: calls.append("stack_down") or {"running": False},
     )
     monkeypatch.setattr(
         stack,
@@ -389,7 +393,9 @@ def test_stack_reset_rejects_malformed_env_before_wiping(monkeypatch):
         stack, "stored_services", lambda: calls.append("stored_services") or []
     )
     monkeypatch.setattr(
-        stack, "stack_down", lambda: calls.append("stack_down") or {"running": False}
+        stack,
+        "stack_down",
+        lambda flush=True: calls.append("stack_down") or {"running": False},
     )
     monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
@@ -413,7 +419,7 @@ def test_stack_reset_passes_env_to_the_new_container(monkeypatch):
     seen: dict[str, object] = {}
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
     monkeypatch.setattr(stack, "stored_services", list)
-    monkeypatch.setattr(stack, "stack_down", lambda: {"running": False})
+    monkeypatch.setattr(stack, "stack_down", lambda flush=True: {"running": False})
 
     def fake_up(env=None):
         seen["env"] = env
@@ -493,3 +499,116 @@ def test_stack_up_fails_fast_on_port_mismatch(tmp_path, monkeypatch):
 
     with pytest.raises(RuntimeError, match="odd_stack_reset"):
         stack.stack_up()
+
+
+class _Proc:
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def _fake_env_inspects(monkeypatch, container, image):
+    """Stub _docker for the two .Config.Env inspects; None = failing call."""
+
+    def fake_docker(*args):
+        payload = image if args[0] == "image" else container
+        if payload is None:
+            return _Proc(returncode=1, stderr="no such object")
+        return _Proc(stdout=json.dumps(payload))
+
+    monkeypatch.setattr(stack, "_docker", fake_docker)
+
+
+def test_container_user_env_keeps_only_user_set_entries(monkeypatch):
+    # Issue #62: the auto-reset must carry forward what the USER set - the
+    # image's own env and the embedded defaults are recreated anyway.
+    _fake_env_inspects(
+        monkeypatch,
+        container=[
+            "PATH=/usr/bin",
+            *stack.DEFAULT_ENV,
+            "GF_LOG_LEVEL=debug",
+            "LOKI_EXTRA_ARGS=-a=b",
+        ],
+        image=["PATH=/usr/bin"],
+    )
+    assert stack.container_user_env() == {
+        "GF_LOG_LEVEL": "debug",
+        # a value containing '=' splits on the first one only
+        "LOKI_EXTRA_ARGS": "-a=b",
+    }
+
+
+def test_container_user_env_keeps_an_overridden_default(monkeypatch):
+    # PROMETHEUS_EXTRA_ARGS set to a NON-default value is a user choice:
+    # only the exact embedded default entry is dropped.
+    _fake_env_inspects(
+        monkeypatch,
+        container=["PATH=/usr/bin", "PROMETHEUS_EXTRA_ARGS=--custom"],
+        image=["PATH=/usr/bin"],
+    )
+    assert stack.container_user_env() == {"PROMETHEUS_EXTRA_ARGS": "--custom"}
+
+
+def test_container_user_env_is_none_when_an_inspect_fails(monkeypatch):
+    # Best-effort by contract: unreadable preserves nothing, never raises.
+    _fake_env_inspects(monkeypatch, container=None, image=["PATH=/usr/bin"])
+    assert stack.container_user_env() is None
+    _fake_env_inspects(monkeypatch, container=["PATH=/usr/bin"], image=None)
+    assert stack.container_user_env() is None
+
+
+def test_container_user_env_is_none_on_malformed_inspect_output(monkeypatch):
+    monkeypatch.setattr(stack, "_docker", lambda *args: _Proc(stdout="not json"))
+    assert stack.container_user_env() is None
+
+
+def test_stack_down_flushes_queued_telemetry_before_the_rm(monkeypatch):
+    # Standalone down keeps its flush, and BEFORE the destruction: the
+    # export target may be a remote store that survives the local
+    # container - a shared order sink pins the sequence, not just the call.
+    order: list[str] = []
+    monkeypatch.setattr(stack.telemetry, "force_flush", lambda: order.append("flush"))
+    monkeypatch.setattr(stack, "_docker", lambda *args: order.append("rm") or _Proc())
+
+    stack.stack_down()
+
+    assert order == ["flush", "rm"]
+
+
+def test_stack_up_flushes_after_readiness(monkeypatch):
+    # stack_reset(flush=False) relies on THIS flush as the delivery
+    # backstop for the deferred pre-rm spans (F3 review, finding F-1):
+    # pin it so a stack_up simplification cannot silently remove the
+    # reset path's delivery point.
+    order: list[str] = []
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
+    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(
+        stack, "_otlp_ingest_ready", lambda client: order.append("ready") or True
+    )
+    monkeypatch.setattr(stack.telemetry, "force_flush", lambda: order.append("flush"))
+
+    stack.stack_up()
+
+    assert order == ["ready", "flush"]
+
+
+def test_stack_reset_defers_the_flush_to_the_recreated_store(monkeypatch):
+    # F3 (observation report 2026-08-26): stack_down's flush delivered the
+    # pre-rm spans (the #62 env reads, the pre-wipe enumeration) into the
+    # very store the next line destroys - deterministic loss. From reset,
+    # spans must stay queued so stack_up's post-readiness flush lands them
+    # in the recreated store.
+    flushes: list[int] = []
+    monkeypatch.setattr(stack.telemetry, "force_flush", lambda: flushes.append(1))
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "stored_services", list)
+    monkeypatch.setattr(stack, "_docker", lambda *args: _Proc())
+    monkeypatch.setattr(stack, "stack_up", lambda env=None: {"running": True})
+
+    stack.stack_reset()
+
+    assert flushes == []

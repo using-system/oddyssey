@@ -159,6 +159,36 @@ def _container_host_ports() -> dict | None:
         return None
 
 
+def container_user_env() -> dict[str, str] | None:
+    """User-set environment of the existing container, or None.
+
+    The auto-reset of odd_config_set recreates the container and must carry
+    forward what the user applied through stack_up/stack_reset (issue #62):
+    everything in the container's .Config.Env minus the image's own env and
+    the exact embedded defaults - both are recreated anyway, and an
+    overridden default is a user choice so only the exact entry is dropped.
+    Best-effort by contract: an unreadable inspect preserves nothing and
+    never raises - losing env on that path beats blocking the reset.
+    """
+    container = _docker("inspect", "--format", "{{json .Config.Env}}", CONTAINER_NAME)
+    image = _docker("image", "inspect", "--format", "{{json .Config.Env}}", IMAGE)
+    if container.returncode != 0 or image.returncode != 0:
+        return None
+    try:
+        container_env = json.loads(container.stdout.strip())
+        image_env = json.loads(image.stdout.strip())
+    except ValueError:
+        return None
+    if not isinstance(container_env, list):
+        return None
+    inherited = set(image_env if isinstance(image_env, list) else []) | set(DEFAULT_ENV)
+    return dict(
+        entry.split("=", 1)
+        for entry in container_env
+        if isinstance(entry, str) and "=" in entry and entry not in inherited
+    )
+
+
 def _probe(client: httpx.Client, url: str) -> bool:
     try:
         return client.get(url).status_code == 200
@@ -317,9 +347,21 @@ def stored_services(transport: httpx.BaseTransport | None = None) -> list[str]:
     return sorted(services)
 
 
-def stack_down() -> dict:
-    """Destroy the stack container (and its data); absent is already down."""
-    telemetry.force_flush()
+def stack_down(flush: bool = True) -> dict:
+    """Destroy the stack container (and its data); absent is already down.
+
+    flush pushes queued telemetry out before the destruction - right for a
+    standalone down (the export target may be a remote store that survives
+    the local container), wrong from stack_reset: the flushed spans land
+    in the very store the next line destroys, a deterministic loss of the
+    whole pre-rm phase (observation report 2026-08-26, F3). The reset path
+    passes False so the SDK worker's scheduled exports (with their retry
+    backoff) deliver the spans once the recreated container listens, with
+    stack_up's post-readiness flush as the backstop - best effort either
+    way: a boot slower than the retry deadline still drops the batch.
+    """
+    if flush:
+        telemetry.force_flush()
     result = _docker("rm", "--force", "--volumes", CONTAINER_NAME)
     if result.returncode != 0 and "no such container" not in result.stderr.lower():
         raise RuntimeError(f"docker rm failed: {result.stderr.strip()}")
@@ -349,6 +391,6 @@ def stack_reset(env: dict[str, str] | None = None) -> dict:
         except RuntimeError:
             pass
     services = stored_services()
-    stack_down()
+    stack_down(flush=False)
     # Reset always recreates, so env - unlike on stack_up - always applies.
     return {**stack_up(env), "services_wiped": services}
