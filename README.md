@@ -186,9 +186,7 @@ values are persisted in that stack's `stack_config`. Nothing is written
 until you pick a change.
 
 More invocation examples for every prompt live in
-[docs/guide/prompts.md](docs/guide/prompts.md), and the dependency map
-of prompts, agents, skills, and MCP tools in
-[docs/guide/dependencies.md](docs/guide/dependencies.md).
+[docs/guide/prompts.md](docs/guide/prompts.md).
 
 ## The ODD principles
 
