@@ -52,17 +52,19 @@ Tempo's MCP server.
 
 ## OTLP forwarding — dual-write to a remote backend
 
-`OTEL_EXPORTER_OTLP_ENDPOINT` (all signals, OTLP/HTTP, scheme required —
-e.g. `https://otlp-gateway-<zone>.grafana.net/otlp`),
+`OTEL_EXPORTER_OTLP_ENDPOINT` (traces, metrics, and logs — OTLP/HTTP,
+scheme required — e.g. `https://otlp-gateway-<zone>.grafana.net/otlp`),
 `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` / `_METRICS_ENDPOINT` /
 `_TRACES_ENDPOINT` (per-signal, take precedence),
 `OTEL_EXPORTER_OTLP_HEADERS` (authentication — secret, name only).
 
-Set on the container, these make the **embedded collector** forward
-everything it receives to a remote backend while still writing locally:
-one telemetry stream feeds the local ODD loop AND a remote mirror
-(e.g. Grafana Cloud) at once. The most ODD-significant capability of the
-whole surface.
+Set on the container, these make the **embedded collector** forward the
+traces, metrics, and logs it receives to a remote backend while still
+writing locally: one telemetry stream feeds the local ODD loop AND a
+remote mirror (e.g. Grafana Cloud) at once. **Profiles are NOT
+forwarded** — the collector overlay only rewrites the traces/metrics/logs
+pipelines, so Pyroscope data stays local-only. The most ODD-significant
+capability of the whole surface, minus that one signal.
 
 ## eBPF auto-instrumentation — OBI
 
@@ -84,9 +86,11 @@ Any Grafana setting via `GF_*`. Documented in the tag: `GF_PLUGINS_PREINSTALL`
 `GF_AUTH_ANONYMOUS_ENABLED` / `GF_AUTH_ANONYMOUS_ORG_ROLE`,
 `GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH` (custom home dashboard).
 
-The stack serves Grafana **anonymously** by design and the isolated gcx
-context depends on it: disabling anonymous auth breaks the skill's
-context template until credentials are added there too.
+The stack serves Grafana **anonymously** by design. The skill's gcx
+context template already carries `admin`/`admin` — the image's default
+admin credentials — so disabling anonymous auth alone keeps it working;
+what breaks it is changing `GF_SECURITY_ADMIN_PASSWORD` without updating
+the template to match.
 
 ## Lifecycle and debug
 

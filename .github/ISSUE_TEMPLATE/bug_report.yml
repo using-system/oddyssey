@@ -19,7 +19,7 @@ body:
     attributes:
       label: Environment
       description: OS, Docker version, otel-lgtm image tag, target CLI (claude / copilot / opencode / ...)
-      placeholder: "macOS 15, Docker 29, grafana/otel-lgtm:0.30.2, claude"
+      placeholder: "macOS 15, Docker 29, grafana/otel-lgtm:0.31.0, claude"
     validations:
       required: true
   - type: dropdown
