@@ -63,9 +63,10 @@ def test_config_set_resets_the_stack_only_on_port_change_with_container(
     monkeypatch.setattr(
         stack,
         "stack_reset",
-        lambda: resets.append(1) or {"running": True, "services_wiped": []},
+        lambda env=None: resets.append(1) or {"running": True, "services_wiped": []},
     )
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "container_user_env", lambda: None, raising=False)
 
     # stack change alone: no reset
     result = server.odd_config_set({"stack": "datadog"})
@@ -96,6 +97,7 @@ def test_config_set_boots_a_stopped_container_before_writing_ports(
     events: list[str] = []
     real_save = config_module.save
     monkeypatch.setattr(stack, "_container_state", lambda: "stopped")
+    monkeypatch.setattr(stack, "container_user_env", lambda: None, raising=False)
     monkeypatch.setattr(
         stack, "stack_up", lambda env=None: events.append("up") or {"running": True}
     )
@@ -107,7 +109,9 @@ def test_config_set_boots_a_stopped_container_before_writing_ports(
     monkeypatch.setattr(
         stack,
         "stack_reset",
-        lambda: events.append("reset") or {"running": True, "services_wiped": []},
+        lambda env=None: (
+            events.append("reset") or {"running": True, "services_wiped": []}
+        ),
     )
 
     server.odd_config_set({"local": {"grafana_port": 3300}})
@@ -120,3 +124,61 @@ def test_config_set_description_states_the_wipe_and_the_restart_note():
     description = tools["odd_config_set"].description
     assert "wipe" in description.lower()
     assert "restart" in description.lower()
+
+
+def test_config_set_carries_the_container_env_through_the_auto_reset(
+    monkeypatch, tmp_path
+):
+    # Issue #62: the auto-reset recreates the container - the env the user
+    # applied through odd_stack_up/odd_stack_reset must be read from the
+    # doomed container BEFORE it is destroyed and passed to the reset.
+    monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / "config.json")
+    events: list[str] = []
+    captured: dict = {}
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(
+        stack,
+        "container_user_env",
+        lambda: events.append("read_env") or {"GF_LOG_LEVEL": "debug"},
+    )
+
+    def fake_reset(env=None):
+        events.append("reset")
+        captured["env"] = env
+        return {"running": True, "services_wiped": []}
+
+    monkeypatch.setattr(stack, "stack_reset", fake_reset)
+
+    result = server.odd_config_set({"local": {"grafana_port": 3300}})
+
+    assert events == ["read_env", "reset"]
+    assert captured["env"] == {"GF_LOG_LEVEL": "debug"}
+    # Key names only: values may hold secrets and the result is logged.
+    assert result["env_preserved"] == ["GF_LOG_LEVEL"]
+
+
+def test_config_set_reset_survives_an_unreadable_container_env(monkeypatch, tmp_path):
+    # Best-effort like everything on that path: an unreadable inspect
+    # preserves nothing and never blocks the reset.
+    monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / "config.json")
+    captured: dict = {}
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "container_user_env", lambda: None)
+
+    def fake_reset(env=None):
+        captured["env"] = env
+        return {"running": True, "services_wiped": []}
+
+    monkeypatch.setattr(stack, "stack_reset", fake_reset)
+
+    result = server.odd_config_set({"local": {"grafana_port": 3300}})
+
+    assert captured["env"] is None
+    assert result["env_preserved"] == []
+
+
+def test_config_set_description_states_the_env_carry_over():
+    # The carried env is part of the tool contract: the calling agent
+    # learns about env_preserved from the description, nowhere else.
+    tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
+    assert "env_preserved" in tools["odd_config_set"].description

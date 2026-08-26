@@ -105,10 +105,12 @@ def odd_config_set(config: dict) -> dict:
     RESETS the stack immediately so the configuration is always applied:
     this WIPES all stored telemetry machine-wide (the result embeds the
     reset outcome, including
-    services_wiped). That auto-reset recreates the container with the
-    DEFAULT environment: any env previously applied through odd_stack_up or
-    odd_stack_reset is NOT carried over - re-run odd_stack_reset with the
-    same env to reapply it. The MCP server's own telemetry export honors a
+    services_wiped). The auto-reset carries the old container's user-set
+    environment forward to the recreated one, best-effort: the result's
+    env_preserved field lists the carried variable names (never values). If
+    reading the old container failed, env_preserved is empty and nothing was
+    carried - re-run odd_stack_reset with the desired env to reapply it.
+    The MCP server's own telemetry export honors a
     changed OTLP port only after the MCP server restarts, and applications
     configured against the old ports keep exporting to them - their
     OTEL_EXPORTER_OTLP_ENDPOINT must be updated to the new otlp_endpoint.
@@ -136,7 +138,11 @@ def odd_config_set(config: dict) -> dict:
     effective = config_ops.save(config)
     result: dict = {"config": effective}
     if effective["local"] != ports_before and state_before != "absent":
-        result["stack_reset"] = stack_ops.stack_reset()
+        # Read the doomed container's user env BEFORE the reset destroys
+        # it, and hand it to the recreation (issue #62).
+        preserved = stack_ops.container_user_env()
+        result["stack_reset"] = stack_ops.stack_reset(preserved)
+        result["env_preserved"] = sorted(preserved or {})
     return result
 
 

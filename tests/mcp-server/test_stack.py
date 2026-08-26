@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 from oddyssey_mcp import config, stack
@@ -493,3 +495,66 @@ def test_stack_up_fails_fast_on_port_mismatch(tmp_path, monkeypatch):
 
     with pytest.raises(RuntimeError, match="odd_stack_reset"):
         stack.stack_up()
+
+
+class _Proc:
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def _fake_env_inspects(monkeypatch, container, image):
+    """Stub _docker for the two .Config.Env inspects; None = failing call."""
+
+    def fake_docker(*args):
+        payload = image if args[0] == "image" else container
+        if payload is None:
+            return _Proc(returncode=1, stderr="no such object")
+        return _Proc(stdout=json.dumps(payload))
+
+    monkeypatch.setattr(stack, "_docker", fake_docker)
+
+
+def test_container_user_env_keeps_only_user_set_entries(monkeypatch):
+    # Issue #62: the auto-reset must carry forward what the USER set - the
+    # image's own env and the embedded defaults are recreated anyway.
+    _fake_env_inspects(
+        monkeypatch,
+        container=[
+            "PATH=/usr/bin",
+            *stack.DEFAULT_ENV,
+            "GF_LOG_LEVEL=debug",
+            "LOKI_EXTRA_ARGS=-a=b",
+        ],
+        image=["PATH=/usr/bin"],
+    )
+    assert stack.container_user_env() == {
+        "GF_LOG_LEVEL": "debug",
+        # a value containing '=' splits on the first one only
+        "LOKI_EXTRA_ARGS": "-a=b",
+    }
+
+
+def test_container_user_env_keeps_an_overridden_default(monkeypatch):
+    # PROMETHEUS_EXTRA_ARGS set to a NON-default value is a user choice:
+    # only the exact embedded default entry is dropped.
+    _fake_env_inspects(
+        monkeypatch,
+        container=["PATH=/usr/bin", "PROMETHEUS_EXTRA_ARGS=--custom"],
+        image=["PATH=/usr/bin"],
+    )
+    assert stack.container_user_env() == {"PROMETHEUS_EXTRA_ARGS": "--custom"}
+
+
+def test_container_user_env_is_none_when_an_inspect_fails(monkeypatch):
+    # Best-effort by contract: unreadable preserves nothing, never raises.
+    _fake_env_inspects(monkeypatch, container=None, image=["PATH=/usr/bin"])
+    assert stack.container_user_env() is None
+    _fake_env_inspects(monkeypatch, container=["PATH=/usr/bin"], image=None)
+    assert stack.container_user_env() is None
+
+
+def test_container_user_env_is_none_on_malformed_inspect_output(monkeypatch):
+    monkeypatch.setattr(stack, "_docker", lambda *args: _Proc(stdout="not json"))
+    assert stack.container_user_env() is None

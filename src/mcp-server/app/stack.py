@@ -159,6 +159,36 @@ def _container_host_ports() -> dict | None:
         return None
 
 
+def container_user_env() -> dict[str, str] | None:
+    """User-set environment of the existing container, or None.
+
+    The auto-reset of odd_config_set recreates the container and must carry
+    forward what the user applied through stack_up/stack_reset (issue #62):
+    everything in the container's .Config.Env minus the image's own env and
+    the exact embedded defaults - both are recreated anyway, and an
+    overridden default is a user choice so only the exact entry is dropped.
+    Best-effort by contract: an unreadable inspect preserves nothing and
+    never raises - losing env on that path beats blocking the reset.
+    """
+    container = _docker("inspect", "--format", "{{json .Config.Env}}", CONTAINER_NAME)
+    image = _docker("image", "inspect", "--format", "{{json .Config.Env}}", IMAGE)
+    if container.returncode != 0 or image.returncode != 0:
+        return None
+    try:
+        container_env = json.loads(container.stdout.strip())
+        image_env = json.loads(image.stdout.strip())
+    except ValueError:
+        return None
+    if not isinstance(container_env, list):
+        return None
+    inherited = set(image_env if isinstance(image_env, list) else []) | set(DEFAULT_ENV)
+    return dict(
+        entry.split("=", 1)
+        for entry in container_env
+        if isinstance(entry, str) and "=" in entry and entry not in inherited
+    )
+
+
 def _probe(client: httpx.Client, url: str) -> bool:
     try:
         return client.get(url).status_code == 200
