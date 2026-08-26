@@ -74,7 +74,8 @@ argument - the agent detects it from the service's telemetry.
 - "list the services with metrics ..." - a discovery ask: the remote
   telemetry can be questioned directly (which services exist, over
   what window) and answered with the query as evidence, without a full
-  observation report;
+  observation report; naming the stack here still switches the
+  configuration like any mission;
 - "between 14:00 and 15:00 UTC" / "after my last deployment" - the
   window;
 - "focus on latency" / "error rate should stay under 1%" - focus and
