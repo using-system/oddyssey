@@ -56,6 +56,7 @@ argument - the agent detects it from the service's telemetry.
 /odd-observe post-hoc: what did orders do between 14:00 and 15:00 UTC?
 /odd-observe switch to grafana and observe checkout, focus on errors
 /odd-observe observe checkout after my last deployment, error rate should stay under 1%
+/odd-observe list the services with metrics on my stack grafana over the last 30 days - just the names
 ```
 
 - "checkout", "payment", "orders" - the services;
@@ -70,6 +71,10 @@ argument - the agent detects it from the service's telemetry.
   mission input (the agent detects the real one from the telemetry)
   but an expectation it reconciles, flagging any divergence;
 - "drive a ... scenario" / "observe the run" / "post-hoc" - the mode;
+- "list the services with metrics ..." - a discovery ask: the remote
+  telemetry can be questioned directly (which services exist, over
+  what window) and answered with the query as evidence, without a full
+  observation report;
 - "between 14:00 and 15:00 UTC" / "after my last deployment" - the
   window;
 - "focus on latency" / "error rate should stay under 1%" - focus and
