@@ -1,3 +1,14 @@
+## [1.7.1] - 2026-08-26
+
+### 🐛 Bug Fixes
+
+- *(ci)* Mint the release App token with client-id (#100)
+- *(ci)* Release notes from an explicit tag range - the trigger tag empties git-cliff's unreleased set (#104)
+
+### 📚 Documentation
+
+- *(guide)* Prompt usage examples and the component dependency map (#102)
+- *(readme)* Drop the duplicate dependencies.md link from How to (#105)
 ## [1.7.0] - 2026-08-26
 
 ### 🚀 Features
@@ -18,10 +29,6 @@
 ### 🐛 Bug Fixes
 
 - *(mcp)* Local is a first-class stack value - grafana means remote Grafana (#68)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* 1.6.1 (#69)
 ## [1.6.0] - 2026-08-24
 
 ### 🚀 Features
@@ -42,7 +49,6 @@
 ### ⚙️ Miscellaneous Tasks
 
 - *(release)* Name runs after the chosen mode (#54)
-- *(release)* 1.6.0 (#66)
 ## [1.5.0] - 2026-08-23
 
 ### 🚀 Features
@@ -56,25 +62,16 @@
 ### 📚 Documentation
 
 - *(skill)* Align setup-local-stack with the verified gcx surface (#52)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* 1.5.0 (#53)
 ## [1.4.1] - 2026-08-23
 
 ### ⚙️ Miscellaneous Tasks
 
 - *(community)* Community health files and manual release proposing (#45)
-- *(release)* 1.4.1 (#47)
 ## [1.4.0] - 2026-08-23
 
 ### 🚀 Features
 
 - *(apm)* In-repo instrumentation memory and committed odd reports (#32)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* 1.4.0 (#33)
 ## [1.3.0] - 2026-08-23
 
 ### 🚀 Features
@@ -84,10 +81,6 @@
 ### 📚 Documentation
 
 - *(readme)* Update command and one-telemetry-two-consumers principle (#28)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* 1.3.0 (#31)
 ## [1.2.0] - 2026-08-22
 
 ### 🚀 Features
@@ -97,37 +90,21 @@
 ### 📚 Documentation
 
 - *(readme)* Document the claude install command and the other targets (#24)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* 1.2.0 (#27)
 ## [1.1.0] - 2026-08-22
 
 ### 🚀 Features
 
 - *(apm)* In-repo observation memory and /odd-verify verification pass (#22)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* 1.1.0 (#23)
 ## [1.0.0] - 2026-08-22
 
 ### 🚀 Features
 
 - *(apm)* [**breaking**] Restructure primitives under .apm, entry prompts, full-target ci (#19)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* 1.0.0 (#21)
 ## [0.1.1] - 2026-08-22
 
 ### 🐛 Bug Fixes
 
 - *(mcp)* Match the no-such-container error case-insensitively (#13)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* 0.1.1 (#14)
 ## [0.1.0] - 2026-08-22
 
 ### 🚀 Features
@@ -149,4 +126,3 @@
 - *(mcp-server)* Add lint, unit-test, and mcp-client integration jobs (#4)
 - *(release)* Auto version bump, github release, and pypi publish (#10)
 - *(release)* Git-history-driven release flow (git-cliff) with approved release pr (#11)
-- *(release)* 0.1.0 (#12)
