@@ -15,7 +15,11 @@ import httpx
 
 from . import config, telemetry
 
-IMAGE = "grafana/otel-lgtm:0.30.2"
+# The image's environment surface (ENABLE_LOGS_*, *_EXTRA_ARGS, OTLP
+# forwarding, OBI, GF_*) is cataloged in the setup-local-stack skill's
+# otel-lgtm-env reference, built from this exact tag - re-validate it on
+# every pin bump.
+IMAGE = "grafana/otel-lgtm:0.31.0"
 CONTAINER_NAME = "oddyssey-lgtm"
 
 # Part of the embedded definition, not an option (issue #34): CLI coding
@@ -25,6 +29,12 @@ CONTAINER_NAME = "oddyssey-lgtm"
 # this feature flag. Experimental on Prometheus's side, but the image is
 # pinned, so the behavior cannot drift until a deliberate bump.
 DEFAULT_ENV = ("PROMETHEUS_EXTRA_ARGS=--enable-feature=otlp-deltatocumulative",)
+
+# When a DEFAULT_ENV entry changes, move the OLD exact entry here: a
+# surviving container still carries it, and container_user_env must not
+# read it as a user choice (it would be carried forward and suppress the
+# new default). Empty until a default actually changes.
+SUPERSEDED_DEFAULT_ENV: tuple[str, ...] = ()
 
 # Container-side ports are fixed by the image; only the host side is
 # configurable (issue #59). Ports and URLs are resolved at call time so
@@ -164,24 +174,44 @@ def container_user_env() -> dict[str, str] | None:
 
     The auto-reset of odd_config_set recreates the container and must carry
     forward what the user applied through stack_up/stack_reset (issue #62):
-    everything in the container's .Config.Env minus the image's own env and
+    everything in the container's .Config.Env minus its image's own env and
     the exact embedded defaults - both are recreated anyway, and an
     overridden default is a user choice so only the exact entry is dropped.
+    The subtraction targets the image the container was CREATED from
+    (.Image ID), never the pinned IMAGE constant: after a pin bump with a
+    surviving old container the two differ, and diffing against the new
+    image would misclassify old-image-baked entries as user env (#83).
     Best-effort by contract: an unreadable inspect preserves nothing and
     never raises - losing env on that path beats blocking the reset.
     """
-    container = _docker("inspect", "--format", "{{json .Config.Env}}", CONTAINER_NAME)
-    image = _docker("image", "inspect", "--format", "{{json .Config.Env}}", IMAGE)
-    if container.returncode != 0 or image.returncode != 0:
+    container = _docker(
+        "inspect",
+        "--format",
+        '{"env": {{json .Config.Env}}, "image": {{json .Image}}}',
+        CONTAINER_NAME,
+    )
+    if container.returncode != 0:
         return None
     try:
-        container_env = json.loads(container.stdout.strip())
+        parsed = json.loads(container.stdout.strip())
+        container_env = parsed["env"]
+        image_ref = parsed["image"]
+    except (ValueError, KeyError, TypeError):
+        return None
+    if not isinstance(container_env, list) or not isinstance(image_ref, str):
+        return None
+    image = _docker("image", "inspect", "--format", "{{json .Config.Env}}", image_ref)
+    if image.returncode != 0:
+        return None
+    try:
         image_env = json.loads(image.stdout.strip())
     except ValueError:
         return None
-    if not isinstance(container_env, list):
-        return None
-    inherited = set(image_env if isinstance(image_env, list) else []) | set(DEFAULT_ENV)
+    inherited = (
+        set(image_env if isinstance(image_env, list) else [])
+        | set(DEFAULT_ENV)
+        | set(SUPERSEDED_DEFAULT_ENV)
+    )
     return dict(
         entry.split("=", 1)
         for entry in container_env

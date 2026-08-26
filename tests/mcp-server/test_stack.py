@@ -18,7 +18,7 @@ def test_run_args_build_the_pinned_container():
 
     assert args[:2] == ["docker", "run"]
     assert args[-1] == IMAGE
-    assert IMAGE == "grafana/otel-lgtm:0.30.2"
+    assert IMAGE == "grafana/otel-lgtm:0.31.0"
     assert CONTAINER_NAME in args
     for mapping in ("3000:3000", "4317:4317", "4318:4318"):
         assert mapping in args
@@ -508,14 +508,26 @@ class _Proc:
         self.stderr = stderr
 
 
-def _fake_env_inspects(monkeypatch, container, image):
-    """Stub _docker for the two .Config.Env inspects; None = failing call."""
+def _fake_env_inspects(
+    monkeypatch, container, image, container_image="sha256:cafe", seen=None
+):
+    """Stub _docker for the env inspects; None = failing call.
+
+    container/image are .Config.Env lists; container_image is the .Image
+    ID the container inspect reports; seen records the ref the image
+    inspect was actually queried with.
+    """
 
     def fake_docker(*args):
-        payload = image if args[0] == "image" else container
-        if payload is None:
+        if args[0] == "image":
+            if seen is not None:
+                seen["ref"] = args[-1]
+            if image is None:
+                return _Proc(returncode=1, stderr="no such object")
+            return _Proc(stdout=json.dumps(image))
+        if container is None:
             return _Proc(returncode=1, stderr="no such object")
-        return _Proc(stdout=json.dumps(payload))
+        return _Proc(stdout=json.dumps({"env": container, "image": container_image}))
 
     monkeypatch.setattr(stack, "_docker", fake_docker)
 
@@ -562,6 +574,49 @@ def test_container_user_env_is_none_when_an_inspect_fails(monkeypatch):
 def test_container_user_env_is_none_on_malformed_inspect_output(monkeypatch):
     monkeypatch.setattr(stack, "_docker", lambda *args: _Proc(stdout="not json"))
     assert stack.container_user_env() is None
+
+
+def test_container_user_env_inspects_the_container_own_image(monkeypatch):
+    # Issue #83 (review of #62): diffing against the currently pinned
+    # IMAGE misclassifies image-baked env when the pin was bumped while
+    # the old container survived - old-image entries whose value changed
+    # would be carried as "user env" into the new container. The diff
+    # must target the image the container was created from (.Image ID).
+    seen: dict = {}
+    _fake_env_inspects(
+        monkeypatch,
+        container=["PATH=/from-old-image", "GF_LOG_LEVEL=debug"],
+        image=["PATH=/from-old-image"],
+        container_image="sha256:0ld",
+        seen=seen,
+    )
+    assert stack.container_user_env() == {"GF_LOG_LEVEL": "debug"}
+    assert seen["ref"] == "sha256:0ld"
+
+
+def test_container_user_env_drops_a_superseded_default(monkeypatch):
+    # When a DEFAULT_ENV entry changes across server versions, the old
+    # container still carries the OLD default - it must not be carried
+    # forward as a user choice (it would suppress the new default), while
+    # a genuinely custom value for the same key stays a user choice.
+    monkeypatch.setattr(
+        stack,
+        "SUPERSEDED_DEFAULT_ENV",
+        ("PROMETHEUS_EXTRA_ARGS=--old-default",),
+        raising=False,
+    )
+    _fake_env_inspects(
+        monkeypatch,
+        container=["PATH=/usr/bin", "PROMETHEUS_EXTRA_ARGS=--old-default"],
+        image=["PATH=/usr/bin"],
+    )
+    assert stack.container_user_env() == {}
+    _fake_env_inspects(
+        monkeypatch,
+        container=["PATH=/usr/bin", "PROMETHEUS_EXTRA_ARGS=--custom"],
+        image=["PATH=/usr/bin"],
+    )
+    assert stack.container_user_env() == {"PROMETHEUS_EXTRA_ARGS": "--custom"}
 
 
 def test_stack_down_flushes_queued_telemetry_before_the_rm(monkeypatch):
