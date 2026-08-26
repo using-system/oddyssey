@@ -31,7 +31,9 @@ doubt, record the number.
   analyzed (e.g. `checkout-latency-sweep`, `orders-post-hoc-errors`).
   Name the content, not the date — the date is already in front.
 - A **verification run** — a run that replays a stored report's
-  measurement protocol — names its file
+  protocol: an observation report's measurement protocol, or an
+  instrumentation report's verification protocol (from
+  `.odd/otel-instrumentation-reports/`) — names its file
   `YYYY-MM-DD-HHmm-verify-<run_name>.md`: its **own** UTC timestamp,
   then `verify-`, then the verified report's `run_name` unchanged (the
   baseline's timestamp is not repeated). Chronological sorting is
@@ -40,8 +42,8 @@ doubt, record the number.
   glob (`*-verify-<run_name>.md`). Re-verifications share the suffix
   and differ by their own timestamp. `verify-` always references the
   report **whose protocol is replayed**: re-verifying replays the
-  original observation's protocol again, so the new report references
-  the original observation — never a previous verification.
+  original report's protocol again, so the new report references
+  the original report — never a previous verification.
 - Create the directory if it does not exist. The files are meant to be
   **committed**: leave them tracked, never add them to `.gitignore`.
 
@@ -92,6 +94,12 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   filename (not just the run_name) is what disambiguates two baselines
   sharing a run_name and survives an accidental rename; the field is
   the machine contract, the `verify-` filename the readable convention.
+  The baseline may also be an **instrumentation report**: `verifies`
+  then carries its repo-relative path
+  (`.odd/otel-instrumentation-reports/<filename>`), so the value's
+  shape says which directory the baseline lives in — a bare filename
+  always names a sibling observation report. The deliverable stays an
+  observation report in this directory either way.
 - `revision` (`git rev-parse --short HEAD` in the observed repo) is what
   makes a before/after honest: a report is a before-value for a fix
   wave, and the fix is a diff against some revision.

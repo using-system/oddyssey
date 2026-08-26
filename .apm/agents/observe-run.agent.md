@@ -162,7 +162,11 @@ Then go from aggregates to explanations:
 - **Baseline** — with no caller expectations, compare against the
   recalled report (Setup step 4): the same operations' previous numbers,
   the previous findings (fixed, still there, worse?), and the previous
-  measurement protocol's before-values. With no recalled report either,
+  measurement protocol's before-values. When the recalled baseline is an
+  **instrumentation report**, there are no previous numbers: the deltas
+  are presence rulings — closed / still missing per planned item, each
+  with its discovery query — reported in place of the numeric diff.
+  With no recalled report either,
   compare within the run: p99 against p50 per operation, an endpoint
   against its siblings, the first half of the window against the second.
   Always say what you compared against.
