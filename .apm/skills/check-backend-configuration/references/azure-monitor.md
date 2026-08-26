@@ -29,8 +29,10 @@ four are unset, which is a valid state, not an error. Say it plainly
 when the persisted `subscription` differs from the one `az account
 show` reports — the query targets the persisted one.
 
-Add any `invalid_ignored` dotted names as degradations: stored value
-invalid, default in use.
+Add any `invalid_ignored` dotted names as degradations: the stored
+value was invalid and was dropped. `stack_config` has no defaults behind
+it, so a dropped value reads as not persisted — nothing silently took
+its place.
 
 ## Connection proof
 

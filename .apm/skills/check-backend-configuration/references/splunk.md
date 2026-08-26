@@ -19,8 +19,10 @@ and the CLI keeps no shareable context. Present-and-empty (`{}`) or
 missing both display as "nothing persisted — the mission supplies the
 target".
 
-Add any `invalid_ignored` dotted names as degradations: stored value
-invalid, default in use.
+Add any `invalid_ignored` dotted names as degradations: the stored
+value was invalid and was dropped. `stack_config` has no defaults behind
+it, so a dropped value reads as not persisted — nothing silently took
+its place.
 
 ## Connection proof
 

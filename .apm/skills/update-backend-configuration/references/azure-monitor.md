@@ -28,17 +28,20 @@ credential behind `az` stays in its own auth store, established by
   name, id, and tenant. If the missions target that one, take it from
   there; persist it anyway, because "active" is machine state that
   changes under you and the stored value is what pins the target.
-- `resource_group` — `az monitor log-analytics workspace list` (or
-  `az resource list --resource-type
-  Microsoft.OperationalInsights/workspaces`) shows the workspaces the
-  identity can see and the group each sits in.
+- `resource_group` — list the workspaces the identity can see and read
+  the group each sits in. The exact listing command comes from the
+  `azure-monitor.md` reference in the `observability-cli-guides` skill,
+  or from `az monitor log-analytics workspace --help` — never from
+  memory.
 - `workspace` — `az monitor log-analytics workspace show -g
   <resource_group> -n <name> --query customerId -o tsv` is the command
   that turns a workspace name into the GUID to store. Deriving it is
   strictly better than asking: users know their workspace by name and
   rarely by GUID.
-- `app_insights_app` — `az monitor app-insights component show` when the
-  user says App Insights is the target.
+- `app_insights_app` — only when the user says App Insights is the
+  target; take the command that names the app from the same
+  `observability-cli-guides` reference, or from
+  `az monitor app-insights --help`.
 
 ## What to ask the user
 

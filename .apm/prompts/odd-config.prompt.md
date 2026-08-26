@@ -24,9 +24,11 @@ With no arguments, in this order:
    configured stack: the effective configuration in that backend's own
    display shape (its `references/<stack>.md`), which instance, tenant,
    or site the runs will hit, and the connection proof. Surface any
-   `invalid_ignored` field `odd_config_get` reports - a tolerated-invalid
-   stored value fell back to its default, and the user is the only one
-   who can say whether that default is what they meant.
+   `invalid_ignored` field `odd_config_get` reports - the stored value
+   was tolerated but ignored, and only the user can say what they meant.
+   Name the effect per field: a `local.*` port fell back to its default,
+   a `stack_config` dotted name was simply dropped - nothing defaults it,
+   so it now reads as not persisted.
 2. **Offer the change**, starting with **"Change backend?"**: list the
    seven backends - `local` (the local stack), `grafana` (a **remote**
    Grafana), `azure-monitor`, `cloudwatch`, `datadog`, `dynatrace`,

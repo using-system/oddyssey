@@ -20,7 +20,9 @@ If values are stored there anyway, show them as-is and say the gcx
 context still wins for targeting.
 
 List any `invalid_ignored` dotted names `odd_config_get` returned as
-degradations: stored value invalid, default in use.
+degradations: the stored value was invalid and was dropped.
+`stack_config` has no defaults behind it, so a dropped value reads as
+not persisted — nothing silently took its place.
 
 ## Connection proof
 

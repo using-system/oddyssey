@@ -28,8 +28,10 @@ mission will ask", and a present-but-empty `stack_config.cloudwatch`
 Call out a persisted `region` that differs from the CLI's effective
 one — the query targets the persisted value.
 
-Add any `invalid_ignored` dotted names as degradations: stored value
-invalid, default in use.
+Add any `invalid_ignored` dotted names as degradations: the stored
+value was invalid and was dropped. `stack_config` has no defaults behind
+it, so a dropped value reads as not persisted — nothing silently took
+its place.
 
 ## Connection proof
 

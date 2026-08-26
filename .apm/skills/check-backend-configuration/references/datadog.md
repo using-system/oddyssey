@@ -19,8 +19,10 @@ queries will hit.
 names the site and org. Present-and-empty (`{}`) or missing both
 display as "nothing persisted — the Pup session is the source".
 
-Add any `invalid_ignored` dotted names as degradations: stored value
-invalid, default in use.
+Add any `invalid_ignored` dotted names as degradations: the stored
+value was invalid and was dropped. `stack_config` has no defaults behind
+it, so a dropped value reads as not persisted — nothing silently took
+its place.
 
 ## Connection proof
 

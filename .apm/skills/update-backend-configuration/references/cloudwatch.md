@@ -30,8 +30,11 @@ a secret. Access keys, session tokens, and SSO sessions stay where the
 - `log_group` — `aws logs describe-log-groups --query
   'logGroups[].logGroupName'` lists what the identity can actually see;
   pick the group (or read the convention off the list) with the user.
-- `xray` — `aws xray get-groups` names the configured groups. Skip
-  unless the user says traces come from X-Ray.
+- `xray` — the `cloudwatch.md` reference in the
+  `observability-cli-guides` skill owns the X-Ray command surface; take
+  the group-listing command from there, or from `aws xray help`, rather
+  than from memory. Skip the field entirely unless the user says traces
+  come from X-Ray.
 
 `aws sts get-caller-identity` is the identity check, not a source of
 targeting values — it belongs to the connection proof in

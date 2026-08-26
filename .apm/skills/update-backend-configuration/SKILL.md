@@ -97,11 +97,23 @@ configured", which for the context-bearing backends — `grafana`,
 normal, not an error, and not something to fill in with invented
 values.
 
+A **persist-only** request — targeting values named, no switch asked
+("persist workspace `<guid>` for azure-monitor" while the configured
+stack is `local`) — enters the skill here and stands alone. Resolve the
+target stack (section 1) for validation only, so the values land in the
+right entry and are read against the right reference; **skip the switch
+persist** (section 3) entirely; write the values as above; end at
+verification (section 5) as every path does. The configured stack is
+left exactly as it was — naming a backend to persist values for is not
+asking to point the missions at it, and a `{"stack": ...}` write here
+would be an unrequested switch.
+
 ## 5. Verify
 
-Run `check-backend-configuration` against the new stack. Its display
-plus its connection proof is this skill's **exit criterion** — a switch
-is done when the CLI answers for the new backend, not when the write
+Run `check-backend-configuration` against the new stack — or against
+the configured one, untouched, on a persist-only pass. Its display plus
+its connection proof is this skill's **exit criterion** — a switch is
+done when the CLI answers for the new backend, not when the write
 returns. Failures come back as that skill's guidance (setup steps, the
 inputs it needs by name); this skill does not authenticate and does not
 retry the auth on the user's behalf.
