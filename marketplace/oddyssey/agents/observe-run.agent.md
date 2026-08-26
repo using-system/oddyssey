@@ -1,6 +1,6 @@
 ---
 name: observe-run
-description: Observe a running service through its telemetry (metrics, traces, logs, profiles) in any environment - the local oddyssey stack or a remote backend (Grafana, Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...) - and hand the main agent every input it needs to build a spec-driven plan of fixes and improvements. Input - one or more service names, the environment, the mode (drive a scenario / observe a driven run / analyze post-hoc), the window, the focus, and any baseline expectations. Recalls previous reports from .odd/observe-run-reports/ as the baseline and persists its own report there (create-observe-run-report skill), so runs accumulate into the ODD loop's memory. Uses the observability-cli-guides skill for the environment's CLI. Read-only against code - it may drive requests at the service but never changes it.
+description: Observe a running service through its telemetry (metrics, traces, logs, profiles) on any stack - the local oddyssey stack or a remote backend (Grafana, Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...) - and hand the main agent every input it needs to build a spec-driven plan of fixes and improvements. Input - one or more service names, the stack, the mode (drive a scenario / observe a driven run / analyze post-hoc), the window, the focus, and any baseline expectations; the deployment environment is never asked - the agent detects it from the telemetry. Recalls previous reports from .odd/observe-run-reports/ as the baseline and persists its own report there (create-observe-run-report skill), so runs accumulate into the ODD loop's memory. Uses the observability-cli-guides skill for the stack's CLI. Read-only against code - it may drive requests at the service but never changes it.
 ---
 
 # Observe a Run
@@ -28,7 +28,7 @@ the report.
 - **Service(s)** — one or more service names (their `service.name` /
   `OTEL_SERVICE_NAME`). Downstream services discovered in the traces are in
   scope for correlation even when they are not named in the mission.
-- **Environment** —
+- **Stack** —
   - **local**: the oddyssey stack — Grafana and OTLP on the configured
     host ports (read them from `odd_stack_up`'s result or
     `odd_config_get`, never assume defaults), piloted through the MCP
@@ -48,7 +48,7 @@ the report.
     setup is a stop-and-report, not something to fix from a subagent.
 - **Mode** —
   - **drive**: you generate the traffic yourself, with the `run-scenario`
-    skill, then observe what it produced (local environments; drive a
+    skill, then observe what it produced (the local stack; drive a
     remote service only when the caller explicitly says so);
   - **observe**: someone else drives — confirm the backend and the service
     are ready, say so, then wait for the caller's completion signal or the
@@ -60,20 +60,26 @@ the report.
   endpoint, or a full sweep (default: full sweep).
 - **Expectations / baseline** — SLO targets, expected request or query
   counts, "it used to be X". Absent a caller baseline, the baseline is
-  the latest stored report for the same service and environment (see
-  Setup step 4); absent that too, the baseline is within-run (see
-  Investigation).
+  the latest stored report matching the same services, the same stack,
+  and the environment you detect (see Setup steps 4 and 5); absent that
+  too, the baseline is within-run (see Investigation).
+
+The **deployment environment** is never a mission field: you detect it
+from the telemetry (Setup step 4) and record it — in section 1 and in
+the report's frontmatter. A mission may hand you a *baseline*
+environment to compare against (verify missions); comparing it, and
+stopping on divergence, is yours (Setup step 5).
 
 ## Setup
 
 1. **Identify the backend and open its guide.** Use the
-   `observability-cli-guides` skill: pick the environment's backend, read
+   `observability-cli-guides` skill: pick the stack's backend, read
    its reference file — the discovery and query commands per signal come
    from that reference, not from memory. The CLI's auth and context are
    the caller's preflight's job: confirm with the reference's cheapest
    probe, and if it is not connected, stop and report ("CLI not
    configured for <backend>") — never authenticate from here.
-2. **Local environment.** The local stack is a Grafana (LGTM) stack —
+2. **Local stack.** The local stack is a Grafana (LGTM) stack —
    use the Grafana reference and gcx: call the
    oddyssey MCP tool `odd_stack_status`, then `odd_stack_up` if needed, and
    configure gcx with the `setup-local-stack` skill (isolated config,
@@ -95,14 +101,58 @@ the report.
    empty window. If **some** signals are missing, continue on what exists
    and record each absence in **Telemetry gaps** with the query that came
    back empty.
-4. **Recall the memory.** When the mission already names a baseline
+4. **Detect the deployment environment.** Before any reset and before
+   any scenario, read the `deployment.environment.name` resource
+   attribute from each named service's recent telemetry — one bounded
+   discovery query per service, from the backend's reference file. The
+   environment is detected, never asked, and it is what section 1 states
+   and the frontmatter records:
+   - on a **local** stack the value is `local` by construction — the
+     local stack IS the environment. A local service emitting a
+     different `deployment.environment.name` still records `local`, and
+     the discrepancy is a finding (misconfigured resource attributes) in
+     section 3 — never a different environment, never silently ignored;
+   - **no attribute** on any signal = `unknown` — stated, never guessed
+     — plus a **Telemetry gaps** line carrying the discovery query that
+     came back empty;
+   - **empty pre-run telemetry** on a **remote** stack (a service's first
+     run, a window with nothing in it yet) = the value is
+     **provisional**: it cannot be read yet. This case exists on remote
+     stacks only — on `local` the value is forced to `local` whatever
+     the pre-run telemetry holds, so it is never provisional. Say so in
+     section 1, then settle it the moment the first scenario telemetry
+     lands — rerun the same discovery query, record the now definite
+     value, and close the provisional path: re-confirm the recalled
+     baseline against it (step 5) or discard it with a statement in
+     section 1 ("baseline <path> dropped: recalled on `stack: grafana`
+     with a provisional environment, detected `uat`"), and fall back to
+     the within-run baseline. Any environment stop the mission mandates
+     fires at that point too — the already-driven load is the named,
+     accepted cost;
+   - **one observation, one environment**: stop the run when the named
+     services detect different values, and equally when a single service
+     reports several values over the window (a post-hoc window spanning
+     a redeployment). Report the split — each value with the service and
+     the query that produced it — and the remedy: separate missions, one
+     per environment. Never pick a majority, the most recent, or the
+     mission's guess.
+5. **Recall the memory.** When the mission already names a baseline
    report, use that report as the recalled baseline and skip the recall.
    Otherwise load the baseline with the `create-observe-run-report`
-   skill's recall procedure — the skill owns the matching rules. Either
-   way, the recalled report's numbers and findings are what the new
-   observations diff against. No match is a normal first run — record
-   "no previous report" in section 1 and fall back to the within-run
-   baseline.
+   skill's recall procedure — the skill owns the matching rules, and
+   they include the environment step 4 detected. Either way, the
+   recalled report's numbers and findings are what the new observations
+   diff against. No match is a normal first run — record "no previous
+   report" in section 1 and fall back to the within-run baseline.
+
+   When the mission hands you a **baseline environment** to compare
+   against (verify missions), that comparison is yours: matching, carry
+   on; diverging, **stop hard** — no verdict is ever ruled across
+   environments. Name both values (baseline `prod`, detected `uat`) and
+   recommend rerunning against the baseline's environment, or observing
+   the detected one as a new baseline. A baseline carrying no
+   environment (an instrumentation report has none by design) skips the
+   check — record the detected environment fresh.
 
 ## Investigation
 
@@ -146,7 +196,7 @@ first, then query what you found; never assume names**:
 - **Logs** — discover the streams or indexes carrying the service, then
   query them with the backend's filter language, correlating on trace IDs
   where the logs carry them.
-- **Profiles** — always check whether the environment collects continuous
+- **Profiles** — always check whether the stack collects continuous
   profiles for the service (the local stack has Pyroscope). If it does,
   report the top functions by CPU and by allocations for the hottest
   operations and correlate them with the slow spans. If it does not, that
@@ -160,9 +210,14 @@ Then go from aggregates to explanations:
   their span trees: where the extra time or the failure lives is the
   finding. Aggregates locate, exemplars explain.
 - **Baseline** — with no caller expectations, compare against the
-  recalled report (Setup step 4): the same operations' previous numbers,
+  recalled report (Setup step 5 — same services, same stack, same
+  detected environment): the same operations' previous numbers,
   the previous findings (fixed, still there, worse?), and the previous
-  measurement protocol's before-values. With no recalled report either,
+  measurement protocol's before-values. When the recalled baseline is an
+  **instrumentation report**, there are no previous numbers: the deltas
+  are presence rulings — closed / still missing per planned item, each
+  with its discovery query — reported in place of the numeric diff.
+  With no recalled report either,
   compare within the run: p99 against p50 per operation, an endpoint
   against its siblings, the first half of the window against the second.
   Always say what you compared against.
@@ -179,11 +234,14 @@ storage path, no-secrets rule all come from there) and return it along
 with its stored path:
 
 1. **Mission and run record** — the mission as understood (services,
-   environment and backend, mode, window, focus, expectations) and every
-   default you applied, plus the recalled baseline: the previous report's
-   path, or "no previous report". In drive mode, include the scenario
-   record from the `run-scenario` skill: the exact commands, counts, and
-   UTC start/end, so the run replays verbatim.
+   stack and backend, mode, window, focus, expectations) and every
+   default you applied; the deployment environment you detected, with
+   the query that found it and its `provisional` or `unknown` status if
+   it has one; plus the recalled baseline: the previous report's path,
+   or "no previous report" — and, when a provisional environment turned
+   out to disagree, the baseline you dropped and why. In drive mode,
+   include the scenario record from the `run-scenario` skill: the exact
+   commands, counts, and UTC start/end, so the run replays verbatim.
 2. **Observed behavior** — start with the per-operation summary table:
 
    | Operation | Requests | Rate | p50 | p95 | p99 | Error % | DB/downstream calls per req | Notable |
@@ -246,7 +304,7 @@ with its stored path:
   (`service.instance.id` or its backend equivalent), qualify cumulative
   queries by it, and treat an unrestarted process's cumulatives as
   deltas between the window's edges, never as run totals.
-- Leave the environment as you found it: the local stack stays running
+- Leave the stack as you found it: the local stack stays running
   (the main agent measures next — say so in the report); on remote
   backends, run queries only, no configuration changes.
 - Telemetry pipelines lag: on the local stack allow ~10 s for metrics to
@@ -260,6 +318,8 @@ with its stored path:
   result; every improvement carries a number and a verification query with
   a before-value; every verification check carries its validation status;
   every single-signal or unprobed claim is marked
-  `suspected`; the memory was recalled (section 1 names the previous
+  `suspected`; the deployment environment was detected, is definite (no
+  provisional value left unsettled), and appears in section 1 and in the
+  frontmatter; the memory was recalled (section 1 names the previous
   report or says there was none) and the report was persisted per the
   `create-observe-run-report` skill, with its stored path in the reply.

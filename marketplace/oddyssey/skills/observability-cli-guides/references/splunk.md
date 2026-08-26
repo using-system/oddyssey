@@ -13,6 +13,16 @@ Observability Cloud (the former SignalFx product: metrics/traces/RUM) are
 **separate products** with separate CLIs, APIs, and auth — covered in two
 halves below.
 
+## CLI binary
+
+- **Binary**: `splunk` — ships WITH the Splunk Enterprise/Cloud instance
+  (`$SPLUNK_HOME/bin/splunk`), it is not separately installable.
+- **Detect**: `command -v splunk || test -x "$SPLUNK_HOME/bin/splunk"`
+- **Install**: installing Splunk Enterprise provides it:
+  https://help.splunk.com/en/data-management/splunk-enterprise-admin-manual —
+  for a remote instance, run the CLI on the instance or remotely with
+  `-uri`; there is no standalone client package.
+
 ## Setup
 
 | Topic | Link | What to do with it |

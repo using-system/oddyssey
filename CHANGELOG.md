@@ -1,8 +1,27 @@
+## [1.7.0] - 2026-08-26
+
+### 🚀 Features
+
+- *(mcp)* Carry the container environment forward through odd_config_set's auto-reset (#82)
+- *(mcp)* Bump otel-lgtm to 0.31.0 and catalog its environment surface in setup-local-stack (#84)
+- *(skill)* Verification reports named verify-<run_name> with a verifies frontmatter link (#92)
+- *(apm)* /odd-verify also accepts an instrumentation report as the baseline to verify (#93)
+- *(apm)* /odd-status - the state of the ODD loop from the .odd/ history (#95)
+- *(prompts)* /odd-config - display the backend configuration and guide backend changes (#96)
+
+### 🐛 Bug Fixes
+
+- *(skill)* Rename report frontmatter environment to stack and record the detected deployment environment (#97)
+- *(ci)* Tag-driven release - the PR the workflow opens is the PR it merges (#98)
 ## [1.6.1] - 2026-08-24
 
 ### 🐛 Bug Fixes
 
 - *(mcp)* Local is a first-class stack value - grafana means remote Grafana (#68)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.6.1 (#69)
 ## [1.6.0] - 2026-08-24
 
 ### 🚀 Features
