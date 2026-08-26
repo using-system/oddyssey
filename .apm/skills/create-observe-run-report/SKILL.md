@@ -96,7 +96,8 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   discrepancy stated as a finding (misconfigured resource attributes).
   `unknown` when the service emits no attribute — stated, never guessed,
   and the absence is a telemetry gap. One observation, one environment:
-  services detecting different values stop the run — observe them as
+  services detecting different values stop the run, and so does a single
+  service reporting several values across the window — observe them as
   separate missions.
 - A verification run sets `mode: verify` and `verifies: <exact filename
   of the replayed baseline report>`, and takes its `run_name` from that
@@ -147,10 +148,14 @@ Before a new run, load the baseline:
    its `stack` is the mission's, and its `environment` is the one the
    run detects — an `unknown` environment matches only another
    `unknown`, and with a warning (the comparison may span environments
-   without the reports being able to say so). When a match's `workload`
-   differs from the mission's (or only one side has one), keep it but
-   **warn**: its numbers were shaped by a different input, and diffing
-   across workloads violates the one-changed-variable rule.
+   without the reports being able to say so). While the run's
+   environment is still **provisional** (empty pre-run telemetry on a
+   remote stack), a candidate matches on `services` and `stack` alone,
+   the environment check pending the re-confirmation the agent performs
+   once the value settles. When a match's `workload` differs from the
+   mission's (or only one side has one), keep it but **warn**: its
+   numbers were shaped by a different input, and diffing across
+   workloads violates the one-changed-variable rule.
 3. The first match is the baseline: read that one report in full — its
    per-operation numbers, findings, and measurement protocol are the
    before-values the new run compares against. What the comparison must

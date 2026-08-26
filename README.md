@@ -165,8 +165,8 @@ state (last observation, last verification and its verdict, the
 observed → fixed → verified chain), the findings ledger as a burn-down,
 trends across runs from the stored numbers, telemetry gaps not yet
 closed, and a next recommended action (verify, observe, or rest) that
-cites its inputs. Optionally scope it to a service or an environment:
-`/odd-status checkout on local`.
+cites its inputs. Optionally scope it to a service, a stack, or an
+environment: `/odd-status checkout on local`.
 
 #### /odd-config
 
