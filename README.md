@@ -185,6 +185,11 @@ checked, an install is offered when it is missing, and the targeting
 values are persisted in that stack's `stack_config`. Nothing is written
 until you pick a change.
 
+More invocation examples for every prompt live in
+[docs/guide/prompts.md](docs/guide/prompts.md), and the dependency map
+of prompts, agents, skills, and MCP tools in
+[docs/guide/dependencies.md](docs/guide/dependencies.md).
+
 ## The ODD principles
 
 - **The system must be observable locally.** Prefer a docker-compose
@@ -299,6 +304,10 @@ ends. Each observation report is stored in the observed repo
 (`.odd/observe-run-reports/`), versioned by git and shared with the whole
 team, and becomes the baseline the next run diffs against — the loop
 accumulates knowledge instead of starting blind.
+
+Who invokes what across all these components — prompts, agents, skills,
+MCP tools — is mapped in
+[docs/guide/dependencies.md](docs/guide/dependencies.md).
 
 ## Development
 
