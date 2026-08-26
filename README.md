@@ -147,7 +147,28 @@ the
 [verification report](.odd/observe-run-reports/2026-08-22-2227-verify-mcp-otel-instrumentation-verification.md)
 — 9/9 checks pass, all 4 findings fixed, measured not assumed.
 
-Then deploy, observe remotely, and start the loop again.
+**Step 4 — Deploy and observe remotely.**
+
+Let the deployment run for a while first — a remote observation needs
+real traffic history to read, not a freshly booted service. Then point
+the missions at the remote stack: **its CLI must be configured
+beforehand** (gcx for a Grafana stack), and `/odd-config` is the
+guided way to switch and prove the connection before any mission runs.
+
+```text
+/odd-config switch to grafana
+/odd-observe what did my service XXX do over the last 24 hours?
+```
+
+Or in a single prompt — naming the stack in the mission switches the
+configuration too:
+
+```text
+/odd-observe what did my service XXX do over the last 24 hours on my stack grafana?
+```
+
+And the loop starts again: an SDD wave from the remote observation, a
+local observe, a verify — and on it goes.
 
 ### Miscellaneous prompts
 
@@ -167,23 +188,6 @@ trends across runs from the stored numbers, telemetry gaps not yet
 closed, and a next recommended action (verify, observe, or rest) that
 cites its inputs. Optionally scope it to a service, a stack, or an
 environment: `/odd-status checkout on local`.
-
-#### /odd-config
-
-```text
-/odd-config
-/odd-config switch to datadog
-```
-
-Displays the effective backend configuration — the configured stack,
-the instance the runs will hit, and the connection proof — through the
-`check-backend-configuration` skill, then offers **"Change backend?"**
-across the seven stacks (`local`, `grafana`, `azure-monitor`,
-`cloudwatch`, `datadog`, `dynatrace`, `splunk`). A switch is guided by
-the `update-backend-configuration` skill: the backend's CLI presence is
-checked, an install is offered when it is missing, and the targeting
-values are persisted in that stack's `stack_config`. Nothing is written
-until you pick a change.
 
 More invocation examples for every prompt live in
 [docs/guide/prompts.md](docs/guide/prompts.md).
