@@ -29,7 +29,9 @@ Steps:
      do not offer a new version - guide the recovery instead (fix
      main, then "Re-run all jobs" on that run - never a partial
      re-run, which would reuse a stale prepare artifact - or delete
-     and re-push the tag).
+     and re-push the tag). If it is WAITING (pending pypi approval),
+     do not offer a new version either - jump straight to step 6 and
+     resume that run's approval.
 
 2. **Show what would ship**: the last tag, then
    `git log --oneline <last-tag>..origin/main`. Derive the
@@ -55,7 +57,31 @@ Steps:
    environment approval). Only on explicit confirmation, run both
    commands.
 
-5. **Hand back**: name the tag pushed, link the release run
-   (`gh run list --workflow release.yml --limit 1`), and remind that
-   the PyPI publish waits for the pypi environment approval in the
-   Actions UI.
+5. **Watch the run to the approval gate**: name the tag pushed and the
+   release run, then poll `gh run view <run-id> --json status,conclusion`
+   (every ~20 s, in the background when possible) until the status is
+   no longer `queued`/`in_progress`:
+   - `completed` + `failure` - report which job failed with its log
+     pointer and the step-1 recovery guidance; stop;
+   - `waiting` - the run reached the pypi environment gate: go to
+     step 6.
+
+6. **Offer the approval decision** - read the pending deployment
+   first:
+   `gh api /repos/<owner>/<repo>/actions/runs/<run-id>/pending_deployments`
+   (it names the environment id and whether the current user can
+   approve). Then ask the user - approve, reject, or defer - and act:
+   - **approve**:
+     `gh api -X POST .../actions/runs/<run-id>/pending_deployments --input <json>`
+     with `{"environment_ids": [<id>], "state": "approved", "comment": "<short reason>"}`,
+     then keep watching the run to completion and verify the outcome:
+     the GitHub release exists WITH its notes (never header-only), and
+     PyPI serves the version (`curl -s https://pypi.org/pypi/oddyssey-mcp/json | jq -r .info.version`);
+   - **reject**: same call with `"state": "rejected"` - the run ends
+     without publishing; the GitHub release and tag remain, say so and
+     name the cleanup options (delete the release/tag, or re-run and
+     approve later via a fresh dispatch on the tag ref);
+   - **defer**: stop watching; the approval stays pending in the
+     Actions UI ("Review deployments"), and re-running
+     `/oddyssey-publish` resumes it (step 1 routes a WAITING run
+     straight back here).
