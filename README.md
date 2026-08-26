@@ -75,9 +75,9 @@ indefinitely.
 
 Everything is built on OpenTelemetry. For **local** observation, the MCP
 server pilots a complete Grafana stack (UI, traces, metrics, logs,
-profiles) that agents use to observe and fix. For **remote** environments,
-observation works against a Grafana stack or any other OpenTelemetry
-backend (Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...).
+profiles) that agents use to observe and fix. For **remote** stacks,
+observation works against Grafana or any other OpenTelemetry backend
+(Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...).
 
 oddyssey provides:
 
@@ -165,8 +165,8 @@ state (last observation, last verification and its verdict, the
 observed → fixed → verified chain), the findings ledger as a burn-down,
 trends across runs from the stored numbers, telemetry gaps not yet
 closed, and a next recommended action (verify, observe, or rest) that
-cites its inputs. Optionally scope it to a service or an environment:
-`/odd-status checkout on local`.
+cites its inputs. Optionally scope it to a service, a stack, or an
+environment: `/odd-status checkout on local`.
 
 #### /odd-config
 
@@ -198,8 +198,8 @@ until you pick a change.
   develop it → observe a local run → fix and improve → repeat those
   last two steps until satisfied. Then deploy to the target
   environments. After some time, run a remote observation on the
-  environment to seed the next SDD wave — and the loop starts again
-  from the local run.
+  deployed environment's stack to seed the next SDD wave — and the
+  loop starts again from the local run.
 - **Maturity spaces observation out.** The time between remote
   observations grows as the service matures: a young service gets
   observed often, a stable one only when something is worth learning.
@@ -253,7 +253,7 @@ prerequisite) exposes Grafana on `:3000` and OTLP on `:4317`/`:4318`; apps
 export their telemetry there. Tempo traces, Prometheus metrics, Loki
 logs, and Pyroscope profiles are all queried through the Grafana proxy
 (`:3000/api/datasources/proxy/uid/...`), so the same paths work against any
-Grafana; on remote environments the stack behind it can be something other
+Grafana; on remote stacks the backend behind it can be something other
 than the local otel-lgtm container.
 
 | Tool | What it does | Params |

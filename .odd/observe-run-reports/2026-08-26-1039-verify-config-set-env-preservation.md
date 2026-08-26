@@ -1,5 +1,6 @@
 ---
 services: [oddyssey-mcp]
+stack: local
 environment: local
 mode: verify
 window: 2026-08-26T10:39:57Z/2026-08-26T10:40:52Z

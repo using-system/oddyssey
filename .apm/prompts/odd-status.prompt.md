@@ -20,8 +20,9 @@ status renders in the conversation, as tables - never a committed
 artifact.
 
 - Arguments: $ARGUMENTS
-- Expected fields (optional, free-form): service name(s) and/or an
-  environment to restrict the status to. No arguments = the whole
+- Expected fields (optional, free-form): service name(s), a stack
+  (`local`, `grafana`, ...) and/or a deployment environment (`prod`,
+  `uat`, ...) to restrict the status to. No arguments = the whole
   picture.
 
 Build the status in this order:
@@ -34,10 +35,11 @@ Build the status in this order:
 2. **Per-service loop state.** One row per service (`services` for
    observation reports; an instrumentation report contributes to the
    services its plan covers, `project` names its scope): last
-   observation (date, environment, mode, `workload` when present),
-   last verification (`mode: verify` reports - their `verifies` value
-   names what they replayed) with its verdict from the report body,
-   and the chain as the files tell it: observed -> fixed -> verified.
+   observation (date, `stack`, `environment`, mode, `workload` when
+   present), last verification (`mode: verify` reports - their
+   `verifies` value names what they replayed) with its verdict from the
+   report body, and the chain as the files tell it:
+   observed -> fixed -> verified.
    "Fixed" means commits landed after the report's `revision`,
    **excluding commits that only touch `.odd/` or documentation** -
    the loop's own memory is not a fix. Scope the commit test to the
@@ -61,8 +63,8 @@ Build the status in this order:
    finding no verification ever ruled on stays open, whatever a commit
    message claims.
 4. **Trends.** For operations appearing in the per-operation summary
-   table of two or more reports of the same service, environment and
-   `workload`: p50/p95/p99 and error rate across runs - improved /
+   table of two or more reports of the same service, stack, environment
+   and `workload`: p50/p95/p99 and error rate across runs - improved /
    regressed / stable, with the stored numbers. Comparability is
    stricter than the frontmatter: reports whose `workload` differs
    are incomparable, and for drive-mode reports (and verifications
