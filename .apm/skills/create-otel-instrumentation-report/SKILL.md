@@ -34,7 +34,7 @@ A YAML frontmatter, then the complete report:
 ```markdown
 ---
 project: oddyssey/src/mcp-server
-target: local                 # local | the remote backend name (grafana, datadog, ...)
+stack: local                  # local | the remote backend name (grafana, datadog, ...)
 run_name: mcp-server-python
 date: 2026-08-23
 revision: 2299d4c             # optional: commit of the investigated repo
@@ -45,7 +45,7 @@ revision: 2299d4c             # optional: commit of the investigated repo
 
 - The frontmatter exists so future runs can filter reports **without
   parsing prose**: `project` names what was investigated (repo, or
-  repo/path for a scoped investigation), `target` the export target the
+  repo/path for a scoped investigation), `stack` the export stack the
   recommendations were derived for, `revision` which code the findings
   hold for (`git rev-parse --short HEAD`) — the stack may have changed
   since.
@@ -63,7 +63,7 @@ Before a new investigation, load what is already known:
 2. Walk the listing newest first (filenames sort chronologically),
    reading **frontmatter blocks only** — never whole files at this
    stage. A report matches when its `project` covers the mission's scope
-   and its `target` is compatible.
+   and its `stack` is compatible.
 3. The first match is the baseline: read that one report in full — its
    stack inventory, per-service decisions, and pinned versions are what
    the new investigation diffs against (new services, changed

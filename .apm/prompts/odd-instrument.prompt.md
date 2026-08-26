@@ -11,7 +11,7 @@ Build the mission from the arguments below:
 - Arguments: $ARGUMENTS
 - Expected fields (any order, free-form): the path or repository to
   investigate (default: the current repository), and optionally the
-  intended export target (default: the local oddyssey stack).
+  intended export stack (default: the local one).
 
 Return the agent's report as-is: it is the input the spec-driven
 instrumentation plan is built from - do not summarize it away.
