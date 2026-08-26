@@ -1,3 +1,9 @@
+## [1.7.2] - 2026-08-26
+
+### 🐛 Bug Fixes
+
+- *(claude)* /oddyssey-publish watches the run and drives the pypi approval (#107)
+- *(prompts)* Odd-observe answers service-less discovery questions directly (#111)
 ## [1.7.1] - 2026-08-26
 
 ### 🐛 Bug Fixes
