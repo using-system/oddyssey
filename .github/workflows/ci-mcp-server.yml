@@ -8,6 +8,12 @@ on:
       - "integration-tests/mcp-server/**"
       - ".github/workflows/ci-mcp-server.yml"
 
+# This workflow executes pull-request-controlled code (uv sync, pytest,
+# the integration test-*.sh scripts): state least privilege here
+# instead of relying on the repository default.
+permissions:
+  contents: read
+
 env:
   RUFF_VERSION: "0.16.4"
   INSPECTOR_VERSION: "2.3.0"

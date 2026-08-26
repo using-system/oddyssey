@@ -3,6 +3,12 @@ name: ci-apm
 on:
   pull_request:
 
+# This workflow executes pull-request-controlled code (apm install over
+# the PR's tree): state least privilege here instead of relying on the
+# repository default.
+permissions:
+  contents: read
+
 env:
   APM_CLI_VERSION: "0.28.0"
 
@@ -31,7 +37,10 @@ jobs:
             echo "### apm install --target ${TARGET}"
             echo ""
             echo '```text'
-            git ls-files --others | grep -v '^apm_modules/' | sort
+            # Filenames come from the PR: indent every line so a fence
+            # marker can never sit at line start (a closing fence
+            # tolerates at most three leading spaces).
+            git ls-files --others | grep -v '^apm_modules/' | sort | sed 's/^/    /'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Validate the package's own manifest (install + audit)
