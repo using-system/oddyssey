@@ -132,9 +132,16 @@ with its stored path:
    in section 3 with its rationale — anything you did not belongs here, stated
    as an open question.
 5. **Verification protocol** — how to prove instrumentation works once
-   implemented: start the local stack (`odd_stack_up`), run each service
-   with its `OTEL_*` block, exercise one scenario, and confirm each signal
-   arrives (the `observe-run` agent can do the confirmation).
+   implemented: start the export target — `odd_stack_up` for the local
+   stack; for a remote target, name the backend and the preflight it
+   needs — then run each service with its `OTEL_*` block, exercise one
+   scenario, and confirm each signal arrives. State every check in a **replayable form** — one check per
+   planned item (spans searchable per service, each planned metric
+   present, logs carrying trace IDs, resource attributes set), each
+   carrying the discovery query to run and its expected outcome — so a
+   later `/odd-verify` run can rule **closed / still missing** on each
+   item without interpreting prose (the `observe-run` agent does the
+   confirmation).
 
 ## Rules
 
