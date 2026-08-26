@@ -11,15 +11,15 @@ body:
     attributes:
       label: oddyssey version
       description: Package version (apm) or git commit, and oddyssey-mcp version if relevant
-      placeholder: "1.4.0"
+      placeholder: "e.g. 1.6.1"
     validations:
       required: true
   - type: input
     id: environment
     attributes:
       label: Environment
-      description: OS, Docker version, oddyssey version, target CLI (claude / copilot / opencode / ...)
-      placeholder: "macOS 15, Docker 29, oddyssey 1.6.1, claude"
+      description: OS, Docker version, target CLI (claude / copilot / opencode / ...)
+      placeholder: "macOS 15, Docker 29, claude"
     validations:
       required: true
   - type: dropdown

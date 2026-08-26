@@ -89,8 +89,8 @@ Any Grafana setting via `GF_*`. Documented in the tag: `GF_PLUGINS_PREINSTALL`
 The stack serves Grafana **anonymously** by design. The skill's gcx
 context template already carries `admin`/`admin` — the image's default
 admin credentials — so disabling anonymous auth alone keeps it working;
-what breaks it is changing `GF_SECURITY_ADMIN_PASSWORD` without updating
-the template to match.
+what breaks it is changing `GF_SECURITY_ADMIN_USER` /
+`GF_SECURITY_ADMIN_PASSWORD` without updating the template to match.
 
 ## Lifecycle and debug
 
