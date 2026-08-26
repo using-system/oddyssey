@@ -1,9 +1,10 @@
 ---
 services: [oddyssey-mcp]
 environment: local
-mode: drive
+mode: verify
 window: 2026-08-26T10:39:57Z/2026-08-26T10:40:52Z
-run_name: verify-f3-pre-rm-span-delivery
+run_name: config-set-env-preservation
+verifies: 2026-08-26-1003-config-set-env-preservation.md
 date: 2026-08-26
 revision: 14c0705
 instance: {oddyssey-mcp: "one short-lived process per tool call (MCP Inspector CLI spawn); no service.instance.id emitted (by design, spec decision #9); identity = call label + UTC start"}
