@@ -25,9 +25,12 @@ Build the mission block from the arguments below, applying the agent's own
 defaults for every field not specified:
 
 - Arguments: $ARGUMENTS
-- Expected fields (any order, free-form): service name(s), environment
-  (defaults to the configured stack - the preflight resolved it), mode
+- Expected fields (any order, free-form): service name(s), stack
+  (defaults to the configured one - the preflight resolved it), mode
   (drive / observe / post-hoc), window, focus, baseline expectations.
+- The deployment environment is not a mission field: the agent detects
+  it from the telemetry (`deployment.environment.name`) and records it -
+  never pass one, never guess one here.
 - If no service name can be determined from the arguments, ask for it
   before invoking the agent.
 

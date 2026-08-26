@@ -22,7 +22,11 @@ the observation report is the only durable artifact. To configure the
 container, pass `env` to `odd_stack_up`/`odd_stack_reset`; env (like the
 embedded defaults, e.g. delta-metric ingestion) applies at container
 creation only, so a container predating the current oddyssey version
-keeps its old definition until its next reset. For anything env cannot
+keeps its old definition until its next reset. The catalog of the
+image's variables — per-component debug logs, backend tuning, OTLP
+forwarding to a remote backend, OBI, `GF_*` — is
+[`references/otel-lgtm-env.md`](references/otel-lgtm-env.md), aligned on
+the pinned image tag. For anything env cannot
 express (volumes, networks), the supported escape hatch is a manual
 `docker run` reusing the same name and ports — `status`/`up`/`down` keep
 working against it, but a **reset recreates the container from the

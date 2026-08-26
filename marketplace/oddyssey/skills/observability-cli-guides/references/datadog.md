@@ -19,6 +19,14 @@ logs, or traces. For any signal, the raw HTTP API (`DD-API-KEY` /
 `DD-APPLICATION-KEY` headers) is the underlying surface Pup wraps,
 including from environments where Pup isn't installed.
 
+## CLI binary
+
+- **Binary**: `pup`
+- **Detect**: `command -v pup`
+- **Install**: `brew tap datadog-labs/pack && brew install
+  datadog-labs/pack/pup`, a prebuilt release binary, or `cargo build
+  --release` from source — see the Install row below (pup README link).
+
 ## Setup
 
 | Topic | Link | What to do with it |

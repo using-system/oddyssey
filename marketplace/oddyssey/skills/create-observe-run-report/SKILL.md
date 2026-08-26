@@ -30,6 +30,20 @@ doubt, record the number.
 - `<run_name>` is a short kebab-case slug derived from what the run
   analyzed (e.g. `checkout-latency-sweep`, `orders-post-hoc-errors`).
   Name the content, not the date — the date is already in front.
+- A **verification run** — a run that replays a stored report's
+  protocol: an observation report's measurement protocol, or an
+  instrumentation report's verification protocol (from
+  `.odd/otel-instrumentation-reports/`) — names its file
+  `YYYY-MM-DD-HHmm-verify-<run_name>.md`: its **own** UTC timestamp,
+  then `verify-`, then the verified report's `run_name` unchanged (the
+  baseline's timestamp is not repeated). Chronological sorting is
+  preserved — verify reports interleave in the timeline instead of
+  clustering — and "has this run been verified?" becomes a filename
+  glob (`*-verify-<run_name>.md`). Re-verifications share the suffix
+  and differ by their own timestamp. `verify-` always references the
+  report **whose protocol is replayed**: re-verifying replays the
+  original report's protocol again, so the new report references
+  the original report — never a previous verification.
 - Create the directory if it does not exist. The files are meant to be
   **committed**: leave them tracked, never add them to `.gitignore`.
 
@@ -40,8 +54,9 @@ A YAML frontmatter, then the complete report:
 ```markdown
 ---
 services: [checkout, payment]
-environment: local            # local | the remote backend name (grafana, datadog, ...)
-mode: drive                   # drive | observe | post-hoc
+stack: local                  # local | the remote backend name (grafana, datadog, ...)
+environment: local            # detected: deployment.environment.name reported by the service's telemetry (local forced on the local stack; unknown when absent)
+mode: drive                   # drive | observe | post-hoc | verify
 window: 2026-08-22T10:04:12Z/2026-08-22T10:05:03Z
 run_name: checkout-latency-sweep
 date: 2026-08-22
@@ -54,12 +69,50 @@ process_restarted: true       # optional: restarted before the window (or per-se
 <the observation report, verbatim and complete>
 ```
 
+A verification run (stored as
+`2026-08-25-0930-verify-checkout-latency-sweep.md`) differs only in
+these fields:
+
+```yaml
+mode: verify
+run_name: checkout-latency-sweep                     # the baseline's, unchanged
+verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the replayed baseline
+```
+
 - The frontmatter exists so future runs can filter reports **without
   parsing prose**: every field mirrors the run as it actually executed —
-  mission parameters and execution environment alike (defaults applied,
-  not as requested).
+  mission parameters and execution context alike (defaults applied,
+  not as requested). One exception: a verification run records
+  `mode: verify` even though it executes in the baseline's mode — the
+  replayed execution mode stays reachable through `verifies`.
 - `window` is the observed interval as `start/end` in UTC; in drive mode
   it is the scenario's own start and end.
+- `environment` is **detected**, never asked: the
+  `deployment.environment.name` resource attribute the service's
+  telemetry reports — pre-run probe on recent telemetry, provisional
+  until the first scenario telemetry lands when the pre-run window is
+  empty. On `stack: local` the value is `local` by construction — a
+  service emitting a different attribute still records `local`, with the
+  discrepancy stated as a finding (misconfigured resource attributes).
+  `unknown` when the service emits no attribute — stated, never guessed,
+  and the absence is a telemetry gap. One observation, one environment:
+  services detecting different values stop the run, and so does a single
+  service reporting several values across the window — observe them as
+  separate missions.
+- A verification run sets `mode: verify` and `verifies: <exact filename
+  of the replayed baseline report>`, and takes its `run_name` from that
+  baseline. Observation reports never carry `verifies` and record their
+  execution mode — the mode a verification replayed is the baseline's,
+  reachable through `verifies`, so it is not repeated. The exact
+  filename (not just the run_name) is what disambiguates two baselines
+  sharing a run_name and survives an accidental rename; the field is
+  the machine contract, the `verify-` filename the readable convention.
+  The baseline may also be an **instrumentation report**: `verifies`
+  then carries its repo-relative path
+  (`.odd/otel-instrumentation-reports/<filename>`), so the value's
+  shape says which directory the baseline lives in — a bare filename
+  always names a sibling observation report. The deliverable stays an
+  observation report in this directory either way.
 - `revision` (`git rev-parse --short HEAD` in the observed repo) is what
   makes a before/after honest: a report is a before-value for a fix
   wave, and the fix is a diff against some revision.
@@ -91,11 +144,18 @@ Before a new run, load the baseline:
    empty directory = first run, no baseline — say so, do not fail).
 2. Walk the listing newest first (filenames sort chronologically),
    reading **frontmatter blocks only** — never whole files at this
-   stage. A report matches when its `services` intersect the mission's
-   and its `environment` is the mission's. When a match's `workload`
-   differs from the mission's (or only one side has one), keep it but
-   **warn**: its numbers were shaped by a different input, and diffing
-   across workloads violates the one-changed-variable rule.
+   stage. A report matches when its `services` intersect the mission's,
+   its `stack` is the mission's, and its `environment` is the one the
+   run detects — an `unknown` environment matches only another
+   `unknown`, and with a warning (the comparison may span environments
+   without the reports being able to say so). While the run's
+   environment is still **provisional** (empty pre-run telemetry on a
+   remote stack), a candidate matches on `services` and `stack` alone,
+   the environment check pending the re-confirmation the agent performs
+   once the value settles. When a match's `workload` differs from the
+   mission's (or only one side has one), keep it but **warn**: its
+   numbers were shaped by a different input, and diffing across
+   workloads violates the one-changed-variable rule.
 3. The first match is the baseline: read that one report in full — its
    per-operation numbers, findings, and measurement protocol are the
    before-values the new run compares against. What the comparison must
@@ -103,6 +163,16 @@ Before a new run, load the baseline:
 4. Older matches are history: only when a trend matters (a number
    degrading run after run), read at most the few most recent matches,
    and only the numbers in question — never the full files.
+5. The observed → verified chain is machine-readable — never parse
+   prose for it. Whether a report has been verified is the glob
+   `*-verify-<run_name>.md` on later timestamps, confirmed by the
+   candidate's `verifies` field naming that report's exact filename
+   (the field is authoritative; the filename is convention). A
+   verification report is itself a full report — when it is the newest
+   match, it is the baseline, and its `verifies` field says whose
+   findings its verdicts re-measured. Pre-convention reports (free-form
+   slug, no `verifies`) stay valid matches: their chain simply is not
+   machine-readable, which is a fact to state, not an error.
 
 ## Rules
 
@@ -130,7 +200,8 @@ Before a new run, load the baseline:
   directory, or a temp path.
 - **After writing, commit the report file on its own**:
   `git add <report file>` then
-  `git commit -m "docs(odd): observation report <run_name>"` — never
+  `git commit -m "docs(odd): observation report <run_name>"` (for a
+  verification run, `docs(odd): verification report <run_name>`) — never
   stage anything else; a dirty working tree stays untouched otherwise.
   If committing is impossible (not a git repository, or the caller said
   not to), state the path and leave the commit to the caller.

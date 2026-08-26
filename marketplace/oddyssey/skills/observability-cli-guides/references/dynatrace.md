@@ -15,6 +15,15 @@ Extensions Framework 2.0 packages, and Monaco, a separate configuration-as-code
 tool. There is no CLI that runs "raw DQL" other than `dtctl query`; absent
 that, DQL is executed over the Grail Query REST API with `curl`.
 
+## CLI binary
+
+- **Binary**: `dtctl`
+- **Detect**: `command -v dtctl`
+- **Install**: `brew install dynatrace-oss/tap/dtctl`, or the install.sh
+  script, or a release binary — see the install row below
+  (INSTALLATION.md link). Raw DQL over curl is the documented no-CLI
+  fallback for queries, but the skills below still require the binary.
+
 ## Setup
 
 | Topic | Link | What to do with it |
