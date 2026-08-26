@@ -9,11 +9,16 @@ Preflight first - in the main conversation, before any dispatch (the
 steps needing the user cannot happen inside a subagent):
 
 1. Resolve the target stack: the configured one (`odd_config_get`), or
-   the one the arguments name - in which case persist the switch with
-   `odd_config_set` so the next run starts from it. A local mission on a
-   non-local stack switches to `local` - the local stack is self-serve,
-   nothing to authenticate; every other value names a remote backend
-   (for `grafana`, the gcx context says which instance).
+   the one the arguments name - a stack is one of the seven configured
+   values (`local`, `grafana`, `azure-monitor`, `cloudwatch`,
+   `datadog`, `dynatrace`, `splunk`); a location word that is none of
+   them ("on prod") is a deployment-environment expectation, never a
+   switch - see below. A named stack is persisted with
+   `odd_config_set` so the next run starts from it. A local mission on
+   a non-local stack switches to `local` - the local stack is
+   self-serve, nothing to authenticate; every other stack value names
+   a remote backend (for `grafana`, the gcx context says which
+   instance).
 2. Run the `check-backend-configuration` skill: show the CLI's effective
    configuration to the user (no confirmation needed), and fail fast
    with its "CLI not configured for <backend>" error instead of letting
@@ -30,7 +35,10 @@ defaults for every field not specified:
   (drive / observe / post-hoc), window, focus, baseline expectations.
 - The deployment environment is not a mission field: the agent detects
   it from the telemetry (`deployment.environment.name`) and records it -
-  never pass one, never guess one here.
+  never pass one, never guess one here. When the arguments name one
+  ("on prod", "on uat"), it is neither the stack nor a mission input:
+  carry it into the baseline expectations, so the agent compares it
+  against the environment it detects and flags a divergence.
 - If no service name can be determined from the arguments, ask for it
   before invoking the agent.
 

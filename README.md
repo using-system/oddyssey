@@ -305,6 +305,10 @@ ends. Each observation report is stored in the observed repo
 team, and becomes the baseline the next run diffs against — the loop
 accumulates knowledge instead of starting blind.
 
+Who invokes what across all these components — prompts, agents, skills,
+MCP tools — is mapped in
+[docs/guide/dependencies.md](docs/guide/dependencies.md).
+
 ## Development
 
 The exact build, test, and lint commands live in

@@ -14,8 +14,9 @@ carry the intent.
   stores (the committed `.odd/` report directories).
 - **Edges**: solid `-->` = dispatch or direct invocation; dashed
   `-.->` = routing or contract reference (one component hands over to
-  or follows another's rules); dotted with label = recommendation
-  (one component points the user at another).
+  or follows another's rules); dotted with label = recommendation or
+  hand-off (one component points the user, or the next step, at
+  another).
 
 ```mermaid
 flowchart LR
@@ -67,13 +68,15 @@ flowchart LR
   verify --> insdir
   status --> obsdir
   status --> insdir
+  status -. recommends .-> instrument
+  status -. recommends .-> observe
   config --> cbc
   config -.-> ubc
 
   expert --> og
   expert --> coir
   expert --> cfgget
-  expert -. recommends .-> runner
+  expert -. hands off .-> runner
 
   runner --> ocg
   runner --> sls
@@ -84,14 +87,17 @@ flowchart LR
   runner -. recommends .-> expert
 
   cbc -.-> sls
-  cbc -.-> ocg
+  cbc --> ocg
   cbc --> cfgget
+  cbc --> stack
   ubc --> ocg
   ubc --> cfgset
   ubc -.-> cbc
   ocg -.-> sls
   sls --> cfgget
+  sls --> stack
   rs -.-> stack
+  rs -.-> sls
 
   corr --> obsdir
   coir --> insdir

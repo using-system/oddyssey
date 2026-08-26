@@ -41,17 +41,34 @@ name(s)**, **stack** (defaults to the configured one), **mode**
 **baseline expectations**. The deployment environment is never an
 argument - the agent detects it from the service's telemetry.
 
+> **Important** - the target stack's observability CLI must be
+> configured and connected beforehand: the preflight proves the
+> connection and fails fast otherwise, it never authenticates for you.
+> To switch stacks (say from `local` to `grafana`), go through
+> `/odd-config` first - it owns the guided switch (CLI presence,
+> install offer, targeting values). Naming a stack in the mission also
+> switches the configuration, but `/odd-config` is the guided path.
+
 ```text
 /odd-observe check that checkout starts and answers requests on the /user endpoint
 /odd-observe drive a 50-request scenario against payment on the local stack, focus on latency
 /odd-observe someone is load-testing checkout right now - observe the run until I say stop
-/odd-observe post-hoc: what did orders do between 14:00 and 15:00 UTC on grafana?
-/odd-observe observe checkout on datadog after my last deployment, error rate should stay under 1%
+/odd-observe post-hoc: what did orders do between 14:00 and 15:00 UTC?
+/odd-observe switch to grafana and observe checkout, focus on errors
+/odd-observe observe checkout after my last deployment, error rate should stay under 1%
 ```
 
 - "checkout", "payment", "orders" - the services;
-- "on the local stack" / "on grafana" / "on datadog" - the stack (a
-  named stack is persisted as the new configured one);
+- "on the local stack" / "switch to grafana" - the stack (one of the
+  seven configured values; a named stack is persisted as the new
+  configured one); the backend queried is otherwise the configured
+  one - `/odd-config` is the guided way to switch;
+- if the observability stack is shared across deployment environments
+  (one Grafana receiving prod AND uat), mention the environment in
+  your prompt - the value the service reports in its
+  `deployment.environment.name` resource attribute. It is never a
+  mission input (the agent detects the real one from the telemetry)
+  but an expectation it reconciles, flagging any divergence;
 - "drive a ... scenario" / "observe the run" / "post-hoc" - the mode;
 - "between 14:00 and 15:00 UTC" / "after my last deployment" - the
   window;
@@ -67,19 +84,28 @@ or instrumentation report), and, for a remote stack, the **access
 material** the agent needs. With no report named, the newest stored
 report is picked.
 
+> **Important** - a verify run replays the **report's** stack, never
+> silently retargeting the configured one, so that stack's CLI must be
+> configured and connected beforehand (the preflight proves it and
+> fails fast otherwise). If your CLI currently points elsewhere, go
+> through `/odd-config` to set it up for the report's stack before
+> verifying.
+
 ```text
 /odd-verify
 /odd-verify check that report checkout-latency-sweep has been fixed
 /odd-verify replay .odd/observe-run-reports/2026-08-26-1003-config-set-env-preservation.md
 /odd-verify verify my last report for checkout
+/odd-verify verify my last prod report
 /odd-verify verify the instrumentation investigation of services/api - did the planned signals land?
 ```
 
 - no arguments - the newest report across both `.odd/` report
   directories;
 - "checkout-latency-sweep" / the full path - the baseline report;
-- "my last report for checkout" - resolution by service through the
-  stored frontmatters;
+- "my last report for checkout" / "my last prod report" - resolution
+  by service or by recorded deployment environment, through the stored
+  frontmatters;
 - naming an instrumentation report turns the mission into presence
   rulings (planned spans, metrics, log correlation - closed or still
   missing).
@@ -119,16 +145,3 @@ request** directly.
   value in that stack's `stack_config`, without switching;
 - port changes reset the local stack container - the command says so
   before doing it.
-
-## /oddyssey-publish (maintainers)
-
-Repository-local command, not part of the APM package: inspects the
-last pushed version tag, recommends a bump from the conventional
-commits since it, and - on explicit confirmation - pushes the tag that
-starts the release pipeline.
-
-```text
-/oddyssey-publish
-/oddyssey-publish minor
-/oddyssey-publish 1.8.0
-```
