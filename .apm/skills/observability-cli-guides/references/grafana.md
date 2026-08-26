@@ -14,6 +14,14 @@ API, so on-prem and Cloud differ only in the stack entry you configure
 (`org-id` for on-prem vs `stack-id`/OAuth for Cloud) — every query command
 below is identical either way.
 
+## CLI binary
+
+- **Binary**: `gcx`
+- **Detect**: `command -v gcx` (non-empty path = installed; `which -a gcx`
+  flags duplicate installs)
+- **Install**: `brew install gcx`, or the official install script /
+  prebuilt binaries — see the Install row below (installation.md link).
+
 ## Setup
 
 | Topic | Link | What to do with it |
