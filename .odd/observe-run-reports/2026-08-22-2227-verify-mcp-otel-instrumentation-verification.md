@@ -1,9 +1,10 @@
 ---
 services: [oddyssey-mcp]
 environment: local
-mode: drive
+mode: verify
 window: 2026-08-22T22:27:45Z/2026-08-22T22:28:19Z
-run_name: mcp-otel-fix-wave-verification
+run_name: mcp-otel-instrumentation-verification
+verifies: 2026-08-22-2154-mcp-otel-instrumentation-verification.md
 date: 2026-08-22
 ---
 

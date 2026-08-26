@@ -144,7 +144,7 @@ the next SDD wave built from it.
 The same agent replays the stored report's protocol and rules on every
 recorded item — before-value, after-value, pass criterion. Real example:
 the
-[verification report](.odd/observe-run-reports/2026-08-22-2227-mcp-otel-fix-wave-verification.md)
+[verification report](.odd/observe-run-reports/2026-08-22-2227-verify-mcp-otel-instrumentation-verification.md)
 — 9/9 checks pass, all 4 findings fixed, measured not assumed.
 
 Then deploy, observe remotely, and start the loop again.

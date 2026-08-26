@@ -39,7 +39,7 @@ process_restarted: true
 - **Destruction authorization:** the caller authorized the resets/wipes —
   the machine-wide telemetry wipe IS the behavior under observation.
 - **Baseline (recalled per the create-observe-run-report skill):**
-  `.odd/observe-run-reports/2026-08-22-2227-mcp-otel-fix-wave-verification.md`
+  `.odd/observe-run-reports/2026-08-22-2227-verify-mcp-otel-instrumentation-verification.md`
   (newest match on services+environment; read in full). Its per-operation
   numbers and its A1/A2/A4 fixed-state are the no-regression yardstick.
 - **Defaults applied:** none beyond the contract's (window = scenario bounds
