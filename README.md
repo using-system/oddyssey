@@ -171,6 +171,23 @@ closed, and a next recommended action (verify, observe, or rest) that
 cites its inputs. Optionally scope it to a service or an environment:
 `/odd-status checkout on local`.
 
+#### /odd-config
+
+```text
+/odd-config
+/odd-config switch to datadog
+```
+
+Displays the effective backend configuration — the configured stack,
+the instance the runs will hit, and the connection proof — through the
+`check-backend-configuration` skill, then offers **"Change backend?"**
+across the seven stacks (`local`, `grafana`, `azure-monitor`,
+`cloudwatch`, `datadog`, `dynatrace`, `splunk`). A switch is guided by
+the `update-backend-configuration` skill: the backend's CLI presence is
+checked, an install is offered when it is missing, and the targeting
+values are persisted in that stack's `stack_config`. Nothing is written
+until you pick a change.
+
 ## The ODD principles
 
 - **The system must be observable locally.** Prefer a docker-compose
@@ -276,6 +293,7 @@ dropped — the normal state, and never a failure of the server.
 | [`/odd-instrument`](.apm/prompts/odd-instrument.prompt.md) (prompt) | Entry point: point the `otel-instrumentation-expert` agent at a codebase |
 | [`/odd-verify`](.apm/prompts/odd-verify.prompt.md) (prompt) | Entry point: replay a stored report's protocol through the `observe-run` agent — a full observation report again, this time ruling on everything the previous one recorded: measurements, anomalies, telemetry gaps |
 | [`/odd-status`](.apm/prompts/odd-status.prompt.md) (prompt) | Where is the loop? Per-service state, findings ledger, trends, open telemetry gaps, and the next recommended action — read from the `.odd/` history and git alone, no backend queries |
+| [`/odd-config`](.apm/prompts/odd-config.prompt.md) (prompt) | Show the configured backend — stack, targeted instance, connection proof — and guide a backend switch through the `update-backend-configuration` skill |
 
 The loop: **investigate** (agents) → **spec & implement** (the main
 agent's spec-driven workflow) → **observe again** — telemetry on both
