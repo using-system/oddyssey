@@ -54,7 +54,8 @@ A YAML frontmatter, then the complete report:
 ```markdown
 ---
 services: [checkout, payment]
-environment: local            # local | the remote backend name (grafana, datadog, ...)
+stack: local                  # local | the remote backend name (grafana, datadog, ...)
+environment: local            # detected: deployment.environment.name reported by the service's telemetry (local forced on the local stack; unknown when absent)
 mode: drive                   # drive | observe | post-hoc | verify
 window: 2026-08-22T10:04:12Z/2026-08-22T10:05:03Z
 run_name: checkout-latency-sweep
@@ -80,12 +81,23 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
 
 - The frontmatter exists so future runs can filter reports **without
   parsing prose**: every field mirrors the run as it actually executed —
-  mission parameters and execution environment alike (defaults applied,
+  mission parameters and execution context alike (defaults applied,
   not as requested). One exception: a verification run records
   `mode: verify` even though it executes in the baseline's mode — the
   replayed execution mode stays reachable through `verifies`.
 - `window` is the observed interval as `start/end` in UTC; in drive mode
   it is the scenario's own start and end.
+- `environment` is **detected**, never asked: the
+  `deployment.environment.name` resource attribute the service's
+  telemetry reports — pre-run probe on recent telemetry, provisional
+  until the first scenario telemetry lands when the pre-run window is
+  empty. On `stack: local` the value is `local` by construction — a
+  service emitting a different attribute still records `local`, with the
+  discrepancy stated as a finding (misconfigured resource attributes).
+  `unknown` when the service emits no attribute — stated, never guessed,
+  and the absence is a telemetry gap. One observation, one environment:
+  services detecting different values stop the run — observe them as
+  separate missions.
 - A verification run sets `mode: verify` and `verifies: <exact filename
   of the replayed baseline report>`, and takes its `run_name` from that
   baseline. Observation reports never carry `verifies` and record their
@@ -131,8 +143,11 @@ Before a new run, load the baseline:
    empty directory = first run, no baseline — say so, do not fail).
 2. Walk the listing newest first (filenames sort chronologically),
    reading **frontmatter blocks only** — never whole files at this
-   stage. A report matches when its `services` intersect the mission's
-   and its `environment` is the mission's. When a match's `workload`
+   stage. A report matches when its `services` intersect the mission's,
+   its `stack` is the mission's, and its `environment` is the one the
+   run detects — an `unknown` environment matches only another
+   `unknown`, and with a warning (the comparison may span environments
+   without the reports being able to say so). When a match's `workload`
    differs from the mission's (or only one side has one), keep it but
    **warn**: its numbers were shaped by a different input, and diffing
    across workloads violates the one-changed-variable rule.
