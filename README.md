@@ -151,9 +151,6 @@ Then deploy, observe remotely, and start the loop again.
 
 ### Miscellaneous prompts
 
-Companion prompts around the loop — they read its state or its memory
-without advancing it.
-
 #### /odd-status
 
 ```text
