@@ -33,6 +33,7 @@ STACKS = (
 DEFAULTS = {
     "stack": "local",
     "local": {"grafana_port": 3000, "otlp_grpc_port": 4317, "otlp_http_port": 4318},
+    "stack_config": {},
 }
 
 
@@ -40,6 +41,12 @@ def _valid_port(value: object) -> bool:
     return (
         isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 65535
     )
+
+
+def _valid_config_value(value: object) -> bool:
+    # Identifiers, names, regions, ports - flat scalars only, and never
+    # secrets (credentials stay in the CLI's own auth store, by name).
+    return isinstance(value, (str, int, float, bool))
 
 
 def load(path: Path | None = None) -> dict:
@@ -51,7 +58,11 @@ def load(path: Path | None = None) -> dict:
     odd_config_get can surface the degradation.
     """
     target = CONFIG_PATH if path is None else path
-    effective = {"stack": DEFAULTS["stack"], "local": dict(DEFAULTS["local"])}
+    effective = {
+        "stack": DEFAULTS["stack"],
+        "local": dict(DEFAULTS["local"]),
+        "stack_config": {},
+    }
     invalid: list[str] = []
     try:
         stored = json.loads(target.read_text())
@@ -82,6 +93,22 @@ def load(path: Path | None = None) -> dict:
     elif "local" in stored:
         invalid.append("local")
 
+    raw_sc = stored.get("stack_config", {})
+    if isinstance(raw_sc, dict):
+        for stack_key, payload in raw_sc.items():
+            if stack_key not in STACKS or not isinstance(payload, dict):
+                invalid.append(f"stack_config.{stack_key}")
+                continue
+            clean = {}
+            for key, value in payload.items():
+                if _valid_config_value(value):
+                    clean[key] = value
+                else:
+                    invalid.append(f"stack_config.{stack_key}.{key}")
+            effective["stack_config"][stack_key] = clean
+    elif "stack_config" in stored:
+        invalid.append("stack_config")
+
     if invalid:
         effective["invalid_ignored"] = invalid
     return effective
@@ -97,7 +124,7 @@ def save(partial: dict, path: Path | None = None) -> dict:
     concurrent MCP server never reads a half-written file.
     """
     target = CONFIG_PATH if path is None else path
-    unknown = set(partial) - {"stack", "local"}
+    unknown = set(partial) - {"stack", "local", "stack_config"}
     if unknown:
         raise ValueError(f"unknown configuration keys: {sorted(unknown)}")
     if "stack" in partial and partial["stack"] not in STACKS:
@@ -115,6 +142,25 @@ def save(partial: dict, path: Path | None = None) -> dict:
     for key, value in local_partial.items():
         if not _valid_port(value):
             raise ValueError(f"{key} must be an integer port in 1-65535, got {value!r}")
+
+    sc_partial = partial.get("stack_config", {})
+    if not isinstance(sc_partial, dict):
+        raise ValueError("stack_config must be an object keyed by stack")  # noqa: TRY004
+    for stack_key, payload in sc_partial.items():
+        if stack_key not in STACKS:
+            raise ValueError(
+                f"stack_config keys must be one of {list(STACKS)}, got {stack_key!r}"
+            )
+        if not isinstance(payload, dict):
+            raise ValueError(  # noqa: TRY004
+                f"stack_config.{stack_key} must be an object of scalar values"
+            )
+        for key, value in payload.items():
+            if not _valid_config_value(value):
+                raise ValueError(
+                    f"stack_config.{stack_key}.{key} must be a string, number,"
+                    f" or boolean, got {value!r}"
+                )
 
     effective_local = {**load(target)["local"], **local_partial}
     if len(set(effective_local.values())) != len(effective_local):
@@ -134,6 +180,16 @@ def save(partial: dict, path: Path | None = None) -> dict:
             **(stored_local if isinstance(stored_local, dict) else {}),
             **local_partial,
         }
+    if sc_partial:
+        stored_sc = stored.get("stack_config")
+        stored_sc = stored_sc if isinstance(stored_sc, dict) else {}
+        for stack_key, payload in sc_partial.items():
+            existing = stored_sc.get(stack_key)
+            stored_sc[stack_key] = {
+                **(existing if isinstance(existing, dict) else {}),
+                **payload,
+            }
+        stored["stack_config"] = stored_sc
 
     target.parent.mkdir(parents=True, exist_ok=True)
     fd, temp = tempfile.mkstemp(dir=target.parent, suffix=".tmp")

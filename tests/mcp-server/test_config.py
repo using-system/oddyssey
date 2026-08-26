@@ -14,6 +14,7 @@ def test_load_returns_defaults_when_file_is_missing(tmp_path):
             "otlp_grpc_port": 4317,
             "otlp_http_port": 4318,
         },
+        "stack_config": {},
     }
 
 
@@ -121,3 +122,89 @@ def test_save_accepts_the_local_stack(tmp_path):
     path = tmp_path / "config.json"
     result = config.save({"stack": "local"}, path)
     assert result["stack"] == "local"
+
+
+def test_load_returns_empty_stack_config_by_default(tmp_path):
+    result = config.load(tmp_path / "config.json")
+    assert result["stack_config"] == {}
+
+
+def test_save_persists_stack_config_and_load_returns_it(tmp_path):
+    path = tmp_path / "config.json"
+    config.save(
+        {"stack_config": {"azure-monitor": {"workspace": "guid-123", "port": 443}}},
+        path,
+    )
+    result = config.load(path)
+    assert result["stack_config"] == {
+        "azure-monitor": {"workspace": "guid-123", "port": 443}
+    }
+
+
+def test_save_stack_config_is_non_destructive_across_stacks(tmp_path):
+    # Switching back and forth must not lose the other stack's config.
+    path = tmp_path / "config.json"
+    config.save({"stack_config": {"azure-monitor": {"workspace": "guid-123"}}}, path)
+    config.save({"stack_config": {"cloudwatch": {"region": "eu-west-1"}}}, path)
+    result = config.save(
+        {"stack_config": {"azure-monitor": {"resource_group": "rg-obs"}}}, path
+    )
+    assert result["stack_config"] == {
+        "azure-monitor": {"workspace": "guid-123", "resource_group": "rg-obs"},
+        "cloudwatch": {"region": "eu-west-1"},
+    }
+
+
+def test_save_rejects_stack_config_for_unknown_stack(tmp_path):
+    path = tmp_path / "config.json"
+    with pytest.raises(ValueError, match="stack_config"):
+        config.save({"stack_config": {"nagios": {"url": "x"}}}, path)
+    assert not path.exists()
+
+
+def test_save_rejects_non_dict_stack_config_shapes(tmp_path):
+    path = tmp_path / "config.json"
+    with pytest.raises(ValueError, match="stack_config"):
+        config.save({"stack_config": ["azure-monitor"]}, path)
+    with pytest.raises(ValueError, match="stack_config"):
+        config.save({"stack_config": {"grafana": "not-a-dict"}}, path)
+    assert not path.exists()
+
+
+def test_save_rejects_non_scalar_stack_config_values(tmp_path):
+    # Values are identifiers, names, regions - flat scalars only.
+    path = tmp_path / "config.json"
+    for bad in ({"nested": {"a": 1}}, {"listed": [1, 2]}, {"none": None}):
+        with pytest.raises(ValueError, match="stack_config"):
+            config.save({"stack_config": {"grafana": bad}}, path)
+    assert not path.exists()
+
+
+def test_load_tolerates_broken_stack_config_and_flags_it(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps(
+            {
+                "stack_config": {
+                    "nagios": {"url": "x"},
+                    "grafana": "not-a-dict",
+                    "azure-monitor": {"workspace": "guid-123", "bad": None},
+                }
+            }
+        )
+    )
+    result = config.load(path)
+    assert result["stack_config"] == {"azure-monitor": {"workspace": "guid-123"}}
+    assert sorted(result["invalid_ignored"]) == [
+        "stack_config.azure-monitor.bad",
+        "stack_config.grafana",
+        "stack_config.nagios",
+    ]
+
+
+def test_load_tolerates_non_dict_stack_config(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"stack_config": "broken"}))
+    result = config.load(path)
+    assert result["stack_config"] == {}
+    assert result["invalid_ignored"] == ["stack_config"]

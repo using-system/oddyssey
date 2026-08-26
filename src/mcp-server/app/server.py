@@ -88,7 +88,7 @@ def odd_stack_reset(env: dict[str, str] | None = None) -> dict:
 @mcp.tool()
 @telemetry.traced_tool
 def odd_config_get() -> dict:
-    """Read the global oddyssey configuration: the configured stack (local, or a remote backend) and the local stack host ports (defaults applied; invalid stored values are listed in invalid_ignored)."""
+    """Read the global oddyssey configuration: the configured stack (local, or a remote backend) and the local stack host ports (defaults applied; invalid stored values are listed in invalid_ignored). Also returns stack_config: per-stack non-secret targeting values (identifiers, names, regions) persisted for each backend."""
     return config_ops.load()
 
 
@@ -97,7 +97,8 @@ def odd_config_get() -> dict:
 def odd_config_set(config: dict) -> dict:
     """Update the global oddyssey configuration (partial merge).
 
-    config example: {"stack": "datadog"} or {"local": {"grafana_port": 3300}}.
+    config example: {"stack": "datadog"} or {"local": {"grafana_port": 3300}} or
+    {"stack_config": {"azure-monitor": {"workspace": "<guid>"}}}.
     stack is one of: local (the local stack - the default), grafana (a
     REMOTE Grafana - the CLI context says which instance), azure-monitor,
     cloudwatch, datadog, dynatrace, splunk. Switching to the local stack
@@ -114,6 +115,10 @@ def odd_config_set(config: dict) -> dict:
     changed OTLP port only after the MCP server restarts, and applications
     configured against the old ports keep exporting to them - their
     OTEL_EXPORTER_OTLP_ENDPOINT must be updated to the new otlp_endpoint.
+    stack_config is merged per stack (other stacks' payloads are untouched)
+    and never boots or resets the stack container; values must be non-secret
+    scalars - credentials stay in the CLI's own auth store, referenced by
+    name only.
     """
     ports_before = config_ops.load()["local"]
     state_before = stack_ops._container_state()
