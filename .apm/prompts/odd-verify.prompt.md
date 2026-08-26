@@ -18,6 +18,14 @@ Resolve the report first:
   frontmatters only, newest first). If the newest reports cover several
   services, ask which one is being verified before proceeding. If the
   directory has no report, stop and say there is nothing to verify.
+- When the resolved report is itself a verification (`mode: verify`,
+  a `verifies` frontmatter field): follow `verifies` to the original
+  observation report and verify against that one — a verify run always
+  replays the report whose protocol was recorded, never a previous
+  verification. When the resolved report is a verification by name or
+  prose only (a pre-convention report with no `verifies` field), do not
+  guess the original: ask the user to name the observation report to
+  verify against before proceeding.
 
 Preflight next - in the main conversation, before any dispatch: the
 report's `environment` is the contract being replayed. When it disagrees
@@ -39,6 +47,12 @@ Then build the mission block from that report:
   agent will not drive a remote service without the caller saying so;
 - baseline: the report itself - name its path and tell the agent to use
   it as the recalled baseline;
+- persistence: state that the run is a **verification** of that report,
+  naming its exact filename, so the agent persists per the
+  `create-observe-run-report` skill's verification rules —
+  `YYYY-MM-DD-HHmm-verify-<run_name>.md` (own timestamp, the baseline's
+  run_name) with `mode: verify` and `verifies: <that exact filename>`
+  in the frontmatter;
 - focus: verify everything the report recorded - replay its recorded
   scenario verbatim when it has one (otherwise observe a comparable
   window in the report's mode), then rule on each item with its
