@@ -149,6 +149,28 @@ the
 
 Then deploy, observe remotely, and start the loop again.
 
+### Miscellaneous prompts
+
+Companion prompts around the loop — they read its state or its memory
+without advancing it.
+
+#### /odd-status
+
+```text
+/odd-status
+/odd-status where is the loop for my service XXX
+/odd-status what was observed on prod for my service XXX
+```
+
+Answers "where is the loop?" from the committed `.odd/` history and git
+alone — no backend queries, no report written. Renders per-service loop
+state (last observation, last verification and its verdict, the
+observed → fixed → verified chain), the findings ledger as a burn-down,
+trends across runs from the stored numbers, telemetry gaps not yet
+closed, and a next recommended action (verify, observe, or rest) that
+cites its inputs. Optionally scope it to a service or an environment:
+`/odd-status checkout on local`.
+
 ## The ODD principles
 
 - **The system must be observable locally.** Prefer a docker-compose
@@ -253,6 +275,7 @@ dropped — the normal state, and never a failure of the server.
 | [`/odd-observe`](.apm/prompts/odd-observe.prompt.md) (prompt) | Entry point: build a well-formed mission from your arguments and invoke the `observe-run` agent |
 | [`/odd-instrument`](.apm/prompts/odd-instrument.prompt.md) (prompt) | Entry point: point the `otel-instrumentation-expert` agent at a codebase |
 | [`/odd-verify`](.apm/prompts/odd-verify.prompt.md) (prompt) | Entry point: replay a stored report's protocol through the `observe-run` agent — a full observation report again, this time ruling on everything the previous one recorded: measurements, anomalies, telemetry gaps |
+| [`/odd-status`](.apm/prompts/odd-status.prompt.md) (prompt) | Where is the loop? Per-service state, findings ledger, trends, open telemetry gaps, and the next recommended action — read from the `.odd/` history and git alone, no backend queries |
 
 The loop: **investigate** (agents) → **spec & implement** (the main
 agent's spec-driven workflow) → **observe again** — telemetry on both
