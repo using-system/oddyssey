@@ -564,16 +564,36 @@ def test_container_user_env_is_none_on_malformed_inspect_output(monkeypatch):
     assert stack.container_user_env() is None
 
 
-def test_stack_down_flushes_queued_telemetry_first(monkeypatch):
-    # Standalone down keeps its flush: the export target may be a remote
-    # store that survives the local container's destruction.
-    flushes: list[int] = []
-    monkeypatch.setattr(stack.telemetry, "force_flush", lambda: flushes.append(1))
-    monkeypatch.setattr(stack, "_docker", lambda *args: _Proc())
+def test_stack_down_flushes_queued_telemetry_before_the_rm(monkeypatch):
+    # Standalone down keeps its flush, and BEFORE the destruction: the
+    # export target may be a remote store that survives the local
+    # container - a shared order sink pins the sequence, not just the call.
+    order: list[str] = []
+    monkeypatch.setattr(stack.telemetry, "force_flush", lambda: order.append("flush"))
+    monkeypatch.setattr(stack, "_docker", lambda *args: order.append("rm") or _Proc())
 
     stack.stack_down()
 
-    assert flushes == [1]
+    assert order == ["flush", "rm"]
+
+
+def test_stack_up_flushes_after_readiness(monkeypatch):
+    # stack_reset(flush=False) relies on THIS flush as the delivery
+    # backstop for the deferred pre-rm spans (F3 review, finding F-1):
+    # pin it so a stack_up simplification cannot silently remove the
+    # reset path's delivery point.
+    order: list[str] = []
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
+    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(
+        stack, "_otlp_ingest_ready", lambda client: order.append("ready") or True
+    )
+    monkeypatch.setattr(stack.telemetry, "force_flush", lambda: order.append("flush"))
+
+    stack.stack_up()
+
+    assert order == ["ready", "flush"]
 
 
 def test_stack_reset_defers_the_flush_to_the_recreated_store(monkeypatch):

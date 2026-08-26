@@ -136,8 +136,13 @@ src/mcp-server/app/
 
 - Every `subprocess.run(["docker", ...])` call is wrapped in the
   matching `docker_span(...)`, recording the exit code.
-- `stack_down` and `stack_reset` call `telemetry.force_flush()`
-  immediately before the container-destroying docker command.
+- `stack_down` calls `telemetry.force_flush()` immediately before the
+  container-destroying docker command. Amended 2026-08-26 (observation
+  report finding F3): `stack_reset` no longer flushes on its down path -
+  a flush there delivered the pre-rm spans into the store destroyed on
+  the next line. It calls `stack_down(flush=False)` and relies on the
+  SDK's scheduled exports plus `stack_up`'s post-readiness flush to land
+  them in the recreated store, best effort.
 - The httpx readiness probes need no code change (library
   instrumentation).
 

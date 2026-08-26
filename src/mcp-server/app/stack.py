@@ -355,8 +355,10 @@ def stack_down(flush: bool = True) -> dict:
     the local container), wrong from stack_reset: the flushed spans land
     in the very store the next line destroys, a deterministic loss of the
     whole pre-rm phase (observation report 2026-08-26, F3). The reset path
-    passes False and lets stack_up's post-readiness flush deliver them to
-    the recreated store instead - best effort, like that flush itself.
+    passes False so the SDK worker's scheduled exports (with their retry
+    backoff) deliver the spans once the recreated container listens, with
+    stack_up's post-readiness flush as the backstop - best effort either
+    way: a boot slower than the retry deadline still drops the batch.
     """
     if flush:
         telemetry.force_flush()
