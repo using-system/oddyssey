@@ -151,9 +151,6 @@ Then deploy, observe remotely, and start the loop again.
 
 ### Miscellaneous prompts
 
-Companion prompts around the loop — they read its state or its memory
-without advancing it.
-
 #### /odd-status
 
 ```text
@@ -170,6 +167,23 @@ trends across runs from the stored numbers, telemetry gaps not yet
 closed, and a next recommended action (verify, observe, or rest) that
 cites its inputs. Optionally scope it to a service or an environment:
 `/odd-status checkout on local`.
+
+#### /odd-config
+
+```text
+/odd-config
+/odd-config switch to datadog
+```
+
+Displays the effective backend configuration — the configured stack,
+the instance the runs will hit, and the connection proof — through the
+`check-backend-configuration` skill, then offers **"Change backend?"**
+across the seven stacks (`local`, `grafana`, `azure-monitor`,
+`cloudwatch`, `datadog`, `dynatrace`, `splunk`). A switch is guided by
+the `update-backend-configuration` skill: the backend's CLI presence is
+checked, an install is offered when it is missing, and the targeting
+values are persisted in that stack's `stack_config`. Nothing is written
+until you pick a change.
 
 ## The ODD principles
 
@@ -268,6 +282,7 @@ dropped — the normal state, and never a failure of the server.
 | [`otel-guides`](.apm/skills/otel-guides/SKILL.md) (skill) | Curated map of the official OpenTelemetry docs: every supported language plus the cross-language guides (SDK configuration, semantic conventions, Collector deployment) |
 | [`setup-local-stack`](.apm/skills/setup-local-stack/SKILL.md) (skill) | Configure gcx against the local stack without touching the user's contexts, with the datasource UIDs and the push-model caveats |
 | [`check-backend-configuration`](.apm/skills/check-backend-configuration/SKILL.md) (skill) | Before a run: display the configured stack's CLI context, prove it is connected, and guide the user through the backend's setup — never authenticates on their behalf |
+| [`update-backend-configuration`](.apm/skills/update-backend-configuration/SKILL.md) (skill) | Owns the backend switch: the target's CLI checked for presence with a guided install offer, the switch persisted through `odd_config_set`, the per-stack `stack_config` values persisted, and the verification handed back to `check-backend-configuration` |
 | [`observability-cli-guides`](.apm/skills/observability-cli-guides/SKILL.md) (skill) | Curated map of every major backend's terminal query surface: Grafana (gcx), Datadog (Pup), Dynatrace (dtctl), Azure Monitor (az), CloudWatch (aws), Splunk |
 | [`run-scenario`](.apm/skills/run-scenario/SKILL.md) (skill) | Drive a reproducible request scenario against a local service and record it verbatim, so the same numbers are measurable before a fix and after it |
 | [`create-observe-run-report`](.apm/skills/create-observe-run-report/SKILL.md) (skill) | The ODD loop's memory: persist each observation report into the observed repo (`.odd/observe-run-reports/`) and recall the previous ones as the next run's baseline |
@@ -276,6 +291,7 @@ dropped — the normal state, and never a failure of the server.
 | [`/odd-instrument`](.apm/prompts/odd-instrument.prompt.md) (prompt) | Entry point: point the `otel-instrumentation-expert` agent at a codebase |
 | [`/odd-verify`](.apm/prompts/odd-verify.prompt.md) (prompt) | Entry point: replay a stored report's protocol through the `observe-run` agent — a full observation report again, this time ruling on everything the previous one recorded: measurements, anomalies, telemetry gaps |
 | [`/odd-status`](.apm/prompts/odd-status.prompt.md) (prompt) | Where is the loop? Per-service state, findings ledger, trends, open telemetry gaps, and the next recommended action — read from the `.odd/` history and git alone, no backend queries |
+| [`/odd-config`](.apm/prompts/odd-config.prompt.md) (prompt) | Show the configured backend — stack, targeted instance, connection proof — and guide a backend switch through the `update-backend-configuration` skill |
 
 The loop: **investigate** (agents) → **spec & implement** (the main
 agent's spec-driven workflow) → **observe again** — telemetry on both

@@ -8,6 +8,15 @@ you append `?view=azure-cli-latest&accept=text/markdown` to the URL
 docs pages (`/azure/azure-monitor/...`, `/kusto/...`) do not honor that
 parameter and stay HTML-only.
 
+## CLI binary
+
+- **Binary**: `az`
+- **Detect**: `command -v az`
+- **Install**: `brew install azure-cli` (macOS) or the official installer
+  per platform: https://learn.microsoft.com/en-us/cli/azure/install-azure-cli
+  — the `log-analytics`/`application-insights` extensions auto-install on
+  first use.
+
 ## Setup
 
 | Topic | Link | What to do with it |

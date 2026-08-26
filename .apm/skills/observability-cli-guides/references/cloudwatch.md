@@ -7,6 +7,14 @@ All `docs.aws.amazon.com` pages (CLI reference and user/developer guides
 alike) are HTML-only — no raw-markdown query parameter or GitHub source
 mirror was found; fetch and convert, don't guess at raw links.
 
+## CLI binary
+
+- **Binary**: `aws`
+- **Detect**: `command -v aws`
+- **Install**: `brew install awscli` (macOS) or the official AWS CLI v2
+  installer per platform:
+  https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+
 ## Setup
 
 | Topic | Link | What to do with it |
