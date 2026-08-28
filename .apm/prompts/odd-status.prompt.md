@@ -39,7 +39,11 @@ Build the status in this order:
    present), last verification (`mode: verify` reports - their
    `verifies` value names what they replayed) with its verdict from the
    report body, and the chain as the files tell it:
-   observed -> fixed -> verified.
+   observed -> fixed -> verified. A `mode: re-measure` report is an
+   observation event, never a verification: it replayed the protocol
+   of the report its `verifies` names without ruling on a fix - count
+   it as the last observation when newest, and never let it satisfy
+   "verified" in the chain.
    "Fixed" means commits landed after the report's `revision`,
    **excluding commits that only touch `.odd/` or documentation** -
    the loop's own memory is not a fix. Scope the commit test to the
@@ -72,7 +76,8 @@ Build the status in this order:
    recorded scenario or process identity (`instance`,
    `process_restarted`) differ - a driven session and a
    process-per-call run measure different things whatever the
-   frontmatter says. A verification and its baseline replay the same
+   frontmatter says. A verification or re-measure and the report its
+   `verifies` names replay the same
    scenario by construction and always compare. List incomparable
    runs apart, never diff them. Stored numbers only - no live
    queries.

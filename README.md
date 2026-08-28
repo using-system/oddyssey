@@ -303,7 +303,7 @@ dropped — the normal state, and never a failure of the server.
 | [`create-otel-instrumentation-report`](.apm/skills/create-otel-instrumentation-report/SKILL.md) (skill) | Same memory for the instrumentation side: persist each investigation into the investigated repo (`.odd/otel-instrumentation-reports/`) and recall it before the next one |
 | [`/odd-observe`](.apm/prompts/odd-observe.prompt.md) (prompt) | Entry point: build a well-formed mission from your arguments and invoke the `observe-run` agent |
 | [`/odd-instrument`](.apm/prompts/odd-instrument.prompt.md) (prompt) | Entry point: point the `otel-instrumentation-expert` agent at a codebase |
-| [`/odd-verify`](.apm/prompts/odd-verify.prompt.md) (prompt) | Entry point: replay a stored report's protocol through the `observe-run` agent — a full observation report again, this time ruling on everything the previous one recorded: measurements, anomalies, telemetry gaps |
+| [`/odd-verify`](.apm/prompts/odd-verify.prompt.md) (prompt) | Entry point: replay a stored report's protocol through the `observe-run` agent — a full observation report again, this time ruling on everything the previous one recorded: measurements, anomalies, telemetry gaps. A replay with no fix under test persists as a re-measure, not a verification |
 | [`/odd-status`](.apm/prompts/odd-status.prompt.md) (prompt) | Where is the loop? Per-service state, findings ledger, trends, open telemetry gaps, and the next recommended action — read from the `.odd/` history and git alone, no backend queries |
 | [`/odd-config`](.apm/prompts/odd-config.prompt.md) (prompt) | Show the configured backend — stack, targeted instance, connection proof — and guide a backend switch through the `update-backend-configuration` skill |
 

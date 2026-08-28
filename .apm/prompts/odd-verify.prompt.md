@@ -26,11 +26,15 @@ Resolve the report first:
   alone — ask which report is being verified before proceeding. If
   neither directory has a report, stop and say there is nothing to
   verify.
-- When the resolved report is itself a verification (`mode: verify`,
-  a `verifies` frontmatter field): follow `verifies` to the original
-  report — observation or instrumentation — and verify against that one
-  — a verify run always replays the report whose protocol was recorded,
-  never a previous verification. When the resolved report is a verification by name or
+- When the resolved report is itself a verification or a re-measure
+  (`mode: verify` or `mode: re-measure`, a `verifies` frontmatter
+  field): follow `verifies` to the original report — observation or
+  instrumentation — and verify against that one. The exception is
+  explicit: when the caller targets a verification report's own
+  updated protocol ("measurement protocol for the next run"), that
+  verification is the replayed report and the new report's `verifies`
+  names it — the reference always names the protocol's actual source.
+  When the resolved report is a verification by name or
   prose only (a pre-convention report with no `verifies` field), do not
   guess the original: ask the user to name the observation report to
   verify against before proceeding.
@@ -77,7 +81,16 @@ Then build the mission block from that report:
   frontmatter. The deliverable is an observation report in
   `.odd/observe-run-reports/` whatever the baseline's kind — the path
   shape is what says the baseline lives outside the observation
-  directory;
+  directory. **Unless the replay tests no fix**: when the observed
+  repo's code is unchanged since the baseline's `revision` (no commits
+  beyond `.odd/` and documentation — check before dispatching, and in
+  a squash-merge history compare trees, not ancestry), or the caller
+  says the run is a drift/stability re-measure, the mission is a
+  **re-measure**, not a verification: same replay, but the agent
+  persists `YYYY-MM-DD-HHmm-remeasure-<run_name>.md` with
+  `mode: re-measure` and the same `verifies` field — calling it a
+  verification would fabricate a fix that never existed. Say which of
+  the two the mission is in the mission block;
 - focus, **instrumentation baseline**: not before/after measurements
   but **presence rulings**. For every item the report's verification
   protocol and per-service plan recorded - planned spans searchable per

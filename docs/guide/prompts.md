@@ -104,6 +104,7 @@ report is picked.
 /odd-verify verify my last report for checkout
 /odd-verify verify my last prod report
 /odd-verify verify the instrumentation investigation of services/api - did the planned signals land?
+/odd-verify re-measure my last checkout report - nothing changed, is it stable?
 ```
 
 - no arguments - the newest report across both `.odd/` report
@@ -114,7 +115,13 @@ report is picked.
   frontmatters;
 - naming an instrumentation report turns the mission into presence
   rulings (planned spans, metrics, log correlation - closed or still
-  missing).
+  missing);
+- when the replay tests no fix - the code is unchanged since the
+  report's `revision`, or the arguments say drift/stability re-measure
+  - the run persists as a **re-measure**
+  (`remeasure-<run_name>.md`, `mode: re-measure`, same `verifies`
+  link), not as a verification: `/odd-status` counts it as an
+  observation, never as "verified".
 
 ## /odd-status
 

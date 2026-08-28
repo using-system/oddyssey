@@ -42,8 +42,20 @@ doubt, record the number.
   glob (`*-verify-<run_name>.md`). Re-verifications share the suffix
   and differ by their own timestamp. `verify-` always references the
   report **whose protocol is replayed**: re-verifying replays the
-  original report's protocol again, so the new report references
-  the original report — never a previous verification.
+  original report's protocol again, so the new report references the
+  original report. A verification report is a legal reference only
+  when its own updated protocol ("measurement protocol for the next
+  run") — not the original's — is the one replayed: the reference
+  names the protocol's actual source, never a report the run did not
+  replay.
+- A **re-measure run** — a run that replays a stored report's protocol
+  verbatim while testing no fix (same code, drift or stability check)
+  — names its file `YYYY-MM-DD-HHmm-remeasure-<run_name>.md`: the same
+  mechanics as a verification (its own UTC timestamp, the replayed
+  report's `run_name`), its own glob (`*-remeasure-<run_name>.md`).
+  It never matches the `*-verify-*` glob: a re-measure is not a
+  verification, and "has this run been verified?" must stay blind to
+  it.
 - Create the directory if it does not exist. The files are meant to be
   **committed**: leave them tracked, never add them to `.gitignore`.
 
@@ -56,7 +68,7 @@ A YAML frontmatter, then the complete report:
 services: [checkout, payment]
 stack: local                  # local | the remote backend name (grafana, datadog, ...)
 environment: local            # detected: deployment.environment.name reported by the service's telemetry (local forced on the local stack; unknown when absent)
-mode: drive                   # drive | observe | post-hoc | verify
+mode: drive                   # drive | observe | post-hoc | verify | re-measure
 window: 2026-08-22T10:04:12Z/2026-08-22T10:05:03Z
 run_name: checkout-latency-sweep
 date: 2026-08-22
@@ -79,12 +91,23 @@ run_name: checkout-latency-sweep                     # the baseline's, unchanged
 verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the replayed baseline
 ```
 
+A re-measure run (stored as
+`2026-08-27-1408-remeasure-checkout-latency-sweep.md`) uses the same
+fields with its own mode:
+
+```yaml
+mode: re-measure
+run_name: checkout-latency-sweep                     # the replayed report's, unchanged
+verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the replayed report
+```
+
 - The frontmatter exists so future runs can filter reports **without
   parsing prose**: every field mirrors the run as it actually executed —
   mission parameters and execution context alike (defaults applied,
-  not as requested). One exception: a verification run records
-  `mode: verify` even though it executes in the baseline's mode — the
-  replayed execution mode stays reachable through `verifies`.
+  not as requested). One exception: a verification or re-measure run
+  records `mode: verify` / `mode: re-measure` even though it executes
+  in the replayed report's mode — that execution mode stays reachable
+  through `verifies`.
 - `window` is the observed interval as `start/end` in UTC; in drive mode
   it is the scenario's own start and end.
 - `environment` is **detected**, never asked: the
@@ -101,12 +124,22 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   separate missions.
 - A verification run sets `mode: verify` and `verifies: <exact filename
   of the replayed baseline report>`, and takes its `run_name` from that
-  baseline. Observation reports never carry `verifies` and record their
-  execution mode — the mode a verification replayed is the baseline's,
-  reachable through `verifies`, so it is not repeated. The exact
+  baseline. A **re-measure run** — same replay, but no fix under test:
+  the code is unchanged since the replayed report's `revision` and the
+  run measures drift or stability — sets `mode: re-measure` instead,
+  with the same `verifies` mechanics; what separates the two modes is
+  whether a fix is being ruled on, never how the run executed. Plain
+  observation reports (drive, observe, post-hoc) never carry `verifies`
+  and record their execution mode — the mode a verification or
+  re-measure replayed is the replayed report's, reachable through
+  `verifies`, so it is not repeated. In both modes `verifies` names the
+  report **whose protocol was actually replayed** — a verification
+  report is a legal value only when its own updated protocol is the
+  one replayed. The exact
   filename (not just the run_name) is what disambiguates two baselines
   sharing a run_name and survives an accidental rename; the field is
-  the machine contract, the `verify-` filename the readable convention.
+  the machine contract, the `verify-`/`remeasure-` filename the
+  readable convention.
   The baseline may also be an **instrumentation report**: `verifies`
   then carries its repo-relative path
   (`.odd/otel-instrumentation-reports/<filename>`), so the value's
@@ -166,11 +199,17 @@ Before a new run, load the baseline:
 5. The observed → verified chain is machine-readable — never parse
    prose for it. Whether a report has been verified is the glob
    `*-verify-<run_name>.md` on later timestamps, confirmed by the
-   candidate's `verifies` field naming that report's exact filename
+   candidate's `mode: verify` and its `verifies` field naming that
+   report's exact filename
    (the field is authoritative; the filename is convention). A
-   verification report is itself a full report — when it is the newest
+   re-measure report never answers that question: `mode: re-measure`
+   replayed the protocol without ruling on a fix — it extends the
+   run's measurement history (`*-remeasure-<run_name>.md`, comparable
+   by construction with the report its `verifies` names), not its
+   verification chain. Verification and re-measure reports are
+   themselves full reports — when one is the newest
    match, it is the baseline, and its `verifies` field says whose
-   findings its verdicts re-measured. Pre-convention reports (free-form
+   protocol its numbers replayed. Pre-convention reports (free-form
    slug, no `verifies`) stay valid matches: their chain simply is not
    machine-readable, which is a fact to state, not an error.
 
@@ -201,7 +240,8 @@ Before a new run, load the baseline:
 - **After writing, commit the report file on its own**:
   `git add <report file>` then
   `git commit -m "docs(odd): observation report <run_name>"` (for a
-  verification run, `docs(odd): verification report <run_name>`) — never
+  verification run, `docs(odd): verification report <run_name>`; for a
+  re-measure run, `docs(odd): re-measure report <run_name>`) — never
   stage anything else; a dirty working tree stays untouched otherwise.
   If committing is impossible (not a git repository, or the caller said
   not to), state the path and leave the commit to the caller.
