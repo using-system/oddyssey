@@ -12,7 +12,7 @@
 
 ### 📚 Documentation
 
-- *(changelog)* Backtick @import so it stops rendering as a user mention (#130)
+- *(changelog)* Backtick `@import` so it stops rendering as a user mention (#130)
 - *(agents)* Issue titles follow the conventional commits form (#132)
 - *(guide)* Reports guide - frontmatter fields, allowed values, and body structure of both report kinds (#135)
 - *(contributing)* Harden the contributor path - AGENTS.md conventions and rules, security guidance, strict PR-issue requirement (#138)
@@ -24,7 +24,7 @@
 
 ### 📚 Documentation
 
-- *(agents)* AGENTS.md as the single instruction file - CLAUDE.md becomes an @import bridge (#125)
+- *(agents)* AGENTS.md as the single instruction file - CLAUDE.md becomes an `@import` bridge (#125)
 - *(guide)* Split the dependency map into per-prompt diagrams for readability (#126)
 - *(readme)* State the minimum apm-cli version and why the pin matters (#128)
 ## [1.7.2] - 2026-08-26
