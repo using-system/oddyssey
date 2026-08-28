@@ -23,6 +23,13 @@ Same command for every other supported CLI agent — swap the target:
 `windsurf`. Drop `--global` to install into the current repository
 only.
 
+Keep the `apm-cli==0.28.0` pin — it is the minimum supported version
+and the one CI validates the package with (bumped together). Older
+apm-cli releases (0.14.x observed) predate `targets:` support and
+corrupt the install: the payload fans out to targets that were never
+requested, `.mcp.json` is emptied on uninstall, and the manifest is
+left invalid.
+
 To update an existing install to the latest version:
 
 ```bash
