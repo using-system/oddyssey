@@ -161,7 +161,7 @@ configured one - so no `odd_config_set` in this subgraph), mandates
 `create-observe-run-report`'s verification rules for the report its
 agent will persist, and dispatches to `observe-run`.
 `otel-instrumentation-expert` is the same boundary node as in
-`/odd-observe`.
+`/odd-observe` - its path is the `/odd-instrument` diagram.
 
 ```mermaid
 flowchart LR
@@ -367,7 +367,9 @@ state - every prompt, agent, and skill above is a prose contract.
 ## Bird's-eye view
 
 Layers only - the per-component edges live in the per-prompt diagrams
-above.
+above, and so does the intra-layer routing (prompt-to-prompt
+recommendations, the agents' mutual hand-off, skill-to-skill routing):
+this view keeps only the cross-layer edges.
 
 ```mermaid
 flowchart LR
