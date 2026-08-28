@@ -82,6 +82,56 @@ TEMPO_SEARCH_WINDOW_S = 167 * 3600
 LOKI_SEARCH_WINDOW_S = 30 * 24 * 3600
 
 
+# Name markers of credential-bearing variables (OTEL_EXPORTER_OTLP_HEADERS
+# for a dual-write to a remote backend is the one that matters): applied to
+# the container, never written to the configuration - stack_config holds no
+# secret by contract. A heuristic on purpose: the caller sees what was
+# excluded (env_not_persisted) and must repeat it on the next recreation.
+SENSITIVE_ENV_MARKERS = ("HEADERS", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL")
+
+
+def _sensitive_env(name: str) -> bool:
+    return any(marker in name.upper() for marker in SENSITIVE_ENV_MARKERS)
+
+
+def persisted_env() -> dict[str, str]:
+    """The container env persisted in stack_config.local, ready to apply.
+
+    Reapplied on every container creation (issue #117) so a creation-time
+    choice survives recreations without the caller repeating it. Tolerant
+    like every config read: values are stored as flat scalars, so numbers
+    and booleans are coerced to the strings docker takes, and a
+    hand-edited key that cannot be an env name is skipped rather than
+    failing the boot.
+    """
+    stored = config.load()["stack_config"].get("local", {})
+    env: dict[str, str] = {}
+    for key, value in stored.items():
+        if not key or "=" in key:
+            continue
+        if isinstance(value, bool):
+            env[key] = "true" if value else "false"
+        else:
+            env[key] = str(value)
+    return env
+
+
+def _persist_applied_env(env: dict[str, str]) -> bool:
+    """Best-effort merge of a just-applied creation env into stack_config.local.
+
+    Best-effort because the container already exists when this runs: a
+    config write failure must not fail a tool call whose real work
+    succeeded. env keys passed _validate_env and values are strings, so
+    only an unwritable file can fail - the returned outcome keeps the
+    result's env_persisted field truthful either way.
+    """
+    try:
+        config.save({"stack_config": {"local": dict(env)}})
+    except (OSError, ValueError):
+        return False
+    return True
+
+
 def _validate_env(env: dict[str, str] | None) -> None:
     """Reject malformed keys with a clear message.
 
@@ -263,6 +313,15 @@ def stack_up(env: dict[str, str] | None = None) -> dict:
     container only when this call creates one; the result's env_applied
     field (present whenever env was requested) tells the caller whether
     it landed or a reset is needed.
+
+    A creation also reapplies the env persisted in stack_config.local
+    (explicit entries win on collision) and persists the explicit
+    entries it applied - minus credential-named ones - so a
+    creation-time choice survives recreations without the caller
+    repeating it (issue #117). The result says what happened:
+    env_reapplied (names taken from the configuration), env_persisted
+    (names newly written to it), env_not_persisted (names applied but
+    excluded as credential-like - repeat them on the next recreation).
     """
     _validate_env(env)
     state = _container_state()
@@ -276,19 +335,28 @@ def stack_up(env: dict[str, str] | None = None) -> dict:
                 "configured ports"
             )
     created = False
+    reapplied: dict[str, str] = {}
+    persisted_names: list[str] = []
+    excluded_names: list[str] = []
     if state == "stopped":
         result = _docker("start", CONTAINER_NAME)
         if result.returncode != 0:
             raise RuntimeError(f"docker start failed: {result.stderr.strip()}")
     elif state == "absent":
+        reapplied = persisted_env()
+        user_env = {**reapplied, **(env or {})}
         with telemetry.docker_span("run", container=CONTAINER_NAME) as span:
             result = subprocess.run(
-                run_args(env), capture_output=True, text=True, check=False
+                run_args(user_env), capture_output=True, text=True, check=False
             )
             span.set_attribute("oddyssey.docker.exit_code", result.returncode)
         if result.returncode != 0:
             raise RuntimeError(f"docker run failed: {result.stderr.strip()}")
         created = True
+        to_store = {k: v for k, v in (env or {}).items() if not _sensitive_env(k)}
+        excluded_names = sorted(set(env or {}) - set(to_store))
+        if to_store and _persist_applied_env(to_store):
+            persisted_names = sorted(to_store)
     status = stack_status()
     deadline = time.monotonic() + STARTUP_TIMEOUT_S
     while time.monotonic() < deadline:
@@ -307,6 +375,12 @@ def stack_up(env: dict[str, str] | None = None) -> dict:
             }
             if env:
                 up_result["env_applied"] = created
+            if reapplied:
+                up_result["env_reapplied"] = sorted(reapplied)
+            if persisted_names:
+                up_result["env_persisted"] = persisted_names
+            if excluded_names:
+                up_result["env_not_persisted"] = excluded_names
             return up_result
         time.sleep(POLL_INTERVAL_S)
         status = stack_status()
@@ -422,5 +496,7 @@ def stack_reset(env: dict[str, str] | None = None) -> dict:
             pass
     services = stored_services()
     stack_down(flush=False)
-    # Reset always recreates, so env - unlike on stack_up - always applies.
+    # Reset always recreates, so env - unlike on stack_up - always
+    # applies; the recreation also reapplies and persists through
+    # stack_up's creation path, which owns that contract (issue #117).
     return {**stack_up(env), "services_wiped": services}

@@ -141,6 +141,7 @@ request** directly.
 /odd-config
 /odd-config switch to datadog
 /odd-config persist workspace 0000-1111-2222 for azure-monitor
+/odd-config clear the workspace for azure-monitor
 /odd-config set the local Grafana port to 3001
 ```
 
@@ -149,5 +150,8 @@ request** directly.
   presence checked, install offered, nothing silent);
 - "persist ... for azure-monitor" - stores a non-secret targeting
   value in that stack's `stack_config`, without switching;
+- "clear ... for azure-monitor" - removes a persisted value through
+  the same step (a null write), without switching and without touching
+  the stack container;
 - port changes reset the local stack container - the command says so
   before doing it.

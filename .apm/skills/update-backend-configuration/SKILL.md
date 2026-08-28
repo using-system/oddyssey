@@ -68,9 +68,11 @@ the local stack container. A `stack_reset` block appears in the result
 port change resets the stack immediately (wiping all stored telemetry,
 `services_wiped` in the reset outcome) and carries the old container's
 user-set environment forward best-effort — `env_preserved` lists the
-carried variable **names**, never values, and an empty `env_preserved`
-means nothing was carried and a bare `odd_stack_reset` with the desired
-env is the way to reapply it. Port changes stay the **caller's explicit
+carried variable **names**, never values. An empty `env_preserved`
+means the live read failed; the recreation still reapplies whatever
+`stack_config.local` persists, so only never-persisted variables
+(credential-named ones) are gone — a bare `odd_stack_reset` with the
+desired env is the way to reapply those. Port changes stay the **caller's explicit
 ask**: this skill never changes ports on its own, and it never bundles a
 port change into a backend switch the user did not request.
 
@@ -90,6 +92,15 @@ API key, no token, no connection string carrying one. When the mission
 needs a credential, the reference says which named credential the CLI's
 own auth store must hold, and the name is all that is ever written down.
 A `stack_config` write never boots or resets the stack container.
+
+**Clearing a value** is the same write with `null`:
+`odd_config_set {"stack_config": {"<stack>": {"<key>": null}}}` deletes
+that key (deleting the last one leaves the present-but-empty entry —
+"not configured", the normal state), and
+`{"stack_config": {"<stack>": null}}` removes the stack's entry
+entirely. A deletion never boots or resets the container either, and it
+is the tool-surface answer to "clear the workspace for azure-monitor" —
+never hand-edit the file.
 
 An entry that is present and empty (`{"grafana": {}}`) means "not
 configured", which for the context-bearing backends — `grafana`,

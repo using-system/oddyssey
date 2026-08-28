@@ -120,8 +120,11 @@ def save(partial: dict, path: Path | None = None) -> dict:
     Strict where load is tolerant: the caller is a tool, not a hand
     edit, so a clear error beats a silent fallback. The merged EFFECTIVE
     ports are validated together, so a partial cannot collide with a
-    stored or default port. Atomic write (temp + os.replace) so a
-    concurrent MCP server never reads a half-written file.
+    stored or default port. Inside stack_config, None is the deletion
+    marker (issue #112): a null stack entry removes that entry, a null
+    key value removes that key - the only non-scalar the strict gate
+    accepts. Atomic write (temp + os.replace) so a concurrent MCP server
+    never reads a half-written file.
     """
     target = CONFIG_PATH if path is None else path
     unknown = set(partial) - {"stack", "local", "stack_config"}
@@ -151,15 +154,19 @@ def save(partial: dict, path: Path | None = None) -> dict:
             raise ValueError(
                 f"stack_config keys must be one of {list(STACKS)}, got {stack_key!r}"
             )
+        # None is the deletion marker (issue #112): a null entry removes
+        # the stack's whole entry, a null key value removes that key.
+        if payload is None:
+            continue
         if not isinstance(payload, dict):
             raise ValueError(  # noqa: TRY004
                 f"stack_config.{stack_key} must be an object of scalar values"
             )
         for key, value in payload.items():
-            if not _valid_config_value(value):
+            if value is not None and not _valid_config_value(value):
                 raise ValueError(
                     f"stack_config.{stack_key}.{key} must be a string, number,"
-                    f" or boolean, got {value!r}"
+                    f" boolean, or null to delete the key, got {value!r}"
                 )
 
     effective_local = {**load(target)["local"], **local_partial}
@@ -184,11 +191,19 @@ def save(partial: dict, path: Path | None = None) -> dict:
         stored_sc = stored.get("stack_config")
         stored_sc = stored_sc if isinstance(stored_sc, dict) else {}
         for stack_key, payload in sc_partial.items():
+            if payload is None:
+                stored_sc.pop(stack_key, None)
+                continue
             existing = stored_sc.get(stack_key)
-            stored_sc[stack_key] = {
-                **(existing if isinstance(existing, dict) else {}),
-                **payload,
-            }
+            entry = dict(existing) if isinstance(existing, dict) else {}
+            for key, value in payload.items():
+                if value is None:
+                    # Deleting the last key leaves the present-but-empty
+                    # entry, which already reads as "not configured".
+                    entry.pop(key, None)
+                else:
+                    entry[key] = value
+            stored_sc[stack_key] = entry
         stored["stack_config"] = stored_sc
 
     target.parent.mkdir(parents=True, exist_ok=True)

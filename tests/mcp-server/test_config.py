@@ -172,12 +172,66 @@ def test_save_rejects_non_dict_stack_config_shapes(tmp_path):
 
 
 def test_save_rejects_non_scalar_stack_config_values(tmp_path):
-    # Values are identifiers, names, regions - flat scalars only.
+    # Values are identifiers, names, regions - flat scalars only. None is
+    # NOT rejected: it is the deletion marker (issue #112).
     path = tmp_path / "config.json"
-    for bad in ({"nested": {"a": 1}}, {"listed": [1, 2]}, {"none": None}):
+    for bad in ({"nested": {"a": 1}}, {"listed": [1, 2]}):
         with pytest.raises(ValueError, match="stack_config"):
             config.save({"stack_config": {"grafana": bad}}, path)
     assert not path.exists()
+
+
+def test_save_null_key_deletes_it_and_the_last_deletion_leaves_the_entry(tmp_path):
+    # Issue #112: the tool surface must be able to remove what it wrote -
+    # hand-editing the file is exactly what it exists to make unnecessary.
+    path = tmp_path / "config.json"
+    config.save(
+        {"stack_config": {"azure-monitor": {"workspace": "guid-123", "tenant": "t1"}}},
+        path,
+    )
+
+    result = config.save({"stack_config": {"azure-monitor": {"workspace": None}}}, path)
+    assert result["stack_config"]["azure-monitor"] == {"tenant": "t1"}
+
+    result = config.save({"stack_config": {"azure-monitor": {"tenant": None}}}, path)
+    # Present-but-empty already reads as "not configured" - not an error.
+    assert result["stack_config"]["azure-monitor"] == {}
+
+
+def test_save_null_entry_removes_the_stack_entry(tmp_path):
+    path = tmp_path / "config.json"
+    config.save({"stack_config": {"azure-monitor": {"workspace": "guid-123"}}}, path)
+    config.save({"stack_config": {"cloudwatch": {"region": "eu-west-1"}}}, path)
+
+    result = config.save({"stack_config": {"azure-monitor": None}}, path)
+
+    assert result["stack_config"] == {"cloudwatch": {"region": "eu-west-1"}}
+    assert "azure-monitor" not in json.loads(path.read_text())["stack_config"]
+
+
+def test_save_mixes_deletion_and_set_in_one_write(tmp_path):
+    path = tmp_path / "config.json"
+    config.save({"stack_config": {"azure-monitor": {"workspace": "old"}}}, path)
+
+    result = config.save(
+        {"stack_config": {"azure-monitor": {"workspace": None, "tenant": "t1"}}},
+        path,
+    )
+
+    assert result["stack_config"]["azure-monitor"] == {"tenant": "t1"}
+
+
+def test_save_deletion_on_absent_targets_is_harmless(tmp_path):
+    # Deleting what does not exist must converge, not error: a null key on
+    # a missing entry leaves the present-but-empty entry, a null entry on
+    # nothing stays nothing.
+    path = tmp_path / "config.json"
+
+    result = config.save({"stack_config": {"datadog": None}}, path)
+    assert "datadog" not in result["stack_config"]
+
+    result = config.save({"stack_config": {"grafana": {"context": None}}}, path)
+    assert result["stack_config"]["grafana"] == {}
 
 
 def test_load_tolerates_broken_stack_config_and_flags_it(tmp_path):

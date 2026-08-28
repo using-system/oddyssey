@@ -12,32 +12,36 @@ container's only configuration lever. For example:
                             "ENABLE_LOGS_GRAFANA": "true"}}}
 ```
 
-What it records is **what was applied and should be reapplied on the
-next reset**. Environment reaches the container only at creation
-(`odd_stack_up` / `odd_stack_reset` `env`), so without a written-down
-copy the choice survives only as long as the container does; with one,
-the next reset can be given the same env deliberately instead of from
-memory. Writing it here applies nothing by itself — a `stack_config`
-write never boots or resets the container.
+What it records is **what was applied and is reapplied on every
+container creation**. `odd_stack_up` / `odd_stack_reset` maintain the
+entry themselves: a creation persists the explicit env it applied
+(merge), and every creation reapplies what is persisted here — explicit
+entries win on collision, and the winner is what ends up stored. So the
+choice survives recreations without anyone repeating it, and this entry
+usually needs no manual write at all. Writing it here still applies
+nothing by itself — a `stack_config` write never boots or resets the
+container; the write is for corrections, and `null` clears a variable
+(so the next creation stops applying it — see the skill's clearing
+contract).
 
 Values are flat scalars, so the env-var values are stored as the
 strings the container takes (`"true"`, `"debug"`,
 `"--storage.tsdb.retention.time=90d"`). Any variable whose value is a
 credential — `OTEL_EXPORTER_OTLP_HEADERS` for a dual-write to a remote
-backend is the one that matters — is **not** persisted here: record the
-variable name in the conversation and let the user pass its value to
-`odd_stack_up`/`odd_stack_reset` directly.
+backend is the one that matters — is **never** persisted here: the
+tools exclude credential-named variables on their own (the result's
+`env_not_persisted` names them) and this skill must not write one
+either. Record the variable name in the conversation and let the user
+pass its value to `odd_stack_up`/`odd_stack_reset` directly, at every
+recreation.
 
 ## Where each value comes from
 
-From the user's own env choices on `odd_stack_up` / `odd_stack_reset`.
-There is nothing to derive and nothing to query: the container's own
-environment is not the source of truth to copy back, it is the result of
-what the user asked for, and the point of persisting is to keep that ask
-after the container that holds it is gone. When
-`odd_config_set`'s auto-reset already carried variables forward, its
-`env_preserved` list names them — the names, never the values, so it
-tells you what to persist, not what to write.
+From the user's own env choices on `odd_stack_up` / `odd_stack_reset`,
+which persist them automatically at creation (the result's
+`env_persisted` names what was written, `env_reapplied` what came back
+from here). There is nothing to derive and nothing to query — a manual
+write only corrects or clears what the tools recorded.
 
 Host ports are **not** part of `stack_config.local`: they live in the
 configuration's own `local` block (`grafana_port`, `otlp_grpc_port`,
@@ -52,7 +56,8 @@ machine, its ports come from the configuration, and gcx is configured
 against it by `setup-local-stack`. An empty or missing
 `stack_config.local` is the normal state.
 
-Ask only when the user has just made an env choice worth keeping ("turn
-on Grafana's debug logs", "enable Tempo's MCP server"): confirm the
-variable and value, then persist. Do not go fishing through the env
-catalog for options to offer during a backend switch.
+Env choices need no persisting question at all — the tools record them
+at creation. Ask only for a correction or a clearing the user names
+("stop applying Grafana's debug logs": confirm the variable, then write
+it `null`). Do not go fishing through the env catalog for options to
+offer during a backend switch.

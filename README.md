@@ -265,12 +265,12 @@ than the local otel-lgtm container.
 
 | Tool | What it does | Params |
 | --- | --- | --- |
-| `odd_stack_up` | Start the local stack and wait until it is ready | `env` (optional) — container environment; applies at creation only |
+| `odd_stack_up` | Start the local stack and wait until it is ready | `env` (optional) — container environment; applies at creation only, is persisted in `stack_config.local` (credential-named variables excluded) and reapplied on every recreation |
 | `odd_stack_down` | Destroy it — stored telemetry does not survive | — |
 | `odd_stack_status` | Probe whether it is up | — |
-| `odd_stack_reset` | Wipe all stored telemetry and return a fresh, ready stack — the next run starts from a clean slate | `env` (optional) — always applies, the container is recreated |
+| `odd_stack_reset` | Wipe all stored telemetry and return a fresh, ready stack — the next run starts from a clean slate | `env` (optional) — always applies, the container is recreated; persisted/reapplied like `odd_stack_up` |
 | `odd_config_get` | Read the global configuration — stack backend and local host ports | — |
-| `odd_config_set` | Update it — a port change resets the stack so the new value applies right away | `config` — partial merge, e.g. `{"local": {"grafana_port": 3300}}` |
+| `odd_config_set` | Update it — a port change resets the stack so the new value applies right away | `config` — partial merge, e.g. `{"local": {"grafana_port": 3300}}`; inside `stack_config`, `null` deletes a key or a stack's entry |
 
 The server is instrumented with OpenTelemetry and, by default, exports its
 own traces and metrics to the local stack (`http://localhost:4318`, OTLP

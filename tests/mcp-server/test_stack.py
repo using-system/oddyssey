@@ -355,6 +355,111 @@ def test_stack_up_applies_env_when_it_creates_the_container(monkeypatch):
     assert result["env_applied"] is True
 
 
+def _create_container(monkeypatch) -> dict:
+    """Stub docker so stack_up hits its creation branch; capture run args."""
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(args, **kwargs):
+        captured["args"] = args
+
+        class Result:
+            returncode = 0
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(stack, "_container_state", lambda: "absent")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
+    monkeypatch.setattr(stack.subprocess, "run", fake_run)
+    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+    return captured
+
+
+def test_stack_up_persists_the_env_it_applies(monkeypatch):
+    # Issue #117: a creation-time env choice must survive later
+    # recreations - the applied env is written to stack_config.local.
+    _create_container(monkeypatch)
+
+    result = stack.stack_up(env={"GF_LOG_LEVEL": "debug"})
+
+    assert config.load()["stack_config"]["local"] == {"GF_LOG_LEVEL": "debug"}
+    assert result["env_persisted"] == ["GF_LOG_LEVEL"]
+
+
+def test_stack_up_reapplies_the_persisted_env_when_called_without_env(monkeypatch):
+    config.save({"stack_config": {"local": {"GF_LOG_LEVEL": "debug"}}})
+    captured = _create_container(monkeypatch)
+
+    result = stack.stack_up()
+
+    assert "GF_LOG_LEVEL=debug" in _env_entries(captured["args"])
+    assert result["env_reapplied"] == ["GF_LOG_LEVEL"]
+    assert "env_applied" not in result
+
+
+def test_stack_up_explicit_env_wins_over_the_persisted_one(monkeypatch):
+    config.save({"stack_config": {"local": {"GF_LOG_LEVEL": "info", "OBI": "on"}}})
+    captured = _create_container(monkeypatch)
+
+    result = stack.stack_up(env={"GF_LOG_LEVEL": "debug"})
+
+    entries = _env_entries(captured["args"])
+    assert entries.count("GF_LOG_LEVEL=debug") == 1
+    assert "GF_LOG_LEVEL=info" not in entries
+    # Non-colliding persisted entries still apply alongside.
+    assert "OBI=on" in entries
+    # The explicit value is what stack_config.local now holds.
+    assert config.load()["stack_config"]["local"]["GF_LOG_LEVEL"] == "debug"
+    assert result["env_persisted"] == ["GF_LOG_LEVEL"]
+
+
+def test_stack_up_never_persists_credential_named_env(monkeypatch):
+    # Applied to the container, excluded from the configuration: the
+    # stored contract holds no secret, and the caller is told what to
+    # repeat on the next recreation.
+    captured = _create_container(monkeypatch)
+
+    result = stack.stack_up(
+        env={"OTEL_EXPORTER_OTLP_HEADERS": "authorization=Bearer x", "OBI": "on"}
+    )
+
+    assert "OTEL_EXPORTER_OTLP_HEADERS=authorization=Bearer x" in _env_entries(
+        captured["args"]
+    )
+    assert config.load()["stack_config"]["local"] == {"OBI": "on"}
+    assert result["env_not_persisted"] == ["OTEL_EXPORTER_OTLP_HEADERS"]
+    assert result["env_persisted"] == ["OBI"]
+
+
+def test_stack_up_does_not_persist_env_it_did_not_apply(monkeypatch):
+    # An existing container means env_applied: false - persisting it
+    # would make the configuration diverge from the live container.
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
+    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+
+    result = stack.stack_up(env={"GF_LOG_LEVEL": "debug"})
+
+    assert result["env_applied"] is False
+    assert config.load()["stack_config"] == {}
+    assert "env_persisted" not in result
+
+
+def test_persisted_env_coerces_scalars_to_docker_strings():
+    # The stored contract holds flat scalars; docker takes strings.
+    config.save(
+        {"stack_config": {"local": {"OBI": True, "GF_PORT_QUOTA": 3, "OFF": False}}}
+    )
+
+    assert stack.persisted_env() == {
+        "OBI": "true",
+        "GF_PORT_QUOTA": "3",
+        "OFF": "false",
+    }
+
+
 def test_stack_up_reports_env_not_applied_on_a_stopped_container(monkeypatch):
     # docker start brings a stopped container up without applying env -
     # created must stay False on that path (e.g. after a host reboot).
