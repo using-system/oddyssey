@@ -25,7 +25,14 @@ the `.apm/` sources (no aspirational edges). Update the `README.md`
 too: its primitives table lists every component, and its MCP tools
 table the server's tool surface.
 
-## Label every issue
+## Title and label every issue
+
+GitHub issue titles follow the Conventional Commits form
+`type(scope): summary`, exactly like commit messages and PR titles —
+e.g. `feat(prompts): ...`, `fix(mcp): ...`, `fix(skill): ...`,
+`feat(actions): ...`, `fix(ci): ...`, `docs(readme): ...`,
+`docs(guide): ...`, `docs(agents): ...`. Pick the type and scope from
+the existing issue titles.
 
 When creating a GitHub issue, always set: a type label (`bug`,
 `enhancement`, `documentation`), a `priority: low|medium|high` label,
