@@ -1,10 +1,85 @@
 # AGENTS.md
 
+## Working conventions
+
+Never commit on the default branch: branch first, named
+`type/short-description` (`fix/stack-env-reset`, `docs/reports-guide`).
+Commit messages, PR titles, and issue titles all follow
+[Conventional Commits](https://www.conventionalcommits.org/) —
+`type(scope): lowercase imperative description`. The PR title becomes
+the squash commit and the release note, and drives the version
+(`feat:` → minor, `fix:`/others → patch): **never add a `!` or
+`BREAKING CHANGE` marker without discussing it first** — it triggers a
+major release. One logical change per PR. **Every PR references an
+existing issue** (`Closes #N` in the body) — no exceptions: the issue
+carries the problem and its discussion, the PR carries the change;
+open the issue first when none exists. The full contributor
+workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md); where this file
+and CONTRIBUTING.md speak of the same thing, they say the same thing.
+
+## English only
+
+Every committed artifact is written in English, whatever language the
+conversation uses: code identifiers, comments, docstrings, docs,
+commit messages, PR and issue text, labels, release notes. Translate
+user-provided content instead of copying it verbatim.
+
+## No secrets, anywhere
+
+Never write tokens, credentials, cookies, connection strings, or real
+endpoints into anything committed or published: code, tests,
+configuration, `.odd/` reports, issues, PR text. Refer to access
+material by variable or secret name only. Placeholder values must be
+obviously fake.
+
+## Run what CI runs before a PR
+
+Before opening or updating a PR, run the checks CI will run, scoped by
+the paths touched (commands and pins are owned by
+[CONTRIBUTING.md](CONTRIBUTING.md#building-and-testing);
+`.github/workflows/` is canonical if they ever disagree):
+
+- `src/mcp-server/`, `tests/`, or `integration-tests/` changed → CI
+  runs lint, unit, **and** integration unconditionally: unit tests
+  (`uv run --project src/mcp-server pytest -c src/mcp-server/pyproject.toml tests/mcp-server -v`),
+  lint/format at the CI-pinned ruff
+  (`uvx ruff@0.16.4 check` / `format --check` on `src/mcp-server tests/mcp-server`),
+  and the integration tests too when Docker is available
+  (`bash integration-tests/mcp-server/run.sh`).
+- `.apm/` or `apm.yml` changed → validate the package like CI does:
+  `uvx --from apm-cli==0.28.0 apm install --target claude && uvx --from apm-cli==0.28.0 apm audit`.
+
+A PR pushed red costs a review round-trip; run the checks first.
+
+## The MCP server's three hard constraints
+
+Owned by the
+[instrumentation spec](docs/superpowers/specs/2026-08-22-mcp-otel-instrumentation-design.md)
+§2 "Hard constraints" (failure semantics detailed in its §6) — the
+spec wins if this summary ever drifts:
+
+- **stdout is the JSON-RPC wire.** Nothing may ever print to stdout —
+  not a log line, not a stray byte.
+- **Telemetry never breaks a tool.** Export failure while the stack is
+  down is the normal state, never an error surfaced to the client.
+- **Tool registration must not change.** The exposed tool set is
+  frozen — the unit tests assert the exact tools.
+
+## The `.odd/` memory is append-only
+
+The committed reports under `.odd/` are the ODD loop's memory: never
+modify or delete a stored report — a new run writes a new file, and
+the diff lives in the new report. An `.odd/`-only change never counts
+as a fix. The formats and the rules a reviewer can enforce are in
+[docs/guide/reports.md](docs/guide/reports.md).
+
 ## Marketplace is generated — never edit it by hand
 
-`marketplace/` is a build artifact: the release workflow regenerates it
+`marketplace/`, `.claude-plugin/`, and `.agents/plugins/` are build
+artifacts: the release workflow regenerates them
 from `.apm/` via `scripts/build-marketplace.sh`. Author every change in
-`.apm/` (agents, skills, prompts) only, and leave `marketplace/` alone.
+`.apm/` (agents, skills, prompts) and `apm.yml` only, and leave the
+generated trees alone.
 
 ## Keep the prompts guide in sync
 

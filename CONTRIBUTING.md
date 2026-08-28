@@ -4,6 +4,18 @@ Thanks for helping build Observability-Driven Development for coding
 agents. This project is young and external feedback has already shaped
 it — issues, docs fixes, and code are all welcome.
 
+## Contributing with a coding agent
+
+This project is built for coding agents, and contributing through one
+is the expected path. Agents read [AGENTS.md](AGENTS.md) — it carries
+the working conventions (branching, Conventional Commits, the
+breaking-marker rule), the CI checks to run before a PR, the
+append-only `.odd/` rule, the generated-files list, and the
+English-only and no-secrets rules. Point your agent at the repo root
+so it picks the file up, and review what it produced before pushing:
+**you remain responsible for everything your agent commits, opens, or
+comments under your name.**
+
 ## The two-minute orientation
 
 The repo is an [APM](https://microsoft.github.io/apm/) package plus a
@@ -38,17 +50,22 @@ bash integration-tests/mcp-server/run.sh
 uvx --from apm-cli==0.28.0 apm install --target claude && uvx --from apm-cli==0.28.0 apm audit
 ```
 
-Two hard constraints on the MCP server (owned by the
+Three hard constraints on the MCP server (owned by the
 [instrumentation spec](docs/superpowers/specs/2026-08-22-mcp-otel-instrumentation-design.md)
-§2 — it wins if this summary ever drifts):
+§2 "Hard constraints", failure semantics detailed in its §6 — the
+spec wins if this summary ever drifts):
 
 - **stdout is the JSON-RPC wire.** Nothing may ever print to stdout.
-- **Telemetry never breaks a tool.** Export failure is the normal
-  state; bootstrap failure degrades to no telemetry, never to a dead
-  server.
+- **Telemetry never breaks a tool.** Export failure while the stack is
+  down is the normal state, never an error surfaced to the client.
+- **Tool registration must not change.** The exposed tool set is
+  frozen — the unit tests assert the exact tools.
 
 ## Pull requests
 
+- **Every PR references an existing issue** (`Closes #N` in the body)
+  — no exceptions. The issue carries the problem and its discussion,
+  the PR carries the change; open the issue first when none exists.
 - **The PR title IS the release note.** We squash-merge with the PR
   title as the commit message, and versions are computed from
   [Conventional Commits](https://www.conventionalcommits.org/):
@@ -57,8 +74,8 @@ Two hard constraints on the MCP server (owned by the
 - **Never add a `!` or `BREAKING CHANGE` marker** without discussing it
   in the PR first — it triggers a major release.
 - CI must be green: the 8-target APM matrix runs on every PR; the
-  server's lint/unit/integration jobs run when `src/` or `tests/`
-  change.
+  server's lint, unit, and integration jobs all run when `src/`,
+  `tests/`, or `integration-tests/` change.
 - Keep one logical change per PR, and match the surrounding style —
   the agent/skill markdown files are executable contracts, so wording
   changes there are behavior changes.
@@ -68,6 +85,17 @@ Two hard constraints on the MCP server (owned by the
 Use the issue forms (bug / feature) — the bug form's fields, including
 its confirmed-vs-observed status, ARE the house style. Questions belong
 in [Discussions](https://github.com/using-system/oddyssey/discussions).
+
+## Security
+
+Vulnerabilities go through
+[private reporting](https://github.com/using-system/oddyssey/security/advisories/new)
+— never a public issue; scope and expectations are in
+[SECURITY.md](SECURITY.md). And because this repo asks you to commit
+observation reports: `.odd/` reports in a PR must honor the no-secrets
+rule — no tokens, credentials, or real endpoints, access material by
+name only. The full set of rules a reviewer holds a report to is in
+[docs/guide/reports.md](docs/guide/reports.md#what-a-reviewer-can-hold-a-report-to).
 
 ## Trying your changes end to end
 
