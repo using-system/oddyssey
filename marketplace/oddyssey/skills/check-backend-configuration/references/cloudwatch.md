@@ -43,4 +43,5 @@ run the login for the user, never echo an access key.
 ## Change-request phrasing
 
 - "persist log group <name> for cloudwatch"
+- "clear the log group for cloudwatch"
 - "change backend to cloudwatch"

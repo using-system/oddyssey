@@ -22,7 +22,12 @@ the observation report is the only durable artifact. To configure the
 container, pass `env` to `odd_stack_up`/`odd_stack_reset`; env (like the
 embedded defaults, e.g. delta-metric ingestion) applies at container
 creation only, so a container predating the current oddyssey version
-keeps its old definition until its next reset. The catalog of the
+keeps its old definition until its next reset. An applied env is
+persisted into the global configuration's `stack_config.local` and
+reapplied on every later recreation, so it survives resets without being
+repeated — except credential-named variables (headers, tokens, ...),
+which are applied but never persisted (the result's `env_not_persisted`
+names them): pass those again on every recreation. The catalog of the
 image's variables — per-component debug logs, backend tuning, OTLP
 forwarding to a remote backend, OBI, `GF_*` — is
 [`references/otel-lgtm-env.md`](references/otel-lgtm-env.md), aligned on

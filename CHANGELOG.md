@@ -1,3 +1,14 @@
+## [1.7.3] - 2026-08-28
+
+### 🐛 Bug Fixes
+
+- *(mcp)* Stack env survives recreations and stack_config gains null deletion (#127)
+
+### 📚 Documentation
+
+- *(agents)* AGENTS.md as the single instruction file - CLAUDE.md becomes an @import bridge (#125)
+- *(guide)* Split the dependency map into per-prompt diagrams for readability (#126)
+- *(readme)* State the minimum apm-cli version and why the pin matters (#128)
 ## [1.7.2] - 2026-08-26
 
 ### 🐛 Bug Fixes
