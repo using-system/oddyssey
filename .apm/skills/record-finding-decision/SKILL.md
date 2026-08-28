@@ -56,10 +56,11 @@ One row per decision:
    gives only an ID ("wontfix F4"), list
    `.odd/observe-run-reports/` and find which reports' ranked-findings
    tables carry it, reading **bodies only for candidates whose
-   frontmatter matches** any service or stack the caller named — the
-   frontmatter is what keeps this from becoming a full-corpus read. More
-   than one match is a question, never a guess: list the matching
-   filenames with the finding's title from each and **ask** which one.
+   frontmatter matches** any service, stack, or environment the caller
+   named — the frontmatter is what keeps this from becoming a
+   full-corpus read. More than one match is a question, never a guess:
+   list the matching filenames with the finding's title from each and
+   **ask** which one.
 2. **Require a rationale.** A decision without one is not recordable:
    the ledger's whole value is that a future reader learns *why* a
    finding stopped counting as open, and "wontfix" alone teaches
@@ -69,10 +70,11 @@ One row per decision:
    is absent (create `.odd/` too if needed), then append one row —
    today's UTC date, the resolved `<filename> / <ID>`, the verdict, the
    rationale on one line. Never reflow or re-sort the existing rows.
-4. **A reversal is a new row**, with the new verdict (e.g. `open`) and
-   its own rationale — never delete or rewrite the superseded row. The
-   latest row for a finding wins, and the history of the decision stays
-   readable, exactly like the reports this ledger complements.
+4. **A reversal is a new row**, with the verdict `open` — the one
+   verdict the status recognizes as reopening — and its own rationale;
+   never delete or rewrite the superseded row. The latest row for a
+   finding wins, and the history of the decision stays readable,
+   exactly like the reports this ledger complements.
 
 ## Rules
 

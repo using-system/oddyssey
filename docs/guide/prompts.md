@@ -133,7 +133,8 @@ name(s)**, a **stack**, and/or a **deployment environment** to
 restrict the status to - or to a **decision on a finding** (declining
 it, or reversing that decision).
 
-The prompt routes between two skills and adds no rule of its own:
+The prompt routes between two skills and adds no rendering or
+recording rule of its own:
 `get-status` renders the status - it owns the sources (both `.odd/`
 report stores, git, and the decisions ledger), the build order, what a
 filter matching nothing produces, and the graceful degradation;

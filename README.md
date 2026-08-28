@@ -209,7 +209,7 @@ reports; that file is committed on its own, and the reports themselves
 are never edited. The status then re-renders the finding as
 **declined**, with its verdict, date, and rationale, counted apart from
 the fixed ones. Reversing a decision (`/odd-status reopen F4: ...`) is
-a new row, so the history of the call stays readable.
+a new row, so the history of the decision stays readable.
 
 More invocation examples for every prompt live in
 [docs/guide/prompts.md](docs/guide/prompts.md).
