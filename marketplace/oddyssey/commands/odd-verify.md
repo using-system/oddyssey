@@ -26,11 +26,21 @@ Resolve the report first:
   alone — ask which report is being verified before proceeding. If
   neither directory has a report, stop and say there is nothing to
   verify.
-- When the resolved report is itself a verification (`mode: verify`,
-  a `verifies` frontmatter field): follow `verifies` to the original
-  report — observation or instrumentation — and verify against that one
-  — a verify run always replays the report whose protocol was recorded,
-  never a previous verification. When the resolved report is a verification by name or
+- When the resolved report is itself a verification or a re-measure
+  (`mode: verify` or `mode: re-measure`, a `verifies` frontmatter
+  field): follow `verifies` **exactly one hop** — the report it names
+  is the protocol source and the baseline to verify against. That
+  report is usually the original observation or instrumentation
+  report; it may itself be a verification whose own §7 measurement
+  protocol was the one replayed — then that verification is the
+  baseline, and the new report's `verifies` names it. Never chase the
+  chain further: the reference always names the protocol's actual
+  source, one hop away. One carve-out: when the caller explicitly
+  targets a verification report's **own** §7 protocol, there is no
+  hop — that verification is the baseline, and the new report's
+  `verifies` names it (this is how the first `verifies: <verification>`
+  reference comes to exist).
+  When the resolved report is a verification by name or
   prose only (a pre-convention report with no `verifies` field), do not
   guess the original: ask the user to name the observation report to
   verify against before proceeding.
@@ -49,7 +59,10 @@ what is missing before dispatching.
 Then build the mission block from that report:
 
 - services and stack come from its frontmatter; mode is drive when the
-  report records a scenario to replay, otherwise the frontmatter's mode.
+  report records a scenario to replay, otherwise the frontmatter's mode
+  — and when the baseline is itself a verification (its frontmatter
+  says `verify`, which is no execution mode), the execution mode of
+  the report **its** `verifies` names.
   For an **instrumentation report** the frontmatter has no `services` or
   `mode`: the services are the ones its per-service plan names (summary
   table), the stack is its frontmatter's `stack` all the same, and the
@@ -77,7 +90,23 @@ Then build the mission block from that report:
   frontmatter. The deliverable is an observation report in
   `.odd/observe-run-reports/` whatever the baseline's kind — the path
   shape is what says the baseline lives outside the observation
-  directory;
+  directory. **Unless the replay tests no fix**: when the observed
+  repo's code is unchanged since the baseline's `revision` — no
+  commits beyond `.odd/` and documentation AND a clean working tree
+  (uncommitted changes beyond `.odd/` and documentation are changed
+  code) — the mission is a
+  **re-measure**, not a verification: same replay, but the agent
+  persists `YYYY-MM-DD-HHmm-remeasure-<run_name>.md` with
+  `mode: re-measure` and the same `verifies` field — calling it a
+  verification would fabricate a fix that never existed. Check before
+  dispatching; in a squash-merge history compare trees, not ancestry,
+  and when the baseline carries no `revision`, its commit date is the
+  substitute boundary (the same rule `/odd-status` applies). When the
+  check is still undecidable, or its outcome contradicts how the
+  caller framed the mission — they asked to *verify* but nothing
+  changed, or they said *re-measure* but commits landed — say so and
+  ask which of the two the mission is, never silently reclassify. Say
+  which one it is in the mission block;
 - focus, **instrumentation baseline**: not before/after measurements
   but **presence rulings**. For every item the report's verification
   protocol and per-service plan recorded - planned spans searchable per
