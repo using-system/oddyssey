@@ -16,11 +16,16 @@ Contract reminders (they apply to every variable below):
   is merged in; a user entry with the same key **overrides** it (dropping
   delta-metric ingestion — CLI coding agents' `claude_code.*` metrics
   need it, so extend rather than replace);
-- once applied, env is **sticky**: `odd_config_set`'s auto-reset carries
-  it forward (`env_preserved`, key names only) until a bare
-  `odd_stack_reset` clears it;
+- once applied, env is **sticky**: it is persisted into the global
+  configuration's `stack_config.local` and reapplied on every
+  recreation (a bare `odd_stack_reset` keeps it); stop applying a
+  variable by clearing it with `odd_config_set`'s null deletion.
+  `odd_config_set`'s auto-reset additionally carries the live
+  container's env forward (`env_preserved`, key names only);
 - values may hold secrets (`OTEL_EXPORTER_OTLP_HEADERS`): refer to them
-  by name in reports, never quote values.
+  by name in reports, never quote values — credential-named variables
+  are applied but never persisted (`env_not_persisted` in the result),
+  so pass them again on every recreation.
 
 ## Per-component debug logs — `ENABLE_LOGS_*`
 

@@ -311,7 +311,7 @@ def _trace_reset(monkeypatch, state: str, up=None) -> tuple[list[str], dict]:
     monkeypatch.setattr(
         stack,
         "stack_up",
-        up or (lambda env=None: calls.append("stack_up") or UP_RESULT),
+        up or (lambda env=None, **kwargs: calls.append("stack_up") or UP_RESULT),
     )
     return calls, stack.stack_reset()
 
@@ -353,6 +353,175 @@ def test_stack_up_applies_env_when_it_creates_the_container(monkeypatch):
 
     assert "GF_LOG_LEVEL=debug" in _env_entries(captured["args"])
     assert result["env_applied"] is True
+
+
+def _create_container(monkeypatch) -> dict:
+    """Stub docker so stack_up hits its creation branch; capture run args."""
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(args, **kwargs):
+        captured["args"] = args
+
+        class Result:
+            returncode = 0
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(stack, "_container_state", lambda: "absent")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
+    monkeypatch.setattr(stack.subprocess, "run", fake_run)
+    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+    return captured
+
+
+def test_stack_up_persists_the_env_it_applies(monkeypatch):
+    # Issue #117: a creation-time env choice must survive later
+    # recreations - the applied env is written to stack_config.local.
+    _create_container(monkeypatch)
+
+    result = stack.stack_up(env={"GF_LOG_LEVEL": "debug"})
+
+    assert config.load()["stack_config"]["local"] == {"GF_LOG_LEVEL": "debug"}
+    assert result["env_persisted"] == ["GF_LOG_LEVEL"]
+
+
+def test_stack_up_reapplies_the_persisted_env_when_called_without_env(monkeypatch):
+    config.save({"stack_config": {"local": {"GF_LOG_LEVEL": "debug"}}})
+    captured = _create_container(monkeypatch)
+
+    result = stack.stack_up()
+
+    assert "GF_LOG_LEVEL=debug" in _env_entries(captured["args"])
+    assert result["env_reapplied"] == ["GF_LOG_LEVEL"]
+    assert "env_applied" not in result
+
+
+def test_stack_up_explicit_env_wins_over_the_persisted_one(monkeypatch):
+    config.save({"stack_config": {"local": {"GF_LOG_LEVEL": "info", "OBI": "on"}}})
+    captured = _create_container(monkeypatch)
+
+    result = stack.stack_up(env={"GF_LOG_LEVEL": "debug"})
+
+    entries = _env_entries(captured["args"])
+    assert entries.count("GF_LOG_LEVEL=debug") == 1
+    assert "GF_LOG_LEVEL=info" not in entries
+    # Non-colliding persisted entries still apply alongside.
+    assert "OBI=on" in entries
+    # The explicit value is what stack_config.local now holds.
+    assert config.load()["stack_config"]["local"]["GF_LOG_LEVEL"] == "debug"
+    assert result["env_persisted"] == ["GF_LOG_LEVEL"]
+    # The overridden name came from env, not from the configuration:
+    # only the untouched persisted entry is reported as reapplied.
+    assert result["env_reapplied"] == ["OBI"]
+
+
+def test_stack_up_never_persists_credential_named_env(monkeypatch):
+    # Applied to the container, excluded from the configuration: the
+    # stored contract holds no secret, and the caller is told what to
+    # repeat on the next recreation.
+    captured = _create_container(monkeypatch)
+
+    result = stack.stack_up(
+        env={"OTEL_EXPORTER_OTLP_HEADERS": "authorization=Bearer x", "OBI": "on"}
+    )
+
+    assert "OTEL_EXPORTER_OTLP_HEADERS=authorization=Bearer x" in _env_entries(
+        captured["args"]
+    )
+    assert config.load()["stack_config"]["local"] == {"OBI": "on"}
+    assert result["env_not_persisted"] == ["OTEL_EXPORTER_OTLP_HEADERS"]
+    assert result["env_persisted"] == ["OBI"]
+
+
+def test_stack_up_never_persists_an_api_key_named_env(monkeypatch):
+    # The credential heuristic covers API keys too: applied to the
+    # container, kept out of the configuration.
+    captured = _create_container(monkeypatch)
+
+    result = stack.stack_up(env={"MY_BACKEND_API_KEY": "s3cr3t", "OBI": "on"})
+
+    assert "MY_BACKEND_API_KEY=s3cr3t" in _env_entries(captured["args"])
+    assert config.load()["stack_config"]["local"] == {"OBI": "on"}
+    assert result["env_not_persisted"] == ["MY_BACKEND_API_KEY"]
+
+
+def test_stack_up_reports_env_it_could_not_persist(monkeypatch):
+    # The container already took the env when the write fails: the
+    # result must not claim a persistence that never happened, or the
+    # caller drops the variable from the next recreation.
+    _create_container(monkeypatch)
+
+    def failing_save(partial):
+        raise OSError("read-only configuration")
+
+    monkeypatch.setattr(stack.config, "save", failing_save)
+
+    result = stack.stack_up(env={"GF_LOG_LEVEL": "debug", "OBI": "on"})
+
+    assert result["env_not_persisted"] == ["GF_LOG_LEVEL", "OBI"]
+    assert "env_persisted" not in result
+
+
+def test_stack_up_without_persist_applies_env_but_stores_nothing(monkeypatch):
+    # The odd_config_set auto-reset path: the live env is carried onto
+    # the new container without being written back to the configuration,
+    # so a just-deleted variable is not resurrected.
+    captured = _create_container(monkeypatch)
+
+    result = stack.stack_up(env={"GF_LOG_LEVEL": "debug"}, persist=False)
+
+    assert "GF_LOG_LEVEL=debug" in _env_entries(captured["args"])
+    assert result["env_applied"] is True
+    assert config.load()["stack_config"] == {}
+    assert "env_persisted" not in result
+    assert "env_not_persisted" not in result
+
+
+def test_stack_reset_passes_persist_through_to_the_creation(monkeypatch):
+    captured: dict = {}
+
+    def fake_up(env=None, *, persist=True):
+        captured["persist"] = persist
+        return {"running": True}
+
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "stored_services", list)
+    monkeypatch.setattr(stack, "stack_down", lambda flush=True: {"running": False})
+    monkeypatch.setattr(stack, "stack_up", fake_up)
+
+    stack.stack_reset({"GF_LOG_LEVEL": "debug"}, persist=False)
+
+    assert captured["persist"] is False
+
+
+def test_stack_up_does_not_persist_env_it_did_not_apply(monkeypatch):
+    # An existing container means env_applied: false - persisting it
+    # would make the configuration diverge from the live container.
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
+    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+
+    result = stack.stack_up(env={"GF_LOG_LEVEL": "debug"})
+
+    assert result["env_applied"] is False
+    assert config.load()["stack_config"] == {}
+    assert "env_persisted" not in result
+
+
+def test_persisted_env_coerces_scalars_to_docker_strings():
+    # The stored contract holds flat scalars; docker takes strings.
+    config.save(
+        {"stack_config": {"local": {"OBI": True, "GF_PORT_QUOTA": 3, "OFF": False}}}
+    )
+
+    assert stack.persisted_env() == {
+        "OBI": "true",
+        "GF_PORT_QUOTA": "3",
+        "OFF": "false",
+    }
 
 
 def test_stack_up_reports_env_not_applied_on_a_stopped_container(monkeypatch):
@@ -421,7 +590,7 @@ def test_stack_reset_passes_env_to_the_new_container(monkeypatch):
     monkeypatch.setattr(stack, "stored_services", list)
     monkeypatch.setattr(stack, "stack_down", lambda flush=True: {"running": False})
 
-    def fake_up(env=None):
+    def fake_up(env=None, **kwargs):
         seen["env"] = env
         return {**UP_RESULT, "env_applied": env is not None}
 
@@ -458,7 +627,7 @@ def test_stack_reset_still_wipes_a_stopped_container_that_cannot_boot(monkeypatc
     # boot fails, the wipe must proceed rather than error out.
     boots: list[int] = []
 
-    def up(env=None):
+    def up(env=None, **kwargs):
         boots.append(1)
         if len(boots) == 1:
             raise RuntimeError("container will not start")
@@ -662,7 +831,7 @@ def test_stack_reset_defers_the_flush_to_the_recreated_store(monkeypatch):
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
     monkeypatch.setattr(stack, "stored_services", list)
     monkeypatch.setattr(stack, "_docker", lambda *args: _Proc())
-    monkeypatch.setattr(stack, "stack_up", lambda env=None: {"running": True})
+    monkeypatch.setattr(stack, "stack_up", lambda env=None, **kwargs: {"running": True})
 
     stack.stack_reset()
 
