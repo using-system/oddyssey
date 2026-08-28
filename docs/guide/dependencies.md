@@ -19,7 +19,8 @@ dependencies - the diagram named in the prose expands it.
 - **Layers**: prompts (user entry points) - agents (dispatched
   missions) - skills (reusable contracts) - MCP tools (the oddyssey
   server piloting the local stack and the global configuration) -
-  stores (the committed `.odd/` report directories).
+  stores (the committed `.odd/` report directories, plus the findings
+  decision ledger `.odd/decisions.md`).
 - **Edges**: solid `-->` = dispatch or direct invocation; dashed
   `-.->` = routing or contract reference (one component hands over to
   or follows another's rules); dotted with label = recommendation or
@@ -233,8 +234,16 @@ flowchart LR
 
 ## /odd-status
 
-Dispatches nothing: it reads the stores and git in the main
-conversation, read-only, and recommends the next loop step. The two
+Dispatches no agent: a thin router over two skills, both running in
+the main conversation. `get-status` renders - it reads both stores,
+git, and the decisions ledger, read-only, and recommends the next loop
+step. `record-finding-decision` runs only when the user asks for a
+decision on a finding (in the arguments or as a follow-up): it resolves
+the reference against the observation reports, appends a row to
+`.odd/decisions.md`, commits that file alone, and the prompt then
+re-renders through `get-status`. Neither skill invokes another
+component; `get-status` reads the ledger through the format contract
+`record-finding-decision` owns, but never calls it. The two
 recommended prompts are boundary nodes - their paths are their own
 diagrams.
 
@@ -246,20 +255,35 @@ flowchart LR
     observe["/odd-observe"]
   end
 
+  subgraph Skills
+    gs[get-status]
+    rfd[record-finding-decision]
+  end
+
   subgraph Stores[".odd/ stores"]
     obsdir[observe-run-reports/]
     insdir[otel-instrumentation-reports/]
+    dec[decisions.md]
   end
 
-  status --> obsdir
-  status --> insdir
-  status -. recommends .-> instrument
-  status -. recommends .-> observe
+  status --> gs
+  status -.-> rfd
+
+  gs --> obsdir
+  gs --> insdir
+  gs --> dec
+  gs -. recommends .-> instrument
+  gs -. recommends .-> observe
+
+  rfd --> obsdir
+  rfd --> dec
 
   classDef prompt fill:#e8f0fe,stroke:#4285f4
+  classDef skill fill:#e6f4ea,stroke:#34a853
   classDef store fill:#f3e8fd,stroke:#a142f4
   class status,instrument,observe prompt
-  class obsdir,insdir store
+  class gs,rfd skill
+  class obsdir,insdir,dec store
 ```
 
 ## /odd-config
@@ -322,10 +346,13 @@ resolves the baseline report across both `.odd/` stores, preflights
 against the report's `stack` (never silently retargeting the
 configured one), and mandates `create-observe-run-report`'s
 verification rules for the report its agent will persist.
-`/odd-status` dispatches nothing: it reads the stores and git in the
-main conversation, read-only. `/odd-config` composes two skills -
-display through `check-backend-configuration`, and the backend switch
-routed to `update-backend-configuration` when the user picks one.
+`/odd-status` dispatches no agent: it is a thin router over two skills
+running in the main conversation - `get-status` for the render, and
+`record-finding-decision` when, and only when, the user asks for a
+decision on a finding, followed by a re-render. `/odd-config` composes
+two skills - display through `check-backend-configuration`, and the
+backend switch routed to `update-backend-configuration` when the user
+picks one.
 
 ## Agents
 
@@ -354,7 +381,16 @@ the local-stack case to `setup-local-stack`, which reads the effective
 ports from `odd_config_get`. `run-scenario` orders the clean-base
 sequence around `odd_stack_reset`. The two report skills own the
 stores: naming, frontmatter contracts, recall - everything else goes
-through them rather than touching `.odd/` directly.
+through them rather than touching `.odd/` directly. `get-status` owns
+the status surface - its sources (both stores, git, the decisions
+ledger), the build order, the empty-filter answer, the degradation -
+and invokes no other component: it only reads.
+`record-finding-decision` owns `.odd/decisions.md` - the row format,
+the resolution of a finding reference to `<report filename> / <finding
+ID>`, and the commit of that file alone; it reads the observation
+reports to resolve the reference, never edits one, and invokes no
+other component either. `get-status` follows that ledger contract when
+it reads the file, without calling the skill.
 
 ## MCP tools
 
@@ -378,7 +414,7 @@ access goes through the tools.
 ```mermaid
 flowchart LR
   P[5 prompts] --> A[2 agents]
-  P --> S[8 skills]
+  P --> S[10 skills]
   A --> S
   P --> M[MCP tools]
   A --> M
