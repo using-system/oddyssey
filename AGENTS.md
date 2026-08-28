@@ -29,7 +29,7 @@ table the server's tool surface.
 
 GitHub issue titles follow the Conventional Commits form
 `type(scope): summary`, exactly like commit messages and PR titles —
-e.g. `feat(prompts): ...`, `fix(mcp): ...`, `docs(skill): ...`. Pick
+e.g. `feat(prompts): ...`, `fix(mcp): ...`, `docs(readme): ...`. Pick
 the type and scope from the existing issue titles.
 
 When creating a GitHub issue, always set: a type label (`bug`,
