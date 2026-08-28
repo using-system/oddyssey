@@ -128,16 +128,58 @@ report is picked.
 ## /odd-status
 
 Answers "where is the loop?" from the committed `.odd/` history and
-git alone - read-only, no backend queries. Free-form arguments map to:
-**service name(s)**, a **stack**, and/or a **deployment environment**
-to restrict the status to.
+git alone - no backend queries. Free-form arguments map to: **service
+name(s)**, a **stack**, and/or a **deployment environment** to
+restrict the status to - or to a **decision on a finding** (declining
+it, or reversing that decision).
+
+The prompt routes between two skills and adds no rendering or
+recording rule of its own:
+`get-status` renders the status - it owns the sources (both `.odd/`
+report stores, git, and the decisions ledger), the build order, what a
+filter matching nothing produces, and the graceful degradation;
+`record-finding-decision` records a decision - it owns resolving the
+finding reference, the ledger's format, and the commit.
 
 ```text
 /odd-status
 /odd-status where is the loop for my service checkout
 /odd-status what was observed on prod for my service checkout
 /odd-status status of the local stack runs only
+/odd-status status for the service checkout-api on prod
+/odd-status wontfix F4 of my last checkout report - port-move is rare, 14.5s accepted
 ```
+
+- no arguments - the whole picture, not an empty scope: every stored
+  report qualifies;
+- "for my service checkout" / "on prod" / "the local stack runs" - the
+  scope filters (service, deployment environment, stack), kept
+  distinct from each other;
+- "the service checkout-api on prod" - a filter matching nothing is
+  still a status, never an error: the answer names **what was
+  searched** (each filter and its value) and **what exists instead**
+  (the services, stacks, and environments the stored reports do
+  carry), so the next invocation can correct the scope in one turn.
+  Service names match exactly - a partial name misses rather than
+  being guessed into a match;
+- "wontfix F4 of my last checkout report - port-move is rare, 14.5s
+  accepted" - a decision request: the finding reference, the verdict,
+  and the rationale (required - one sentence, and no secrets). It
+  routes to `record-finding-decision`, which resolves the reference to
+  `<report filename> / <finding ID>`, asks back when the reference is
+  ambiguous or the rationale is missing, appends one row to
+  `.odd/decisions.md`, and commits that file alone. The status then
+  re-renders the finding, now **declined** - with its verdict,
+  decision date, and rationale in place of the open state, and counted
+  apart from the fixed ones in the burn-down;
+- a decision request may arrive in the arguments as above, or as a
+  follow-up once a status has been rendered ("decline F2: the endpoint
+  is deprecated"). A reversal is another decision request, with its
+  own rationale ("reopen F4: the port move now happens on every
+  deploy") - rows are appended, never rewritten, and the latest row
+  for a finding wins;
+- reports are read-only here: the prompt never writes or edits a
+  report, and the decisions ledger is its only write surface.
 
 ## /odd-config
 

@@ -188,6 +188,7 @@ body structure — are documented in
 /odd-status
 /odd-status where is the loop for my service XXX
 /odd-status what was observed on prod for my service XXX
+/odd-status wontfix F4 of my last XXX report - port-move is rare, 14.5s accepted
 ```
 
 Answers "where is the loop?" from the committed `.odd/` history and git
@@ -198,6 +199,17 @@ trends across runs from the stored numbers, telemetry gaps not yet
 closed, and a next recommended action (verify, observe, or rest) that
 cites its inputs. Optionally scope it to a service, a stack, or an
 environment: `/odd-status checkout on local`.
+
+It also **declines findings**: a finding no verification ever ruled on
+stays open forever, however deliberately you decided to live with it.
+Ask for the decision — in the arguments as above, or as a follow-up
+once the status is rendered — with a rationale, and it lands as one
+appended row in `.odd/decisions.md`, the committed ledger next to the
+reports; that file is committed on its own, and the reports themselves
+are never edited. The status then re-renders the finding as
+**declined**, with its verdict, date, and rationale, counted apart from
+the fixed ones. Reversing a decision (`/odd-status reopen F4: ...`) is
+a new row, so the history of the decision stays readable.
 
 More invocation examples for every prompt live in
 [docs/guide/prompts.md](docs/guide/prompts.md).
@@ -304,10 +316,12 @@ dropped — the normal state, and never a failure of the server.
 | [`run-scenario`](.apm/skills/run-scenario/SKILL.md) (skill) | Drive a reproducible request scenario against a local service and record it verbatim, so the same numbers are measurable before a fix and after it |
 | [`create-observe-run-report`](.apm/skills/create-observe-run-report/SKILL.md) (skill) | The ODD loop's memory: persist each observation report into the observed repo (`.odd/observe-run-reports/`) and recall the previous ones as the next run's baseline |
 | [`create-otel-instrumentation-report`](.apm/skills/create-otel-instrumentation-report/SKILL.md) (skill) | Same memory for the instrumentation side: persist each investigation into the investigated repo (`.odd/otel-instrumentation-reports/`) and recall it before the next one |
+| [`get-status`](.apm/skills/get-status/SKILL.md) (skill) | Render the state of the ODD loop from the committed `.odd/` history and git alone — per-service loop state, findings ledger, trends, open telemetry gaps, next recommended action — read-only, no backend query, no report written |
+| [`record-finding-decision`](.apm/skills/record-finding-decision/SKILL.md) (skill) | Record a maintainer decision on a finding — wontfix, or its reversal — into the committed ledger at `.odd/decisions.md`: the write that lets the status stop rendering a declined finding as open. Never edits a report |
 | [`/odd-observe`](.apm/prompts/odd-observe.prompt.md) (prompt) | Entry point: build a well-formed mission from your arguments and invoke the `observe-run` agent |
 | [`/odd-instrument`](.apm/prompts/odd-instrument.prompt.md) (prompt) | Entry point: point the `otel-instrumentation-expert` agent at a codebase |
 | [`/odd-verify`](.apm/prompts/odd-verify.prompt.md) (prompt) | Entry point: replay a stored report's protocol through the `observe-run` agent — a full observation report again, this time ruling on everything the previous one recorded: measurements, anomalies, telemetry gaps. A replay with no fix under test persists as a re-measure, not a verification |
-| [`/odd-status`](.apm/prompts/odd-status.prompt.md) (prompt) | Where is the loop? Per-service state, findings ledger, trends, open telemetry gaps, and the next recommended action — read from the `.odd/` history and git alone, no backend queries |
+| [`/odd-status`](.apm/prompts/odd-status.prompt.md) (prompt) | Where is the loop? Per-service state, findings ledger, trends, open telemetry gaps, and the next recommended action — read from the `.odd/` history and git alone, no backend queries — and record wontfix decisions on findings |
 | [`/odd-config`](.apm/prompts/odd-config.prompt.md) (prompt) | Show the configured backend — stack, targeted instance, connection proof — and guide a backend switch through the `update-backend-configuration` skill |
 
 The loop: **investigate** (agents) → **spec & implement** (the main
