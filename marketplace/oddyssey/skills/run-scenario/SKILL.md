@@ -119,8 +119,11 @@ Not reproducible: <auth token / seeded data / time-dependent input, or "none">
 Exact commands, exact counts, exact UTC start and end — the start/end pair
 is also the observation window for every query run against this scenario.
 The `Backend:` line records how the stack was (re)started, **including any
-`env`**: a replay must reproduce the backend and not only the requests — a
-bare reset silently drops configuration the run depends on.
+`env`**: a replay must reproduce the backend and not only the requests. A
+bare `odd_stack_reset` reapplies the env persisted in `stack_config.local`,
+so most of that configuration survives on its own; only credential-named
+variables — the ones the reset result lists under `env_not_persisted` — are
+never stored and must be passed again on the replay.
 
 ## 5. Wait for the flush
 

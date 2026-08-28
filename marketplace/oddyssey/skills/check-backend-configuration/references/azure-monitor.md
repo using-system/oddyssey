@@ -43,4 +43,5 @@ login'" message. Never run `az login` for the user: guide it.
 ## Change-request phrasing
 
 - "persist workspace <guid> for azure-monitor"
+- "clear the workspace for azure-monitor"
 - "change backend to azure-monitor"
