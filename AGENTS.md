@@ -25,6 +25,16 @@ the `.apm/` sources (no aspirational edges). Update the `README.md`
 too: its primitives table lists every component, and its MCP tools
 table the server's tool surface.
 
+## Keep the reports guide in sync
+
+`docs/guide/reports.md` documents the `.odd/` report formats:
+filename conventions, frontmatter fields and values, and body
+structure for both report kinds. Update it in the same change whenever
+the file contracts of `create-observe-run-report` or
+`create-otel-instrumentation-report`, or the report sections of the
+`observe-run` or `otel-instrumentation-expert` agents, change — the
+guide documents those contracts and must never lag them.
+
 ## Title and label every issue
 
 GitHub issue titles follow the Conventional Commits form

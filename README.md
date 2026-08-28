@@ -175,7 +175,10 @@ configuration too:
 ```
 
 And the loop starts again: an SDD wave from the remote observation, a
-local observe, a verify — and on it goes.
+local observe, a verify — and on it goes. Every step left a committed
+report in `.odd/`; their formats — frontmatter fields, allowed values,
+body structure — are documented in
+[docs/guide/reports.md](docs/guide/reports.md).
 
 ### Miscellaneous prompts
 
