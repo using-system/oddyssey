@@ -44,10 +44,9 @@ doubt, record the number.
   report **whose protocol is replayed**: re-verifying replays the
   original report's protocol again, so the new report references the
   original report. A verification report is a legal reference only
-  when its own updated protocol ("measurement protocol for the next
-  run") — not the original's — is the one replayed: the reference
-  names the protocol's actual source, never a report the run did not
-  replay.
+  when its own §7 measurement protocol — not the original's — is the
+  one replayed: the reference names the protocol's actual source,
+  never a report the run did not replay.
 - A **re-measure run** — a run that replays a stored report's protocol
   verbatim while testing no fix (same code, drift or stability check)
   — names its file `YYYY-MM-DD-HHmm-remeasure-<run_name>.md`: the same

@@ -71,8 +71,8 @@ Build the status in this order:
    and `workload`: p50/p95/p99 and error rate across runs - improved /
    regressed / stable, with the stored numbers. Comparability is
    stricter than the frontmatter: reports whose `workload` differs
-   are incomparable, and for drive-mode reports (and verifications
-   replaying one) so are runs whose
+   are incomparable, and for drive-mode reports (and verifications or
+   re-measures replaying one) so are runs whose
    recorded scenario or process identity (`instance`,
    `process_restarted`) differ - a driven session and a
    process-per-call run measure different things whatever the
