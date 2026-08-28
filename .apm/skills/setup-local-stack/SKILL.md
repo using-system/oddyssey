@@ -42,8 +42,11 @@ survive it. Bring it up with the oddyssey MCP tools (`odd_stack_status`,
 ## Configure an isolated context
 
 Never edit the user's own gcx configuration. Point `GCX_CONFIG` at a
-**stable per-session path** — stable so the file is written once and reused,
-isolated so the user's contexts stay untouched:
+**stable per-session path** — stable so the file is written once and
+reused while the configured ports stay the same, isolated so the
+user's contexts stay untouched. Read the effective `grafana_url` from
+`odd_config_get` (or `odd_stack_up`'s result) **before** writing the
+file, and put that URL — not the default — on the `server:` line:
 
 ```bash
 export GCX_CONFIG="${TMPDIR:-/tmp}/oddyssey/gcx-local.yaml"
@@ -53,7 +56,7 @@ current-context: local
 contexts:
   local:
     grafana:
-      server: http://localhost:3000   # odd_stack_up's grafana_url - default shown
+      server: http://localhost:3000   # the configured grafana_url (odd_config_get) - never assume this default
       user: admin
       password: admin
       org-id: 1
@@ -65,12 +68,29 @@ EOF
 gcx config check
 ```
 
+**A port change invalidates the whole file — regenerate it, never
+edit it in place.** gcx binds each stored credential to a keychain
+entry keyed by the config source and destination: after the
+configured ports change (`odd_config_set`), patching the `server:`
+line leaves the credential bound to the old destination and gcx
+rejects it before any network use:
+`Configured credential "stack:local" field "grafana-password" was
+rejected before network use: the keychain reference does not match
+this config source, owner, field, and destination` — and the
+suggested re-authenticate is a dead end on this anonymous stack.
+Delete the file and rewrite it whole from the block above with the
+new `grafana_url`: the fresh inline credential creates a new binding,
+and `gcx config check` passes on the new port (verified in both
+directions, 3000 → 3001 → 3000).
+
 The four `default-*-datasource` entries make the `-d` flag unnecessary; the
 commands below keep it for explicitness, but it can be dropped.
 
 Each shell invocation starts fresh, so `export GCX_CONFIG=...` again in every
 command block (or prefix the command with it) — the file itself persists, so
-the write and `gcx config check` happen only once per session. If gcx
+the write and `gcx config check` happen only once per session — unless
+the configured ports change, which invalidates the file (above) and
+forces a full rewrite. If gcx
 itself is missing, install it (`brew install gcx`, or the official install
 script from https://github.com/grafana/gcx); for this stack the block above is
 the whole setup.
