@@ -1,6 +1,6 @@
 {
   "name": "oddyssey",
-  "version": "1.7.3",
+  "version": "1.8.0",
   "description": "Observability-Driven Development for CLI coding agents",
   "license": "MIT"
 }

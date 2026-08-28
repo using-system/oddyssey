@@ -1,3 +1,21 @@
+## [1.8.0] - 2026-08-28
+
+### 🚀 Features
+
+- *(prompts)* /odd-status wontfix ledger - record finding decisions via skills, stop showing declined findings as open (#141)
+
+### 🐛 Bug Fixes
+
+- *(skill)* Re-measure report mode - a no-fix protocol replay keeps a machine-readable chain (#133)
+- *(skill)* Regenerate the isolated gcx context whole after a port change - in-place edits break the keychain credential binding (#139)
+- *(skill)* Datadog connection proof parses pup output - the exit code is 0 authenticated or not (#140)
+
+### 📚 Documentation
+
+- *(changelog)* Backtick @import so it stops rendering as a user mention (#130)
+- *(agents)* Issue titles follow the conventional commits form (#132)
+- *(guide)* Reports guide - frontmatter fields, allowed values, and body structure of both report kinds (#135)
+- *(contributing)* Harden the contributor path - AGENTS.md conventions and rules, security guidance, strict PR-issue requirement (#138)
 ## [1.7.3] - 2026-08-28
 
 ### 🐛 Bug Fixes
@@ -6,7 +24,7 @@
 
 ### 📚 Documentation
 
-- *(agents)* AGENTS.md as the single instruction file - CLAUDE.md becomes an `@import` bridge (#125)
+- *(agents)* AGENTS.md as the single instruction file - CLAUDE.md becomes an @import bridge (#125)
 - *(guide)* Split the dependency map into per-prompt diagrams for readability (#126)
 - *(readme)* State the minimum apm-cli version and why the pin matters (#128)
 ## [1.7.2] - 2026-08-26
