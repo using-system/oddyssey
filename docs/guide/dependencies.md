@@ -369,7 +369,11 @@ state - every prompt, agent, and skill above is a prose contract.
 Layers only - the per-component edges live in the per-prompt diagrams
 above, and so does the intra-layer routing (prompt-to-prompt
 recommendations, the agents' mutual hand-off, skill-to-skill routing):
-this view keeps only the cross-layer edges.
+this view keeps only the cross-layer edges. The last block is not a
+component layer but the **machine state** the MCP tools sit on - the
+global configuration and the local stack container never appear in the
+per-prompt diagrams because nothing invokes them directly: every
+access goes through the tools.
 
 ```mermaid
 flowchart LR
@@ -381,15 +385,19 @@ flowchart LR
   S --> M
   P --> D[".odd/ stores"]
   S --> D
+  M --> C["global configuration"]
+  M --> K["local stack container"]
 
   classDef prompt fill:#e8f0fe,stroke:#4285f4
   classDef agent fill:#fef7e0,stroke:#f9ab00
   classDef skill fill:#e6f4ea,stroke:#34a853
   classDef mcp fill:#fce8e6,stroke:#ea4335
   classDef store fill:#f3e8fd,stroke:#a142f4
+  classDef state fill:#f1f3f4,stroke:#5f6368,stroke-dasharray: 4 3
   class P prompt
   class A agent
   class S skill
   class M mcp
   class D store
+  class C,K state
 ```
