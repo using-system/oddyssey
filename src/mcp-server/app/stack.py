@@ -87,7 +87,15 @@ LOKI_SEARCH_WINDOW_S = 30 * 24 * 3600
 # the container, never written to the configuration - stack_config holds no
 # secret by contract. A heuristic on purpose: the caller sees what was
 # excluded (env_not_persisted) and must repeat it on the next recreation.
-SENSITIVE_ENV_MARKERS = ("HEADERS", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL")
+SENSITIVE_ENV_MARKERS = (
+    "HEADERS",
+    "TOKEN",
+    "SECRET",
+    "PASSWORD",
+    "CREDENTIAL",
+    "API_KEY",
+    "APIKEY",
+)
 
 
 def _sensitive_env(name: str) -> bool:
@@ -306,7 +314,7 @@ def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
     return {"running": all(signals.values()), **signals}
 
 
-def stack_up(env: dict[str, str] | None = None) -> dict:
+def stack_up(env: dict[str, str] | None = None, *, persist: bool = True) -> dict:
     """Start the stack container (idempotent) and wait until it is ready.
 
     Docker only applies env at container creation, so env reaches the
@@ -319,9 +327,17 @@ def stack_up(env: dict[str, str] | None = None) -> dict:
     entries it applied - minus credential-named ones - so a
     creation-time choice survives recreations without the caller
     repeating it (issue #117). The result says what happened:
-    env_reapplied (names taken from the configuration), env_persisted
-    (names newly written to it), env_not_persisted (names applied but
-    excluded as credential-like - repeat them on the next recreation).
+    env_reapplied (persisted names actually taken from the
+    configuration, i.e. not overridden by env), env_persisted (names
+    newly written to it), env_not_persisted (names applied but not
+    persisted - credential-named, or the configuration write failed -
+    repeat them on the next recreation).
+
+    persist is internal (never exposed as a tool argument): False applies
+    env to the container without writing anything to the configuration,
+    and reports neither env_persisted nor env_not_persisted. The
+    odd_config_set auto-reset uses it to carry the live container env
+    forward without resurrecting variables the caller just deleted.
     """
     _validate_env(env)
     state = _container_state()
@@ -353,10 +369,17 @@ def stack_up(env: dict[str, str] | None = None) -> dict:
         if result.returncode != 0:
             raise RuntimeError(f"docker run failed: {result.stderr.strip()}")
         created = True
-        to_store = {k: v for k, v in (env or {}).items() if not _sensitive_env(k)}
-        excluded_names = sorted(set(env or {}) - set(to_store))
-        if to_store and _persist_applied_env(to_store):
-            persisted_names = sorted(to_store)
+        if persist:
+            to_store = {k: v for k, v in (env or {}).items() if not _sensitive_env(k)}
+            excluded_names = sorted(set(env or {}) - set(to_store))
+            if to_store:
+                if _persist_applied_env(to_store):
+                    persisted_names = sorted(to_store)
+                else:
+                    # The write failed after the container took the env:
+                    # the caller must know those names are not stored, or
+                    # it would trust a persistence that never happened.
+                    excluded_names = sorted(set(excluded_names) | set(to_store))
     status = stack_status()
     deadline = time.monotonic() + STARTUP_TIMEOUT_S
     while time.monotonic() < deadline:
@@ -375,8 +398,12 @@ def stack_up(env: dict[str, str] | None = None) -> dict:
             }
             if env:
                 up_result["env_applied"] = created
-            if reapplied:
-                up_result["env_reapplied"] = sorted(reapplied)
+            # Only the persisted names the container actually took from
+            # the configuration: an overridden one carries the explicit
+            # value, so listing it would misreport where it came from.
+            reapplied_names = sorted(set(reapplied) - set(env or {}))
+            if reapplied_names:
+                up_result["env_reapplied"] = reapplied_names
             if persisted_names:
                 up_result["env_persisted"] = persisted_names
             if excluded_names:
@@ -472,7 +499,7 @@ def stack_down(flush: bool = True) -> dict:
     return {"running": False}
 
 
-def stack_reset(env: dict[str, str] | None = None) -> dict:
+def stack_reset(env: dict[str, str] | None = None, *, persist: bool = True) -> dict:
     """Wipe all stored telemetry and return a fresh, ready stack.
 
     The stack runs without volumes, so destroying the container erases every
@@ -498,5 +525,6 @@ def stack_reset(env: dict[str, str] | None = None) -> dict:
     stack_down(flush=False)
     # Reset always recreates, so env - unlike on stack_up - always
     # applies; the recreation also reapplies and persists through
-    # stack_up's creation path, which owns that contract (issue #117).
-    return {**stack_up(env), "services_wiped": services}
+    # stack_up's creation path, which owns that contract (issue #117),
+    # persist included.
+    return {**stack_up(env, persist=persist), "services_wiped": services}

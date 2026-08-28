@@ -123,7 +123,10 @@ def odd_config_set(config: dict) -> dict:
     reading the old container failed, env_preserved is empty; the recreation
     still reapplies whatever stack_config.local persists, so only
     never-persisted variables (credential-named ones) are lost - re-run
-    odd_stack_reset with the desired env to reapply those.
+    odd_stack_reset with the desired env to reapply those. The auto-reset
+    applies the carried env without re-persisting it, so a variable
+    deleted with null in this same call stays deleted across the port
+    change.
     The MCP server's own telemetry export honors a
     changed OTLP port only after the MCP server restarts, and applications
     configured against the old ports keep exporting to them - their
@@ -163,7 +166,11 @@ def odd_config_set(config: dict) -> dict:
         # Read the doomed container's user env BEFORE the reset destroys
         # it, and hand it to the recreation (issue #62).
         preserved = stack_ops.container_user_env()
-        result["stack_reset"] = stack_ops.stack_reset(preserved)
+        # persist=False: the carried env is what the container happens to
+        # run right now, not a fresh caller choice - re-persisting it
+        # would rewrite variables this very call may have deleted with
+        # null, resurrecting them on the next recreation.
+        result["stack_reset"] = stack_ops.stack_reset(preserved, persist=False)
         result["env_preserved"] = sorted(preserved or {})
     return result
 
