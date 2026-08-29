@@ -10,3 +10,4 @@ the only place a decision lives.
 | Date | Finding | Verdict | Rationale |
 |---|---|---|---|
 | 2026-08-29 | 2026-08-26-1003-config-set-env-preservation.md / F4 | wontfix | Port-move is rare and interactive; the ~14.5 s hang is accepted |
+| 2026-08-29 | 2026-08-26-1003-config-set-env-preservation.md / F5 | accepted-by-design | Next-restart-only telemetry endpoint is documented (telemetry.py); a port-moving session going dark is the design |
