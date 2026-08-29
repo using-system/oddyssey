@@ -42,6 +42,13 @@ docker inspect oddyssey-lgtm --format '{{json .Config.Env}}' | grep -q '"GF_LOG_
 docker inspect oddyssey-lgtm --format '{{json .Config.Env}}' \
   | grep -q '"PROMETHEUS_EXTRA_ARGS=--enable-feature=otlp-deltatocumulative"'
 
+step "odd_stack_status surfaces the applied env (issue #118)"
+# The tool-side counterpart of the two docker inspects above: what the caller
+# applied must be readable through the MCP surface alone, no docker access.
+mcp_call odd_stack_status > "$workdir/status-env.json"
+jq -e '.content[0].text | fromjson | .env.GF_LOG_LEVEL == "debug"' \
+  "$workdir/status-env.json" > /dev/null
+
 step "tear down"
 mcp_call odd_stack_down > "$workdir/down.json"
 assert_result_contains "$workdir/down.json" '"running": false'
