@@ -298,11 +298,41 @@ def _otlp_ingest_ready(client: httpx.Client) -> bool:
         return False
 
 
-def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
+def _container_identity() -> dict | None:
+    """Image tag and lifecycle timestamps of the existing container, or None.
+
+    One inspect, best-effort like container_user_env: an absent
+    container or unreadable output yields None, never an error - a
+    status call must not fail because docker hiccupped.
+    """
+    result = _docker(
+        "inspect",
+        "--format",
+        '{"image": {{json .Config.Image}}, "created": {{json .Created}},'
+        ' "started": {{json .State.StartedAt}}}',
+        CONTAINER_NAME,
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        parsed = json.loads(result.stdout.strip())
+    except ValueError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    if not all(isinstance(parsed.get(k), str) for k in ("image", "created", "started")):
+        return None
+    return {k: parsed[k] for k in ("image", "created", "started")}
+
+
+def _readiness(transport: httpx.BaseTransport | None = None) -> dict:
     """Probe readiness endpoints; a down stack is a status, not an error.
 
     All four signal backends are probed (issue #36): gating on a subset
-    only covers the others by boot-timing coincidence.
+    only covers the others by boot-timing coincidence. Probe-only on
+    purpose: stack_up polls this every 2 s, and the identity inspects of
+    the full status would tax every boot trace for data the loop never
+    reads.
     """
     with httpx.Client(timeout=3.0, transport=transport) as client:
         signals = {
@@ -312,6 +342,32 @@ def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
             "pyroscope": _probe(client, _proxy("pyroscope", "/ready")),
         }
     return {"running": all(signals.values()), **signals}
+
+
+def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
+    """Readiness plus the container's identity (issue #118).
+
+    image/created/started come from one inspect, env from
+    container_user_env() with credential-named values redacted to None
+    (the name closes the visibility gap - observation finding N3 - the
+    value never leaves the server). Absent or unreadable container:
+    all four identity fields are None (env included - "no container"
+    and "no user env" are different facts).
+    """
+    identity = _container_identity()
+    user_env = container_user_env()
+    env = (
+        {k: (None if _sensitive_env(k) else v) for k, v in user_env.items()}
+        if user_env is not None
+        else None
+    )
+    return {
+        **_readiness(transport),
+        "image": identity["image"] if identity else None,
+        "created": identity["created"] if identity else None,
+        "started": identity["started"] if identity else None,
+        "env": env,
+    }
 
 
 def stack_up(env: dict[str, str] | None = None, *, persist: bool = True) -> dict:
@@ -380,7 +436,7 @@ def stack_up(env: dict[str, str] | None = None, *, persist: bool = True) -> dict
                     # the caller must know those names are not stored, or
                     # it would trust a persistence that never happened.
                     excluded_names = sorted(set(excluded_names) | set(to_store))
-    status = stack_status()
+    status = _readiness()
     deadline = time.monotonic() + STARTUP_TIMEOUT_S
     while time.monotonic() < deadline:
         if status["running"]:
@@ -410,7 +466,7 @@ def stack_up(env: dict[str, str] | None = None, *, persist: bool = True) -> dict
                 up_result["env_not_persisted"] = excluded_names
             return up_result
         time.sleep(POLL_INTERVAL_S)
-        status = stack_status()
+        status = _readiness()
     raise RuntimeError(
         f"stack did not become ready within {STARTUP_TIMEOUT_S}s: {status}"
     )

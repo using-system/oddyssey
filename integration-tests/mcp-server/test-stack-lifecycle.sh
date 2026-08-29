@@ -26,6 +26,14 @@ assert_result_contains "$workdir/up.json" '"running": true'
 step "odd_stack_status confirms it is up"
 mcp_call odd_stack_status > "$workdir/status-up.json"
 assert_result_contains "$workdir/status-up.json" '"running": true'
+# Issue #118: a running stack also reports the container's identity, so a
+# report's instance fields need no docker inspect on the caller's side. The
+# tag is matched by prefix, not by the exact pin, so a bump stays green.
+jq -e '.content[0].text | fromjson
+       | ((.image | type) == "string" and (.image | startswith("grafana/otel-lgtm:")))
+         and (.created | type) == "string"
+         and (.started | type) == "string"' \
+  "$workdir/status-up.json" > /dev/null
 
 step "odd_stack_down stops it"
 mcp_call odd_stack_down > "$workdir/down.json"
@@ -34,5 +42,9 @@ assert_result_contains "$workdir/down.json" '"running": false'
 step "odd_stack_status confirms it is down"
 mcp_call odd_stack_status > "$workdir/status-final.json"
 assert_result_contains "$workdir/status-final.json" '"running": false'
+# The container is gone, so its identity goes with it - null, never a stale
+# tag left over from the container that just got destroyed.
+jq -e '.content[0].text | fromjson | .image == null' \
+  "$workdir/status-final.json" > /dev/null
 
 echo "stack lifecycle: OK"

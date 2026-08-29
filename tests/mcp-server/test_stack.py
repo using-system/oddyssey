@@ -1,4 +1,5 @@
 import json
+import subprocess
 
 import httpx
 import pytest
@@ -75,7 +76,15 @@ def test_run_args_rejects_malformed_env_keys():
         run_args({"": "x"})
 
 
-def test_stack_status_all_ready():
+def _no_container(monkeypatch) -> None:
+    """Stub the identity reads away: readiness assertions must not need docker."""
+    monkeypatch.setattr(stack, "_container_identity", lambda: None)
+    monkeypatch.setattr(stack, "container_user_env", lambda: None)
+
+
+def test_stack_status_all_ready(monkeypatch):
+    _no_container(monkeypatch)
+
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200)
 
@@ -86,10 +95,16 @@ def test_stack_status_all_ready():
         "tempo": True,
         "loki": True,
         "pyroscope": True,
+        "image": None,
+        "created": None,
+        "started": None,
+        "env": None,
     }
 
 
-def test_stack_status_down_is_not_an_error():
+def test_stack_status_down_is_not_an_error(monkeypatch):
+    _no_container(monkeypatch)
+
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("connection refused")
 
@@ -100,14 +115,20 @@ def test_stack_status_down_is_not_an_error():
         "tempo": False,
         "loki": False,
         "pyroscope": False,
+        "image": None,
+        "created": None,
+        "started": None,
+        "env": None,
     }
 
 
-def test_stack_status_is_not_running_until_every_signal_is_ready():
+def test_stack_status_is_not_running_until_every_signal_is_ready(monkeypatch):
     # Issue #36: readiness must cover all four signals the tool claims to
     # make ready - a stack whose logs backend is still booting is not up.
     # A booting backend behind the Grafana proxy answers 503 (the proxy
     # relays it), not a transport error - the down-stack test covers that.
+    _no_container(monkeypatch)
+
     def handler(request: httpx.Request) -> httpx.Response:
         if "uid/loki" in str(request.url):
             return httpx.Response(503)
@@ -119,6 +140,133 @@ def test_stack_status_is_not_running_until_every_signal_is_ready():
     assert status["prometheus"] is True
     assert status["tempo"] is True
     assert status["pyroscope"] is True
+
+
+def _identity_docker(monkeypatch, *, inspect_json=None, returncode=0):
+    """Route stack._docker: identity inspect answers inspect_json."""
+
+    def fake_docker(*args):
+        return subprocess.CompletedProcess(
+            args, returncode, stdout=inspect_json or "", stderr=""
+        )
+
+    monkeypatch.setattr(stack, "_docker", fake_docker)
+
+
+def test_stack_status_carries_container_identity(monkeypatch):
+    # Issue #118: a report's instance identity (image tag, lifecycle
+    # timestamps, effective env) must be fillable from the tool alone -
+    # no docker inspect on the caller's side.
+    _identity_docker(
+        monkeypatch,
+        inspect_json='{"image": "grafana/otel-lgtm:0.31.0",'
+        ' "created": "2026-08-29T08:12:03.1Z",'
+        ' "started": "2026-08-29T08:12:04.5Z"}',
+    )
+    monkeypatch.setattr(stack, "container_user_env", lambda: {"GF_LOG_LEVEL": "debug"})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200)
+
+    status = stack_status(transport=httpx.MockTransport(handler))
+    assert status["running"] is True
+    assert status["image"] == "grafana/otel-lgtm:0.31.0"
+    assert status["created"] == "2026-08-29T08:12:03.1Z"
+    assert status["started"] == "2026-08-29T08:12:04.5Z"
+    assert status["env"] == {"GF_LOG_LEVEL": "debug"}
+
+
+def test_stack_status_absent_container_yields_null_identity(monkeypatch):
+    # No container: every identity field is null - env included, because
+    # "no container" and "container with no user env" are different facts.
+    _identity_docker(monkeypatch, returncode=1)
+    monkeypatch.setattr(stack, "container_user_env", lambda: None)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500)
+
+    status = stack_status(transport=httpx.MockTransport(handler))
+    assert status["running"] is False
+    assert status["image"] is None
+    assert status["created"] is None
+    assert status["started"] is None
+    assert status["env"] is None
+
+
+def test_stack_status_redacts_credential_named_env_values(monkeypatch):
+    # The NAME closes the visibility gap (observation finding N3: an
+    # applied-but-not-persisted variable is invisible without docker
+    # access); the VALUE never leaves the server.
+    _identity_docker(
+        monkeypatch,
+        inspect_json='{"image": "i", "created": "c", "started": "s"}',
+    )
+    monkeypatch.setattr(
+        stack,
+        "container_user_env",
+        lambda: {"GF_LOG_LEVEL": "debug", "X_DEMO_TOKEN": "fake"},
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200)
+
+    status = stack_status(transport=httpx.MockTransport(handler))
+    assert status["env"] == {"GF_LOG_LEVEL": "debug", "X_DEMO_TOKEN": None}
+
+
+def test_stack_status_survives_malformed_inspect_output(monkeypatch):
+    # Best-effort by contract: a status call must never fail because
+    # docker hiccupped - unreadable identity degrades to nulls.
+    _identity_docker(monkeypatch, inspect_json="not json")
+    monkeypatch.setattr(stack, "container_user_env", lambda: None)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200)
+
+    status = stack_status(transport=httpx.MockTransport(handler))
+    assert status["running"] is True
+    assert status["image"] is None and status["env"] is None
+
+
+def test_stack_status_survives_non_object_inspect_output(monkeypatch):
+    # Valid JSON that is not an object still has to degrade to nulls: the
+    # identity read is best-effort, so "never an exception" covers every
+    # shape docker could hand back, not just unparseable bytes.
+    _identity_docker(monkeypatch, inspect_json="null")
+    monkeypatch.setattr(stack, "container_user_env", lambda: None)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200)
+
+    status = stack_status(transport=httpx.MockTransport(handler))
+    assert status["running"] is True
+    assert status["image"] is None and status["env"] is None
+
+
+def test_stack_up_boot_polling_never_reads_identity(monkeypatch):
+    """The wait loop uses the probe-only readiness, not the enriched status."""
+    calls = []
+    monkeypatch.setattr(
+        stack,
+        "_docker",
+        lambda *a: (
+            calls.append(a) or subprocess.CompletedProcess(a, 1, stdout="", stderr="")
+        ),
+    )
+
+    # _readiness must not touch docker at all:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200)
+
+    ready = stack._readiness(transport=httpx.MockTransport(handler))
+    assert ready == {
+        "running": True,
+        "prometheus": True,
+        "tempo": True,
+        "loki": True,
+        "pyroscope": True,
+    }
+    assert calls == []
 
 
 def test_otlp_ingest_ready_true_on_any_http_response():
@@ -322,7 +470,7 @@ def test_stack_up_reports_env_not_applied_on_an_existing_container(monkeypatch):
     # configuration landed (issue #34 / #43 family).
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
     monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
-    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_readiness", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
 
     result = stack.stack_up(env={"GF_LOG_LEVEL": "debug"})
@@ -346,7 +494,7 @@ def test_stack_up_applies_env_when_it_creates_the_container(monkeypatch):
     monkeypatch.setattr(stack, "_container_state", lambda: "absent")
     monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
     monkeypatch.setattr(stack.subprocess, "run", fake_run)
-    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_readiness", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
 
     result = stack.stack_up(env={"GF_LOG_LEVEL": "debug"})
@@ -371,7 +519,7 @@ def _create_container(monkeypatch) -> dict:
     monkeypatch.setattr(stack, "_container_state", lambda: "absent")
     monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
     monkeypatch.setattr(stack.subprocess, "run", fake_run)
-    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_readiness", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
     return captured
 
@@ -501,7 +649,7 @@ def test_stack_up_does_not_persist_env_it_did_not_apply(monkeypatch):
     # would make the configuration diverge from the live container.
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
     monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
-    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_readiness", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
 
     result = stack.stack_up(env={"GF_LOG_LEVEL": "debug"})
@@ -534,7 +682,7 @@ def test_stack_up_reports_env_not_applied_on_a_stopped_container(monkeypatch):
     monkeypatch.setattr(stack, "_container_state", lambda: "stopped")
     monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
     monkeypatch.setattr(stack, "_docker", lambda *args: StartOk())
-    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_readiness", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
 
     result = stack.stack_up(env={"GF_LOG_LEVEL": "debug"})
@@ -546,7 +694,7 @@ def test_stack_up_rejects_malformed_env_before_doing_anything(monkeypatch):
     # A malformed env must fail up front, not silently report
     # env_applied: false and steer the caller toward a doomed reset.
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
-    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_readiness", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
 
     with pytest.raises(ValueError, match="environment variable name"):
@@ -566,7 +714,7 @@ def test_stack_reset_rejects_malformed_env_before_wiping(monkeypatch):
         "stack_down",
         lambda flush=True: calls.append("stack_down") or {"running": False},
     )
-    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_readiness", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
 
     with pytest.raises(ValueError, match="environment variable name"):
@@ -578,7 +726,7 @@ def test_stack_reset_rejects_malformed_env_before_wiping(monkeypatch):
 def test_stack_up_result_shape_is_unchanged_without_env(monkeypatch):
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
     monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
-    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_readiness", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
 
     assert "env_applied" not in stack.stack_up()
@@ -809,7 +957,7 @@ def test_stack_up_flushes_after_readiness(monkeypatch):
     order: list[str] = []
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
     monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
-    monkeypatch.setattr(stack, "stack_status", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_readiness", lambda: {"running": True})
     monkeypatch.setattr(
         stack, "_otlp_ingest_ready", lambda client: order.append("ready") or True
     )
