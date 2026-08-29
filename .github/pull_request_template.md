@@ -17,6 +17,7 @@
 - [ ] No `!` / breaking marker (or it was explicitly discussed first)
 - [ ] `ruff check` and `format --check` pass at the CI-pinned version (if `src/` or `tests/` changed)
 - [ ] Unit and integration tests pass (CI runs both on any `src/`, `tests/`, or `integration-tests/` change)
+- [ ] Tests updated with the server: unit for behavior changes, integration for wire-surface changes (result shape, arguments, tool set, stack lifecycle) — or the PR says why not
 - [ ] No hand edits to generated files (`marketplace/`, `.claude-plugin/`, `.agents/plugins/`)
 - [ ] Docs kept in sync per AGENTS.md: prompts guide, dependency map, and reports guide updated in the same change when their sources changed
 - [ ] No secrets in the diff or in committed `.odd/` reports (tokens, credentials, real endpoints — by name only)

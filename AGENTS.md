@@ -51,6 +51,21 @@ the paths touched (commands and pins are owned by
 
 A PR pushed red costs a review round-trip; run the checks first.
 
+## Tests follow the MCP server
+
+Coverage moves with the code, in the same change — running the
+existing suites (above) is not enough:
+
+- Any behavior change in `src/mcp-server/` updates `tests/mcp-server/`
+  — test-first.
+- Any change to a tool's **wire surface** — result shape, arguments,
+  the exposed tool set, stack lifecycle behavior — also adapts or
+  extends `integration-tests/mcp-server/`: it is the only layer that
+  proves the contract through a real MCP client against real Docker.
+- A server change shipping without a matching test change states why
+  in the PR (legitimate cases exist: a pure refactor, error-message
+  wording — a wire-surface change is never one).
+
 ## The MCP server's three hard constraints
 
 Owned by the
