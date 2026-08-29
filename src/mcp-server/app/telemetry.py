@@ -15,11 +15,11 @@ import logging
 import os
 import time
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from importlib import metadata as importlib_metadata
 
 from opentelemetry import metrics, trace
-from opentelemetry.metrics import Histogram
+from opentelemetry.metrics import Counter, Histogram
 from opentelemetry.trace import SpanKind, Status, StatusCode
 
 _INSTRUMENTATION_NAME = "oddyssey-mcp"
@@ -54,7 +54,55 @@ _DURATION_BUCKETS_SECONDS = [
 # API tracer until setup_telemetry installs the real one.
 _tracer: trace.Tracer = trace.get_tracer(_INSTRUMENTATION_NAME)
 _duration_histogram: Histogram | None = None
+_probe_failure_counter: Counter | None = None
 _tracer_provider = None
+
+
+class _NoExceptionEventTracer(trace.Tracer):
+    """Delegating tracer whose spans never record an exception event.
+
+    Everything else - span, kind, attributes, and the ERROR status the
+    API sets on an escaping exception - is the delegate's.
+    """
+
+    def __init__(self, tracer: trace.Tracer) -> None:
+        self._tracer = tracer
+
+    def start_span(self, *args: object, **kwargs: object) -> trace.Span:
+        return self._tracer.start_span(*args, **{**kwargs, "record_exception": False})
+
+    def start_as_current_span(
+        self, *args: object, **kwargs: object
+    ) -> AbstractContextManager[trace.Span]:
+        return self._tracer.start_as_current_span(
+            *args, **{**kwargs, "record_exception": False}
+        )
+
+
+class _NoExceptionEventTracerProvider(trace.TracerProvider):
+    """The provider handed to the httpx instrumentation, and only to it.
+
+    Every httpx call this server makes is a probe of a stack that may be
+    down or still booting, so a transport error is an expected outcome -
+    yet each one attached a full ``exception.stacktrace`` event to its
+    span (~30 KB of a 65 KB creation trace; observation finding N4).
+    opentelemetry-instrumentation-httpx 0.65b0 exposes no
+    ``record_exception`` knob (its levers are tracer_provider,
+    meter_provider, the request/response hooks, and excluded URLs -
+    which would drop the spans themselves), and the event comes from the
+    API's ``use_span(record_exception=True)`` default. Handing the
+    instrumentor a provider that flips that default is the supported
+    mechanism that keeps every probe span, its ``error.type`` attribute
+    and its ERROR status, and drops only the stacktrace payload. Our own
+    spans (traced_tool, docker_span) keep the real provider and their
+    exception events.
+    """
+
+    def __init__(self, provider: trace.TracerProvider) -> None:
+        self._provider = provider
+
+    def get_tracer(self, *args: object, **kwargs: object) -> trace.Tracer:
+        return _NoExceptionEventTracer(self._provider.get_tracer(*args, **kwargs))
 
 
 def setup_telemetry() -> Callable[[], None]:
@@ -130,17 +178,29 @@ def setup_telemetry() -> Callable[[], None]:
         )
         metrics.set_meter_provider(meter_provider)
 
-        global _tracer, _duration_histogram, _tracer_provider
+        global _tracer, _duration_histogram, _probe_failure_counter, _tracer_provider
         _tracer_provider = tracer_provider
         _tracer = trace.get_tracer(_INSTRUMENTATION_NAME)
-        _duration_histogram = metrics.get_meter(_INSTRUMENTATION_NAME).create_histogram(
+        meter = metrics.get_meter(_INSTRUMENTATION_NAME)
+        _duration_histogram = meter.create_histogram(
             "mcp.server.operation.duration",
             unit="s",
             description="Duration of MCP server tool operations",
             explicit_bucket_boundaries_advisory=_DURATION_BUCKETS_SECONDS,
         )
+        # A probe that gets no HTTP response leaves no
+        # http.client.request.duration point behind (the instrumentation
+        # records that histogram only after re-raising), so probe error
+        # rates were answerable in TraceQL only - observation finding A5.
+        _probe_failure_counter = meter.create_counter(
+            "oddyssey.stack.probe.failures",
+            unit="{failure}",
+            description="Stack probes that got no HTTP response (transport errors)",
+        )
 
-        HTTPXClientInstrumentor().instrument()
+        HTTPXClientInstrumentor().instrument(
+            tracer_provider=_NoExceptionEventTracerProvider(tracer_provider)
+        )
     except Exception:  # noqa: BLE001 - telemetry must never take the server down
         # A broken bootstrap (missing package metadata, an OTEL_* value an
         # exporter rejects, ...) degrades to no telemetry, never no server.
@@ -210,15 +270,43 @@ def traced_tool(fn: Callable[..., dict]) -> Callable[..., dict]:
     return wrapper
 
 
+def record_probe_failure(error_type: str) -> None:
+    """Count one stack probe that got no HTTP response (finding A5).
+
+    error_type is the exception class name and the only dimension:
+    bounded by httpx's transport-error tree, never a URL or a host. A
+    no-op while the counter is None (SDK disabled, or a bootstrap that
+    degraded to no telemetry) - same contract as the duration histogram.
+    """
+    if _probe_failure_counter is None:
+        return
+    _probe_failure_counter.add(1, {"error.type": error_type})
+
+
 @contextmanager
-def docker_span(verb: str, container: str) -> Iterator[trace.Span]:
+def docker_span(
+    operation: str, *, container: str | None = None, image: str | None = None
+) -> Iterator[trace.Span]:
     """Span for one docker subprocess call - bounded attributes only.
 
     No semconv exists for subprocess execution; names follow the OTel
-    custom-naming rules with the app prefix (spec 2026-08-22, frozen).
+    custom-naming rules with the app prefix (spec 2026-08-22, frozen -
+    deliberately amended by issue #149 for operations acting on an
+    image: observation finding F2 caught `oddyssey.docker.image` with a
+    container attribute on an image inspect, so such a call now names
+    the whole operation, e.g. `image-inspect`, and carries
+    `oddyssey.docker.image` as its subject instead).
+
+    Exactly one subject is passed: the container for container
+    operations, the image reference for image ones.
     """
+    attributes = {}
+    if container is not None:
+        attributes["oddyssey.docker.container"] = container
+    if image is not None:
+        attributes["oddyssey.docker.image"] = image
     with _tracer.start_as_current_span(
-        f"oddyssey.docker.{verb}",
-        attributes={"oddyssey.docker.container": container},
+        f"oddyssey.docker.{operation}",
+        attributes=attributes,
     ) as span:
         yield span

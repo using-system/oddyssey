@@ -12,6 +12,11 @@ from oddyssey_mcp.stack import (
     stack_status,
     stored_services,
 )
+from opentelemetry.sdk.trace import TracerProvider as SdkTracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+    InMemorySpanExporter,
+)
 
 
 def test_run_args_build_the_pinned_container():
@@ -289,6 +294,39 @@ def test_otlp_ingest_ready_false_on_transport_error():
     transport = httpx.MockTransport(refuse)
     with httpx.Client(transport=transport) as client:
         assert _otlp_ingest_ready(client) is False
+
+
+def test_no_response_probe_failures_are_counted(monkeypatch):
+    # Observation finding A5: a probe that gets no HTTP response leaves no
+    # metric behind (the httpx instrumentation records its duration
+    # histogram only after re-raising), so probe error rates were
+    # trace-only. Both no-response paths must feed the counter, with the
+    # exception class name as the only dimension.
+    recorded: list[str] = []
+    monkeypatch.setattr(stack.telemetry, "record_probe_failure", recorded.append)
+
+    def refuse(request):
+        raise httpx.ConnectError("refused", request=request)
+
+    with httpx.Client(transport=httpx.MockTransport(refuse)) as client:
+        assert stack._probe(client, "http://localhost:3000/-/ready") is False
+        assert _otlp_ingest_ready(client) is False
+
+    assert recorded == ["ConnectError", "ConnectError"]
+
+
+def test_a_responding_probe_is_never_a_probe_failure(monkeypatch):
+    # Response-coded failures already produce an
+    # http.client.request.duration series with their status code: counting
+    # them here too would double-count what PromQL can already see.
+    recorded: list[str] = []
+    monkeypatch.setattr(stack.telemetry, "record_probe_failure", recorded.append)
+
+    transport = httpx.MockTransport(lambda request: httpx.Response(503))
+    with httpx.Client(transport=transport) as client:
+        assert stack._probe(client, "http://localhost:3000/-/ready") is False
+
+    assert recorded == []
 
 
 def test_stored_services_unions_tempo_prometheus_and_loki():
@@ -861,10 +899,11 @@ def _fake_env_inspects(
 
     container/image are .Config.Env lists; container_image is the .Image
     ID the container inspect reports; seen records the ref the image
-    inspect was actually queried with.
+    inspect was actually queried with. The image inspect also passes the
+    span-subject keyword (finding F2), which the stub simply absorbs.
     """
 
-    def fake_docker(*args):
+    def fake_docker(*args, **kwargs):
         if args[0] == "image":
             if seen is not None:
                 seen["ref"] = args[-1]
@@ -918,7 +957,9 @@ def test_container_user_env_is_none_when_an_inspect_fails(monkeypatch):
 
 
 def test_container_user_env_is_none_on_malformed_inspect_output(monkeypatch):
-    monkeypatch.setattr(stack, "_docker", lambda *args: _Proc(stdout="not json"))
+    monkeypatch.setattr(
+        stack, "_docker", lambda *args, **kwargs: _Proc(stdout="not json")
+    )
     assert stack.container_user_env() is None
 
 
@@ -938,6 +979,43 @@ def test_container_user_env_inspects_the_container_own_image(monkeypatch):
     )
     assert stack.container_user_env() == {"GF_LOG_LEVEL": "debug"}
     assert seen["ref"] == "sha256:0ld"
+
+
+def test_container_user_env_image_inspect_span_names_the_image(monkeypatch):
+    # Observation finding F2: the image inspect went through the generic
+    # docker span, which names the span from args[0] ("image") and always
+    # attaches the CONTAINER - a container attribute on an operation whose
+    # subject is the image. The container inspect right before it must
+    # keep its shape.
+    exporter = InMemorySpanExporter()
+    provider = SdkTracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(stack.telemetry, "_tracer", provider.get_tracer("test"))
+
+    def fake_run(args, **kwargs):
+        if args[1] == "image":
+            return subprocess.CompletedProcess(
+                args, 0, stdout=json.dumps(["PATH=/usr/bin"])
+            )
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout=json.dumps(
+                {"env": ["PATH=/usr/bin", "GF_LOG_LEVEL=debug"], "image": "sha256:0ld"}
+            ),
+        )
+
+    monkeypatch.setattr(stack.subprocess, "run", fake_run)
+
+    assert stack.container_user_env() == {"GF_LOG_LEVEL": "debug"}
+
+    container_span, image_span = exporter.get_finished_spans()
+    assert container_span.name == "oddyssey.docker.inspect"
+    assert container_span.attributes["oddyssey.docker.container"] == CONTAINER_NAME
+    assert image_span.name == "oddyssey.docker.image-inspect"
+    assert image_span.attributes["oddyssey.docker.image"] == "sha256:0ld"
+    assert "oddyssey.docker.container" not in image_span.attributes
+    assert image_span.attributes["oddyssey.docker.exit_code"] == 0
 
 
 def test_container_user_env_drops_a_superseded_default(monkeypatch):
