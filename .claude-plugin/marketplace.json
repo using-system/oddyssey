@@ -8,7 +8,7 @@
     {
       "name": "oddyssey",
       "description": "Observability-Driven Development for CLI coding agents: OTel expert agent, run-observation agent, verification pass, local Grafana stack via MCP",
-      "version": "1.8.0",
+      "version": "1.8.1",
       "category": "Observability",
       "source": "./marketplace/oddyssey"
     }

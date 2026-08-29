@@ -1,3 +1,16 @@
+## [1.8.1] - 2026-08-29
+
+### 🚀 Features
+
+- *(mcp)* Odd_stack_status returns the container identity - image, timestamps, and redacted user env (#146)
+
+### 🐛 Bug Fixes
+
+- *(ci)* Backtick bare at-words at changelog generation - manual CHANGELOG fixes do not survive git-cliff regeneration (#144)
+
+### 📚 Documentation
+
+- *(agents)* Tests follow the MCP server - unit coverage moves with behavior, integration coverage with the wire surface (#147)
 ## [1.8.0] - 2026-08-28
 
 ### 🚀 Features
