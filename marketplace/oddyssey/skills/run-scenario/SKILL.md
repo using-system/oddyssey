@@ -31,12 +31,39 @@ Start a clean run in this order — the reverse of what feels natural:
    cumulative-metric query with it: an unfiltered query mixes instances
    the moment an old one got a last export in.
 
+   **Prefer creating the identity over hunting for a substitute.** When
+   the driven service honors `OTEL_RESOURCE_ATTRIBUTES` — any OTel SDK
+   service, including `oddyssey-mcp`, which strips the SDK's default
+   UUID unless opted in — launch its process with
+   `OTEL_RESOURCE_ATTRIBUTES=service.instance.id=<run slug>` and record
+   the slug you chose. One bounded label per run makes the run's
+   cumulative series attributable by name and keeps a co-resident
+   server's re-exported history (an installed `uvx oddyssey-mcp`
+   long-lived process dumps its whole counter history into a
+   seconds-old store) separable instead of merely suspected. The
+   substitutes above stay the fallback for services that cannot opt in.
+
 When restarting is not possible, say so in the record — and still record
 the identity **and the process start time**: the start time is what
 dates the pre-window history. Traces and logs stay trustworthy, but
 cumulative metrics read inside the window include pre-window activity —
 treat them as deltas between the window's edges, never as run totals
 (valid only within one instance, which the recorded identity proves).
+
+**When a reset is forbidden** — not impossible, actively harmful: a
+creation-time env the reset would not reapply (credential-named
+variables are never persisted — `env_not_persisted` names them — and a
+manually run or pre-persistence container has nothing recorded to
+reapply), or shared stored
+history the caller still needs — do not take the clean slate at all.
+Isolate the window without one: **time-scope every query explicitly**
+to the recorded start/end (no unscoped search, no store-equals-run
+shortcut), qualify every cumulative-metric query with the recorded
+identity and read it as a window-edge delta, and say in the record
+that the run rode a shared store and why the reset was off the table.
+A window carved by timestamps out of a live store is a weaker
+isolation than a wipe — the record must let the verify run reproduce
+the same carving.
 
 ## 1. Decide what to exercise
 
@@ -95,6 +122,18 @@ count, tool mix, tokens, duration). Then:
   costs in the same range — never value against value. Record what varied
   between identical invocations, so the verify run knows what noise
   looks like.
+
+### Scenarios longer than a tool call
+
+A job running 15–30 minutes cannot be polled inside a single tool call
+on hosts with a hard tool timeout (some enforce ~10 minutes): the call
+dies mid-wait and takes its observations with it. The working shape is
+a **detached poller**: start the job, then launch a small script with
+`nohup` (survives the tool call that spawned it) that polls the job and
+appends timestamped progress to a file; later tool calls only read that
+file. The scenario record cites the poller script and its output file
+verbatim — they are part of the protocol, and a replay re-runs the same
+poller, not a hand-watched approximation.
 
 ## 4. Record verbatim
 
