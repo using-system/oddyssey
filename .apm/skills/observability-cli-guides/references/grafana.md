@@ -34,7 +34,7 @@ below is identical either way.
 | Migrate configuration | [migrate-configuration.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/sources/migrate-configuration.md) | Steps to move an older `gcx` config file to the current schema version. Run only if `gcx config check` reports a legacy/unversioned config. |
 | `gcx help-tree` | [gcx_help-tree.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_help-tree.md) | Prints a compact command tree (with inline args/flags/agent hints) for agent context injection; take a subtree with positional args (`gcx help-tree metrics`) or cap depth with `--depth`. Run this first when unsure what a command area supports — it is the token-cheap way to discover the full command surface without paging through individual `--help` output. |
 | `gcx commands` | [gcx_commands.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_commands.md) | Full JSON catalog of every command with flags, args, token-cost estimates, and known Grafana resource types; `--validate` checks it against a live instance. Use for programmatic/agent discovery of the entire CLI surface, or `--flat` for a single-list view. |
-| Local oddyssey stack | the `setup-local-stack` skill (ships with the oddyssey package) | Carries a ready-made isolated `GCX_CONFIG` context (`admin`/`admin` against the configured `grafana_url` — default `http://localhost:3000`, never assumed — datasource UIDs `prometheus`/`loki`/`tempo`/`pyroscope`). Use it instead of re-deriving context setup for the local stack; `gcx` is the mandatory query CLI. |
+| Local oddyssey stack | the `setup-local-stack` skill (ships with the oddyssey package) | Carries a ready-made isolated `GCX_CONFIG` context (`admin`/`admin` against the configured `grafana_url` — default `http://localhost:3000`, never assumed — datasource UIDs `prometheus`/`loki`/`tempo`/`pyroscope`). Use it instead of re-deriving context setup for the local stack; `gcx` is the mandatory query CLI (recorded proof queries may be raw datasource-proxy HTTP — that skill says when each form is right). |
 
 ## Query by signal
 
@@ -51,14 +51,18 @@ below is identical either way.
 | Logs | `gcx logs series` | [gcx_logs_series.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_series.md) | List log streams; requires at least one `-M/--match` LogQL stream selector (repeatable, OR logic). |
 | Logs | `gcx logs query [LOGQL]` | [gcx_logs_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_query.md) | Default `-o table`; use `-o raw` for bare line bodies or `-o json` for the full response. `--limit` defaults to 50 (0 = unlimited). |
 | Profiles | `gcx profiles list-profile-types` | [gcx_profiles_list-profile-types.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_list-profile-types.md) | Lists available profile type IDs (e.g. `process_cpu:cpu:nanoseconds:cpu:nanoseconds`) — required input to `profiles query`. |
-| Profiles | `gcx profiles labels` | [gcx_profiles_labels.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_labels.md) | List all labels, or values for one (`-l`, e.g. `service_name`). |
+| Profiles | `gcx profiles labels` | [gcx_profiles_labels.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_labels.md) | List all labels, or values for one (`-l`, e.g. `service_name`). Pyroscope's underlying `querier.v1.QuerierService/LabelValues` endpoint **requires a time range in epoch milliseconds** — without start/end it fails with "missing time range in the query", a message that names neither the parameter nor the unit. Through gcx, pass `--from`/`--to` (RFC3339, Unix, or relative like `now-1h`); when replaying the raw endpoint, supply `start`/`end` in ms yourself. |
 | Profiles | `gcx profiles query [SELECTOR]` | [gcx_profiles_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_query.md) | Requires `--profile-type`; can drill into specific `--profile-id`s (from `profiles exemplars`), restrict by `--span-id`/`--trace-id`, or filter the flamegraph with repeatable `--stacktrace-selector`. `-o pprof` writes a pprof binary. |
 
 Every query command resolves its datasource from `-d/--datasource <UID>` or
 falls back to `datasources.<kind>` in the active context (`prometheus`,
 `tempo`, `loki`, `pyroscope`) — set the defaults once per context instead of
 passing `-d` on every call. All four accept `-o agents` for compact
-agent-oriented output and `--jq`/`--json` for reshaping JSON results.
+agent-oriented output and `--jq <expr>`/`--json <fields>` for reshaping
+JSON results — `--json` is **not** a boolean flag: it requires a value
+(`--json list` — or `?` — to discover the fields, then
+`--json field1,field2`) and a bare `--json` fails with
+"Flag needs an argument". The two are mutually exclusive.
 
 ## Planning notes
 
