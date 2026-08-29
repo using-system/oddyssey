@@ -66,7 +66,7 @@ def odd_stack_down() -> dict:
 @mcp.tool()
 @telemetry.traced_tool
 def odd_stack_status() -> dict:
-    """Check whether the local LGTM stack is up (Prometheus, Tempo, Loki, and Pyroscope ready)."""
+    """Check whether the local LGTM stack is up (Prometheus, Tempo, Loki, and Pyroscope ready) - plus the container's identity: image tag, created/started timestamps, and user-set env (credential-named values redacted to null, all four null when there is no container)."""
     return stack_ops.stack_status()
 
 
