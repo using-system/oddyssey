@@ -38,6 +38,21 @@ cumulative metrics read inside the window include pre-window activity —
 treat them as deltas between the window's edges, never as run totals
 (valid only within one instance, which the recorded identity proves).
 
+**When a reset is forbidden** — not impossible, actively harmful: a
+creation-time env the reset would not reapply (credential-named
+variables are never persisted — `env_not_persisted` names them — and a
+manually run or pre-persistence container has nothing recorded to
+reapply), or shared stored
+history the caller still needs — do not take the clean slate at all.
+Isolate the window without one: **time-scope every query explicitly**
+to the recorded start/end (no unscoped search, no store-equals-run
+shortcut), qualify every cumulative-metric query with the recorded
+identity and read it as a window-edge delta, and say in the record
+that the run rode a shared store and why the reset was off the table.
+A window carved by timestamps out of a live store is a weaker
+isolation than a wipe — the record must let the verify run reproduce
+the same carving.
+
 ## 1. Decide what to exercise
 
 In order of preference:
@@ -95,6 +110,18 @@ count, tool mix, tokens, duration). Then:
   costs in the same range — never value against value. Record what varied
   between identical invocations, so the verify run knows what noise
   looks like.
+
+### Scenarios longer than a tool call
+
+A job running 15–30 minutes cannot be polled inside a single tool call
+on hosts with a hard tool timeout (some enforce ~10 minutes): the call
+dies mid-wait and takes its observations with it. The working shape is
+a **detached poller**: start the job, then launch a small script with
+`nohup` (survives the tool call that spawned it) that polls the job and
+appends timestamped progress to a file; later tool calls only read that
+file. The scenario record cites the poller script and its output file
+verbatim — they are part of the protocol, and a replay re-runs the same
+poller, not a hand-watched approximation.
 
 ## 4. Record verbatim
 

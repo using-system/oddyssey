@@ -104,9 +104,20 @@ the whole setup.
 | Logs | Loki | `loki` | `gcx logs labels/series/query` | LogQL |
 | Profiles | Pyroscope | `pyroscope` | `gcx profiles list-profile-types/labels/query -d pyroscope` | profile selector |
 
-This table is verified against gcx v1.0.0 and Grafana 13.1.3; the gcx
+This table holds for **gcx v1.0.0 or newer** (verified against v1.0.0
+and Grafana 13.1.3) — package managers may ship older builds, so check
+`gcx --version` before trusting it. The gcx
 command surface moves between versions, so when a documented command
 errors, trust `gcx <group> --help` over this table.
+
+gcx is the stack's mandatory **query** CLI — explore and measure
+through it. Recording raw datasource-proxy HTTP in a report
+(`/api/datasources/proxy/uid/<uid>/...` URLs) is
+the right form for **replayable evidence**: a proxy URL replays
+verbatim with curl alone, on a machine with no gcx context. Query with
+gcx; record a proof query in whichever form the verify run can replay
+exactly — both are contract-conform, and the report says which was
+used.
 
 Discover before you query: `gcx metrics labels` / `gcx metrics metadata`,
 `gcx traces labels`, `gcx logs labels`, `gcx profiles list-profile-types`.
