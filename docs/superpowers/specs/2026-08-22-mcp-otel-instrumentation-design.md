@@ -118,7 +118,14 @@ src/mcp-server/app/
   with attributes `oddyssey.docker.container="oddyssey-lgtm"` and
   `oddyssey.docker.exit_code`. No arguments, no output captured — bounded
   values only (no semconv exists for subprocess execution; names follow
-  the OTel custom-naming rules with an app prefix).
+  the OTel custom-naming rules with an app prefix). Amended 2026-08-29
+  (issue #149, observation report finding F2): a docker call whose
+  subject is an image is named for the whole operation —
+  `oddyssey.docker.image-inspect`, not the verb-truncated
+  `oddyssey.docker.image` — and carries
+  `oddyssey.docker.image=<image ref>` instead of the container
+  attribute. The subject is now a keyword (`container=` or `image=`);
+  container operations keep the shape frozen above.
 - `force_flush() -> None` — flushes the span processor with a short
   timeout (~2 s); called by `stack.py` right before the `docker rm` of
   `down`/`reset`. Failure is swallowed.
@@ -144,7 +151,21 @@ src/mcp-server/app/
   SDK's scheduled exports plus `stack_up`'s post-readiness flush to land
   them in the recreated store, best effort.
 - The httpx readiness probes need no code change (library
-  instrumentation).
+  instrumentation). Amended 2026-08-29 (issue #149): they now need two.
+  (a) Finding A5 — a probe that gets no HTTP response leaves no
+  `http.client.request.duration` point behind (the instrumentation
+  records that histogram only after re-raising), so `_probe` and
+  `_otlp_ingest_ready` call `telemetry.record_probe_failure(...)` from
+  their `httpx.TransportError` branches, feeding the counter
+  `oddyssey.stack.probe.failures` with a single bounded `error.type`
+  dimension (the exception class name). Response-coded failures are not
+  counted — they already have their own series. (b) Finding N4 — the
+  boot-poll failures are expected, so the httpx instrumentor is handed a
+  delegating tracer provider that forces `record_exception=False`
+  (0.65b0 exposes no such knob; excluding the URLs would drop the spans
+  themselves). The probe spans, their `error.type` attribute and their
+  ERROR status all stay; only the `exception.stacktrace` event goes.
+  The server's own spans keep their exception events.
 
 ## 6. Failure semantics
 
