@@ -12,3 +12,4 @@ the only place a decision lives.
 | 2026-08-29 | 2026-08-26-1003-config-set-env-preservation.md / F4 | wontfix | Port-move is rare and interactive; the ~14.5 s hang is accepted |
 | 2026-08-29 | 2026-08-26-1003-config-set-env-preservation.md / F5 | accepted-by-design | Next-restart-only telemetry endpoint is documented (telemetry.py); a port-moving session going dark is the design |
 | 2026-08-29 | 2026-08-22-2154-mcp-otel-instrumentation-verification.md / A6 | accepted-by-design | Transient of the injected engine-kill scenario; a clean reset clears it (confirmed by 2026-08-22-2227) |
+| 2026-08-29 | 2026-08-28-1531-stack-config-lifecycle.md / N2 | tracked | Real attribution gap; carried by issue #148 instead of the loop |
