@@ -330,6 +330,40 @@ def test_resource_has_no_service_instance_id():
     assert "instance_id_present=False" in result.stderr
 
 
+def test_resource_keeps_an_opted_in_service_instance_id():
+    # The other side of decision #9 (issue #148): the strip above is an
+    # opt-OUT, not a ban. A driven process that states its own identity in
+    # OTEL_RESOURCE_ATTRIBUTES must keep it verbatim - that label is what
+    # separates an observation run's cumulative series from a co-resident
+    # server's re-exported history. Same subprocess bootstrap as the
+    # absence test; the load-bearing keys are pinned over the inherited
+    # env and the exporter is aimed at a dead port, so no telemetry
+    # reaches the machine's stack.
+    code = (
+        "import sys; from opentelemetry import trace; "
+        "from oddyssey_mcp import telemetry; "
+        "shutdown = telemetry.setup_telemetry(); "
+        "attrs = trace.get_tracer_provider().resource.attributes; "
+        "sys.stderr.write('instance_id=%s' % attrs.get('service.instance.id')); "
+        "shutdown()"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+        env={
+            **os.environ,
+            "OTEL_RESOURCE_ATTRIBUTES": "service.instance.id=odd-test-run-42",
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4418",
+        },
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ""
+    assert "instance_id=odd-test-run-42" in result.stderr
+
+
 def test_export_endpoint_follows_the_configured_otlp_port(
     clean_otel_env, tmp_path, monkeypatch
 ):

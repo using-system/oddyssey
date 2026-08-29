@@ -47,7 +47,7 @@ stdio today; noted as a future hook in §8).
 | 6 | down/reset span loss | Accepted; `force_flush` before the destroying `docker` call so child spans emitted so far get a chance to land (reset wipes them anyway; down's are lost with the backend) | The alternative is a second backend, contradicting the product |
 | 7 | Logs | Skipped entirely this wave (`OTEL_LOGS_EXPORTER=none`); no stdlib logging introduced beyond exporter quieting | Logs API is Development in Python; nothing to bridge today |
 | 8 | Inbound propagation | Out of scope; future hook documented in §8 | No client sends context over stdio today |
-| 9 | `service.instance.id` | Not set | Avoids per-session Prometheus label growth for near-zero value |
+| 9 | `service.instance.id` | Not set | Avoids per-session Prometheus label growth for near-zero value. Amended 2026-08-29 (issue #148, observation report finding N2): the default stays id-free, and the opt-in the code already honors (`service.instance.id=` stated in `OTEL_RESOURCE_ATTRIBUTES` survives the strip) is now the documented attribution path for observation runs — a driven process sets `OTEL_RESOURCE_ATTRIBUTES=service.instance.id=<run slug>` to separate its cumulative series from co-resident servers' |
 | 10 | Semconv pin | Names in this spec follow the genai semconv MCP page (status Development) as of 2026-08-22; they are FROZEN here — any upstream rename is adopted only through a new spec revision | Development-status conventions may change under us |
 
 ## 4. Packages
