@@ -31,6 +31,18 @@ Start a clean run in this order — the reverse of what feels natural:
    cumulative-metric query with it: an unfiltered query mixes instances
    the moment an old one got a last export in.
 
+   **Prefer creating the identity over hunting for a substitute.** When
+   the driven service honors `OTEL_RESOURCE_ATTRIBUTES` — any OTel SDK
+   service, including `oddyssey-mcp`, which strips the SDK's default
+   UUID unless opted in — launch its process with
+   `OTEL_RESOURCE_ATTRIBUTES=service.instance.id=<run slug>` and record
+   the slug you chose. One bounded label per run makes the run's
+   cumulative series attributable by name and keeps a co-resident
+   server's re-exported history (an installed `uvx oddyssey-mcp`
+   long-lived process dumps its whole counter history into a
+   seconds-old store) separable instead of merely suspected. The
+   substitutes above stay the fallback for services that cannot opt in.
+
 When restarting is not possible, say so in the record — and still record
 the identity **and the process start time**: the start time is what
 dates the pre-window history. Traces and logs stay trustworthy, but
