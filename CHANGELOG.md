@@ -1,3 +1,16 @@
+## [1.8.2] - 2026-08-29
+
+### 🚀 Features
+
+- *(mcp)* Document and pin the opt-in instance identity - OTEL_RESOURCE_ATTRIBUTES separates co-resident servers (#153)
+
+### 🐛 Bug Fixes
+
+- *(mcp)* Telemetry polish and a clean loop - probe-failure counter, image-inspect span, quiet boot-polls, decisions ledger in action (#151)
+
+### 📚 Documentation
+
+- *(skill)* Field fixes - reset-forbidden and long scenarios, gcx minimum version and --json shape, Pyroscope time range (#152)
 ## [1.8.1] - 2026-08-29
 
 ### 🚀 Features
