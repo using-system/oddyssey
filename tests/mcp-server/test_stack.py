@@ -243,8 +243,13 @@ def test_stack_status_survives_non_object_inspect_output(monkeypatch):
     assert status["image"] is None and status["env"] is None
 
 
-def test_stack_up_boot_polling_never_reads_identity(monkeypatch):
-    """The wait loop uses the probe-only readiness, not the enriched status."""
+def test_readiness_never_touches_docker(monkeypatch):
+    """Probe-only: the boot loop polls it every 2 s, so it must not inspect.
+
+    Half of the boot-loop contract - that _readiness is cheap. The other
+    half, that stack_up actually consumes it, is pinned by
+    test_stack_up_polls_readiness_not_the_enriched_status.
+    """
     calls = []
     monkeypatch.setattr(
         stack,
@@ -462,6 +467,30 @@ def _trace_reset(monkeypatch, state: str, up=None) -> tuple[list[str], dict]:
         up or (lambda env=None, **kwargs: calls.append("stack_up") or UP_RESULT),
     )
     return calls, stack.stack_reset()
+
+
+def test_stack_up_polls_readiness_not_the_enriched_status(monkeypatch):
+    # The wiring half of the boot-loop contract (issue #118): the wait loop
+    # must consume the probe-only _readiness. Reading the enriched status
+    # instead would add three docker inspects to every 2 s poll, taxing
+    # every boot trace for identity data the loop never looks at.
+    calls: list[str] = []
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
+    monkeypatch.setattr(
+        stack,
+        "_readiness",
+        lambda: calls.append("_readiness") or {"running": True},
+    )
+    monkeypatch.setattr(
+        stack,
+        "stack_status",
+        lambda *args, **kwargs: pytest.fail("stack_up read the enriched status"),
+    )
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+
+    assert stack.stack_up()["running"] is True
+    assert calls == ["_readiness"]
 
 
 def test_stack_up_reports_env_not_applied_on_an_existing_container(monkeypatch):
