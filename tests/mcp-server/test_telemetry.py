@@ -162,6 +162,148 @@ def test_docker_span_names_and_attributes(span_capture):
     assert finished.attributes["oddyssey.docker.exit_code"] == 0
 
 
+def test_docker_span_of_an_image_operation_carries_the_image(span_capture):
+    # Observation finding F2: an operation whose subject is the image must
+    # be named for the operation and carry the image reference - a
+    # container attribute on an image inspect is simply wrong. Deliberate
+    # amendment of the 2026-08-22 frozen naming (issue #149).
+    with telemetry.docker_span("image-inspect", image="sha256:cafe") as span:
+        span.set_attribute("oddyssey.docker.exit_code", 0)
+
+    (finished,) = span_capture.get_finished_spans()
+    assert finished.name == "oddyssey.docker.image-inspect"
+    assert finished.attributes["oddyssey.docker.image"] == "sha256:cafe"
+    assert "oddyssey.docker.container" not in finished.attributes
+    assert finished.attributes["oddyssey.docker.exit_code"] == 0
+
+
+@pytest.fixture()
+def probe_failure_capture(monkeypatch):
+    reader = InMemoryMetricReader()
+    provider = SdkMeterProvider(metric_readers=[reader])
+    counter = provider.get_meter("test").create_counter(
+        "oddyssey.stack.probe.failures",
+        unit="{failure}",
+        description="Stack probes that got no HTTP response",
+    )
+    monkeypatch.setattr(telemetry, "_probe_failure_counter", counter)
+    return reader
+
+
+def _counter_points(reader, name: str) -> dict:
+    return {
+        point.attributes.get("error.type"): point.value
+        for resource_metric in reader.get_metrics_data().resource_metrics
+        for scope_metric in resource_metric.scope_metrics
+        for metric in scope_metric.metrics
+        if metric.name == name
+        for point in metric.data.data_points
+    }
+
+
+def test_record_probe_failure_counts_one_series_per_error_type(probe_failure_capture):
+    # Observation finding A5: a probe that gets NO response produces no
+    # http.client.request.duration point (the instrumentation records the
+    # histogram only after re-raising), so probe error rates are
+    # unanswerable in PromQL. This counter is the answer - keyed by the
+    # exception class name only: bounded, never a URL or a host.
+    telemetry.record_probe_failure("ConnectError")
+    telemetry.record_probe_failure("ConnectError")
+    telemetry.record_probe_failure("ReadError")
+
+    assert _counter_points(probe_failure_capture, "oddyssey.stack.probe.failures") == {
+        "ConnectError": 2,
+        "ReadError": 1,
+    }
+
+
+def test_record_probe_failure_is_a_no_op_without_telemetry(monkeypatch):
+    # Same contract as the duration histogram: with the SDK disabled (or a
+    # failed bootstrap) the instrument is None and recording must stay a
+    # silent no-op - telemetry never breaks a tool.
+    monkeypatch.setattr(telemetry, "_probe_failure_counter", None)
+
+    telemetry.record_probe_failure("ConnectError")  # must not raise
+
+
+@pytest.fixture()
+def dead_otlp_port(tmp_path, monkeypatch):
+    """Point the bootstrap at a port nothing listens on.
+
+    A real setup_telemetry() builds real exporters that flush on
+    shutdown: the suite must never push its own telemetry into the
+    machine's shared stack on the default port.
+    """
+    from oddyssey_mcp import config
+
+    path = tmp_path / "config.json"
+    path.write_text('{"local": {"otlp_http_port": 4418}}')
+    monkeypatch.setattr(config, "CONFIG_PATH", path)
+
+
+def test_setup_creates_the_probe_failure_counter(clean_otel_env, dead_otlp_port):
+    # The metric name is the PromQL surface of finding A5
+    # (oddyssey_stack_probe_failures_total): pin it here, since the
+    # capture fixture above creates its own instrument.
+    shutdown = telemetry.setup_telemetry()
+    try:
+        assert telemetry._probe_failure_counter is not None
+        assert telemetry._probe_failure_counter.name == "oddyssey.stack.probe.failures"
+    finally:
+        shutdown()
+
+
+def test_probe_spans_keep_their_error_status_without_a_stacktrace_event():
+    # Observation finding N4: boot-poll GETs fail by design while the
+    # stack starts, and each failure attached a full exception.stacktrace
+    # event (~30 KB of a 65 KB creation trace). The installed httpx
+    # instrumentation exposes no record_exception knob, so the lever is
+    # the tracer provider it is handed: spans, error.type and the ERROR
+    # status stay, only the event goes.
+    exporter = InMemorySpanExporter()
+    provider = SdkTracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+
+    tracer = telemetry._NoExceptionEventTracerProvider(provider).get_tracer("test")
+    with (
+        pytest.raises(RuntimeError, match="connection refused"),
+        tracer.start_as_current_span("GET", kind=SpanKind.CLIENT),
+    ):
+        raise RuntimeError("connection refused")
+
+    (span,) = exporter.get_finished_spans()
+    assert span.name == "GET"
+    assert span.kind == SpanKind.CLIENT
+    assert span.events == ()
+    assert not span.status.is_ok
+
+
+def test_httpx_instrumentation_gets_the_quiet_tracer_provider(
+    clean_otel_env, dead_otlp_port, monkeypatch
+):
+    # The N4 mechanism only reaches the probe spans if the instrumentor
+    # is actually handed the quiet provider - assert the wiring, not just
+    # the class above. instrument() is stubbed: this test must not patch
+    # the process's real httpx transports.
+    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+
+    captured: dict = {}
+    monkeypatch.setattr(
+        HTTPXClientInstrumentor,
+        "instrument",
+        lambda self, **kwargs: captured.update(kwargs),
+    )
+
+    shutdown = telemetry.setup_telemetry()
+    try:
+        assert isinstance(
+            captured.get("tracer_provider"),
+            telemetry._NoExceptionEventTracerProvider,
+        )
+    finally:
+        shutdown()
+
+
 def test_resource_has_no_service_instance_id():
     # SDK 1.44 Resource.create() generates a service.instance.id UUID by
     # default -> one Prometheus series set per MCP session (observation

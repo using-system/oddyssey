@@ -185,8 +185,20 @@ def run_args(env: dict[str, str] | None = None) -> list[str]:
     ]
 
 
-def _docker(*args: str) -> subprocess.CompletedProcess:
-    with telemetry.docker_span(args[0], container=CONTAINER_NAME) as span:
+def _docker(*args: str, image: str | None = None) -> subprocess.CompletedProcess:
+    """Run one docker command inside its span.
+
+    image names the subject of the call when the operation acts on an
+    image rather than on the stack container (observation finding F2):
+    the span then carries oddyssey.docker.image and is named for the
+    whole two-word operation ("image-inspect"), which args[0] alone
+    would truncate to the bare noun "image".
+    """
+    if image is None:
+        span_context = telemetry.docker_span(args[0], container=CONTAINER_NAME)
+    else:
+        span_context = telemetry.docker_span(f"{args[0]}-{args[1]}", image=image)
+    with span_context as span:
         result = subprocess.run(
             ["docker", *args],
             capture_output=True,
@@ -258,7 +270,14 @@ def container_user_env() -> dict[str, str] | None:
         return None
     if not isinstance(container_env, list) or not isinstance(image_ref, str):
         return None
-    image = _docker("image", "inspect", "--format", "{{json .Config.Env}}", image_ref)
+    image = _docker(
+        "image",
+        "inspect",
+        "--format",
+        "{{json .Config.Env}}",
+        image_ref,
+        image=image_ref,
+    )
     if image.returncode != 0:
         return None
     try:
@@ -280,7 +299,12 @@ def container_user_env() -> dict[str, str] | None:
 def _probe(client: httpx.Client, url: str) -> bool:
     try:
         return client.get(url).status_code == 200
-    except httpx.TransportError:
+    except httpx.TransportError as exc:
+        # No response at all: the httpx instrumentation's duration
+        # histogram never records this call, so this counter is the only
+        # metric trace of it (observation finding A5). A response-coded
+        # failure needs nothing here - it already has its own series.
+        telemetry.record_probe_failure(type(exc).__name__)
         return False
 
 
@@ -294,7 +318,8 @@ def _otlp_ingest_ready(client: httpx.Client) -> bool:
     try:
         client.post(otlp_http_ingest(), content=b"")
         return True
-    except httpx.TransportError:
+    except httpx.TransportError as exc:
+        telemetry.record_probe_failure(type(exc).__name__)
         return False
 
 
