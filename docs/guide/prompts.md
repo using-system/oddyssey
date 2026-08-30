@@ -10,10 +10,14 @@ The architecture behind these entry points is mapped in
 
 ## /odd-instrument
 
-Investigates a codebase and returns every input needed to plan
-OpenTelemetry instrumentation. Free-form arguments map to: the **path
-or repository** to investigate (default: the current repository) and
-the intended **export stack** (default: the local oddyssey stack).
+Investigates a codebase and produces every input needed to plan
+OpenTelemetry instrumentation. The mission closes with a short
+synthesis of the persisted report (the
+`show-otel-instrumentation-report` skill); the stored file under
+`.odd/otel-instrumentation-reports/` is the plan's input. Free-form
+arguments map to: the **path or repository** to investigate (default:
+the current repository) and the intended **export stack** (default:
+the local oddyssey stack).
 
 ```text
 /odd-instrument add OpenTelemetry to this repository
@@ -34,9 +38,12 @@ the intended **export stack** (default: the local oddyssey stack).
 
 ## /odd-observe
 
-Observes a running service through its telemetry and returns the
-plan-ready observation report. Free-form arguments map to: **service
-name(s)**, **stack** (defaults to the configured one), **mode**
+Observes a running service through its telemetry and produces the
+plan-ready observation report. The mission closes with a short
+synthesis of the persisted report (the `show-observe-run-report`
+skill); the stored file under `.odd/observe-run-reports/` is the
+deliverable the next wave consumes. Free-form arguments map to:
+**service name(s)**, **stack** (defaults to the configured one), **mode**
 (`drive` / `observe` / `post-hoc`), **window**, **focus**, and
 **baseline expectations**. The deployment environment is never an
 argument - the agent detects it from the service's telemetry.
@@ -84,7 +91,10 @@ argument - the agent detects it from the service's telemetry.
 ## /odd-verify
 
 Replays a stored report's protocol and rules on everything it
-recorded. Free-form arguments map to: the **report to verify against**
+recorded. The mission closes with a short synthesis of the persisted
+verification report (the `show-observe-run-report` skill), its
+verdict-first headline leading the answer. Free-form arguments map
+to: the **report to verify against**
 (a path under `.odd/`, or enough of a run name to find it - observation
 or instrumentation report), and, for a remote stack, the **access
 material** the agent needs. With no report named, the newest stored
