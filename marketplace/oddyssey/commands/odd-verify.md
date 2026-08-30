@@ -132,7 +132,10 @@ Then build the mission block from that report:
   - every telemetry gap it listed: now filled or still missing, with the
     discovery query.
 
-Return the agent's report as-is: it carries the verdict and, stored in
-`.odd/observe-run-reports/`, becomes the versioned record that the
-fix - or the planned instrumentation - was measured, not assumed. Do
-not summarize it away.
+Close the mission with the `show-observe-run-report` skill: render its
+synthesis of the stored report as the final answer - the verdict-first
+headline leads, stating the stored path. The report file, stored in
+`.odd/observe-run-reports/`, remains the versioned record that the
+fix - or the planned instrumentation - was measured, not assumed:
+never re-dump the raw report in the conversation, and never let the
+synthesis replace the stored file as that record.

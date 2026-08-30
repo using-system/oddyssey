@@ -236,6 +236,15 @@ Before a new run, load the baseline:
 - Write the file exactly where the contract says: the report belongs to
   the **observed** repository, not to the oddyssey package, a home
   directory, or a temp path.
+- **Never commit on the default branch**: before committing, compare
+  `git branch --show-current` with the repository's default branch
+  (`git symbolic-ref --short refs/remotes/origin/HEAD` stripped of its
+  `origin/` prefix; if unset, `main` — or `master` when that is the
+  checked-out branch). Only when on the default branch, create and
+  switch to a work branch named `docs/odd-observe-run-report-<run_name>`
+  (switching to it if it already exists) and commit there — and say so
+  in the reply. If switching is impossible, do not commit: state the
+  path and leave the commit to the caller.
 - **After writing, commit the report file on its own**:
   `git add <report file>` then
   `git commit -m "docs(odd): observation report <run_name>"` (for a

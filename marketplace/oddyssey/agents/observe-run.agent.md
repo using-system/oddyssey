@@ -161,8 +161,13 @@ exact commands; the method below is the same everywhere.
 
 In **drive** mode, produce the traffic first with the `run-scenario` skill
 and keep its verbatim record — sections 1 and 7 of the report both quote
-it. On the local stack, when the mission asks for a clean base — or
-isolating the run matters — restart the observed process, **then** call
+it. Drive the scenario to completion **inside your turn** — the skill
+owns the wait method (one blocking foreground command, or the
+platform's blocking wait primitive): as a subagent, never end your
+turn while the scenario is running — ending the turn terminates the
+mission and returns an unfinished result, with no later wake-up. On
+the local stack, when the mission asks for a clean base — or isolating
+the run matters — restart the observed process, **then** call
 `odd_stack_reset` before the scenario (`run-scenario` step 0: a clean
 backend is not a clean run, and the order is load-bearing): everything
 the stack then contains IS the run, and the window becomes trivial.
