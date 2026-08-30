@@ -116,6 +116,27 @@ def test_traced_tool_records_exception_and_reraises(span_capture):
     assert span.events[0].name == "exception"
 
 
+def test_traced_tool_translates_valueerror_to_tool_error(span_capture):
+    # mcp 2.1.1 withholds a bare exception's message from the client -
+    # only a deliberate mcp.server.mcpserver.exceptions.ToolError keeps it.
+    # oddyssey's tool bodies (config_ops.save, stack_ops.stack_up/reset)
+    # raise ValueError for validation failures the caller must see, so the
+    # wrapper translates it here rather than each call site importing mcp's
+    # exception type.
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    @telemetry.traced_tool
+    def odd_invalid() -> dict:
+        raise ValueError("stack must be one of [...], got 'narnia'")
+
+    with pytest.raises(ToolError, match="stack must be one of"):
+        odd_invalid()
+
+    (span,) = span_capture.get_finished_spans()
+    assert not span.status.is_ok
+    assert span.events[0].name == "exception"
+
+
 @pytest.fixture()
 def metric_capture(monkeypatch):
     reader = InMemoryMetricReader()
