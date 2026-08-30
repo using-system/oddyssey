@@ -38,6 +38,7 @@ stack: local                  # local | the remote backend name (grafana, datado
 run_name: mcp-server-python
 date: 2026-08-23
 revision: 2299d4c             # optional: commit of the investigated repo
+tree_anchor: {src: "5ea231f…", tests: "8e29aac…"}  # optional: FULL top-level entry map at revision (git ls-tree) - the squash-proof anchor
 ---
 
 <the investigation report, verbatim and complete>
@@ -48,7 +49,11 @@ revision: 2299d4c             # optional: commit of the investigated repo
   repo/path for a scoped investigation), `stack` the export stack the
   recommendations were derived for, `revision` which code the findings
   hold for (`git rev-parse --short HEAD`) — the stack may have changed
-  since.
+  since. In a squash-merge repository that commit never joins the
+  merged history, so record `tree_anchor` alongside it: the full
+  top-level entry map of `git ls-tree <revision>`, one
+  `name: object-hash` pair per entry — the squash-proof,
+  clone-resolvable form of "which code the findings hold for".
 - The body is the producing agent's report **as-is** — the report
   contract (sections, tables, evidence rules) belongs to the agent, not
   to this skill. Store the whole thing.

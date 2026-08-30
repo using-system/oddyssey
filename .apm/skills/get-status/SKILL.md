@@ -17,8 +17,8 @@ itself.
   frontmatters first, bodies only where a step below needs their
   structured tables or a verification's rulings;
 - git metadata about the repository and those files: report commit
-  dates, and each report's `revision` field against the commits that
-  came after it;
+  dates, and each report's `revision` and `tree_anchor` fields against
+  the commits that came after it;
 - `.odd/decisions.md`, the findings decision ledger — read through the
   ledger contract the `record-finding-decision` skill owns: that skill
   is the format's authority, this one only reads what it wrote. A
@@ -65,8 +65,18 @@ as tables — never a committed artifact.
    coverage: a commit whose squash introduced the verification report
    itself is covered by that verification, and when ancestry is
    otherwise inconclusive, say coverage is uncertain rather than ruling
-   a verification due. When a report carries no `revision`, its commit
-   date — already a source — is the substitute boundary.
+   a verification due. When a report carries a `tree_anchor`, that is
+   the **preferred boundary**: compare its entry hashes against
+   `git ls-tree` of the candidate commit, ignoring `.odd` and every
+   entry that cannot change the observed service's runtime behavior —
+   documentation is the canonical case, but so are CI configuration,
+   generated/packaging artifacts, and release-metadata files. Equal
+   hashes mean no code change, and the comparison resolves in any
+   clone whatever the merge strategy; when the only differing entries
+   are ones you cannot classify, the boundary is uncertain — say so,
+   never rule "code changed". When a report carries neither an anchor
+   nor a `revision`, its commit date — already a source — is the
+   substitute boundary.
    Pre-convention reports (no `verifies` field) leave the chain
    "unknown (pre-convention)" — state it, never reconstruct it from
    prose.
