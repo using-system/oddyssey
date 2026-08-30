@@ -29,10 +29,12 @@ dependencies - the diagram named in the prose expands it.
 
 ## /odd-instrument
 
-A pure dispatcher to `otel-instrumentation-expert`, which maps
+A dispatcher to `otel-instrumentation-expert`, which maps
 services to the official docs (`otel-guides`), reads effective ports
 from `odd_config_get`, and persists through
-`create-otel-instrumentation-report`. `observe-run` is a boundary node
+`create-otel-instrumentation-report`. The prompt closes the mission
+with `show-otel-instrumentation-report`, rendering a synthesis of the
+stored report as the final answer. `observe-run` is a boundary node
 here - the report hands the confirmation of landed signals to it, and
 its own path is the `/odd-observe` diagram.
 
@@ -50,6 +52,7 @@ flowchart LR
   subgraph Skills
     og[otel-guides]
     coir[create-otel-instrumentation-report]
+    soir[show-otel-instrumentation-report]
   end
 
   subgraph MCP["MCP tools"]
@@ -61,11 +64,13 @@ flowchart LR
   end
 
   instrument --> expert
+  instrument --> soir
   expert --> og
   expert --> coir
   expert --> cfgget
   expert -. hands off .-> runner
   coir --> insdir
+  soir --> insdir
 
   classDef prompt fill:#e8f0fe,stroke:#4285f4
   classDef agent fill:#fef7e0,stroke:#f9ab00
@@ -74,7 +79,7 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class instrument prompt
   class expert,runner agent
-  class og,coir skill
+  class og,coir,soir skill
   class cfgget mcp
   class insdir store
 ```
@@ -84,7 +89,9 @@ flowchart LR
 The preflight runs in the main conversation first - resolve the stack
 (`odd_config_get`, persisting a switch with `odd_config_set`) and
 prove the CLI connected (`check-backend-configuration`) - then the
-mission dispatches to `observe-run`. `otel-instrumentation-expert` is
+mission dispatches to `observe-run`, and the prompt closes it with
+`show-observe-run-report`, rendering a synthesis of the stored report
+as the final answer. `otel-instrumentation-expert` is
 a boundary node - recommended when a named service emits no telemetry
 at all; its path is the `/odd-instrument` diagram.
 
@@ -105,6 +112,7 @@ flowchart LR
     sls[setup-local-stack]
     rs[run-scenario]
     corr[create-observe-run-report]
+    sorr[show-observe-run-report]
   end
 
   subgraph MCP["MCP tools"]
@@ -119,8 +127,10 @@ flowchart LR
 
   observe --> runner
   observe --> cbc
+  observe --> sorr
   observe --> cfgget
   observe --> cfgset
+  sorr --> obsdir
 
   runner --> ocg
   runner --> sls
@@ -149,7 +159,7 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class observe prompt
   class runner,expert agent
-  class cbc,ocg,sls,rs,corr skill
+  class cbc,ocg,sls,rs,corr,sorr skill
   class cfgget,cfgset,stack mcp
   class obsdir store
 ```
@@ -160,7 +170,9 @@ Resolves the baseline report across both `.odd/` stores, preflights
 against the report's `stack` (never silently retargeting the
 configured one - so no `odd_config_set` in this subgraph), mandates
 `create-observe-run-report`'s verification rules for the report its
-agent will persist, and dispatches to `observe-run`.
+agent will persist, dispatches to `observe-run`, and closes the
+mission with `show-observe-run-report`'s synthesis of the stored
+report - verdict first.
 `otel-instrumentation-expert` is the same boundary node as in
 `/odd-observe` - its path is the `/odd-instrument` diagram.
 
@@ -181,6 +193,7 @@ flowchart LR
     sls[setup-local-stack]
     rs[run-scenario]
     corr[create-observe-run-report]
+    sorr[show-observe-run-report]
   end
 
   subgraph MCP["MCP tools"]
@@ -195,10 +208,12 @@ flowchart LR
 
   verify --> runner
   verify --> cbc
+  verify --> sorr
   verify --> cfgget
   verify -.-> corr
   verify --> obsdir
   verify --> insdir
+  sorr --> obsdir
 
   runner --> ocg
   runner --> sls
@@ -227,7 +242,7 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class verify prompt
   class runner,expert agent
-  class cbc,ocg,sls,rs,corr skill
+  class cbc,ocg,sls,rs,corr,sorr skill
   class cfgget,stack mcp
   class obsdir,insdir store
 ```
@@ -337,8 +352,12 @@ flowchart LR
 
 ## Prompts
 
-`/odd-instrument` and `/odd-observe` are pure dispatchers: they build
-a mission block and hand it to their agent. `/odd-observe`'s preflight
+`/odd-instrument` and `/odd-observe` are dispatchers: they build
+a mission block, hand it to their agent, and close the mission with
+their show-report skill's synthesis of the stored report
+(`show-otel-instrumentation-report` and `show-observe-run-report`
+respectively; `/odd-verify` closes with the latter too, verdict
+first). `/odd-observe`'s preflight
 runs in the main conversation first - resolve the stack
 (`odd_config_get`, persisting a switch with `odd_config_set`) and
 prove the CLI connected (`check-backend-configuration`). `/odd-verify`
@@ -379,9 +398,13 @@ sections, persistence via `odd_config_set`, verification handed back
 to `check-backend-configuration`. `observability-cli-guides` routes
 the local-stack case to `setup-local-stack`, which reads the effective
 ports from `odd_config_get`. `run-scenario` orders the clean-base
-sequence around `odd_stack_reset`. The two report skills own the
-stores: naming, frontmatter contracts, recall - everything else goes
-through them rather than touching `.odd/` directly. `get-status` owns
+sequence around `odd_stack_reset`. The two create-report skills own
+the stores: naming, frontmatter contracts, recall - everything else
+goes through them rather than touching `.odd/` directly. The two
+show-report skills (`show-observe-run-report`,
+`show-otel-instrumentation-report`) read a stored report and render
+its closing synthesis - display only: they follow the create skills'
+file contracts, write nothing, and invoke no other component. `get-status` owns
 the status surface - its sources (both stores, git, the decisions
 ledger), the build order, the empty-filter answer, the degradation -
 and invokes no other component: it only reads.
@@ -414,7 +437,7 @@ access goes through the tools.
 ```mermaid
 flowchart LR
   P[5 prompts] --> A[2 agents]
-  P --> S[10 skills]
+  P --> S[12 skills]
   A --> S
   P --> M[MCP tools]
   A --> M
