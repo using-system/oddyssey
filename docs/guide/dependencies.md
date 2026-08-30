@@ -113,6 +113,7 @@ flowchart LR
     rs[run-scenario]
     corr[create-observe-run-report]
     sorr[show-observe-run-report]
+    ubc[update-backend-configuration]
   end
 
   subgraph MCP["MCP tools"]
@@ -141,6 +142,7 @@ flowchart LR
   runner -. recommends .-> expert
 
   cbc -.-> sls
+  cbc -.-> ubc
   cbc --> ocg
   cbc --> cfgget
   cbc --> stack
@@ -159,7 +161,7 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class observe prompt
   class runner,expert agent
-  class cbc,ocg,sls,rs,corr,sorr skill
+  class cbc,ocg,sls,rs,corr,sorr,ubc skill
   class cfgget,cfgset,stack mcp
   class obsdir store
 ```
@@ -194,6 +196,7 @@ flowchart LR
     rs[run-scenario]
     corr[create-observe-run-report]
     sorr[show-observe-run-report]
+    ubc[update-backend-configuration]
   end
 
   subgraph MCP["MCP tools"]
@@ -224,6 +227,7 @@ flowchart LR
   runner -. recommends .-> expert
 
   cbc -.-> sls
+  cbc -.-> ubc
   cbc --> ocg
   cbc --> cfgget
   cbc --> stack
@@ -242,7 +246,7 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class verify prompt
   class runner,expert agent
-  class cbc,ocg,sls,rs,corr,sorr skill
+  class cbc,ocg,sls,rs,corr,sorr,ubc skill
   class cfgget,stack mcp
   class obsdir,insdir store
 ```
@@ -306,7 +310,10 @@ flowchart LR
 Composes two skills - display through
 `check-backend-configuration`, and the backend switch routed to
 `update-backend-configuration` when the user picks one, which verifies
-by handing back to `check-backend-configuration`.
+by handing back to `check-backend-configuration`. The routing goes the
+other way too: when the backend CLI's binary is absent,
+`check-backend-configuration` routes to
+`update-backend-configuration`'s guided install offer.
 
 ```mermaid
 flowchart LR
@@ -335,6 +342,7 @@ flowchart LR
   ubc -.-> cbc
 
   cbc -.-> sls
+  cbc -.-> ubc
   cbc --> ocg
   cbc --> cfgget
   cbc --> stack
@@ -391,8 +399,10 @@ named service emits no telemetry at all, it recommends
 
 `check-backend-configuration` is the routing hub of the preflight: it
 resolves the configured stack (`odd_config_get`), routes `local` to
-`setup-local-stack` and remote backends to their
-`observability-cli-guides` reference. `update-backend-configuration`
+`setup-local-stack`, remote backends to their
+`observability-cli-guides` reference, and a missing CLI binary to the
+guided install offer of `update-backend-configuration`.
+`update-backend-configuration`
 owns the switch: CLI presence via the guides' `## CLI binary`
 sections, persistence via `odd_config_set`, verification handed back
 to `check-backend-configuration`. `observability-cli-guides` routes
