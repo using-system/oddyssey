@@ -16,6 +16,12 @@ dependencies = [
 [project.scripts]
 oddyssey-mcp = "oddyssey_mcp.server:main"
 
+[project.urls]
+Homepage = "https://github.com/using-system/oddyssey#readme"
+Repository = "https://github.com/using-system/oddyssey"
+Issues = "https://github.com/using-system/oddyssey/issues"
+Changelog = "https://github.com/using-system/oddyssey/releases"
+
 [dependency-groups]
 dev = [
     "pytest==9.1.1",

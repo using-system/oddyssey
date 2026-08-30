@@ -35,6 +35,17 @@ mkdir -p marketplace/oddyssey/.claude-plugin
 cp -R "$TMP"/oddyssey-*/. marketplace/oddyssey/
 mv marketplace/oddyssey/plugin.json marketplace/oddyssey/.claude-plugin/plugin.json
 
+# apm-cli 0.28.0's plugin.json synthesis carries name/version/description/
+# license/homepage/repository/author/keywords from apm.yml's root, but drops
+# displayName (undocumented in its synthesizer); inject it by hand so the
+# `/plugin` picker shows a human-readable name instead of the package slug.
+DISPLAY_NAME="$(grep -m1 '^displayName:' apm.yml | cut -d':' -f2- | sed 's/^[[:space:]]*//')"
+if [ -n "$DISPLAY_NAME" ]; then
+  jq --arg name "$DISPLAY_NAME" '. + {displayName: $name}' \
+    marketplace/oddyssey/.claude-plugin/plugin.json > "$TMP/plugin.json.patched"
+  mv "$TMP/plugin.json.patched" marketplace/oddyssey/.claude-plugin/plugin.json
+fi
+
 # apm pack does not carry the MCP dependency into the plugin bundle;
 # inject it so a native install gets the stack-piloting server too,
 # pinned to the same version apm.yml pins.
