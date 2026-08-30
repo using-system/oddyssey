@@ -48,6 +48,11 @@ the paths touched (commands and pins are owned by
   (`bash integration-tests/mcp-server/run.sh`).
 - `.apm/` or `apm.yml` changed → validate the package like CI does:
   `uvx --from apm-cli==0.28.0 apm install --target claude && uvx --from apm-cli==0.28.0 apm audit`.
+  The install deploys the package into the working tree and edits
+  tracked files. Record `git status --porcelain` and `git diff` before
+  running; once the check completes, delete the untracked files the
+  command created and revert its edits to tracked files — leave
+  anything that existed before untouched.
 
 A PR pushed red costs a review round-trip; run the checks first.
 
