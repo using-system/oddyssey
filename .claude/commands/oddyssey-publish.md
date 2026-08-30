@@ -76,7 +76,8 @@ Steps:
      with `{"environment_ids": [<id>], "state": "approved", "comment": "<short reason>"}`,
      then keep watching the run to completion and verify the outcome:
      the GitHub release exists WITH its notes (never header-only), and
-     PyPI serves the version (`curl -s https://pypi.org/pypi/oddyssey-mcp/json | jq -r .info.version`);
+     PyPI serves the version (`curl -s https://pypi.org/pypi/oddyssey-mcp/json | jq -r .info.version`).
+     Once both are verified, go to step 7;
    - **reject**: same call with `"state": "rejected"` - the run ends
      without publishing; the GitHub release and tag remain, say so and
      name the cleanup options (delete the release/tag, or re-run and
@@ -85,3 +86,43 @@ Steps:
      Actions UI ("Review deployments"), and re-running
      `/oddyssey-publish` resumes it (step 1 routes a WAITING run
      straight back here).
+
+   Only the approve path reaches step 7 — reject and defer ship
+   nothing, so there is no release to attribute issues to.
+
+7. **Label the issues this release shipped** — the version is known and
+   so is the set of issues, and this is the only moment both are true.
+   Closed issues carry a `release: vX.Y.Z` label naming the release
+   that shipped them; without this step the scheme decays into a
+   snapshot and every later release leaves its issues unlabelled.
+
+   Run it only after step 6 verified the GitHub release AND PyPI.
+   `git fetch origin --tags --force` first: the workflow re-points the
+   tag at the merge commit, so a stale local tag would compute the
+   wrong range.
+
+   - **Collect the PRs in the range** between the tag read in step 1
+     and the one just released — squash-merge leaves the number as a
+     `(#N)` suffix on every subject:
+     `git log <last-tag>..vX.Y.Z --pretty=%s | sed -n 's/.*(#\([0-9]*\))$/\1/p'`
+   - **Resolve each PR's issues**:
+     `gh pr view <N> --json closingIssuesReferences --jq '.closingIssuesReferences[].number'`.
+     A PR that closes none (the release PR itself, chores) contributes
+     nothing — that is normal, not an error.
+   - **Create the label if it does not exist yet**, matching the
+     existing ones exactly:
+     `gh label create "release: vX.Y.Z" --color 6F42C1 --description "Shipped in release vX.Y.Z"`
+     — already-exists is a success, not a failure.
+   - **Apply it**: `gh issue edit <n> --add-label "release: vX.Y.Z"`,
+     once per resolved issue. `--add-label` is additive and leaves the
+     type, priority and stack labels alone.
+   - **Report** the count and name every issue that could not be
+     resolved or labelled, so the gap is visible rather than assumed
+     covered.
+
+   **A failure here never fails the release.** By this point the tag,
+   the GitHub release and the PyPI artifact are all public and
+   irreversible; labelling is bookkeeping about a release that already
+   happened. Report what did not get labelled and let the user fix it
+   — never re-run the pipeline, never delete the tag, and never
+   present the release as failed because a label did not stick.
