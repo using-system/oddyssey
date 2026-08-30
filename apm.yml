@@ -2,6 +2,21 @@ name: oddyssey
 version: 1.8.3
 license: MIT
 description: Observability-Driven Development for CLI coding agents
+displayName: Oddyssey
+keywords:
+  - claude-code
+  - claude-code-plugin
+  - claude-skills
+  - mcp
+  - ai-agents
+  - observability
+  - opentelemetry
+  - developer-tools
+homepage: https://github.com/using-system/oddyssey#readme
+repository: https://github.com/using-system/oddyssey
+author:
+  name: using-system
+  url: https://github.com/using-system
 
 dependencies:
   mcp:
