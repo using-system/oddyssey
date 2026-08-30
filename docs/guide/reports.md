@@ -73,6 +73,7 @@ process_restarted: true
 | `date` | yes | The run's UTC date | `YYYY-MM-DD` |
 | `verifies` | only on `verify` / `re-measure` | The exact filename of the report **whose protocol was actually replayed** — exact so two baselines sharing a `run_name` stay distinct and an accidental rename is survivable | a sibling filename; a repo-relative `.odd/otel-instrumentation-reports/<filename>` path when the baseline is an instrumentation report (the value's shape says which directory); a verification report only when its own §7 protocol — not the original's — was the one replayed |
 | `revision` | optional | The observed repo's commit at run time (`git rev-parse --short HEAD`) — what makes a before/after honest | short SHA |
+| `tree_anchor` | optional | Full top-level entry map of `git ls-tree <revision>` — the squash-proof content anchor a fresh clone can compare (consumers ignore `.odd` and every entry that cannot change the service's runtime behavior: documentation, CI configuration, generated artifacts, release metadata) | map of entry name to object hash |
 | `workload` | optional | The input that shaped the run, when the runtime profile depends on what was processed, not only on the service — runs with different workloads are incomparable | free-form; omitted when the service alone defines the profile |
 | `instance` | optional | Per service, the process identity the numbers belong to — `service.instance.id`, or the backend equivalent when absent | map of service to identity |
 | `process_restarted` | optional | Whether the process restarted before the window | boolean, or a per-service map when only some restarted |
@@ -155,6 +156,7 @@ revision: 2299d4c
 | `run_name` | yes | The slug the filename carries | kebab-case slug |
 | `date` | yes | The investigation's UTC date | `YYYY-MM-DD` |
 | `revision` | optional | Which code the findings hold for | short SHA |
+| `tree_anchor` | optional | Full top-level entry map of `git ls-tree <revision>` — the squash-proof content anchor a fresh clone can compare | map of entry name to object hash |
 
 No `services`, `mode`, or `environment` by design: the services live
 in the body's per-service plan, and the investigation reads code,
