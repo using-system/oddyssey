@@ -36,6 +36,49 @@ below is identical either way.
 | `gcx commands` | [gcx_commands.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_commands.md) | Full JSON catalog of every command with flags, args, token-cost estimates, and known Grafana resource types; `--validate` checks it against a live instance. Use for programmatic/agent discovery of the entire CLI surface, or `--flat` for a single-list view. |
 | Local oddyssey stack | the `setup-local-stack` skill (ships with the oddyssey package) | Carries a ready-made isolated `GCX_CONFIG` context (`admin`/`admin` against the configured `grafana_url` — default `http://localhost:3000`, never assumed — datasource UIDs `prometheus`/`loki`/`tempo`/`pyroscope`). Use it instead of re-deriving context setup for the local stack; `gcx` is the mandatory query CLI (recorded proof queries may be raw datasource-proxy HTTP — that skill says when each form is right). |
 
+## Remote missions — targeting without touching the user's config
+
+The local stack has its sanctioned isolated setup (the
+`setup-local-stack` skill's per-session `GCX_CONFIG`); a remote
+mission runs on the user's own gcx context and must never write into
+it. Datasource defaults live in the context file
+(`contexts.<name>.datasources.<kind>`), so a mission without its own
+file pays `-d <uid>` on every call. The remote mirror of the local
+pattern, in order of preference:
+
+- **Session copy** — copy the user's config to a per-session path,
+  point `GCX_CONFIG` at the copy, and add the datasource defaults
+  there: the user's file is never touched and the copy dies with the
+  session. **Gate it with `gcx config check` immediately** — on the
+  mission's context (`--context <name>`) when the user's active one
+  is not the target stack: keychain-backed credentials (OAuth
+  sign-in, `gcx login`-stored tokens) are bound to the config file's
+  path and are rejected in the copy — "the keychain reference does
+  not match this config source" (verified 1.2.0) — so the copy alone
+  only works for inline-credential or env-var contexts.
+- **When the check rejects the copy** — the rejection message itself
+  names the fix: the user re-authenticates once into the session file
+  (`gcx login <stack> --config "$GCX_CONFIG"` — their action, never
+  the mission's), then re-run the check to prove the session file
+  works. If they decline, stay on the user's config and pass
+  `-d <uid>` per call — verbose, but deterministic with the UID
+  conventions below.
+- Never work around a rejection by copying credential values out of
+  the keychain or the user's file, and never write into the user's
+  config to "just add" the datasource defaults.
+
+**Grafana Cloud datasource discovery**: `gcx datasources list -o
+agents` returns `"type": ""` for every datasource on Cloud (observed
+2026-08), so the signal-kind mapping cannot be read from the type
+field. Map by the stock naming and proxy URLs instead: the
+provisioned datasources follow the `grafanacloud-…-prom` /
+`-traces` / `-logs` / `-profiles` naming (observed 2026-08 as UIDs
+`grafanacloud-prom`, `grafanacloud-traces`, `grafanacloud-logs`,
+`grafanacloud-profiles`; display names may prefix the stack slug) —
+take each one's **`uid` field from the `datasources list` output**
+and set it as the matching `datasources.<kind>` default
+(`prometheus`, `tempo`, `loki`, `pyroscope`) in the session copy.
+
 ## Query by signal
 
 | Signal | How | Link | Notes |
