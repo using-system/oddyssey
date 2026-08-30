@@ -36,6 +36,49 @@ below is identical either way.
 | `gcx commands` | [gcx_commands.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_commands.md) | Full JSON catalog of every command with flags, args, token-cost estimates, and known Grafana resource types; `--validate` checks it against a live instance. Use for programmatic/agent discovery of the entire CLI surface, or `--flat` for a single-list view. |
 | Local oddyssey stack | the `setup-local-stack` skill (ships with the oddyssey package) | Carries a ready-made isolated `GCX_CONFIG` context (`admin`/`admin` against the configured `grafana_url` — default `http://localhost:3000`, never assumed — datasource UIDs `prometheus`/`loki`/`tempo`/`pyroscope`). Use it instead of re-deriving context setup for the local stack; `gcx` is the mandatory query CLI (recorded proof queries may be raw datasource-proxy HTTP — that skill says when each form is right). |
 
+## Remote missions — targeting without touching the user's config
+
+The local stack has its sanctioned isolated setup (the
+`setup-local-stack` skill's per-session `GCX_CONFIG`); a remote
+mission runs on the user's own gcx context and must never write into
+it. Datasource defaults live in the context file
+(`contexts.<name>.datasources.<kind>`), so a mission without its own
+file pays `-d <uid>` on every call. The remote mirror of the local
+pattern, in order of preference:
+
+- **Session copy** — copy the user's config to a per-session path,
+  point `GCX_CONFIG` at the copy, and add the datasource defaults
+  there: the user's file is never touched and the copy dies with the
+  session. **Gate it with `gcx config check` immediately** — on the
+  mission's context (`--context <name>`) when the user's active one
+  is not the target stack: keychain-backed credentials (OAuth
+  sign-in, `gcx login`-stored tokens) are bound to the config file's
+  path and are rejected in the copy — "the keychain reference does
+  not match this config source" (verified 1.2.0) — so the copy alone
+  only works for inline-credential or env-var contexts.
+- **When the check rejects the copy** — the rejection message itself
+  names the fix: the user re-authenticates once into the session file
+  (`gcx login <stack> --config "$GCX_CONFIG"` — their action, never
+  the mission's), then re-run the check to prove the session file
+  works. If they decline, stay on the user's config and pass
+  `-d <uid>` per call — verbose, but deterministic with the UID
+  conventions below.
+- Never work around a rejection by copying credential values out of
+  the keychain or the user's file, and never write into the user's
+  config to "just add" the datasource defaults.
+
+**Grafana Cloud datasource discovery**: `gcx datasources list -o
+agents` returns `"type": ""` for every datasource on Cloud (observed
+2026-08), so the signal-kind mapping cannot be read from the type
+field. Map by the stock naming and proxy URLs instead: the
+provisioned datasources follow the `grafanacloud-…-prom` /
+`-traces` / `-logs` / `-profiles` naming (observed 2026-08 as UIDs
+`grafanacloud-prom`, `grafanacloud-traces`, `grafanacloud-logs`,
+`grafanacloud-profiles`; display names may prefix the stack slug) —
+take each one's **`uid` field from the `datasources list` output**
+and set it as the matching `datasources.<kind>` default
+(`prometheus`, `tempo`, `loki`, `pyroscope`) in the session copy.
+
 ## Query by signal
 
 | Signal | How | Link | Notes |
@@ -44,12 +87,12 @@ below is identical either way.
 | Metrics | `gcx metrics series` | [gcx_metrics_series.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_series.md) | Prometheus `/api/v1/series` — list time series for one or more selectors; unbounded time range unless `--since`/`--from`/`--to` is given. |
 | Metrics | `gcx metrics metadata` | [gcx_metrics_metadata.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_metadata.md) | Type and help text for metrics; filter with `-m/--metric`. |
 | Metrics | `gcx metrics query [PROMQL]` | [gcx_metrics_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_query.md) | Instant query by default; add `--from/--to/--step` (or `--since`) for a range query, or `--time` for an instant query at a specific timestamp. `--share-link`/`--open` produce a Grafana Explore URL. |
-| Traces | `gcx traces labels` | [gcx_traces_labels.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_labels.md) | List all trace labels, or values for one (`-l`); `--scope` filters to `resource`/`span`/`event`/`link`/`instrumentation`; `-q` scopes by a TraceQL filter. Experimental `--llm` requests an LLM-friendly value format. |
-| Traces | `gcx traces query [TRACEQL]` | [gcx_traces_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_query.md) | Search for traces with a TraceQL expression, e.g. `{ span.http.status_code >= 500 }`; `--limit` defaults to 20 (0 = unlimited). |
+| Traces | `gcx traces labels` | [gcx_traces_labels.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_labels.md) | List all trace labels, or values for one (`-l`); `--scope` filters to `resource`/`span`/`event`/`link`/`instrumentation`; `-q` scopes by a TraceQL filter. **No time flags**: `--since` and `--from`/`--to` are rejected (`Unknown flag`) — for a time-bounded attribute-value check, run a TraceQL query with `--since` instead. Experimental `--llm` requests an LLM-friendly value format. |
+| Traces | `gcx traces query [TRACEQL]` | [gcx_traces_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_query.md) | Search for traces with a TraceQL expression, e.g. `{ span.http.status_code >= 500 }`; `--limit` defaults to 20. **`--limit 0` is documented as unlimited but silently returns the backend default of 20** (verified 1.2.0: a query matching 434 traces returned 20) — never use it for counting; pass an explicit large limit (`--limit 1000`) instead. |
 | Traces | `gcx traces get TRACE_ID` | [gcx_traces_get.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_get.md) | Fetch one trace by hex trace ID. Experimental `--llm` returns an LLM-friendly shape; default `-o json` is raw OTLP-shaped. |
 | Logs | `gcx logs labels` | [gcx_logs_labels.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_labels.md) | List all labels, or values for one (`-l/--label`). |
 | Logs | `gcx logs series` | [gcx_logs_series.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_series.md) | List log streams; requires at least one `-M/--match` LogQL stream selector (repeatable, OR logic). |
-| Logs | `gcx logs query [LOGQL]` | [gcx_logs_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_query.md) | Default `-o table`; use `-o raw` for bare line bodies or `-o json` for the full response. `--limit` defaults to 50 (0 = unlimited). |
+| Logs | `gcx logs query [LOGQL]` | [gcx_logs_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_query.md) | Default `-o table`; use `-o raw` for bare line bodies or `-o json` for the full response. `--limit` defaults to 50 (0 = documented unlimited — unverified; after the traces `--limit 0` finding, prefer an explicit large limit). |
 | Profiles | `gcx profiles list-profile-types` | [gcx_profiles_list-profile-types.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_list-profile-types.md) | Lists available profile type IDs (e.g. `process_cpu:cpu:nanoseconds:cpu:nanoseconds`) — required input to `profiles query`. |
 | Profiles | `gcx profiles labels` | [gcx_profiles_labels.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_labels.md) | List all labels, or values for one (`-l`, e.g. `service_name`). Pyroscope's underlying `querier.v1.QuerierService/LabelValues` endpoint **requires a time range in epoch milliseconds** — without start/end it fails with "missing time range in the query", a message that names neither the parameter nor the unit. Through gcx, pass `--from`/`--to` (RFC3339, Unix, or relative like `now-1h`); when replaying the raw endpoint, supply `start`/`end` in ms yourself. |
 | Profiles | `gcx profiles query [SELECTOR]` | [gcx_profiles_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_query.md) | Requires `--profile-type`; can drill into specific `--profile-id`s (from `profiles exemplars`), restrict by `--span-id`/`--trace-id`, or filter the flamegraph with repeatable `--stacktrace-selector`. `-o pprof` writes a pprof binary. |
@@ -57,18 +100,70 @@ below is identical either way.
 Every query command resolves its datasource from `-d/--datasource <UID>` or
 falls back to `datasources.<kind>` in the active context (`prometheus`,
 `tempo`, `loki`, `pyroscope`) — set the defaults once per context instead of
-passing `-d` on every call. All four accept `-o agents` for compact
-agent-oriented output and `--jq <expr>`/`--json <fields>` for reshaping
-JSON results — `--json` is **not** a boolean flag: it requires a value
-(`--json list` — or `?` — to discover the fields, then
-`--json field1,field2`) and a bare `--json` fails with
-"Flag needs an argument". The two are mutually exclusive.
+passing `-d` on every call. Time flags differ per signal family:
+`traces query` takes `--since` or `--from`/`--to`, `traces labels` takes
+none, `profiles labels` **requires** `--from`/`--to` (see its row).
+
+### Reading gcx output
+
+All verified against gcx 1.2.0 — five traps that each cost real missions
+several retries:
+
+- **`-o agents` and `--jq` are mutually exclusive** ("--jq requires JSON
+  output"): reshaping needs `-o json --jq '<expr>'`. `--json <fields>` is
+  not a boolean flag (`--json list` — or `?` — discovers the fields, a
+  bare `--json` fails with "Flag needs an argument"), and `--jq`/`--json`
+  are mutually exclusive with each other too.
+- **JSON output is pretty-printed multi-line with no compact flag** —
+  `--jq '[…]' | tail -1` silently yields `]`, indistinguishable from an
+  empty result. Force one line with `--jq '<expr> | tostring'` (or
+  `-o raw` for bare log bodies).
+- **A `{"class":"hint",…}` preamble line precedes the payload** — on
+  stderr on the current build, on stdout on earlier ones — so merged or
+  older-build output must never be parsed naively. Stable either way:
+  `-o json --jq '<expr> | tostring' 2>&1 | tail -1`. On errors the last
+  line is the single-line `gcx.error` JSON — a non-parsing result is an
+  error, not empty data.
+- **The response envelope differs per command, and `--jq` runs over the
+  whole envelope**: `metrics query` → `.data.result[]`, `metrics series`
+  → `.data[]`, `traces query` → `.traces[]`, `logs query` →
+  `.data.result[]`.
+- **Anchor every aggregation on the data field, never on the envelope**:
+  `metrics series '…' --jq 'length'` returns 2 — the `{status, data}`
+  envelope's key count — even when the real series count is 0. The
+  correct form is `--jq '.data | length'`. An envelope-level count is a
+  silently wrong number, not an error.
+
+### Loki over OTLP
+
+On an OTLP-fed Loki (the local otel-lgtm stack and Grafana Cloud behave
+identically), idiomatic scrape-era LogQL returns empty results:
+
+- **The only stream labels are `service_name`, `service_instance_id`,
+  and `deployment_environment_name`.** `trace_id` and the level are
+  **structured metadata** — not labels, not in the line body: label
+  matchers (`detected_level=~"warn|error"`) and body matches
+  (`|= "<trace-id>"`) come back empty. Use pipeline filters instead:
+  `| severity_text =~ "WARN.*|ERROR"` and `| trace_id = "<id>"`.
+- **Metric-style LogQL through `gcx logs query` needs an explicit
+  `--since`** (it returns `null` without one), has no instant mode, and
+  its matrix samples are `{line: "<value>", timestamp}` objects — not
+  the Prometheus `[ts, "value"]` pairs — so take the last/max over
+  `.values` yourself.
 
 ## Planning notes
 
-- Verified 2026-08 against `grafana/gcx` on the `main` branch. gcx labels
-  itself "generally available" (README badge) and requires Grafana 12+ —
-  older self-hosted instances are out of scope.
+- Verified 2026-08-30 against gcx 1.2.0 (Homebrew build 2026-08-25) on a
+  live local stack — flag surface, output framing, envelope shapes, and
+  the `--limit 0` truncation were each exercised, not read from docs.
+  gcx labels itself "generally available" (README badge) and requires
+  Grafana 12+ — older self-hosted instances are out of scope.
+- The flag surface moves between builds sharing a version string:
+  `metrics labels --match` was rejected by an earlier 1.2.0 build and
+  works on the current one. When a documented flag comes back
+  `Unknown flag`, suspect the installed build before this file — and
+  fall back to an equivalent (`gcx metrics series '{selector}'` + jq
+  over `__name__` replaces `--match` scoping).
 - Query commands are read-only and identical across on-prem, Enterprise, and
   Cloud; the only differences are auth (`org-id` for on-prem vs
   `stack-id`/OAuth for Cloud) and which datasource UIDs exist on the stack.

@@ -1,3 +1,22 @@
+## [1.9.0] - 2026-08-30
+
+### 🚀 Features
+
+- *(skill)* Sanctioned session-scoped gcx targeting for remote grafana missions (#175)
+- *(tests)* Integration coverage for the configuration surface (#176)
+- *(skill)* Squash-proof tree_anchor in the report contracts (#178)
+- *(claude)* /oddyssey-publish labels the released issues with their version (#182)
+
+### 🐛 Bug Fixes
+
+- *(skill)* Grafana reference matches the real gcx CLI - output contract, flag surface, loki over otlp (#174)
+- *(skill)* Check-backend-configuration detects a missing cli binary first (#177)
+- *(skill)* Require and verify application insights on the azure-monitor stack (#180)
+- *(apm)* Add discoverability metadata to pyproject and plugin manifest (#186)
+
+### 💼 Other
+
+- *(deps)* Bump mcp from 2.0.0 to 2.1.1 in /src/mcp-server (#185)
 ## [1.8.3] - 2026-08-30
 
 ### 🚀 Features

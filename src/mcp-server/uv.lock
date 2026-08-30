@@ -506,7 +506,7 @@ wheels = [
 
 [[package]]
 name = "oddyssey-mcp"
-version = "1.8.3"
+version = "1.9.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
