@@ -72,6 +72,7 @@ window: 2026-08-22T10:04:12Z/2026-08-22T10:05:03Z
 run_name: checkout-latency-sweep
 date: 2026-08-22
 revision: 2299d4c             # optional: commit of the observed repo at run time
+tree_anchor: {src: "5ea231f…", tests: "8e29aac…"}  # optional: FULL top-level entry map at revision (git ls-tree) - the squash-proof anchor
 workload: repo-under-analysis # optional: the input that shaped this run
 instance: {checkout: af6070c1}   # optional: per service, the identity the numbers belong to
 process_restarted: true       # optional: restarted before the window (or per-service map)
@@ -147,7 +148,17 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   observation report in this directory either way.
 - `revision` (`git rev-parse --short HEAD` in the observed repo) is what
   makes a before/after honest: a report is a before-value for a fix
-  wave, and the fix is a diff against some revision.
+  wave, and the fix is a diff against some revision. In a squash-merge
+  repository that commit never joins the merged history — a fresh
+  clone cannot even resolve it — so record `tree_anchor` alongside it:
+  the full top-level entry map of `git ls-tree <revision>`, one
+  `name: object-hash` pair per entry. Content-derived, the anchor
+  survives squashes and clones: "code unchanged since the report"
+  becomes an entry-by-entry hash comparison against `git ls-tree` of
+  any later commit, with `.odd` and every entry that cannot change the
+  observed service's runtime behavior (documentation, CI
+  configuration, generated artifacts, release metadata) ignored by
+  the consumers.
 - `workload` names the input that shaped the run when the runtime
   profile depends on what was processed, not only on the service (an
   analysis service run against two different repositories produces

@@ -27,8 +27,22 @@ section below.
 
 Open the stack's reference in the `observability-cli-guides` skill — it
 names the CLI (gcx, Pup, dtctl, az, aws, splunk) and the commands that
-display its current configuration/context. Then open this skill's own
-reference for the stack (`references/<stack>.md`) — it says exactly what
+display its current configuration/context.
+
+**Prove the binary exists before reading anything**: run the
+reference's `## CLI binary` **Detect** command as written, in a shell
+**without `set -u`** (splunk's Detect references `$SPLUNK_HOME`,
+usually unset). A non-zero exit means the binary is absent — an
+**installation** problem, never a configuration one: say "the
+`<binary>` CLI is not installed" (naming the reference's binary, never
+"CLI not configured"), route to the `update-backend-configuration`
+skill's guided install offer, and resume here once the user has
+installed; if they decline, stop with the same clear error — the
+mission cannot query this backend until the binary exists. Everything
+below — display, probe, guidance — assumes a binary that runs.
+
+Then open this skill's own reference for the stack
+(`references/<stack>.md`) — it says exactly what
 to display for that backend and where each value comes from, including
 the persisted `stack_config` values from `odd_config_get`. Show that
 configuration to the user **as-is, no confirmation needed** — it is

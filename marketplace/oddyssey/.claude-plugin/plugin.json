@@ -1,6 +1,23 @@
 {
   "name": "oddyssey",
-  "version": "1.8.3",
+  "version": "1.9.0",
   "description": "Observability-Driven Development for CLI coding agents",
-  "license": "MIT"
+  "author": {
+    "name": "using-system",
+    "url": "https://github.com/using-system"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/using-system/oddyssey#readme",
+  "repository": "https://github.com/using-system/oddyssey",
+  "keywords": [
+    "claude-code",
+    "claude-code-plugin",
+    "claude-skills",
+    "mcp",
+    "ai-agents",
+    "observability",
+    "opentelemetry",
+    "developer-tools"
+  ],
+  "displayName": "Oddyssey"
 }

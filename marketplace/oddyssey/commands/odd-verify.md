@@ -99,9 +99,17 @@ Then build the mission block from that report:
   persists `YYYY-MM-DD-HHmm-remeasure-<run_name>.md` with
   `mode: re-measure` and the same `verifies` field — calling it a
   verification would fabricate a fix that never existed. Check before
-  dispatching; in a squash-merge history compare trees, not ancestry,
-  and when the baseline carries no `revision`, its commit date is the
-  substitute boundary (the same rule `/odd-status` applies). When the
+  dispatching; the preferred boundary is the baseline's `tree_anchor`:
+  compare its entry hashes against `git ls-tree HEAD`, ignoring `.odd`
+  and every entry that cannot change the observed service's runtime
+  behavior (documentation is the canonical case, but so are CI
+  configuration, generated/packaging artifacts, and release-metadata
+  files) — resolvable in any clone whatever the merge strategy;
+  differing entries you cannot classify make the check undecidable
+  (the rule below), never a silent "code changed". With no anchor,
+  compare trees, not ancestry, and when the baseline carries no
+  `revision` either, its commit date is the substitute boundary (the
+  same rule `/odd-status` applies). When the
   check is still undecidable, or its outcome contradicts how the
   caller framed the mission — they asked to *verify* but nothing
   changed, or they said *re-measure* but commits landed — say so and
