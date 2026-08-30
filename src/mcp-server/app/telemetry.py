@@ -18,6 +18,7 @@ from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from importlib import metadata as importlib_metadata
 
+from mcp.server.mcpserver.exceptions import ToolError
 from opentelemetry import metrics, trace
 from opentelemetry.metrics import Counter, Histogram
 from opentelemetry.trace import SpanKind, Status, StatusCode
@@ -233,8 +234,10 @@ def traced_tool(fn: Callable[..., dict]) -> Callable[..., dict]:
     """Wrap a tool handler in its MCP server span + duration metric.
 
     Applied UNDER ``@mcp.tool()`` with ``functools.wraps`` so the name,
-    docstring, and signature reach MCP registration unchanged. The MCP
-    error path is untouched: exceptions are recorded and re-raised.
+    docstring, and signature reach MCP registration unchanged. Exceptions
+    are recorded and re-raised, except a ``ValueError`` - oddyssey's
+    validation-failure contract - which is re-raised as a ``ToolError`` so
+    its message reaches the client (see the ``except`` clause below).
     """
     tool_name = fn.__name__
     metric_attributes = {
@@ -257,6 +260,17 @@ def traced_tool(fn: Callable[..., dict]) -> Callable[..., dict]:
         ) as span:
             try:
                 return fn(*args, **kwargs)
+            except ValueError as exc:
+                # mcp 2.1.1 treats a bare exception raised from a tool body as
+                # an unexpected crash and withholds its message from the
+                # client - only a deliberate ToolError keeps it. oddyssey's
+                # tool bodies raise ValueError for validation failures the
+                # caller must see (bad stack name, bad port, ...); translate
+                # it here so every tool keeps that contract without each call
+                # site importing mcp's exception type itself (issue #187).
+                span.record_exception(exc)
+                span.set_status(Status(StatusCode.ERROR, str(exc)))
+                raise ToolError(str(exc)) from exc
             except Exception as exc:
                 span.record_exception(exc)
                 span.set_status(Status(StatusCode.ERROR, str(exc)))
