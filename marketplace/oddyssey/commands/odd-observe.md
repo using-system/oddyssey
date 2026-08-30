@@ -47,5 +47,9 @@ defaults for every field not specified:
   backend's query quoted as evidence, no dispatch and no report -
   offering the full mission as the follow-up.
 
-Return the agent's report as-is: it is the deliverable the next
-spec-driven wave consumes - do not summarize it away.
+Close the mission with the `show-observe-run-report` skill: render its
+synthesis of the stored report as the final answer, stating the stored
+path. The report file - not the synthesis - is the deliverable the
+next spec-driven wave consumes: never re-dump the raw report in the
+conversation, and never let the synthesis replace the stored file as
+the plan's input.

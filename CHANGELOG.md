@@ -1,3 +1,18 @@
+## [1.8.3] - 2026-08-30
+
+### 🚀 Features
+
+- *(skill)* Show-report skills close the missions with a synthesis (#165)
+
+### 🐛 Bug Fixes
+
+- *(skill)* Guard the default branch before committing a report (#161)
+- *(agent)* Drive the scenario to completion inside the turn (#164)
+
+### 📚 Documentation
+
+- *(odd)* Close finding N2 by evidence - opt-in attribution verified 18/18, tracked decision superseded (#156)
+- *(agents)* Clean up the apm validation's working-tree side effects (#163)
 ## [1.8.2] - 2026-08-29
 
 ### 🚀 Features

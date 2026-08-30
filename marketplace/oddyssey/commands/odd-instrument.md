@@ -13,5 +13,9 @@ Build the mission from the arguments below:
   investigate (default: the current repository), and optionally the
   intended export stack (default: the local one).
 
-Return the agent's report as-is: it is the input the spec-driven
-instrumentation plan is built from - do not summarize it away.
+Close the mission with the `show-otel-instrumentation-report` skill:
+render its synthesis of the stored report as the final answer, stating
+the stored path. The report file - not the synthesis - is the input
+the spec-driven instrumentation plan is built from: never re-dump the
+raw report in the conversation, and never let the synthesis replace
+the stored file as the plan's input.
