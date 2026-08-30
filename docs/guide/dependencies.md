@@ -311,9 +311,11 @@ Composes two skills - display through
 `check-backend-configuration`, and the backend switch routed to
 `update-backend-configuration` when the user picks one, which verifies
 by handing back to `check-backend-configuration`. The routing goes the
-other way too: when the backend CLI's binary is absent,
-`check-backend-configuration` routes to
-`update-backend-configuration`'s guided install offer.
+other way too: when the backend CLI's binary is absent, or — on the
+backends whose reference defines a targeting proof — when a persisted
+targeting value fails to resolve, `check-backend-configuration` routes
+to `update-backend-configuration`: to its guided install offer in the
+first case, to a correction of the stored value in the second.
 
 ```mermaid
 flowchart LR
@@ -400,8 +402,10 @@ named service emits no telemetry at all, it recommends
 `check-backend-configuration` is the routing hub of the preflight: it
 resolves the configured stack (`odd_config_get`), routes `local` to
 `setup-local-stack`, remote backends to their
-`observability-cli-guides` reference, and a missing CLI binary to the
-guided install offer of `update-backend-configuration`.
+`observability-cli-guides` reference, a missing CLI binary to the
+guided install offer of `update-backend-configuration`, and — where a
+reference defines a targeting proof — a persisted targeting value that
+does not resolve to the same skill for correction.
 `update-backend-configuration`
 owns the switch: CLI presence via the guides' `## CLI binary`
 sections, persistence via `odd_config_set`, verification handed back
