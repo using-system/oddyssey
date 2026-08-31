@@ -102,7 +102,8 @@ falls back to `datasources.<kind>` in the active context (`prometheus`,
 `tempo`, `loki`, `pyroscope`) — set the defaults once per context instead of
 passing `-d` on every call. Time flags differ per signal family:
 `traces query` takes `--since` or `--from`/`--to`, `traces labels` takes
-none, `profiles labels` **requires** `--from`/`--to` (see its row).
+none, `logs labels` rejects `--since` too (`Unknown flag`),
+`profiles labels` **requires** `--from`/`--to` (see its row).
 
 ### Reading gcx output
 
@@ -150,6 +151,13 @@ identically), idiomatic scrape-era LogQL returns empty results:
   its matrix samples are `{line: "<value>", timestamp}` objects — not
   the Prometheus `[ts, "value"]` pairs — so take the last/max over
   `.values` yourself.
+- **An un-aggregated range vector hits a misleading series-limit
+  error**: `count_over_time({service_name="..."}[20m])` fails with
+  `maximum number of series (500) reached for a single query` — read as
+  a cardinality problem, but the query is just unbounded in shape (one
+  series per label combination), not actually near a real cardinality
+  limit. Wrap it in `sum()` (or another aggregator) —
+  `sum(count_over_time(...))` — to fix it.
 
 ## Planning notes
 

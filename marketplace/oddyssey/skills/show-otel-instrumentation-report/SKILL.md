@@ -1,6 +1,6 @@
 ---
 name: show-otel-instrumentation-report
-description: Render a short synthesis of a persisted OpenTelemetry instrumentation investigation report for the human closing the mission - verdict-first headline, the stored path, the plan-at-a-glance table, the open decisions, and the recommended next action - never a replacement for the report itself. Use when an /odd-instrument mission ends and the final answer must synthesize the stored report instead of dumping it raw.
+description: Render a short synthesis of a persisted OpenTelemetry instrumentation investigation report for the human closing the mission - verdict-first headline, the stored path, the plan-at-a-glance table, the open decisions, and the recommended next action - never a replacement for the report itself. Use when an /odd-instrument-otel mission ends and the final answer must synthesize the stored report instead of dumping it raw.
 ---
 
 # Show an OTel Instrumentation Report

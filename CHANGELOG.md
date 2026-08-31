@@ -1,3 +1,26 @@
+## [1.10.0] - 2026-08-31
+
+### 🚀 Features
+
+- *(apm)* Add /odd-instrument-bench for k6 benchmark authoring (#211)
+
+### 🐛 Bug Fixes
+
+- *(agent)* Forbid observe-run and otel-instrumentation-expert self-delegation (#204)
+- *(mcp)* Validate stack_config keys against a per-stack field whitelist (#206)
+- *(aws)* Add cloudwatch profile/metrics_log_group fields, document CLI gaps (#208)
+
+### 🚜 Refactor
+
+- *(prompts)* Rename /odd-instrument to /odd-instrument-otel (#210)
+
+### 📚 Documentation
+
+- *(agents)* Document the community label for discoverability issues (#200)
+- *(agents)* Broaden the no-secrets rule to real identifiers and account names (#202)
+- *(skill)* Document azure-monitor CLI first-use noise and customDimensions encoding (#203)
+- *(skill)* Document the gcx sum() series-limit trap and logs labels time flags (#205)
+- *(guide)* Add backends guide - CLI, connect, required resource, switch prompt (#209)
 ## [1.9.0] - 2026-08-30
 
 ### 🚀 Features
