@@ -482,11 +482,11 @@ to `check-backend-configuration`. `observability-cli-guides` routes
 the local-stack case to `setup-local-stack`, which reads the effective
 ports from `odd_config_get`. `run-scenario` orders the clean-base
 sequence around `odd_stack_reset`. The two create-report skills own
-the stores: naming, frontmatter contracts, recall - everything else
-goes through them rather than touching `.odd/` directly, the one
-exception being `k6-benchmark-expert`, which reads the stored
-`observe-run-reports/` directly for the service's known hot
-operations. The two show-report skills (`show-observe-run-report`,
+the stores: naming, frontmatter contracts, recall - nothing else
+writes to them, and the components that read them directly (the two
+show-report skills, `get-status`, `record-finding-decision`,
+`k6-benchmark-expert`) follow those file contracts rather than defining
+their own. The two show-report skills (`show-observe-run-report`,
 `show-otel-instrumentation-report`) read a stored report and render
 its closing synthesis - display only: they follow the create skills'
 file contracts, write nothing, and invoke no other component.
