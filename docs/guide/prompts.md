@@ -8,7 +8,7 @@ like, and which mission field each part of the sentence feeds.
 The architecture behind these entry points is mapped in
 [dependencies.md](dependencies.md).
 
-## /odd-instrument
+## /odd-instrument-otel
 
 Investigates a codebase and produces every input needed to plan
 OpenTelemetry instrumentation. The mission closes with a short
@@ -20,12 +20,12 @@ the current repository) and the intended **export stack** (default:
 the local oddyssey stack).
 
 ```text
-/odd-instrument add OpenTelemetry to this repository
-/odd-instrument my stack has no telemetry at all - start from scratch, everything exports to the local stack
-/odd-instrument add OpenTelemetry to services/checkout, we already emit some custom Prometheus metrics
-/odd-instrument migrate services/api from winston logging to OpenTelemetry logs, keep the existing log statements
-/odd-instrument instrument this repo for a remote Grafana stack, and plan a contrib Collector deployed via Terraform as the gateway
-/odd-instrument my agent under src/assistant is built on LangChain - plan GenAI observability with the gen_ai semantic conventions for its LLM calls
+/odd-instrument-otel add OpenTelemetry to this repository
+/odd-instrument-otel my stack has no telemetry at all - start from scratch, everything exports to the local stack
+/odd-instrument-otel add OpenTelemetry to services/checkout, we already emit some custom Prometheus metrics
+/odd-instrument-otel migrate services/api from winston logging to OpenTelemetry logs, keep the existing log statements
+/odd-instrument-otel instrument this repo for a remote Grafana stack, and plan a contrib Collector deployed via Terraform as the gateway
+/odd-instrument-otel my agent under src/assistant is built on LangChain - plan GenAI observability with the gen_ai semantic conventions for its LLM calls
 ```
 
 - "this repository" / "services/checkout" - the investigated path;

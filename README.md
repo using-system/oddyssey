@@ -115,7 +115,7 @@ own MCP server.
 **Step 1 — Instrument OpenTelemetry.**
 
 ```text
-/odd-instrument add OpenTelemetry to my project XXX
+/odd-instrument-otel add OpenTelemetry to my project XXX
 ```
 
 The `otel-instrumentation-expert` agent investigates the codebase,
@@ -325,7 +325,7 @@ dropped — the normal state, and never a failure of the server.
 | [`get-status`](.apm/skills/get-status/SKILL.md) (skill) | Render the state of the ODD loop from the committed `.odd/` history and git alone — per-service loop state, findings ledger, trends, open telemetry gaps, next recommended action — read-only, no backend query, no report written |
 | [`record-finding-decision`](.apm/skills/record-finding-decision/SKILL.md) (skill) | Record a maintainer decision on a finding — wontfix, or its reversal — into the committed ledger at `.odd/decisions.md`: the write that lets the status stop rendering a declined finding as open. Never edits a report |
 | [`/odd-observe`](.apm/prompts/odd-observe.prompt.md) (prompt) | Entry point: build a well-formed mission from your arguments and invoke the `observe-run` agent |
-| [`/odd-instrument`](.apm/prompts/odd-instrument.prompt.md) (prompt) | Entry point: point the `otel-instrumentation-expert` agent at a codebase |
+| [`/odd-instrument-otel`](.apm/prompts/odd-instrument-otel.prompt.md) (prompt) | Entry point: point the `otel-instrumentation-expert` agent at a codebase |
 | [`/odd-verify`](.apm/prompts/odd-verify.prompt.md) (prompt) | Entry point: replay a stored report's protocol through the `observe-run` agent — a full observation report again, this time ruling on everything the previous one recorded: measurements, anomalies, telemetry gaps. A replay with no fix under test persists as a re-measure, not a verification |
 | [`/odd-status`](.apm/prompts/odd-status.prompt.md) (prompt) | Where is the loop? Per-service state, findings ledger, trends, open telemetry gaps, and the next recommended action — read from the `.odd/` history and git alone, no backend queries — and record wontfix decisions on findings |
 | [`/odd-config`](.apm/prompts/odd-config.prompt.md) (prompt) | Show the configured backend — stack, targeted instance, connection proof — and guide a backend switch through the `update-backend-configuration` skill |

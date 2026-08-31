@@ -27,7 +27,7 @@ dependencies - the diagram named in the prose expands it.
   hand-off (one component points the user, or the next step, at
   another).
 
-## /odd-instrument
+## /odd-instrument-otel
 
 A dispatcher to `otel-instrumentation-expert`, which maps
 services to the official docs (`otel-guides`), reads effective ports
@@ -41,7 +41,7 @@ its own path is the `/odd-observe` diagram.
 ```mermaid
 flowchart LR
   subgraph Prompts
-    instrument["/odd-instrument"]
+    instrument["/odd-instrument-otel"]
   end
 
   subgraph Agents
@@ -93,7 +93,7 @@ mission dispatches to `observe-run`, and the prompt closes it with
 `show-observe-run-report`, rendering a synthesis of the stored report
 as the final answer. `otel-instrumentation-expert` is
 a boundary node - recommended when a named service emits no telemetry
-at all; its path is the `/odd-instrument` diagram.
+at all; its path is the `/odd-instrument-otel` diagram.
 
 ```mermaid
 flowchart LR
@@ -176,7 +176,7 @@ agent will persist, dispatches to `observe-run`, and closes the
 mission with `show-observe-run-report`'s synthesis of the stored
 report - verdict first.
 `otel-instrumentation-expert` is the same boundary node as in
-`/odd-observe` - its path is the `/odd-instrument` diagram.
+`/odd-observe` - its path is the `/odd-instrument-otel` diagram.
 
 ```mermaid
 flowchart LR
@@ -270,7 +270,7 @@ diagrams.
 flowchart LR
   subgraph Prompts
     status["/odd-status"]
-    instrument["/odd-instrument"]
+    instrument["/odd-instrument-otel"]
     observe["/odd-observe"]
   end
 
@@ -362,7 +362,7 @@ flowchart LR
 
 ## Prompts
 
-`/odd-instrument` and `/odd-observe` are dispatchers: they build
+`/odd-instrument-otel` and `/odd-observe` are dispatchers: they build
 a mission block, hand it to their agent, and close the mission with
 their show-report skill's synthesis of the stored report
 (`show-otel-instrumentation-report` and `show-observe-run-report`

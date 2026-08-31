@@ -122,7 +122,7 @@ names.
 
 ## Instrumentation reports — `.odd/otel-instrumentation-reports/`
 
-Produced by `/odd-instrument` (through the
+Produced by `/odd-instrument-otel` (through the
 `otel-instrumentation-expert` agent), one file per investigation.
 
 ### Filenames
