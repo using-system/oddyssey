@@ -25,8 +25,10 @@ https://grafana.com/docs/k6/latest/results-output/
 - **`99`** - a declared threshold was crossed. Stderr carries
   `level=error msg="thresholds on metrics '<name>' have been crossed"`.
   This is **not** the pass/fail signal `/odd-verify` uses (that's
-  telemetry-only, per the design) - but it is what `run-scenario` records
-  as k6's own execution evidence alongside the telemetry-derived numbers.
+  telemetry-only, per the design) - it is k6's own execution evidence, to
+  be recorded alongside the telemetry-derived numbers on the **execution**
+  side (`run-scenario`, at `/odd-observe`/`/odd-verify` time, out of scope
+  for this authoring implementation).
 - Other non-zero codes cover setup/script errors - always read stderr,
   don't infer the failure kind from the code alone (this repo's own
   convention with other CLIs' exit codes, e.g. `az`'s).

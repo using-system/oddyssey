@@ -34,7 +34,6 @@ agent writes a script and a manifest, it does not execute `k6 run`.
 Installation matters on the **execution** side (`run-scenario`, at
 `/odd-observe`/`/odd-verify` time, out of scope for this authoring
 implementation) - that is where a missing binary must fail fast with the
-install steps above. Note that k6 is **not** listed in this project's
-README Prerequisites section today (verified 2026-08-31: it lists Docker
-and the backend CLIs only); documenting it there belongs with the
-execution-side work, not with authoring.
+install steps above. This project's README Prerequisites section lists
+k6 on exactly those terms (verified 2026-08-31): needed to **run** a
+benchmark, never to author one.

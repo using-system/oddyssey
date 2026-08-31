@@ -39,9 +39,9 @@ human-decided:
   (`k6-guides`' `test-types.md`).
 - **Thresholds** - the pass/fail targets the caller named.
 - **Target base URL / environment** - where the benchmark points.
-- **Load shape and duration** - proposed by the prompt, confirmed by the
-  caller; refine within that confirmed envelope, never outside it
-  without asking again.
+- **Load shape, pacing, and duration** - proposed by the prompt,
+  confirmed by the caller; refine within that confirmed envelope, never
+  outside it without asking again.
 
 ## Investigation
 

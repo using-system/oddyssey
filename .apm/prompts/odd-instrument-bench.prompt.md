@@ -16,9 +16,10 @@ principle `/odd-observe`'s own preflight states outright. Specifically:
   (`k6-guides`' `test-types.md` names what each answers).
 - **Thresholds** - the pass/fail targets that matter.
 - **Target base URL / environment** - never guessed by probing.
-- **Load shape and duration** - propose a value informed by the test
-  type and the service's known scale, then confirm it with the caller
-  rather than silently deciding.
+- **Load shape, pacing, and duration** - propose a value informed by the
+  test type and the service's known scale, then confirm it with the
+  caller rather than silently deciding (VU count alone is not the request
+  rate - the pacing belongs in what gets confirmed).
 
 Never ask about anything `authoring-inputs.md` classifies as
 agent-discoverable (target scope/endpoints) - that's the agent's job,

@@ -9,7 +9,7 @@ decided before it can be written, and who can answer it.
 | New benchmark, or update to a named existing one | human | intent - the agent can list what exists for the service but not choose |
 | Test type (smoke / load / stress / soak / spike / breakpoint) | human | encodes what the caller wants to learn (see test-types.md) |
 | Thresholds (the pass/fail targets) | human | a target is a product decision, not a measurement |
-| Load shape and executor | agent proposes, human confirms | follows mechanically from the test type, but concurrency changes every latency number - state it explicitly |
+| Load shape, executor, and pacing | agent proposes, human confirms | follows mechanically from the test type, but concurrency changes every latency number and pacing sets the request rate the VU count alone does not (see scripting.md) - state them explicitly |
 | Target scope (which endpoints/operations) | agent | discoverable: routes, OpenAPI, hot operations in stored `.odd/` reports |
 | Duration and stage lengths | agent proposes, human confirms | the type's documented range is discoverable; the actual time budget is the caller's |
 | Target base URL / environment | human | mission-time input, never guessed by probing |
