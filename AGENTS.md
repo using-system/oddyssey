@@ -142,11 +142,16 @@ guide documents those contracts and must never lag them.
 
 ## Keep the backends guide in sync
 
-`docs/guide/backends.md` documents, per backend, the example switch
-prompt and the `stack_config` values (if any) the switch persists.
-Update it in the same change whenever a backend's contract to call it
-changes — a new parameter becomes required to query it — or a backend
-is added to or removed from `STACKS` — the guide must keep matching
+`docs/guide/backends.md` documents, per backend, the CLI and how to
+install it, the resource that must already exist on that backend
+before it has anything to query ("nothing" stated explicitly where
+that's true), the example switch prompt, and the `stack_config` values
+(if any) the switch persists. Update it in the same change whenever a
+backend's contract to call it changes — a new parameter becomes
+required to query it, the CLI or its install command changes, the
+resource prerequisite changes — or a backend is added to or removed
+from `STACKS` — the guide must keep matching
+`.apm/skills/observability-cli-guides/references/*.md` and
 `.apm/skills/update-backend-configuration/references/*.md`.
 
 This applies to adding a new stack to `STACKS` and to modifying an
