@@ -230,11 +230,11 @@ only you can decide (test type, thresholds, target environment, new
 benchmark or an update to an existing one) and proposes a load shape
 and duration for you to confirm; the agent discovers the rest — which
 endpoints matter, what the stored `.odd/` reports already say about the
-service — and **never executes what it writes**. Authoring is all that
-exists today: running a stored benchmark through `/odd-observe` and
-verifying one through `/odd-verify` are designed but not implemented
-yet. The full lifecycle, and what a benchmark is versus a report, are
-in [docs/guide/benchmarks.md](docs/guide/benchmarks.md).
+service — and **never executes what it writes**. Run the stored
+benchmark by pointing `/odd-observe` at its script
+(`/odd-observe run .odd/benchmarks/<name>/`). The full lifecycle, and
+what a benchmark is versus a report, are in
+[docs/guide/benchmarks.md](docs/guide/benchmarks.md).
 
 More invocation examples for every prompt live in
 [docs/guide/prompts.md](docs/guide/prompts.md).
