@@ -25,6 +25,10 @@ Prometheus, Loki, Pyroscope in one container, brought up by
 `odd_stack_up`); gcx queries it the same way it queries a remote
 Grafana.
 
+**Connect**: nothing to connect — the local stack serves its API
+anonymously, and `setup-local-stack` points gcx at it with an isolated
+context it manages itself, never the user's own gcx config.
+
 **Resource required**: nothing beyond the container itself — `local`
 is the default and self-contained, no external account or resource to
 provision. A fresh machine targets it with no switch and no targeting
@@ -42,6 +46,12 @@ Nothing is persisted for targeting.
 prebuilt binaries. `grafana` here always means a **remote** Grafana
 (12+, Cloud/Enterprise/OSS) — the local stack is the separate `local`
 value above.
+
+**Connect**: if not already done, authenticate gcx against your
+instance first — `gcx login <name> --server https://<stack>.grafana.net`
+(Cloud) or `gcx config use-context <name>` for an existing on-prem
+context. `gcx config check` proves it's connected before any mission
+runs.
 
 **Resource required**: a Grafana instance with its datasources (Loki,
 Tempo, Prometheus, Pyroscope) already wired up and receiving your
@@ -61,6 +71,10 @@ changes. Only the CLI needs to be configured beforehand.
 **CLI**: `az` (Azure CLI) — `brew install azure-cli`, or the official
 installer per platform. The `log-analytics` and `application-insights`
 extensions auto-install on first use.
+
+**Connect**: if not already done, `az login` (interactive) or a
+service principal (`az login --service-principal ...`, the recommended
+path for automation) before anything else works.
 
 **Resources required**: a **Log Analytics workspace** (logs and
 platform metrics) and, for distributed tracing, an **Application
@@ -95,6 +109,12 @@ legitimate answer, never a blank left to fill with a guess.
 **CLI**: `aws` (AWS CLI v2) — `brew install awscli`, or the official
 installer per platform.
 
+**Connect**: if not already done, `aws sso login --profile <name>`
+(SSO, the common case) or `aws configure` (static keys) before
+anything else works — a bare `aws sts get-caller-identity` with no
+resolvable profile fails even on a fully configured CLI, see the
+`observability-cli-guides` reference for that trap.
+
 **Resource required**: at least one **CloudWatch Logs log group**
 carrying application logs. Optionally a second, separate log group
 metrics arrive through as Embedded Metric Format, and X-Ray enabled if
@@ -126,6 +146,11 @@ never which log groups or X-Ray group the missions read.
 datadog-labs/pack/pup`, a prebuilt release binary, or `cargo build
 --release` from source.
 
+**Connect**: if not already done, `pup auth login` (interactive,
+opens a browser) — or `DD_API_KEY`/`DD_APP_KEY` for non-interactive
+use. `pup auth status` confirms it, by its output, never its exit code
+(pup exits 0 even unauthenticated).
+
 **Resource required**: nothing beyond an org already receiving your
 telemetry — no separate resource to name or provision, the Pup
 session's site/org is the whole target.
@@ -145,6 +170,11 @@ misconfiguration.
 **CLI**: `dtctl` — `brew install dynatrace-oss/tap/dtctl`, the
 install.sh script, or a release binary.
 
+**Connect**: if not already done, `dtctl auth login --context <name>
+--environment "https://<envid>.apps.dynatrace.com"` (OAuth,
+recommended) before anything else works. `dtctl auth whoami` doubles
+as the connection proof.
+
 **Resource required**: nothing beyond an environment already receiving
 your telemetry — no separate resource to name, `dtctl`'s active
 context names the environment.
@@ -162,6 +192,11 @@ environment the DQL queries run against.
 (`$SPLUNK_HOME/bin/splunk`), not separately installable; for a remote
 instance, run it on the instance or remotely with `-uri
 https://<host>:8089`.
+
+**Connect**: if not already done, `splunk login` once (interactive
+session), or pass `-auth <user>:<password>` per command for a
+one-off. There's no whoami surface — any trivial authenticated call
+(a `search` with `-maxout 1`) is the connection proof.
 
 **Resource required**: nothing beyond an instance/index already
 receiving your telemetry — no separate resource to name.
