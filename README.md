@@ -174,6 +174,10 @@ configuration too:
 /odd-observe what did my service XXX do over the last 24 hours on my stack grafana?
 ```
 
+The backends oddyssey manages, their associated CLI, and their switch
+prompt are documented in
+[docs/guide/backends.md](docs/guide/backends.md).
+
 And the loop starts again: an SDD wave from the remote observation, a
 local observe, a verify — and on it goes. Every step left a committed
 report in `.odd/`; their formats — frontmatter fields, allowed values,
