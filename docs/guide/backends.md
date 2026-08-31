@@ -38,7 +38,9 @@ question at all.
 /odd-config switch to local
 ```
 
-Nothing is persisted for targeting.
+Nothing is persisted for targeting — the only thing `stack_config.local`
+ever holds is the otel-lgtm container's own environment variables,
+managed by `odd_stack_up`/`odd_stack_reset`, not by a switch.
 
 ## grafana
 
@@ -135,6 +137,9 @@ from application logs — it may or may not be the same value as
 and optionally `xray` (the X-Ray group or context). `aws` is a
 general-purpose CLI: a profile says which credentials and region,
 never which log groups or X-Ray group the missions read.
+
+Name the metrics log group and the X-Ray group too when they're part
+of the picture:
 
 ```text
 /odd-config switch to cloudwatch, profile "myteam", region "eu-central-1", log group "/ecs/checkout", metrics log group "/ecs/checkout-metrics", xray group "checkout"

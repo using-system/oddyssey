@@ -161,10 +161,10 @@ targeting requirement, a changed CLI command or flag in
 `update-backend-configuration`. **Non-negotiable**: every such change
 must be verified live, through the backend's own CLI, against a real
 account carrying real data — not from documentation, memory, or a
-mocked response. Verification means actually querying all three
-signals that account has data for (metrics, logs, traces) and
-confirming what the CLI really returns. A change landed without this
-is unverified, whatever the diff claims.
+mocked response. Verification means actually querying every signal
+that account has data for (metrics, logs, traces, profiles — whichever
+apply to that backend) and confirming what the CLI really returns. A
+change landed without this is unverified, whatever the diff claims.
 
 ## Title and label every issue
 
