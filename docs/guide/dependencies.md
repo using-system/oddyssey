@@ -20,7 +20,8 @@ dependencies - the diagram named in the prose expands it.
   missions) - skills (reusable contracts) - MCP tools (the oddyssey
   server piloting the local stack and the global configuration) -
   stores (the committed `.odd/` report directories, plus the findings
-  decision ledger `.odd/decisions.md`).
+  decision ledger `.odd/decisions.md` and the benchmark sources under
+  `.odd/benchmarks/`).
 - **Edges**: solid `-->` = dispatch or direct invocation; dashed
   `-.->` = routing or contract reference (one component hands over to
   or follows another's rules); dotted with label = recommendation or
@@ -82,6 +83,65 @@ flowchart LR
   class og,coir,soir skill
   class cfgget mcp
   class insdir store
+```
+
+## /odd-instrument-bench
+
+A dispatcher to `k6-benchmark-expert`, with one piece of work kept in
+the main conversation: the prompt reads `k6-guides`' `authoring-inputs.md`
+to know which dimensions only a human can decide, and asks about them
+**before** any dispatch - calling `create-update-benchmark`'s recall
+when new-versus-update stays ambiguous. The agent then investigates,
+sources every k6 claim from `k6-guides`, reads the stored
+`observe-run-reports/` for the service's known hot operations, and
+persists the script and manifest through `create-update-benchmark`,
+which owns `.odd/benchmarks/`. Both the agent and the prompt close on
+`show-benchmark`, which renders only what `create-update-benchmark`
+just wrote and returned - it never reads the store itself, hence no
+edge to it. No MCP tool appears here: authoring touches no stack and no
+configuration, and never executes the benchmark.
+
+```mermaid
+flowchart LR
+  subgraph Prompts
+    bench["/odd-instrument-bench"]
+  end
+
+  subgraph Agents
+    k6x[k6-benchmark-expert]
+  end
+
+  subgraph Skills
+    kg[k6-guides]
+    cub[create-update-benchmark]
+    sb[show-benchmark]
+  end
+
+  subgraph Stores[".odd/ stores"]
+    benchdir[benchmarks/]
+    obsdir[observe-run-reports/]
+  end
+
+  bench --> k6x
+  bench --> kg
+  bench --> sb
+  bench -.-> cub
+
+  k6x --> kg
+  k6x --> cub
+  k6x --> sb
+  k6x --> obsdir
+
+  cub --> benchdir
+
+  classDef prompt fill:#e8f0fe,stroke:#4285f4
+  classDef agent fill:#fef7e0,stroke:#f9ab00
+  classDef skill fill:#e6f4ea,stroke:#34a853
+  classDef store fill:#f3e8fd,stroke:#a142f4
+  class bench prompt
+  class k6x agent
+  class kg,cub,sb skill
+  class benchdir,obsdir store
 ```
 
 ## /odd-observe
@@ -375,6 +435,11 @@ resolves the baseline report across both `.odd/` stores, preflights
 against the report's `stack` (never silently retargeting the
 configured one), and mandates `create-observe-run-report`'s
 verification rules for the report its agent will persist.
+`/odd-instrument-bench` is a dispatcher too, and asks its human-decided
+questions first (`k6-guides`' `authoring-inputs.md` classifies them),
+recalling through `create-update-benchmark` when new-versus-update is
+ambiguous, before handing the mission to `k6-benchmark-expert` and
+closing with `show-benchmark`'s synthesis of the stored benchmark.
 `/odd-status` dispatches no agent: it is a thin router over two skills
 running in the main conversation - `get-status` for the render, and
 `record-finding-decision` when, and only when, the user asks for a
@@ -395,7 +460,11 @@ hands the confirmation of landed signals to `observe-run`.
 the stack is piloted with the `odd_stack_*` tools, and the report is
 recalled and persisted through `create-observe-run-report`. When a
 named service emits no telemetry at all, it recommends
-`otel-instrumentation-expert`.
+`otel-instrumentation-expert`. `k6-benchmark-expert` authors k6
+benchmarks and only that: it sources every k6 claim from `k6-guides`,
+reads the stored observation reports for the service's hot operations,
+persists script and manifest through `create-update-benchmark`, closes
+with `show-benchmark` - and never executes what it wrote.
 
 ## Skills
 
@@ -413,12 +482,23 @@ to `check-backend-configuration`. `observability-cli-guides` routes
 the local-stack case to `setup-local-stack`, which reads the effective
 ports from `odd_config_get`. `run-scenario` orders the clean-base
 sequence around `odd_stack_reset`. The two create-report skills own
-the stores: naming, frontmatter contracts, recall - everything else
-goes through them rather than touching `.odd/` directly. The two
+the two report stores (`.odd/observe-run-reports/`,
+`.odd/otel-instrumentation-reports/`): naming, frontmatter contracts,
+recall - nothing else writes to them, and whatever reads them directly
+follows those file contracts rather than defining its own. The two
 show-report skills (`show-observe-run-report`,
 `show-otel-instrumentation-report`) read a stored report and render
 its closing synthesis - display only: they follow the create skills'
-file contracts, write nothing, and invoke no other component. `get-status` owns
+file contracts, write nothing, and invoke no other component.
+`k6-guides` is the k6 counterpart of `otel-guides` - a topic-selection
+map read by `/odd-instrument-bench` (which questions to ask) and by
+`k6-benchmark-expert` (authoring), invoking nothing itself.
+`create-update-benchmark` owns `.odd/benchmarks/` - the naming, the
+recall by service and by benchmark name, the reviewed diff an update
+goes through, the commit; unlike the two create-report skills it stores
+living source, not append-only records. `show-benchmark` renders the
+closing synthesis from what `create-update-benchmark` just returned,
+and reads nothing else. `get-status` owns
 the status surface - its sources (both stores, git, the decisions
 ledger), the build order, the empty-filter answer, the degradation -
 and invokes no other component: it only reads.
@@ -450,13 +530,14 @@ access goes through the tools.
 
 ```mermaid
 flowchart LR
-  P[5 prompts] --> A[2 agents]
-  P --> S[12 skills]
+  P[6 prompts] --> A[3 agents]
+  P --> S[15 skills]
   A --> S
   P --> M[MCP tools]
   A --> M
   S --> M
   P --> D[".odd/ stores"]
+  A --> D
   S --> D
   M --> C["global configuration"]
   M --> K["local stack container"]

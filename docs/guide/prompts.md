@@ -36,6 +36,49 @@ the local oddyssey stack).
   investigation verifies and turns into per-service decisions or open
   spec questions.
 
+## /odd-instrument-bench
+
+Investigates a service and authors a k6 load-test benchmark - a script
+plus a manifest - into `.odd/benchmarks/<name>/`, through the
+`k6-benchmark-expert` agent. It never runs what it writes. The mission
+closes with a short synthesis of the stored benchmark (the
+`show-benchmark` skill); the stored files are the deliverable, never
+the synthesis. Free-form arguments map to: the **service** to benchmark
+(required), **new benchmark or an update** to a named existing one, the
+**test type** (smoke / load / stress / soak / spike / breakpoint), the
+**thresholds**, the **target base URL or environment**, and optionally
+a **load shape and duration**. Whatever the arguments leave open, the
+prompt asks back in the conversation before dispatching the agent.
+
+```text
+/odd-instrument-bench author a load benchmark for checkout, p95 under 300ms
+/odd-instrument-bench stress test payment against http://localhost:8080, error rate must stay under 1%
+/odd-instrument-bench smoke benchmark for orders on staging, 1 VU for 1 minute
+/odd-instrument-bench update the checkout-read-heavy benchmark - the cart endpoints moved
+/odd-instrument-bench soak test api for 2 hours at 50 VUs, p99 under 800ms
+```
+
+- "checkout", "payment", "orders" - the service to benchmark, the one
+  required field;
+- "author a load benchmark" / "update the checkout-read-heavy
+  benchmark" - new versus update; when it stays ambiguous the prompt
+  lists what already exists for that service and asks, rather than
+  authoring a second near-duplicate;
+- "stress test" / "smoke benchmark" / "soak test" - the test type, one
+  of the six k6 names (each answers a different question - see the
+  `k6-guides` skill's `test-types.md`);
+- "p95 under 300ms" / "error rate must stay under 1%" - the thresholds,
+  the pass/fail targets the benchmark records;
+- "against http://localhost:8080" / "on staging" - the target base URL
+  or environment; never guessed by probing, so a mission that omits it
+  gets asked;
+- "50 VUs for 2 hours" / "1 VU for 1 minute" - the load shape and
+  duration; leave them out and the prompt proposes a shape fitting the
+  test type for you to confirm, never decides one silently;
+- which endpoints and operations to exercise is deliberately **not** an
+  argument: the agent discovers them from the service's own contract
+  and from past `.odd/` reports.
+
 ## /odd-observe
 
 Observes a running service through its telemetry and produces the

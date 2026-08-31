@@ -103,6 +103,12 @@ the diff lives in the new report. An `.odd/`-only change never counts
 as a fix. The formats and the rules a reviewer can enforce are in
 [docs/guide/reports.md](docs/guide/reports.md).
 
+The rule governs the report stores — `.odd/observe-run-reports/`,
+`.odd/otel-instrumentation-reports/`, and `.odd/decisions.md`. It does
+not reach `.odd/benchmarks/`: a benchmark is living source, not a run
+record, and `create-update-benchmark` updates it in place through
+reviewed diffs like any other committed code.
+
 ## Marketplace is generated — never edit it by hand
 
 `marketplace/`, `.claude-plugin/`, and `.agents/plugins/` are build
@@ -165,6 +171,17 @@ mocked response. Verification means actually querying every signal
 that account has data for (metrics, logs, traces, profiles — whichever
 apply to that backend) and confirming what the CLI really returns. A
 change landed without this is unverified, whatever the diff claims.
+
+## Keep the benchmarks guide in sync
+
+`docs/guide/benchmarks.md` documents the benchmark lifecycle —
+authoring today, running and verifying once those land. Update it in
+the same change whenever `/odd-instrument-bench`, `k6-benchmark-expert`,
+`create-update-benchmark`, or `show-benchmark`'s contract changes, and
+expand its Run/Verify sections in the same change that implements
+`/odd-observe`'s `benchmark:` field or `/odd-verify`'s benchmark replay
+— the guide must never describe a contract that doesn't exist yet, or
+lag one that does.
 
 ## Title and label every issue
 
