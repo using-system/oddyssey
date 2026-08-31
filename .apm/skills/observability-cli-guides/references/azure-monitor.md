@@ -147,11 +147,14 @@ banner: the `ERROR:` line is the diagnosis, not the stack below it.
   management is core GA. Expect a one-time extension install on first use
   in a fresh environment.
 - **That first-use install is noisy, not broken.** The first invocation of
-  an auto-installing extension command prints several stderr lines before
-  the JSON result on stdout — install/preview `WARNING:`s and, unrelated
-  to the extension itself, a `SyntaxWarning` from the `azure-batch`
-  module (verified on az 2.89.1, 2026-08). None of it is a failure; a
-  caller capturing combined stdout+stderr, or pattern-matching stderr for
+  an auto-installing extension command prints several install/preview
+  `WARNING:` lines to stderr before the JSON result on stdout, exit code
+  0 (verified on az 2.89.1, 2026-08, both `log-analytics query` and
+  `app-insights query`). Some environments also print an unrelated
+  `SyntaxWarning` from the `azure-batch` module during this first
+  install — not reproduced in every environment, so treat it as possible
+  rather than guaranteed. None of it is a failure; a caller capturing
+  combined stdout+stderr, or pattern-matching stderr for
   "error"/"warning" as a health signal, will misread this first-use noise
   as one.
 - Profiles are a coverage gap on the CLI: `az` can *enable* Application
