@@ -43,7 +43,9 @@ STACK_CONFIG_FIELDS: dict[str, frozenset[str] | None] = {
     "azure-monitor": frozenset(
         {"subscription", "resource_group", "workspace", "app_insights_app"}
     ),
-    "cloudwatch": frozenset({"region", "log_group", "xray"}),
+    "cloudwatch": frozenset(
+        {"region", "profile", "log_group", "metrics_log_group", "xray"}
+    ),
     "datadog": frozenset(),
     "dynatrace": frozenset(),
     "splunk": frozenset(),
