@@ -30,6 +30,25 @@ STACKS = (
     "splunk",
 )
 
+# Per-stack stack_config field whitelist, mirroring what each backend's
+# "what to persist" reference (update-backend-configuration skill)
+# documents. None means unrestricted: "local"'s keys are container
+# environment variable names (setup-local-stack's otel-lgtm-env.md
+# catalog), an open set by design, not a closed field list like the
+# remote backends'. A stack absent here would silently accept anything -
+# every STACKS value must have an entry.
+STACK_CONFIG_FIELDS: dict[str, frozenset[str] | None] = {
+    "local": None,
+    "grafana": frozenset(),
+    "azure-monitor": frozenset(
+        {"subscription", "resource_group", "workspace", "app_insights_app"}
+    ),
+    "cloudwatch": frozenset({"region", "log_group", "xray"}),
+    "datadog": frozenset(),
+    "dynatrace": frozenset(),
+    "splunk": frozenset(),
+}
+
 DEFAULTS = {
     "stack": "local",
     "local": {"grafana_port": 3000, "otlp_grpc_port": 4317, "otlp_http_port": 4318},
@@ -47,6 +66,11 @@ def _valid_config_value(value: object) -> bool:
     # Identifiers, names, regions, ports - flat scalars only, and never
     # secrets (credentials stay in the CLI's own auth store, by name).
     return isinstance(value, (str, int, float, bool))
+
+
+def _stack_config_key_allowed(stack_key: str, key: str) -> bool:
+    fields = STACK_CONFIG_FIELDS.get(stack_key)
+    return fields is None or key in fields
 
 
 def load(path: Path | None = None) -> dict:
@@ -101,7 +125,9 @@ def load(path: Path | None = None) -> dict:
                 continue
             clean = {}
             for key, value in payload.items():
-                if _valid_config_value(value):
+                if _valid_config_value(value) and _stack_config_key_allowed(
+                    stack_key, key
+                ):
                     clean[key] = value
                 else:
                     invalid.append(f"stack_config.{stack_key}.{key}")
@@ -163,10 +189,27 @@ def save(partial: dict, path: Path | None = None) -> dict:
                 f"stack_config.{stack_key} must be an object of scalar values"
             )
         for key, value in payload.items():
-            if value is not None and not _valid_config_value(value):
+            if value is None:
+                # The deletion marker is always accepted, even for a key
+                # outside the whitelist below - it must stay possible to
+                # clean up a stray key an older write (or a hand edit)
+                # left behind.
+                continue
+            if not _valid_config_value(value):
                 raise ValueError(
                     f"stack_config.{stack_key}.{key} must be a string, number,"
                     f" boolean, or null to delete the key, got {value!r}"
+                )
+            if not _stack_config_key_allowed(stack_key, key):
+                allowed = STACK_CONFIG_FIELDS[stack_key]
+                if allowed:
+                    raise ValueError(
+                        f"stack_config.{stack_key} accepts only "
+                        f"{sorted(allowed)}, got unknown key {key!r}"
+                    )
+                raise ValueError(
+                    f"stack_config.{stack_key} does not persist any fields,"
+                    f" got unknown key {key!r}"
                 )
 
     effective_local = {**load(target)["local"], **local_partial}
