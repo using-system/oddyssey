@@ -143,7 +143,10 @@ When creating a GitHub issue, always set: a type label (`bug`,
 `enhancement`, `documentation`), a `priority: low|medium|high` label,
 and — when the issue concerns a specific observability stack — that
 stack's label (`datadog`, `local`, ...; create the label if it does
-not exist yet).
+not exist yet). Add `community` too when the issue is about
+discoverability across external directories, marketplaces, or
+community lists (submitting or updating a listing, tracking its
+review).
 
 When closing an issue as not planned, add the `wontfix` label and
 close with a comment stating the rationale — the decision must be
