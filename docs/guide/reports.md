@@ -212,3 +212,10 @@ The rules the persistence skills enforce — and a PR review should too:
 - **No secrets, ever.** No tokens, credentials, cookies, or connection
   strings — access material appears by variable or secret name only.
   These files are made to be committed and shared.
+
+These rules — immutability first among them — cover the report stores
+this guide documents: `.odd/observe-run-reports/`,
+`.odd/otel-instrumentation-reports/`, and `.odd/decisions.md`.
+`.odd/benchmarks/` is out of scope here: a benchmark is living source
+updated in place through reviewed diffs, not a run record, and
+[benchmarks.md](benchmarks.md) documents it.
