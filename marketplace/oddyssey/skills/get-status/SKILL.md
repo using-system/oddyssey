@@ -40,8 +40,9 @@ as tables — never a committed artifact.
 
 1. **Inventory — frontmatters only.** List both directories and read
    every frontmatter, no bodies yet. No `.odd/` directory or no reports
-   at all: say the loop has not started here, point at `/odd-instrument`
-   or `/odd-observe`, and stop — that IS the status, not a failure.
+   at all: say the loop has not started here, point at
+   `/odd-instrument-otel` or `/odd-observe`, and stop — that IS the
+   status, not a failure.
 2. **Per-service loop state.** One row per service (`services` for
    observation reports; an instrumentation report contributes to the
    services its plan covers, `project` names its scope): last

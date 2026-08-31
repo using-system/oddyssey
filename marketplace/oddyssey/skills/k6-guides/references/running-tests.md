@@ -1,0 +1,79 @@
+# Running a k6 test and reading its output
+
+Official docs: https://grafana.com/docs/k6/latest/get-started/running-k6/,
+https://grafana.com/docs/k6/latest/results-output/
+
+## Running
+
+`k6 run <script.js>` - single VU, once, by default. Flags (verified
+2026-08 against k6 v2.2.0):
+
+| Flag | Meaning |
+| --- | --- |
+| `-u`, `--vus <int>` | number of virtual users (default 1) |
+| `-d`, `--duration <duration>` | test duration limit (e.g. `30s`, `5m`) |
+| `-i`, `--iterations <int>` | total iteration limit across all VUs |
+| `-s`, `--stage <dur>:<target>` | add one load stage - repeat the flag for multiple stages, or use `options.stages` in the script (see scripting.md) |
+| `-o`, `--out <output>` | where to send results - `json=<file>` (newline-delimited JSON), `opentelemetry` (see below), and others |
+| `--no-setup` / `--no-teardown` | skip the script's `setup()`/`teardown()` |
+
+## Exit codes
+
+**Verified live** (this machine, 2026-08-31, k6 v2.2.0):
+
+- **`0`** - every threshold passed (or no thresholds declared).
+- **`99`** - a declared threshold was crossed. Stderr carries
+  `level=error msg="thresholds on metrics '<name>' have been crossed"`.
+  This is **not** the pass/fail signal `/odd-verify` uses (that's
+  telemetry-only, per the design) - it is k6's own execution evidence, to
+  be recorded alongside the telemetry-derived numbers on the **execution**
+  side (`run-scenario`, at `/odd-observe`/`/odd-verify` time, out of scope
+  for this authoring implementation).
+- Other non-zero codes cover setup/script errors - always read stderr,
+  don't infer the failure kind from the code alone (this repo's own
+  convention with other CLIs' exit codes, e.g. `az`'s).
+
+## Output surface
+
+- **Default (stdout)**: a human-readable summary - per-threshold
+  pass/fail, then `HTTP`/`EXECUTION`/`NETWORK` sections with
+  avg/min/med/max/p90/p95 for each metric.
+- **`--out json=<file>`** - newline-delimited JSON, verified live: one
+  `{"type":"Metric",...}` line per metric definition (name, type,
+  thresholds, submetrics), then `{"type":"Point","metric":...,"data":{...}}`
+  lines per sample, tagged with `scenario`, `status`, `method`, `url`,
+  `expected_response`, `group`.
+- **`-o opentelemetry`** - pushes metrics to an OTLP endpoint instead of
+  writing a local file. Configuration is entirely via `K6_OTEL_*`
+  environment variables (no CLI flags for this beyond `-o opentelemetry`
+  itself), verified against `results-output/real-time/opentelemetry.md`:
+
+  | Variable | Default | Notes |
+  | --- | --- | --- |
+  | `K6_OTEL_SERVICE_NAME` | `k6` | the OTel `service.name` k6's own metrics carry - **verified live: lands as `service_name="k6"`, `job="k6"` in Prometheus** when exported to oddyssey's local stack. Distinguishable from the target service's own labels, never mistake one for the other. |
+  | `K6_OTEL_GRPC_EXPORTER_ENDPOINT` | `localhost:4317` | **matches oddyssey's local stack's default OTLP gRPC port exactly** - verified live: `K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run -o opentelemetry script.js` against a running local stack needs no endpoint override at all. |
+  | `K6_OTEL_GRPC_EXPORTER_INSECURE` | (unset = TLS required) | set `true` for the local stack (no TLS) - without it the exporter fails to connect. |
+  | `K6_OTEL_HTTP_EXPORTER_ENDPOINT` | `localhost:4318` | for `K6_OTEL_EXPORTER_PROTOCOL=http/protobuf` instead of the grpc default |
+  | `K6_OTEL_METRIC_PREFIX` | (empty) | prefix every exported metric name |
+  | `K6_OTEL_EXPORT_INTERVAL` | `10s` | how often metrics flush to the collector |
+
+  Verified live metric names landing in Prometheus:
+  `http_reqs_total`, `http_req_duration_milliseconds_{sum,count,bucket}`,
+  `http_req_blocked_milliseconds_{sum,count,bucket}` - the `_bucket`
+  suffix confirms k6's Trend metrics (like `http_req_duration`) export
+  as OTel histograms, queryable with standard PromQL histogram functions
+  (`histogram_quantile`).
+
+  **This is a local-stack reality, not a general one - never treat it as
+  required.** It works with zero extra config against oddyssey's own
+  local stack only because the endpoint default happens to match. Most
+  remote backends (`cloudwatch`, `azure-monitor`, `datadog`, `dynatrace`,
+  `splunk`) have no bare OTLP-push endpoint the machine running k6 can
+  reach at all - they take telemetry through their own SDK/agent, not a
+  plain gRPC/HTTP OTLP target, and even where one exists the load
+  generator's network path to it is frequently blocked (firewalls, VPNs,
+  auth the load generator doesn't carry). Treat k6's own OpenTelemetry
+  output as an **opportunistic bonus signal, used when reachable, never
+  assumed** - the service's own telemetry (what every backend already
+  guarantees `/odd-observe` can reach, or nothing about this project
+  works at all) is what a benchmark's verdict can always depend on.
