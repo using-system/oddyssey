@@ -23,7 +23,7 @@ mirror was found; fetch and convert, don't guess at raw links.
 | Authentication overview | [Authentication and access credentials for the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-authentication.html) | Landing page for every credential source (static keys, SSO, assume-role, env vars, external process, instance/container roles) — use it to pick the right mechanism for a given environment (laptop vs CI vs EC2/ECS). |
 | Environment variables | [Configuring environment variables for the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, `AWS_PROFILE` — use for containers/CI where a shared credentials file isn't wanted. |
 | Current context & connection probe | [aws sts get-caller-identity](https://docs.aws.amazon.com/cli/latest/reference/sts/get-caller-identity.html) | `aws configure list` displays the effective profile, region, and credential source — the preflight's context display; `aws sts get-caller-identity` proves the credentials actually work (returns account and ARN, requires no permissions) — the cheapest connection probe. |
-| IAM Identity Center (SSO) login | [Configuring IAM Identity Center authentication](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html) | `aws configure sso` (interactive wizard: start URL, SSO region, account, role, profile name) writes a `[profile ...]` + `[sso-session ...]` block to `~/.aws/config`; then `aws sso login --profile <name>` (or `--sso-session <name>`) opens a browser and caches short-lived credentials under `~/.aws/sso/cache`. `aws sso logout` clears cached sessions. PKCE is the default flow since CLI 2.22.0; add `--use-device-code` for the older device-code flow. A separate top-level `aws login` subcommand also exists on newer CLI builds (2.36.34), distinct from `aws sso login` — it's what a `NoCredentials` error suggests running, but check `aws configure list-profiles` for an already-working named profile first (see Planning notes): the everyday cause is a missing `default` profile, not a missing login. |
+| IAM Identity Center (SSO) login | [Configuring IAM Identity Center authentication](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html) | `aws configure sso` (interactive wizard: start URL, SSO region, account, role, profile name) writes a `[profile ...]` + `[sso-session ...]` block to `~/.aws/config`; then `aws sso login --profile <name>` (or `--sso-session <name>`) opens a browser and caches short-lived credentials under `~/.aws/sso/cache`. `aws sso logout` clears cached sessions. PKCE is the default flow since CLI 2.22.0; add `--use-device-code` for the older device-code flow. A separate top-level `aws login` subcommand also exists on newer CLI builds (2.36.34), distinct from `aws sso login` — it's what a `NoCredentials` error suggests running, but check `aws configure list-profiles` for an already-working named profile first (the `check-backend-configuration` skill's connection-proof section owns this failure mode): the everyday cause is a missing `default` profile, not a missing login. |
 | `aws cloudwatch` command reference | [cloudwatch — AWS CLI reference](https://docs.aws.amazon.com/cli/latest/reference/cloudwatch/index.html) | Metrics and metric-alarm operations: `list-metrics`, `get-metric-data`, `get-metric-statistics`, `put-metric-alarm`, etc. Start here for anything metric-shaped. |
 | `aws logs` command reference | [logs — AWS CLI reference](https://docs.aws.amazon.com/cli/latest/reference/logs/index.html) | CloudWatch Logs operations: log group/stream discovery, `filter-log-events`, and the Logs Insights query trio `start-query` / `get-query-results` / `stop-query`. |
 | `aws xray` command reference | [xray — AWS CLI reference](https://docs.aws.amazon.com/cli/latest/reference/xray/index.html) | X-Ray trace search (`get-trace-summaries`), full trace retrieval (`batch-get-traces`), and service map (`get-service-graph`). |
@@ -101,13 +101,17 @@ missions retries:
   `filter-log-events` use **different time units** for the same-named flags
   — `filter-log-events` wants epoch milliseconds, `start-query` wants epoch
   seconds. Easy to get wrong when scripting both against the same window.
-- **When an OTel Collector exporter writes the whole log record as one
-  JSON body**, `trace_id`/`span_id`/`resource."service.name"` live inside
-  that body, not as native CloudWatch Logs fields — a Logs Insights query
-  needs `parse @message '"trace_id":"*"' as trace_id` (or `fields
-  @message | filter @message like /<trace-id>/` for a quick check) to
-  correlate a log line to its trace, the AWS analogue of Application
-  Insights' `operation_Id` join.
+- **JSON-bodied log records are auto-discovered as top-level fields.**
+  When an OTel Collector exporter writes the whole log record as one
+  JSON body, CloudWatch Logs Insights already exposes `trace_id`,
+  `span_id`, `resource.service.name`, etc. as queryable fields — no
+  `parse` needed: `fields @timestamp, trace_id, span_id,
+  resource.service.name | filter ispresent(trace_id)` correlates a log
+  line to its trace directly, the AWS analogue of Application Insights'
+  `operation_Id` join. Reach for `parse @message '"trace_id":"*"' as
+  trace_id` only for a shape CWLI doesn't already auto-expose — and
+  don't also `fields` the same name afterward: combining both fails with
+  `MalformedQueryException: Ephemeral field is already defined`.
 - `batch-get-traces` explicitly does not work once Transaction Search is
   enabled on the account (traces stop being indexed in classic X-Ray) — a
   quirk worth checking for before assuming this path works in a given

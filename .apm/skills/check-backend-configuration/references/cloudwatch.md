@@ -5,6 +5,13 @@
 Two sources, labelled per line — the CLI's effective credentials and
 the persisted targeting values.
 
+**If `stack_config.cloudwatch.profile` is persisted, run every command
+below (display and connection proof alike) with `--profile <profile>`**
+— a bare call answers for whatever profile happens to resolve without a
+flag, which on an SSO setup with no `default` is routinely none at all,
+reporting a degradation on an account that is actually configured and
+working.
+
 From the `aws` CLI:
 
 - `aws sts get-caller-identity` — the account id and the caller ARN
@@ -43,9 +50,11 @@ its place.
 
 ## Connection proof
 
-`aws sts get-caller-identity`. It needs no permissions and returns the
-account and ARN, so a success is proof the credentials resolve and
-work.
+`aws sts get-caller-identity --profile <profile>` when
+`stack_config.cloudwatch.profile` is persisted (see Display above),
+plain `aws sts get-caller-identity` otherwise. It needs no permissions
+and returns the account and ARN, so a success is proof the credentials
+resolve and work.
 
 On failure, check the single most likely real-world cause **first**: no
 `default` profile resolves, even though a named one is fully configured
@@ -53,10 +62,10 @@ and working. `aws configure list-profiles` enumerates what exists
 locally; retry the identity check with `--profile <name>` (or `export
 AWS_PROFILE=<name>`) before concluding nothing is configured — an
 error naming `NoCredentials` and suggesting `aws login` reads like "not
-set up at all" but is routinely just "no default among several real
-profiles." Only after that comes up empty is it a genuine stop-and-guide
-(profile creation, SSO login, env vars) — never run the login for the
-user, never echo an access key.
+set up at all" but is routinely just "no default among the profiles
+that do exist," even when there's only the one. Only after that comes
+up empty is it a genuine stop-and-guide (profile creation, SSO login,
+env vars) — never run the login for the user, never echo an access key.
 
 ## Change-request phrasing
 
