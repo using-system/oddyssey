@@ -68,7 +68,10 @@ human-decided:
      (`k6`, so another can be introduced later without changing the
      contract), the profile stages with their boundaries recorded (so a
      later query can exclude warmup from steady-state numbers - see
-     `scripting.md`'s note on this), the thresholds, and whatever you
+     `scripting.md`'s note on this), the pacing actually applied (the
+     `sleep()` duration, or `constant-arrival-rate` and no explicit
+     pacing - stages alone don't set the request rate, see
+     `scripting.md`'s note on this too), the thresholds, and whatever you
      decide about storing the target base URL (a manifest field, or
      mission-time only - either is compatible with "remote authorization
      is mission-time only", which is a separate, already-settled rule
