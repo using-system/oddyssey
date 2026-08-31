@@ -140,6 +140,15 @@ the file contracts of `create-observe-run-report` or
 `observe-run` or `otel-instrumentation-expert` agents, change — the
 guide documents those contracts and must never lag them.
 
+## Keep the backends guide in sync
+
+`docs/guide/backends.md` documents, per backend, the example switch
+prompt and the `stack_config` values (if any) the switch persists.
+Update it in the same change whenever a backend's contract to call it
+changes — a new parameter becomes required to query it — or a backend
+is added to or removed from `STACKS` — the guide must keep matching
+`.apm/skills/update-backend-configuration/references/*.md`.
+
 ## Title and label every issue
 
 GitHub issue titles follow the Conventional Commits form

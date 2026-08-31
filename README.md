@@ -174,6 +174,12 @@ configuration too:
 /odd-observe what did my service XXX do over the last 24 hours on my stack grafana?
 ```
 
+That example uses Grafana, which persists nothing beyond its CLI being
+configured — two of the other six backends (azure-monitor, cloudwatch)
+do need at least one targeting value persisted. An example switch
+prompt and what it persists (if anything) for every backend is in
+[docs/guide/backends.md](docs/guide/backends.md).
+
 And the loop starts again: an SDD wave from the remote observation, a
 local observe, a verify — and on it goes. Every step left a committed
 report in `.odd/`; their formats — frontmatter fields, allowed values,
