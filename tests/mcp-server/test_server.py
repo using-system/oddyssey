@@ -130,6 +130,15 @@ def test_config_set_description_states_the_wipe_and_the_restart_note():
     assert "restart" in description.lower()
 
 
+def test_config_set_description_states_the_stack_config_field_whitelist():
+    # Issue #196: an agent must learn the per-stack field rule from the
+    # tool description, not only by hitting the raised error.
+    tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
+    description = tools["odd_config_set"].description
+    assert "app_insights_app" in description
+    assert "documented field set" in description
+
+
 def test_config_set_carries_the_container_env_through_the_auto_reset(
     monkeypatch, tmp_path
 ):

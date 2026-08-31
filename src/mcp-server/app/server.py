@@ -134,7 +134,14 @@ def odd_config_set(config: dict) -> dict:
     stack_config is merged per stack (other stacks' payloads are untouched)
     and never boots or resets the stack container; values must be non-secret
     scalars - credentials stay in the CLI's own auth store, referenced by
-    name only. null deletes: {"stack_config": {"azure-monitor": {"workspace":
+    name only. Each stack accepts only its own documented field set (e.g.
+    azure-monitor: subscription, resource_group, workspace,
+    app_insights_app; grafana/datadog/dynatrace/splunk: none, their CLI
+    context carries targeting) - an undocumented key is rejected, writing
+    nothing, EXCEPT as a null deletion, which is always accepted so a
+    stray key can still be cleaned up. local is the one exception: its
+    keys are otel-lgtm container env var names, an open set. null deletes:
+    {"stack_config": {"azure-monitor": {"workspace":
     null}}} removes that key (the last deletion leaves the entry present but
     empty - "not configured"), {"stack_config": {"azure-monitor": null}}
     removes the stack's entry entirely; a deletion never boots or resets the

@@ -118,6 +118,15 @@ def test_local_is_a_stack_value_and_the_default():
     assert config.DEFAULTS["stack"] == "local"
 
 
+def test_every_stack_has_a_stack_config_fields_entry():
+    # _stack_config_key_allowed fails OPEN on a missing entry (treats an
+    # unmapped stack as unrestricted) - issue #196's whole point was to
+    # stop silently accepting anything, so a stack added to STACKS without
+    # a matching whitelist entry here must fail loudly, not slip back into
+    # the bug this fix closes.
+    assert set(config.STACK_CONFIG_FIELDS) == set(config.STACKS)
+
+
 def test_save_accepts_the_local_stack(tmp_path):
     path = tmp_path / "config.json"
     result = config.save({"stack": "local"}, path)
@@ -132,12 +141,19 @@ def test_load_returns_empty_stack_config_by_default(tmp_path):
 def test_save_persists_stack_config_and_load_returns_it(tmp_path):
     path = tmp_path / "config.json"
     config.save(
-        {"stack_config": {"azure-monitor": {"workspace": "guid-123", "port": 443}}},
+        {
+            "stack_config": {
+                "azure-monitor": {
+                    "workspace": "guid-123",
+                    "app_insights_app": "guid-456",
+                }
+            }
+        },
         path,
     )
     result = config.load(path)
     assert result["stack_config"] == {
-        "azure-monitor": {"workspace": "guid-123", "port": 443}
+        "azure-monitor": {"workspace": "guid-123", "app_insights_app": "guid-456"}
     }
 
 
@@ -186,14 +202,23 @@ def test_save_null_key_deletes_it_and_the_last_deletion_leaves_the_entry(tmp_pat
     # hand-editing the file is exactly what it exists to make unnecessary.
     path = tmp_path / "config.json"
     config.save(
-        {"stack_config": {"azure-monitor": {"workspace": "guid-123", "tenant": "t1"}}},
+        {
+            "stack_config": {
+                "azure-monitor": {
+                    "workspace": "guid-123",
+                    "app_insights_app": "guid-456",
+                }
+            }
+        },
         path,
     )
 
     result = config.save({"stack_config": {"azure-monitor": {"workspace": None}}}, path)
-    assert result["stack_config"]["azure-monitor"] == {"tenant": "t1"}
+    assert result["stack_config"]["azure-monitor"] == {"app_insights_app": "guid-456"}
 
-    result = config.save({"stack_config": {"azure-monitor": {"tenant": None}}}, path)
+    result = config.save(
+        {"stack_config": {"azure-monitor": {"app_insights_app": None}}}, path
+    )
     # Present-but-empty already reads as "not configured" - not an error.
     assert result["stack_config"]["azure-monitor"] == {}
 
@@ -214,11 +239,15 @@ def test_save_mixes_deletion_and_set_in_one_write(tmp_path):
     config.save({"stack_config": {"azure-monitor": {"workspace": "old"}}}, path)
 
     result = config.save(
-        {"stack_config": {"azure-monitor": {"workspace": None, "tenant": "t1"}}},
+        {
+            "stack_config": {
+                "azure-monitor": {"workspace": None, "app_insights_app": "guid-456"}
+            }
+        },
         path,
     )
 
-    assert result["stack_config"]["azure-monitor"] == {"tenant": "t1"}
+    assert result["stack_config"]["azure-monitor"] == {"app_insights_app": "guid-456"}
 
 
 def test_save_deletion_on_absent_targets_is_harmless(tmp_path):
@@ -262,3 +291,95 @@ def test_load_tolerates_non_dict_stack_config(tmp_path):
     result = config.load(path)
     assert result["stack_config"] == {}
     assert result["invalid_ignored"] == ["stack_config"]
+
+
+def test_save_rejects_undocumented_key_for_a_documented_stack(tmp_path):
+    # Issue #196: a well-typed but undocumented key (a copy-paste from az
+    # account show, a typo, ...) must be rejected like any other invalid
+    # partial, not persisted silently.
+    path = tmp_path / "config.json"
+    with pytest.raises(ValueError, match="stack_config"):
+        config.save(
+            {
+                "stack_config": {
+                    "azure-monitor": {"tenant": "11111111-1111-1111-1111-111111111111"}
+                }
+            },
+            path,
+        )
+    assert not path.exists()
+
+
+def test_save_rejects_any_key_for_a_stack_with_no_documented_fields(tmp_path):
+    # grafana/datadog/dynatrace/splunk persist nothing (their CLI context
+    # carries targeting) - any key is unknown for them.
+    path = tmp_path / "config.json"
+    with pytest.raises(ValueError, match="stack_config"):
+        config.save({"stack_config": {"grafana": {"context": "prod"}}}, path)
+    assert not path.exists()
+
+
+def test_save_allows_arbitrary_keys_for_the_local_stack(tmp_path):
+    # local's keys are otel-lgtm container env var names - an open set
+    # catalogued elsewhere (setup-local-stack), not a closed field list.
+    path = tmp_path / "config.json"
+    result = config.save({"stack_config": {"local": {"GF_LOG_LEVEL": "debug"}}}, path)
+    assert result["stack_config"]["local"] == {"GF_LOG_LEVEL": "debug"}
+
+
+def test_save_still_allows_deleting_an_undocumented_key(tmp_path):
+    # The whitelist must not trap a stray key already on disk (an older
+    # write, or a hand edit) with no way to clean it up.
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps(
+            {
+                "stack_config": {
+                    "azure-monitor": {"workspace": "guid-123", "tenant": "stray"}
+                }
+            }
+        )
+    )
+
+    result = config.save({"stack_config": {"azure-monitor": {"tenant": None}}}, path)
+
+    assert result["stack_config"]["azure-monitor"] == {"workspace": "guid-123"}
+
+
+def test_load_flags_undocumented_key_as_invalid_ignored(tmp_path):
+    # Issue #196 repro: odd_config_set previously accepted this silently,
+    # and odd_config_get returned it back un-flagged, indefinitely.
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps(
+            {
+                "stack_config": {
+                    "azure-monitor": {
+                        "subscription": "Contoso",
+                        "tenant": "11111111-1111-1111-1111-111111111111",
+                        "app_insights_app": "22222222-2222-2222-2222-222222222222",
+                    }
+                }
+            }
+        )
+    )
+
+    result = config.load(path)
+
+    assert result["stack_config"] == {
+        "azure-monitor": {
+            "subscription": "Contoso",
+            "app_insights_app": "22222222-2222-2222-2222-222222222222",
+        }
+    }
+    assert result["invalid_ignored"] == ["stack_config.azure-monitor.tenant"]
+
+
+def test_load_allows_arbitrary_keys_for_the_local_stack(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps({"stack_config": {"local": {"ENABLE_LOGS_GRAFANA": "true"}}})
+    )
+    result = config.load(path)
+    assert result["stack_config"] == {"local": {"ENABLE_LOGS_GRAFANA": "true"}}
+    assert "invalid_ignored" not in result

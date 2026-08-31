@@ -65,29 +65,29 @@ assert_result_contains "$workdir/after-bad-stack.json" '"stack": "local"'
 
 step "stack_config merges per stack and per key"
 mcp_call odd_config_set \
-  'config={"stack_config":{"azure-monitor":{"workspace":"00000000-fake-ws","region":"westeurope"}}}' \
+  'config={"stack_config":{"azure-monitor":{"workspace":"00000000-fake-ws","resource_group":"rg-westeurope"}}}' \
   > "$workdir/sc-seed.json"
 assert_result_contains "$workdir/sc-seed.json" '"workspace": "00000000-fake-ws"'
-assert_result_contains "$workdir/sc-seed.json" '"region": "westeurope"'
+assert_result_contains "$workdir/sc-seed.json" '"resource_group": "rg-westeurope"'
 # A second partial on the same stack updates one key and leaves the other
 # alone; a partial on another stack leaves the first stack untouched.
 mcp_call odd_config_set \
-  'config={"stack_config":{"azure-monitor":{"region":"northeurope"},"grafana":{"note":"fake-instance"}}}' \
+  'config={"stack_config":{"azure-monitor":{"resource_group":"rg-northeurope"},"cloudwatch":{"region":"eu-west-1"}}}' \
   > "$workdir/sc-merge.json"
 assert_result_contains "$workdir/sc-merge.json" '"workspace": "00000000-fake-ws"'
-assert_result_contains "$workdir/sc-merge.json" '"region": "northeurope"'
-assert_result_contains "$workdir/sc-merge.json" '"note": "fake-instance"'
+assert_result_contains "$workdir/sc-merge.json" '"resource_group": "rg-northeurope"'
+assert_result_contains "$workdir/sc-merge.json" '"region": "eu-west-1"'
 
 step "a null key value deletes that key, the rest of the entry survives"
 mcp_call odd_config_set \
   'config={"stack_config":{"azure-monitor":{"workspace":null}}}' > "$workdir/sc-del-key.json"
-assert_result_contains "$workdir/sc-del-key.json" '"region": "northeurope"'
+assert_result_contains "$workdir/sc-del-key.json" '"resource_group": "rg-northeurope"'
 jq -e '.content[0].text | contains("workspace") | not' "$workdir/sc-del-key.json" > /dev/null \
   || { echo "ASSERTION FAILED: deleted key workspace still present" >&2; cat "$workdir/sc-del-key.json" >&2; exit 1; }
 
 step "deleting the last key leaves the entry present but empty (#112)"
 mcp_call odd_config_set \
-  'config={"stack_config":{"azure-monitor":{"region":null}}}' > "$workdir/sc-del-last.json"
+  'config={"stack_config":{"azure-monitor":{"resource_group":null}}}' > "$workdir/sc-del-last.json"
 assert_result_contains "$workdir/sc-del-last.json" '"azure-monitor": {}'
 
 step "a null entry deletes the stack's whole entry"
@@ -96,7 +96,30 @@ mcp_call odd_config_set \
 jq -e '.content[0].text | contains("azure-monitor") | not' "$workdir/sc-del-entry.json" > /dev/null \
   || { echo "ASSERTION FAILED: deleted entry azure-monitor still present" >&2; cat "$workdir/sc-del-entry.json" >&2; exit 1; }
 # The untouched stack survives both deletions.
-assert_result_contains "$workdir/sc-del-entry.json" '"note": "fake-instance"'
+assert_result_contains "$workdir/sc-del-entry.json" '"region": "eu-west-1"'
+
+step "an undocumented key is rejected and writes nothing (#196)"
+mcp_call odd_config_set \
+  'config={"stack_config":{"azure-monitor":{"tenant":"11111111-1111-1111-1111-111111111111"}}}' \
+  > "$workdir/sc-unknown-key.json" || true
+grep -q "unknown key" "$workdir/sc-unknown-key.json" \
+  || { echo "ASSERTION FAILED: undocumented key was not rejected" >&2; cat "$workdir/sc-unknown-key.json" >&2; exit 1; }
+mcp_call odd_config_get > "$workdir/after-unknown-key.json"
+jq -e '.content[0].text | contains("tenant") | not' "$workdir/after-unknown-key.json" > /dev/null \
+  || { echo "ASSERTION FAILED: rejected partial was written anyway" >&2; cat "$workdir/after-unknown-key.json" >&2; exit 1; }
+
+step "a stack with no documented fields rejects every key (#196)"
+mcp_call odd_config_set \
+  'config={"stack_config":{"grafana":{"note":"fake-instance"}}}' \
+  > "$workdir/sc-no-fields.json" || true
+grep -q "does not persist any fields" "$workdir/sc-no-fields.json" \
+  || { echo "ASSERTION FAILED: grafana key was not rejected" >&2; cat "$workdir/sc-no-fields.json" >&2; exit 1; }
+
+step "the local stack still accepts arbitrary container env var keys (#196)"
+mcp_call odd_config_set \
+  'config={"stack_config":{"local":{"GF_LOG_LEVEL":"debug"}}}' > "$workdir/sc-local.json"
+assert_result_contains "$workdir/sc-local.json" '"GF_LOG_LEVEL": "debug"'
+mcp_call odd_config_set 'config={"stack_config":{"local":null}}' > /dev/null
 
 step "a non-scalar stack_config value is rejected and writes nothing"
 mcp_call odd_config_set \
@@ -110,12 +133,15 @@ jq -e '.content[0].text | contains("bad") | not' "$workdir/after-sc-bad.json" > 
 step "hand-edited invalid values degrade to defaults, listed in invalid_ignored"
 mkdir -p "$(dirname "$CONFIG_FILE")"
 printf '%s' \
-  '{"stack":"narnia","local":{"grafana_port":"high"},"stack_config":{"notastack":{}}}' \
+  '{"stack":"narnia","local":{"grafana_port":"high"},"stack_config":{"notastack":{},"azure-monitor":{"tenant":"11111111-1111-1111-1111-111111111111"}}}' \
   > "$CONFIG_FILE"
 mcp_call odd_config_get > "$workdir/tolerant.json"
 assert_result_contains "$workdir/tolerant.json" '"stack": "local"'
 assert_result_contains "$workdir/tolerant.json" '"grafana_port": 3000'
-for flagged in "stack" "local.grafana_port" "stack_config.notastack"; do
+jq -e '.content[0].text | fromjson | .stack_config["azure-monitor"] | has("tenant") | not' \
+  "$workdir/tolerant.json" > /dev/null \
+  || { echo "ASSERTION FAILED: undocumented key tenant was surfaced as effective config" >&2; cat "$workdir/tolerant.json" >&2; exit 1; }
+for flagged in "stack" "local.grafana_port" "stack_config.notastack" "stack_config.azure-monitor.tenant"; do
   jq -e --arg name "$flagged" \
     '.content[0].text | fromjson | .invalid_ignored | index($name)' \
     "$workdir/tolerant.json" > /dev/null \
