@@ -149,6 +149,18 @@ changes — a new parameter becomes required to query it — or a backend
 is added to or removed from `STACKS` — the guide must keep matching
 `.apm/skills/update-backend-configuration/references/*.md`.
 
+This applies to adding a new stack to `STACKS` and to modifying an
+existing one — a new or changed `stack_config` field, a changed
+targeting requirement, a changed CLI command or flag in
+`observability-cli-guides`/`check-backend-configuration`/
+`update-backend-configuration`. **Non-negotiable**: every such change
+must be verified live, through the backend's own CLI, against a real
+account carrying real data — not from documentation, memory, or a
+mocked response. Verification means actually querying all three
+signals that account has data for (metrics, logs, traces) and
+confirming what the CLI really returns. A change landed without this
+is unverified, whatever the diff claims.
+
 ## Title and label every issue
 
 GitHub issue titles follow the Conventional Commits form
