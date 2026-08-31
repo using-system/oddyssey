@@ -110,8 +110,9 @@ missions retries:
   line to its trace directly, the AWS analogue of Application Insights'
   `operation_Id` join. Reach for `parse @message '"trace_id":"*"' as
   trace_id` only for a shape CWLI doesn't already auto-expose — and
-  don't also `fields` the same name afterward: combining both fails with
-  `MalformedQueryException: Ephemeral field is already defined`.
+  never re-list a `parse`-created field in a downstream `fields`
+  (renaming the alias doesn't help): `MalformedQueryException: Ephemeral
+  field is already defined`.
 - `batch-get-traces` explicitly does not work once Transaction Search is
   enabled on the account (traces stop being indexed in classic X-Ray) — a
   quirk worth checking for before assuming this path works in a given
