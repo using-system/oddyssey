@@ -118,6 +118,15 @@ def test_local_is_a_stack_value_and_the_default():
     assert config.DEFAULTS["stack"] == "local"
 
 
+def test_every_stack_has_a_stack_config_fields_entry():
+    # _stack_config_key_allowed fails OPEN on a missing entry (treats an
+    # unmapped stack as unrestricted) - issue #196's whole point was to
+    # stop silently accepting anything, so a stack added to STACKS without
+    # a matching whitelist entry here must fail loudly, not slip back into
+    # the bug this fix closes.
+    assert set(config.STACK_CONFIG_FIELDS) == set(config.STACKS)
+
+
 def test_save_accepts_the_local_stack(tmp_path):
     path = tmp_path / "config.json"
     result = config.save({"stack": "local"}, path)
