@@ -318,16 +318,32 @@ executor.
   **The manifest is the sole source of the thresholds ruled on**, each
   one ruled against a telemetry-derived measurement carrying the query
   that produced it.
-- **k6's own client-side telemetry counts too, when it exports it.** k6
-  ships a real-time OpenTelemetry output and a Prometheus remote-write
-  one: when configured, the load generator's own view (VU count,
-  `http_req_duration`, dropped iterations) lands in the same store as the
-  service's own signals, queried with the same gcx commands. Both count
-  toward the verdict — the load generator's client-side view and the
-  service's server-side view are two legitimate signals to cross-confirm.
-  A load-generator-shaped `service.name` in the store must not be
-  mistaken for a second copy of the target service by the observation's
-  service preflight and environment detection.
+- **k6's own client-side telemetry is a bonus signal, never a
+  requirement.** k6 ships a real-time OpenTelemetry output and a
+  Prometheus remote-write one: when the load generator can actually
+  reach an OTLP endpoint, its own view (VU count, `http_req_duration`,
+  dropped iterations) lands in the same store as the service's own
+  signals and counts toward the verdict too — a legitimate second signal
+  to cross-confirm against, not merely "evidence." **This is a local-stack
+  reality, not a general one.** Verified live against oddyssey's own
+  local stack, where it works with zero extra configuration because
+  `K6_OTEL_GRPC_EXPORTER_ENDPOINT` defaults to `localhost:4317`, the
+  local stack's own default OTLP port — but most remote backends
+  (`cloudwatch`, `azure-monitor`, `datadog`, `dynatrace`, `splunk`) have
+  no bare OTLP-push endpoint the machine running k6 can reach at all:
+  they take telemetry through their own SDK/agent/exporter, not a plain
+  `K6_OTEL_GRPC_EXPORTER_ENDPOINT`, and the machine driving load against
+  a remote target frequently has no network path to push there even
+  when one exists (firewalls, VPNs, auth the load generator doesn't
+  carry). The verdict never depends on k6's OTel output landing
+  anywhere: the service's own telemetry is what every backend already
+  guarantees access to (that's the whole premise of `/odd-observe`
+  working at all), and remains sufficient on its own. k6's own view is
+  opportunistic - used when reachable, never required, never assumed. A
+  load-generator-shaped `service.name` in the store, on the backends
+  where it does land, must not be mistaken for a second copy of the
+  target service by the observation's service preflight and environment
+  detection.
 - **k6's own execution summary is still recorded, as evidence, not as the
   verdict.** A load generator that failed to connect, crashed mid-run, or
   dropped iterations produces telemetry that looks deceptively clean
@@ -453,8 +469,9 @@ produce:
     baseline, not a verdict.
 16. `/odd-verify` rules every threshold declared in the replayed
     benchmark's manifest pass/fail against a telemetry-derived
-    measurement (metrics, traces, logs, and k6's own OpenTelemetry
-    output when the benchmark configures one) — never k6's own threshold
+    measurement (metrics, traces, logs — plus k6's own OpenTelemetry
+    output as an opportunistic bonus signal on backends where it's
+    reachable, never required) — never k6's own threshold
     or stdout summary.
 17. k6's own execution summary (exit status, request errors, failed
     iterations, checks) is captured in the scenario record as evidence,
@@ -510,8 +527,11 @@ part of this implementation):
 - the mechanics of `run-scenario`'s stored-benchmark mode and its exact
   interface with `observe-run`;
 - how routing k6's own OpenTelemetry output into the stack works end to
-  end — counting it toward the verdict is decided (above); the wiring,
-  and keeping its `service.name` from being mistaken for the target
-  service, is not;
+  end, per backend — counting it as an opportunistic bonus signal when
+  reachable is decided (above, and never a requirement); the wiring on
+  each backend where it's even possible (only the local stack is
+  verified so far; most remote backends have no bare OTLP-push path at
+  all), and keeping its `service.name` from being mistaken for the
+  target service, is not;
 - whether `post-hoc` + `benchmark` stays forbidden on the reasoning
   above.
