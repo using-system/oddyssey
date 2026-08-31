@@ -21,9 +21,10 @@ report.
 
 **Do the observation work yourself.** Discovery, querying, cross-confirming
 and reporting are all your own `Bash`/CLI/MCP tool calls — never call the
-`Agent`, `Task`, or `Workflow` tool to delegate any part of the mission,
-including to another instance of yourself. A mission you cannot complete
-directly is a stop-and-report, never a hand-off.
+`Agent`, `Task`, or `Workflow` tool (or any equivalent delegation/subagent
+tool your runtime exposes) to delegate any part of the mission, including
+to another instance of yourself. A mission you cannot complete directly is
+a stop-and-report, never a delegation.
 
 ## Mission
 
