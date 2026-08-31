@@ -18,7 +18,15 @@ From `stack_config.cloudwatch` (per `odd_config_get`):
 
 - `region` — the region the mission queries, when pinned separately
   from the CLI's effective one.
-- `log_group` — the CloudWatch Logs group the mission reads.
+- `profile` — the named `aws` CLI profile the mission runs under, when
+  no `default` profile resolves on its own (the SSO norm).
+- `log_group` — the CloudWatch Logs group the mission reads for
+  application logs.
+- `metrics_log_group` — the CloudWatch Logs group metrics arrive
+  through as Embedded Metric Format, when the account exports them that
+  way rather than writing directly to the CloudWatch metrics API. May
+  equal `log_group`, may not — display both, never assume one covers
+  the other.
 - `xray` — the X-Ray context values the mission needs (group or
   sampling target), when persisted.
 
@@ -37,11 +45,23 @@ its place.
 
 `aws sts get-caller-identity`. It needs no permissions and returns the
 account and ARN, so a success is proof the credentials resolve and
-work. Failure = stop and guide (profile, SSO login, env vars) — never
-run the login for the user, never echo an access key.
+work.
+
+On failure, check the single most likely real-world cause **first**: no
+`default` profile resolves, even though a named one is fully configured
+and working. `aws configure list-profiles` enumerates what exists
+locally; retry the identity check with `--profile <name>` (or `export
+AWS_PROFILE=<name>`) before concluding nothing is configured — an
+error naming `NoCredentials` and suggesting `aws login` reads like "not
+set up at all" but is routinely just "no default among several real
+profiles." Only after that comes up empty is it a genuine stop-and-guide
+(profile creation, SSO login, env vars) — never run the login for the
+user, never echo an access key.
 
 ## Change-request phrasing
 
 - "persist log group <name> for cloudwatch"
 - "clear the log group for cloudwatch"
+- "use profile <name> for cloudwatch"
+- "persist metrics log group <name> for cloudwatch"
 - "change backend to cloudwatch"

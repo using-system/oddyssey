@@ -127,6 +127,33 @@ def test_every_stack_has_a_stack_config_fields_entry():
     assert set(config.STACK_CONFIG_FIELDS) == set(config.STACKS)
 
 
+def test_save_accepts_cloudwatch_profile_and_separate_metrics_log_group(tmp_path):
+    # Issue #207: SSO setups routinely have no default profile, and
+    # metrics commonly arrive through a different log group than
+    # application logs (Embedded Metric Format) - both need their own
+    # field since a team may configure them distinctly.
+    path = tmp_path / "config.json"
+    result = config.save(
+        {
+            "stack_config": {
+                "cloudwatch": {
+                    "region": "eu-central-1",
+                    "profile": "myteam",
+                    "log_group": "/oddyssey-playground/logs",
+                    "metrics_log_group": "/oddyssey-playground/metrics",
+                }
+            }
+        },
+        path,
+    )
+    assert result["stack_config"]["cloudwatch"] == {
+        "region": "eu-central-1",
+        "profile": "myteam",
+        "log_group": "/oddyssey-playground/logs",
+        "metrics_log_group": "/oddyssey-playground/metrics",
+    }
+
+
 def test_save_accepts_the_local_stack(tmp_path):
     path = tmp_path / "config.json"
     result = config.save({"stack": "local"}, path)

@@ -121,6 +121,15 @@ mcp_call odd_config_set \
 assert_result_contains "$workdir/sc-local.json" '"GF_LOG_LEVEL": "debug"'
 mcp_call odd_config_set 'config={"stack_config":{"local":null}}' > /dev/null
 
+step "cloudwatch accepts a profile and a separate metrics log group (#207)"
+mcp_call odd_config_set \
+  'config={"stack_config":{"cloudwatch":{"profile":"myteam","log_group":"/oddyssey-playground/logs","metrics_log_group":"/oddyssey-playground/metrics"}}}' \
+  > "$workdir/sc-cloudwatch.json"
+assert_result_contains "$workdir/sc-cloudwatch.json" '"profile": "myteam"'
+assert_result_contains "$workdir/sc-cloudwatch.json" '"log_group": "/oddyssey-playground/logs"'
+assert_result_contains "$workdir/sc-cloudwatch.json" '"metrics_log_group": "/oddyssey-playground/metrics"'
+mcp_call odd_config_set 'config={"stack_config":{"cloudwatch":null}}' > /dev/null
+
 step "a non-scalar stack_config value is rejected and writes nothing"
 mcp_call odd_config_set \
   'config={"stack_config":{"grafana":{"bad":["a","list"]}}}' > "$workdir/sc-bad.json" || true
