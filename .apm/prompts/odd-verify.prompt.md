@@ -102,17 +102,18 @@ Then build the mission block from that report:
   commits beyond the loop's own memory and documentation AND a clean
   working tree (uncommitted changes to anything else are changed
   code) — the mission is a **re-measure**, not a verification: same
-  replay, but the agent
-  persists `YYYY-MM-DD-HHmm-remeasure-<run_name>.md` with
-  `mode: re-measure` and the same `verifies` field — calling it a
+  replay, but the agent persists
+  `YYYY-MM-DD-HHmm-remeasure-<run_name>.md` with `mode: re-measure`
+  and the same `verifies` field — calling it a
   verification would fabricate a fix that never existed. The loop's
   memory is the append-only report stores and the ledger —
   `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`,
   `.odd/decisions.md` — and nothing else under `.odd/`:
-  `.odd/benchmarks/` is living source, and a benchmark whose script or
-  manifest changed since the baseline is changed code like any other
-  path (the benchmark is what a drive replay runs, so a fix to it is a
-  fix under test — calling that a re-measure would deny a fix that
+  `.odd/benchmarks/` is living source, and the benchmark the replay
+  runs, when its script or manifest changed since the baseline, is
+  changed code like any other path (a drive replay runs it, so a fix
+  to it is a fix under test — calling that a re-measure would deny a
+  fix that
   happened). Check before dispatching; the preferred boundary is the
   baseline's `tree_anchor`: compare its entry hashes against
   `git ls-tree HEAD`, ignoring `.odd` (its top-level hash moves with
@@ -126,13 +127,16 @@ Then build the mission block from that report:
   nothing to test — a benchmark the replay does not run cannot be its
   fix, and an unrelated benchmark's update is not this service's
   fix. Commits touching that path since the baseline, or uncommitted
-  changes under it, are changed code:
+  changes under it, are changed code. When the revision does not
+  resolve (a squash-merged clone), the boundary is the baseline report
+  file's own commit date, and that commit sits inside the window —
+  ignore it:
 
   ```text
   git rev-parse --verify <revision>^{commit}          # does the revision resolve?
   git log <revision>..HEAD -- <path>                  # yes: commits since it
-  git log -1 --format=%cI -- <baseline report path>   # no: the report's own commit date...
-  git log --since=<that date> -- <path>               # ...is the boundary (the report's own commit is inside the window - ignore it)
+  git log -1 --format=%cI -- <baseline report path>   # no: the report's own commit date
+  git log --since=<that date> -- <path>               # is the boundary
   ```
 
   Differing entries you cannot classify make the check undecidable
@@ -140,8 +144,8 @@ Then build the mission block from that report:
   compare trees, not ancestry, and when the baseline carries no
   `revision` either, the report's own commit date (the same command
   as above) is the substitute boundary — the same rule `/odd-status`
-  applies.
-  When the check is still undecidable, or its outcome contradicts how
+  applies. When the check is still undecidable, or its outcome
+  contradicts how
   the caller framed the mission — they asked to *verify* but nothing
   changed, or they said *re-measure* but commits landed — say so and
   ask which of the two the mission is, never silently reclassify. Say

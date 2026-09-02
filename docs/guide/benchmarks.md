@@ -102,12 +102,12 @@ a manifest never carries a standing permission.
 never inferring `drive` from the benchmark's presence, so an observed
 run is never re-driven.
 
-A benchmark is living source, so a change to it counts as changed
-code for the verify-vs-re-measure boundary (`/odd-verify` and
-`/odd-status` alike): a fix to a benchmark's script or manifest makes
-the next replay a **verification**, never a re-measure — only the two
-report stores and `.odd/decisions.md` are the loop's memory that a
-replay ignores. What that verification can rule depends on what
+A benchmark is living source, so a change to the benchmark a replay
+runs counts as changed code for the verify-vs-re-measure boundary
+(`/odd-verify` and `/odd-status` alike): a fix to its script or
+manifest makes the next replay a **verification**, never a re-measure
+— only the two report stores and `.odd/decisions.md` are the loop's
+memory that a replay ignores. What that verification can rule depends on what
 moved: the baseline's findings against the benchmark itself (a script
 defect, an unattainable threshold) are ruled on the new revision;
 the service's before/after numbers compare only when the load did not

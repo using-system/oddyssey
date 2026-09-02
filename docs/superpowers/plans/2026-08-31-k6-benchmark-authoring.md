@@ -748,10 +748,12 @@ exception to some other rule.
 - `/odd-verify`'s verify-vs-re-measure boundary already ignores commits
   that touch only `.odd/` - authoring or updating a benchmark never
   counts as "a fix landed", by construction, with no special-casing
-  needed here. *Superseded by #223 (2026-09-02): `.odd/benchmarks/`
-  now counts as changed code - see `docs/guide/benchmarks.md`,
-  "Verify".*
+  needed here.
 ```
+
+*The second lifecycle bullet above is superseded by #223 (2026-09-02):
+`.odd/benchmarks/` now counts as changed code - see
+`docs/guide/benchmarks.md`, "Verify".*
 
 - [ ] **Step 3: Validate with `apm audit`**
 

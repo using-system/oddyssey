@@ -80,11 +80,11 @@ as tables — never a committed artifact.
    test the benchmark by path: the one the report's scenario record
    names (`.odd/benchmarks/<name>/`) — nothing when it names none, a
    benchmark the run did not use cannot be its fix; commits touching
-   that path since the report
-   (`git log <revision>..HEAD -- <path>` when
-   `git rev-parse --verify <revision>^{commit}` succeeds, otherwise
-   `git log --since=<the report file's own commit date> -- <path>`,
-   the report's own commit ignored). Equal hashes and no benchmark
+   that path since the report (`git log <revision>..HEAD -- <path>`
+   when `git rev-parse --verify <revision>^{commit}` succeeds,
+   otherwise `git log --since=<the report file's own commit date> --
+   <path>`, the report's own commit ignored). Equal hashes and no
+   benchmark
    commit mean no code change, and the comparison resolves in any
    clone whatever the merge strategy; when the only differing entries
    are ones you cannot classify, the boundary is uncertain — say so,
