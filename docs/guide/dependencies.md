@@ -93,7 +93,9 @@ to know which dimensions only a human can decide, and asks about them
 **before** any dispatch - calling `create-update-benchmark`'s recall
 when new-versus-update stays ambiguous. The agent then investigates,
 sources every k6 claim from `k6-guides`, reads the stored
-`observe-run-reports/` for the service's known hot operations, and
+`observe-run-reports/` for the service's known hot operations, hands
+the mission back before persisting when a threshold sits below a floor
+it found (the prompt re-dispatches with the caller's decision), and
 persists the script and manifest through `create-update-benchmark`,
 which owns `.odd/benchmarks/`. Both the agent and the prompt close on
 `show-benchmark`, which renders only what `create-update-benchmark`

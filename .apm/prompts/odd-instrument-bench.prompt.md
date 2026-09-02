@@ -44,10 +44,12 @@ Once every human-decided value is resolved, invoke the
 authoring - this prompt only hands it a well-formed mission. One
 round-trip to expect: when the agent finds a threshold the service can
 structurally never meet (a fixed delay or an injected error rate above
-the target, with the file and line), it stops and reports instead of
-persisting - put that evidence to the caller, get the target kept,
-raised, or dropped, and re-dispatch with the decided value; never pick
-one for them.
+the target, with the file and line), it stops before persisting
+anything and reports - put that evidence to the caller, get the target
+raised, dropped, re-scoped to the path it means, or kept with the
+floor acknowledged (a goal a fix wave is driving toward is a valid
+target once the caller has seen the floor), and re-dispatch with the
+decided value and that acknowledgment; never pick one for them.
 
 Build the mission from the arguments and the Q&A above:
 

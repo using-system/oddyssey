@@ -75,23 +75,40 @@ human-decided:
 3. **Cross-check every threshold against the floors you found.** The
    thresholds are the caller's (human-decided), but whether the service
    can meet them at all is a fact step 2 already holds. Put each
-   threshold next to the floor that bounds the path it gates. A
-   threshold the service can structurally never meet on that path - a
-   `p(95)<300ms` on a handler that sleeps 300-800 ms before any
-   response, an error rate under 1% on a path that injects 5% - is not
-   a target, it is a measurement of the wrong path: it can only "pass"
-   by measuring traffic that never reaches the gated logic (a
-   fast-reject 404 instead of the checkout). **Stop and report it to
-   the caller with the evidence** - the threshold, the floor, its
-   `file:line`, what the threshold would actually end up measuring -
-   and ask which target to keep, raise, or drop. Never persist it,
-   never adjust it yourself: a target is a product decision
-   (`authoring-inputs.md`), the floor is the fact that informs it. A
-   threshold that is merely ambitious - tight but reachable on the
-   evidence - is persisted as given, with its floor recorded next to it
-   so the first run reads the margin. The cross-check goes into the
-   manifest with the validation (step 5): each threshold, the floor it
-   was checked against (`file:line`) or `none found`, and the outcome.
+   threshold next to the floor that bounds the metric it aggregates - a
+   k6 threshold is a criterion on an aggregated metric (`scripting.md`),
+   so the scope matters: a tag-scoped submetric
+   (`http_req_duration{name:checkout}`) maps to one path, and its floor
+   is that path's; an untagged whole-run metric (`http_req_duration`)
+   spans every path, and a floored path bounds it only when that path
+   carries enough of the load profile to move the statistic (a p95 needs
+   the floored path above roughly 5% of requests). A threshold the
+   service can structurally never meet on the metric it gates - a
+   `p(95)<300ms` on the checkout submetric of a handler that sleeps
+   300-800 ms before any response, an error rate under 1% on a path that
+   injects 5% - is not a target, it is a measurement of the wrong path:
+   it can only "pass" by measuring traffic that never reaches the gated
+   logic (a fast-reject 404 instead of the checkout). An untagged
+   threshold whose floored path is too small a share to bind it is a
+   different finding (the threshold needs scoping to the path it means)
+   and comes back to the caller the same way. **Stop before persisting
+   anything - script included - and report to the caller with the
+   evidence**: the threshold, the floor, its `file:line`, what the
+   threshold would actually end up measuring; the mission resumes on
+   re-dispatch with the caller's decision - the target raised, dropped,
+   re-scoped, or **kept with the floor acknowledged** (a goal the fix
+   wave is driving toward is a legitimate target; what is never
+   legitimate is persisting it without the caller having seen the
+   floor). Never adjust a target yourself: a target is a product
+   decision (`authoring-inputs.md`), the floor is the fact that informs
+   it. A threshold that is merely ambitious - tight but reachable on the
+   evidence - or one with no floor found is persisted as given, the
+   floor (or `none found`) recorded next to it so the first run reads
+   the margin. The cross-check goes into the manifest with the
+   validation (step 5): each threshold, the floor it was checked against
+   (`file:line`) or `none found`, and the outcome - `reachable`, `none
+   found`, `kept: floor acknowledged by the caller`, or the value the
+   caller changed it to.
 4. **Decide the script and manifest content**, informed by `k6-guides`:
    - `scripting.md` for requests/checks/thresholds/scenarios/secrets -
      never invent k6 syntax from memory, fetch and confirm;
@@ -114,7 +131,8 @@ human-decided:
      guidance names the alternative (`k6/secrets`, or a named environment
      variable the manifest never stores a value for).
 5. **Validate before persisting.** Three checks in this order, then
-   the record of their outcome, each sourced from `k6-guides`
+   the record of their outcome together with step 3's cross-check,
+   each check sourced from `k6-guides`
    (`scripting.md` "Response bodies", `running-tests.md` "Validating
    without running"). A failure at any check is authoring feedback you
    act on yourself - fix, then re-validate from the first check - never
@@ -177,8 +195,8 @@ human-decided:
      or the functions it did not cover - plus the threshold
      cross-check of step 3 (each threshold, its floor or `none found`,
      the outcome). A human reading the stored benchmark must see the
-     validation happened, not assume it. A
-     recorded smoke is a record of what happened, never authorization
+     validation happened, not assume it. A recorded smoke is a record
+     of what happened, never authorization
      for the next one: on an update mission the smoke is authorized
      fresh, whatever the stored manifest says.
 6. **Persist through `create-update-benchmark`.** Hand it the decided
@@ -211,7 +229,9 @@ human-decided:
   never guessed.** If the mission is missing one (the prompt should have
   asked, but didn't), stop and report what's missing rather than
   inventing a value.
-- **A threshold is never persisted below a floor that makes it
-  unattainable.** The caller decides the target; you hand back the
-  floor and its evidence (Investigation step 3). Silently persisting
-  it ships a benchmark whose pass measures the wrong path.
+- **A threshold is never persisted silently below a floor that makes
+  it unattainable.** The caller decides the target; you hand back the
+  floor and its evidence (Investigation step 3), and persist only what
+  they decided - including a target kept with the floor acknowledged,
+  recorded as such. Persisting it unseen ships a benchmark whose pass
+  measures the wrong path.
