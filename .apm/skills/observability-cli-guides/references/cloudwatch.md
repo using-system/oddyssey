@@ -97,6 +97,42 @@ missions retries:
   combination. A real cardinality/cost consideration when a service emits
   high-cardinality attributes (status codes, routes, ...) as EMF
   dimensions.
+- **Cumulative-temporality metrics make statistics roll-ups silently
+  meaningless for rate/count questions.** OTel's default metric
+  temporality is cumulative, and when the export pipeline forwards
+  those values unchanged, each EMF push carries the total count/sum
+  **since process start**, not a delta for that push interval. Not
+  every pipeline does — some convert to deltas before writing EMF — so
+  detect before trusting either path: read a few consecutive raw EMF
+  records for one series and check whether the value grows
+  monotonically across pushes and whether its magnitude exceeds any
+  plausible per-interval count (verified: `Count` rose 311129 → 313221
+  over 30 consecutive pushes on a cumulative pipeline — hundreds of
+  thousands, for a series receiving ~1 request/second). On cumulative
+  pushes, `get-metric-statistics`/`get-metric-data` roll-ups spanning
+  more than one push interval sum already-cumulative snapshots into a
+  number with no operational meaning — no error, no warning, a
+  normal-looking result shape (verified: a service running at ~1.8
+  req/s showed a `SampleCount` of ~2.4 million per 5-minute `--period
+  300` bucket). For a rate or count over a window, query the raw EMF
+  records via Logs Insights and diff the cumulative values across the
+  window's edges instead — verified working form (per-dimension deltas
+  from two independent exporters of the same traffic, client and
+  server side, agreed within 0.5%):
+  ``stats latest(`http.server.request.duration.Count`) -
+  earliest(`http.server.request.duration.Count`) as delta by
+  `http.request.method`, `http.response.status_code`, `http.route` ``
+  — grouped by
+  **every dimension field the series carries** — a grouping coarser than
+  the full dimension set folds distinct series together and yields
+  garbage, routinely *negative*, deltas (verified: omitting `http.route`
+  folded two routes into one group and returned -165k for a positive
+  count). A mid-window process restart resets the cumulative counter to
+  zero, which an edge diff reads as a traffic drop — also qualify the
+  grouping by the emitting process (`resource.service.instance.id` when
+  the pipeline emits a per-process value, or the log stream when
+  instances map to streams), then sum the per-epoch deltas to recover
+  the window total.
 - CloudWatch Logs Insights (`start-query`/`get-query-results`) and
   `filter-log-events` use **different time units** for the same-named flags
   — `filter-log-events` wants epoch milliseconds, `start-query` wants epoch
