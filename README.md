@@ -1,6 +1,8 @@
 # oddyssey
 
-![The oddyssey: coding agents sailing the telemetry sea through the pantheon of observability gods](assets/images/banner.png)
+<video controls preload="none" width="100%" poster="assets/images/banner.png" src="assets/videos/trailer/oddyssey-trailer.mp4" title="The oddyssey trailer">
+  <a href="assets/videos/trailer/oddyssey-trailer.mp4"><img src="assets/images/banner.png" alt="The oddyssey: coding agents sailing the telemetry sea through the pantheon of observability gods - click to play the trailer"></a>
+</video>
 
 **A CLI toolbox for Observability-Driven Development (ODD).**
 
