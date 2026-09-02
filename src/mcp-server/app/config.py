@@ -53,7 +53,12 @@ STACK_CONFIG_FIELDS: dict[str, frozenset[str] | None] = {
 
 DEFAULTS = {
     "stack": "local",
-    "local": {"grafana_port": 3000, "otlp_grpc_port": 4317, "otlp_http_port": 4318},
+    "local": {
+        "grafana_port": 3000,
+        "otlp_grpc_port": 4317,
+        "otlp_http_port": 4318,
+        "pyroscope_port": 4040,
+    },
     "stack_config": {},
 }
 

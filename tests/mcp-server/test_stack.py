@@ -7,6 +7,7 @@ from oddyssey_mcp import config, stack
 from oddyssey_mcp.stack import (
     CONTAINER_NAME,
     IMAGE,
+    _container_host_ports,
     _otlp_ingest_ready,
     run_args,
     stack_status,
@@ -26,7 +27,7 @@ def test_run_args_build_the_pinned_container():
     assert args[-1] == IMAGE
     assert IMAGE == "grafana/otel-lgtm:0.31.0"
     assert CONTAINER_NAME in args
-    for mapping in ("3000:3000", "4317:4317", "4318:4318"):
+    for mapping in ("3000:3000", "4317:4317", "4318:4318", "4040:4040"):
         assert mapping in args
 
 
@@ -854,17 +855,126 @@ def test_stack_reset_still_wipes_a_stopped_container_that_cannot_boot(monkeypatc
     assert result["services_wiped"] == ["billing", "checkout"]
 
 
+def test_stored_services_survive_a_container_without_published_ports(monkeypatch):
+    # #224 review: a hand-run container (--network host, or no -p at all)
+    # has a readable but empty PortBindings map, so every port reads None.
+    # The contract is "every failure degrades to fewer names, never to an
+    # error" - building http://localhost:None URLs would raise InvalidURL
+    # past the HTTPError catches. Fall back to the configured ports.
+    monkeypatch.setattr(
+        stack,
+        "_container_host_ports",
+        lambda: {
+            "grafana_port": None,
+            "otlp_grpc_port": None,
+            "otlp_http_port": None,
+            "pyroscope_port": None,
+        },
+    )
+    seen: list[str] = []
+
+    def handler(request):
+        seen.append(str(request.url))
+        return httpx.Response(200, json={})
+
+    assert stored_services(transport=httpx.MockTransport(handler)) == []
+    assert all(":3000/" in url for url in seen)
+
+
+def test_stack_up_skips_the_port_guard_when_asked(monkeypatch):
+    # #224 review: the reset pre-boot exists to enumerate a stopped
+    # pre-#224 container before the wipe - it must not trip the guard
+    # whose own remedy IS the reset.
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(
+        stack,
+        "_container_host_ports",
+        lambda: {
+            "grafana_port": 3000,
+            "otlp_grpc_port": 4317,
+            "otlp_http_port": 4318,
+            "pyroscope_port": None,
+        },
+    )
+    monkeypatch.setattr(stack, "_readiness", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+
+    assert stack.stack_up(check_ports=False)["running"] is True
+
+
+def test_stack_reset_preboot_skips_the_port_guard(monkeypatch):
+    # The enumeration pre-boot bypasses the guard; the final recreation
+    # (a fresh container on the configured ports) keeps it.
+    guard_flags: list[bool] = []
+
+    def up(env=None, *, persist=True, check_ports=True):
+        guard_flags.append(check_ports)
+        return UP_RESULT
+
+    _trace_reset(monkeypatch, "stopped", up=up)
+
+    assert guard_flags == [False, True]
+
+
 def test_run_args_map_the_configured_host_ports(tmp_path, monkeypatch):
     path = tmp_path / "config.json"
     path.write_text(
-        '{"local": {"grafana_port": 3300, "otlp_grpc_port": 4417, "otlp_http_port": 4418}}'
+        '{"local": {"grafana_port": 3300, "otlp_grpc_port": 4417,'
+        ' "otlp_http_port": 4418, "pyroscope_port": 4140}}'
     )
     monkeypatch.setattr(config, "CONFIG_PATH", path)
 
     args = run_args()
 
-    for mapping in ("3300:3000", "4417:4317", "4418:4318"):
+    for mapping in ("3300:3000", "4417:4317", "4418:4318", "4140:4040"):
         assert mapping in args
+
+
+def test_container_host_ports_read_a_missing_binding_as_none(monkeypatch):
+    # Issue #224: readable bindings that simply lack a port (a container
+    # created before that port existed) must surface the gap as None,
+    # never collapse to the unreadable-inspect None-dict path. The
+    # module-level import bypasses conftest's autouse stub of the module
+    # attribute.
+    bindings = {
+        "3000/tcp": [{"HostIp": "", "HostPort": "3000"}],
+        "4317/tcp": [{"HostIp": "", "HostPort": "4317"}],
+        "4318/tcp": [{"HostIp": "", "HostPort": "4318"}],
+    }
+    monkeypatch.setattr(
+        stack,
+        "_docker",
+        lambda *args, **kwargs: _Proc(stdout=json.dumps(bindings)),
+    )
+
+    assert _container_host_ports() == {
+        "grafana_port": 3000,
+        "otlp_grpc_port": 4317,
+        "otlp_http_port": 4318,
+        "pyroscope_port": None,
+    }
+
+
+def test_stack_up_fails_fast_when_an_old_container_lacks_a_published_port(
+    monkeypatch,
+):
+    # Issue #224: a container created before pyroscope_port existed
+    # publishes only the original three ports - a mismatch whose remedy
+    # is a reset, exactly like a hand-edited port.
+    monkeypatch.setattr(stack, "_container_state", lambda: "running")
+    monkeypatch.setattr(
+        stack,
+        "_container_host_ports",
+        lambda: {
+            "grafana_port": 3000,
+            "otlp_grpc_port": 4317,
+            "otlp_http_port": 4318,
+            "pyroscope_port": None,
+        },
+    )
+
+    with pytest.raises(RuntimeError, match="odd_stack_reset"):
+        stack.stack_up()
 
 
 def test_stack_up_fails_fast_on_port_mismatch(tmp_path, monkeypatch):

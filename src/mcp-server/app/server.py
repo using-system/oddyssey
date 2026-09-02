@@ -161,10 +161,13 @@ def odd_config_set(config: dict) -> dict:
         # saved they diverge from the container's, the reset's pre-boot then
         # trips the mismatch guard, and the pre-wipe enumeration would report
         # services_wiped: [] over real data (#35 contract). Booted now, the
-        # old config still matches and the guard passes. Best-effort like the
+        # container is still enumerable. Best-effort like the
         # reset's own pre-boot: a container too broken to boot is still wiped.
         try:
-            stack_ops.stack_up()
+            # check_ports=False like the reset's own pre-boot: a
+            # pre-change container mismatching a newly added named port
+            # (issue #224) must still be booted to stay enumerable.
+            stack_ops.stack_up(check_ports=False)
         except RuntimeError:
             pass
     effective = config_ops.save(config)

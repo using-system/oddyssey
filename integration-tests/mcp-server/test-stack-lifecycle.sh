@@ -35,6 +35,15 @@ jq -e '.content[0].text | fromjson
          and (.started | type) == "string"' \
   "$workdir/status-up.json" > /dev/null
 
+step "pyroscope's ingest port is published to the host"
+# Issue #224: pyroscope-io SDKs push over Pyroscope's own HTTP protocol
+# straight to :4040 - the port must be reachable from the host, not just
+# inside the container. /ready is the same endpoint the server's own
+# readiness probe checks through the Grafana proxy.
+pyroscope_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+  "http://localhost:4040/ready" || true)
+test "$pyroscope_code" = "200"
+
 step "odd_stack_down stops it"
 mcp_call odd_stack_down > "$workdir/down.json"
 assert_result_contains "$workdir/down.json" '"running": false'

@@ -310,8 +310,10 @@ More invocation examples for every prompt live in
 One job: **pilot a local Grafana stack with an OpenTelemetry endpoint**.
 One container ([grafana/otel-lgtm](https://github.com/grafana/docker-otel-lgtm),
 pinned, its definition embedded in the server — Docker is the only
-prerequisite) exposes Grafana on `:3000` and OTLP on `:4317`/`:4318`; apps
-export their telemetry there. Tempo traces, Prometheus metrics, Loki
+prerequisite) exposes Grafana on `:3000`, OTLP on `:4317`/`:4318`, and
+Pyroscope's ingest on `:4040` (profiles are pushed there directly by
+pyroscope-io-style SDKs — they are not an OTLP signal); apps export
+their telemetry there. Tempo traces, Prometheus metrics, Loki
 logs, and Pyroscope profiles are all queried through the Grafana proxy
 (`:3000/api/datasources/proxy/uid/...`), so the same paths work against any
 Grafana; on remote stacks the backend behind it can be something other
