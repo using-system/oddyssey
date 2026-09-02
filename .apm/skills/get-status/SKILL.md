@@ -77,11 +77,16 @@ as tables — never a committed artifact.
    that cannot change the observed service's runtime behavior —
    documentation is the canonical case, but so are CI configuration,
    generated/packaging artifacts, and release-metadata files — then
-   test `.odd/benchmarks/` by path (commits touching it since the
-   report, by revision when it resolves and by commit date otherwise).
-   Equal hashes and no benchmark commit mean no code change, and the
-   comparison resolves in any clone whatever the merge strategy; when
-   the only differing entries
+   test the benchmark by path: the one the report's scenario record
+   names (`.odd/benchmarks/<name>/`) — nothing when it names none, a
+   benchmark the run did not use cannot be its fix; commits touching
+   that path since the report
+   (`git log <revision>..HEAD -- <path>` when
+   `git rev-parse --verify <revision>^{commit}` succeeds, otherwise
+   `git log --since=<the report file's own commit date> -- <path>`,
+   the report's own commit ignored). Equal hashes and no benchmark
+   commit mean no code change, and the comparison resolves in any
+   clone whatever the merge strategy; when the only differing entries
    are ones you cannot classify, the boundary is uncertain — say so,
    never rule "code changed". When a report carries neither an anchor
    nor a `revision`, its commit date — already a source — is the
@@ -120,8 +125,11 @@ as tables — never a committed artifact.
    session and a process-per-call run measure different things whatever
    the frontmatter says. A verification or re-measure and the report its
    `verifies` names replay the same scenario by construction and always
-   compare. List incomparable runs apart, never diff them. Stored
-   numbers only — no live queries.
+   compare — unless the benchmark the drive replays moved between them,
+   which the verification's scenario record states: then only what the
+   record says still compares (the load unchanged) does, and the rest
+   is listed apart. List incomparable runs apart, never diff them.
+   Stored numbers only — no live queries.
 5. **Open telemetry gaps.** Gaps recorded in report bodies and not
    closed by a later verification ruling or instrumentation report. When
    gaps dominate a service's picture, the recommendation below should

@@ -101,8 +101,8 @@ Then build the mission block from that report:
   repo's code is unchanged since the baseline's `revision` — no
   commits beyond the loop's own memory and documentation AND a clean
   working tree (uncommitted changes to anything else are changed
-  code) — the mission is a
-  **re-measure**, not a verification: same replay, but the agent
+  code) — the mission is a **re-measure**, not a verification: same
+  replay, but the agent
   persists `YYYY-MM-DD-HHmm-remeasure-<run_name>.md` with
   `mode: re-measure` and the same `verifies` field — calling it a
   verification would fabricate a fix that never existed. The loop's
@@ -120,15 +120,27 @@ Then build the mission block from that report:
   observed service's runtime behavior (documentation is the canonical
   case, but so are CI configuration, generated/packaging artifacts,
   and release-metadata files) — resolvable in any clone whatever the
-  merge strategy — then test `.odd/benchmarks/` by path: commits
-  touching it since the baseline's `revision` (`git log <revision>..HEAD
-  -- .odd/benchmarks/` when the revision resolves, `git log
-  --since=<baseline commit date> -- .odd/benchmarks/` otherwise) or
-  uncommitted changes under it are changed code. Differing entries you
-  cannot classify make the check undecidable (the rule below), never a
-  silent "code changed". With no anchor, compare trees, not ancestry,
-  and when the baseline carries no `revision` either, its commit date
-  is the substitute boundary (the same rule `/odd-status` applies).
+  merge strategy. Then test the benchmark by path, anchor or not: the
+  path is the benchmark the baseline's scenario record names
+  (`.odd/benchmarks/<name>/`); when the record names none, there is
+  nothing to test — a benchmark the replay does not run cannot be its
+  fix, and an unrelated benchmark's update is not this service's
+  fix. Commits touching that path since the baseline, or uncommitted
+  changes under it, are changed code:
+
+  ```text
+  git rev-parse --verify <revision>^{commit}          # does the revision resolve?
+  git log <revision>..HEAD -- <path>                  # yes: commits since it
+  git log -1 --format=%cI -- <baseline report path>   # no: the report's own commit date...
+  git log --since=<that date> -- <path>               # ...is the boundary (the report's own commit is inside the window - ignore it)
+  ```
+
+  Differing entries you cannot classify make the check undecidable
+  (the rule below), never a silent "code changed". With no anchor,
+  compare trees, not ancestry, and when the baseline carries no
+  `revision` either, the report's own commit date (the same command
+  as above) is the substitute boundary — the same rule `/odd-status`
+  applies.
   When the check is still undecidable, or its outcome contradicts how
   the caller framed the mission — they asked to *verify* but nothing
   changed, or they said *re-measure* but commits landed — say so and

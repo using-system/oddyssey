@@ -197,7 +197,11 @@ report is picked.
 - when the replay tests no fix - the code (commits and working tree
   alike; the loop's memory and documentation aside, the memory being
   the two report stores and `.odd/decisions.md`, never
-  `.odd/benchmarks/`, which is living source) is unchanged since the
+  `.odd/benchmarks/`, which is living source - a benchmark fix makes
+  the replay a verification, and the prompt says in the mission block
+  that the benchmark moved, so the agent rules the findings against
+  the benchmark itself and compares the service's numbers only when
+  the load did not change) is unchanged since the
   report's `revision` - the run persists as a **re-measure**
   (`remeasure-<run_name>.md`, `mode: re-measure`, same `verifies`
   link), not as a verification: `/odd-status` counts it as an
