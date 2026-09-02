@@ -1458,6 +1458,26 @@ def banner() -> Image.Image:
     return Image.new("RGB", (W, H), DEEP)
 
 
+def banner_frame(t: float, dur: float, zoom_to: float) -> Image.Image:
+    """The banner cropped to the frame, slowly zooming in (Ken Burns)."""
+    src = banner()
+    zoom = lerp(1.0, zoom_to, ease_in_out(window(t, 0, dur)))
+    sw, sh = src.size
+    scale = max(W / sw, H / sh) * zoom
+    cw, ch = int(W / scale), int(H / scale)
+    cx = int((sw - cw) / 2 + lerp(-40, 40, t / dur))
+    cy = int((sh - ch) / 2)
+    return src.crop((cx, cy, cx + cw, cy + ch)).resize(
+        (W, H), Image.Resampling.BILINEAR
+    )
+
+
+def scene_opening(t: float) -> Image.Image:
+    # the banner, full brightness, as the very first frame: it is the thumbnail GitHub
+    # shows for an uploaded video, so the README keeps the banner as its poster
+    return banner_frame(t, 2.5, 1.05)
+
+
 def scene_outro(t: float) -> Image.Image:
     # Ken Burns over the banner, darkened for the closing text
     src = banner()
@@ -1540,6 +1560,7 @@ def scene_outro(t: float) -> Image.Image:
 
 
 SCENES = [  # (name, duration in seconds, render function)
+    ("opening", 2.5, scene_opening),
     ("title", 8.5, scene_title),
     ("hero", 8.5, scene_hero),
     ("monsters", 12.5, scene_monsters),
@@ -1573,8 +1594,8 @@ def render_frame(gt: float) -> Image.Image:
                 img = Image.blend(img, nxt, ease_in_out(k))
             break
         start = end
-    # fade from black at the very start, to black at the very end
-    fade = min(window(gt, 0.0, 1.0), 1 - window(gt, total_duration() - 1.2, 1.2))
+    # fade to black at the very end (no fade-in: frame 0 is the banner, the video's thumbnail)
+    fade = 1 - window(gt, total_duration() - 1.2, 1.2)
     if fade < 1:
         img = Image.blend(Image.new("RGB", (W, H), (0, 0, 0)), img, fade)
     return img
@@ -1674,7 +1695,7 @@ def synthesize_music(path: Path) -> Path:
         starts[name] = acc
         acc += dur
     starts["end"] = acc
-    flashes = [(ft, s) for (ft, _, s) in TITLE_FLASHES] + [
+    flashes = [(starts["title"] + ft, s) for (ft, _, s) in TITLE_FLASHES] + [
         (starts["monsters"] + ft, s) for (ft, _, s) in MONSTER_FLASHES
     ]
     print(f"synthesizing soundtrack -> {path}")

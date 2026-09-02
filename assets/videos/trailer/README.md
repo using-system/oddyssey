@@ -1,6 +1,6 @@
 # The oddyssey trailer
 
-The README's trailer (`oddyssey-trailer.mp4`, 92 s, 1280x720) and the code that
+The README's trailer (`oddyssey-trailer.mp4`, 94.5 s, 1280x720) and the code that
 generates it. The video presents oddyssey
 told as Homer's Odyssey: Odysseus (your coding agent) sails the telemetry
 sea, meets the monsters (bugs, bad behaviors, bad performance, blind spots)
@@ -54,6 +54,7 @@ committed, in the same change as the edit that made it necessary.
 
 | # | Scene | Length | What happens |
 |---|-------|--------|--------------|
+| 0 | Opening | 2.5 s | The banner itself, slowly zooming: the first frame is the thumbnail GitHub shows for the uploaded trailer |
 | 1 | Title | 8.5 s | Storm, lightning, "ODDYSSEY - Observability-Driven Development for coding agents" |
 | 2 | Hero | 8.5 s | The trireme sails in, shields named Claude, Copilot, Codex, Cursor, Gemini. "What is my service really doing out there?" |
 | 3 | Monsters | 12.5 s | Scylla (bugs), the Sirens (bad behaviors), Charybdis (bad performance), the Cyclops (blind spots) |

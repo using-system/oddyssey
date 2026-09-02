@@ -305,7 +305,7 @@ if __name__ == "__main__":
         starts[name] = acc
         acc += dur
     starts["end"] = acc
-    flashes = [(ft, s) for (ft, _, s) in mv.TITLE_FLASHES] + [
+    flashes = [(starts["title"] + ft, s) for (ft, _, s) in mv.TITLE_FLASHES] + [
         (starts["monsters"] + ft, s) for (ft, _, s) in mv.MONSTER_FLASHES
     ]
     path = render(acc, starts, flashes, HERE / "out" / "ambience.wav")
