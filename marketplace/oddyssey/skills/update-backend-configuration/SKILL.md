@@ -1,6 +1,6 @@
 ---
 name: update-backend-configuration
-description: "Own the backend switch of the global oddyssey configuration: verify the target backend's CLI is installed (offer a guided install when missing), persist the switch via odd_config_set, persist the per-stack stack_config values the missions will need, and hand back to check-backend-configuration for the connection proof. Use when the user asks to change the configured stack/backend or to persist backend targeting values. Never installs silently, never authenticates on the user's behalf, never stores secrets."
+description: "Own the backend switch of the global oddyssey configuration: verify the target backend's CLI is installed (offer a guided install when missing), persist the switch via odd_config_set, persist the per-stack stack_config values the missions will need, and hand back to check-backend-configuration for the connection proof. Stack-agnostic - the stack list and everything about a given stack come from the observability-cli-guides skill. Use when the user asks to change the configured stack/backend or to persist backend targeting values. Never installs silently, never authenticates on the user's behalf, never stores secrets."
 ---
 
 # Update the Backend Configuration
@@ -16,32 +16,38 @@ silently (it offers, the user runs or approves), it never authenticates
 on the user's behalf, and it never stores a secret — credentials stay in
 the CLI's own auth store and are referred to by name only.
 
+This skill knows no stack by name. The valid stacks, their aliases,
+their CLIs, and what each persists come from the
+`observability-cli-guides` skill: `references/builtin-stacks.md` for
+the list, `references/<stack>.md` for the stack — its `## CLI binary`
+section for the preflight, its `## What to persist` section for the
+`stack_config` write.
+
 ## 1. Resolve the target stack
 
-The target is one of the seven `STACKS` values: `local` (the local
-stack — the default), `grafana` (a **remote** Grafana), `azure-monitor`,
-`cloudwatch`, `datadog`, `dynatrace`, `splunk`. Map the user's phrasing
-onto one of them — "AWS" is `cloudwatch`, "Azure" is `azure-monitor`,
-"my own Grafana" is `grafana`, "the local stack" is `local`.
+The target is one of the `STACKS` values `builtin-stacks.md` lists —
+`odd_config_set` accepts nothing else. Map the user's phrasing onto a
+row through that table's **Also called** column — a vendor name, a
+product name, or the words for the stack on this machine each name
+exactly one value there.
 
-Anything that does not resolve is an **error naming the valid list**,
-not a guess and not a passthrough: `odd_config_set` would reject it
-anyway, and a spelled-out list is what lets the user correct it in one
-turn.
+Anything that does not resolve is an **error naming the valid list**
+(the table's first column), not a guess and not a passthrough:
+`odd_config_set` would reject it anyway, and a spelled-out list is what
+lets the user correct it in one turn.
 
 ## 2. CLI presence preflight
 
-Open the target's reference in the `observability-cli-guides` skill and
-read its `## CLI binary` section — it names the binary, the **Detect**
-command, and the **Install** steps. `local` uses that skill's
-`grafana.md`: gcx is the local stack's mandatory query CLI, so a switch
-to `local` needs the same binary a remote Grafana does.
+Open the target's reference and read its `## CLI binary` section — it
+names the binary, the **Detect** command, and the **Install** steps. A
+reference may route that section to another reference's when the same
+binary queries both stacks; follow it.
 
-Run the Detect command as written, in a shell **without `set -u`** —
-splunk's Detect references `$SPLUNK_HOME`, which is usually unset, and
-under `-u` the check would abort instead of answering. A non-zero exit
-is the **answer, not a failure**: it means "not installed", and the
-preflight continues into the offer below.
+Run the Detect command as written, in a shell **without `set -u`** — a
+Detect command may reference an environment variable that is usually
+unset, and under `-u` the check would abort instead of answering. A
+non-zero exit is the **answer, not a failure**: it means "not
+installed", and the preflight continues into the offer below.
 
 When the binary is missing, **offer** the reference's Install steps:
 name the binary, show the install command(s), and ask the user to run
@@ -52,9 +58,10 @@ The offer is not a stop sign: if the user declines, say plainly that the
 switch will persist but the missions will fail at the CLI until the
 binary exists, and let them decide.
 
-A missing gcx on `local` is the mildest case of all — the local stack is
-fully self-serve, there is no account and no authentication behind it,
-so installing gcx is a step to run, never a "CLI not configured" error.
+A reference may say its stack is fully self-serve — no account, no
+authentication behind it (the default stack's does): a missing binary
+there is the mildest case of all, a step to run, never a "CLI not
+configured" error.
 
 ## 3. Persist the switch
 
@@ -78,10 +85,10 @@ port change into a backend switch the user did not request.
 
 ## 4. Persist the stack_config
 
-Open this skill's `references/<stack>.md`. It says what `stack_config`
-holds for that backend, where each value comes from, and what to ask the
-user for — including the backends where the answer is **nothing**, so
-the skill knows not to ask.
+Follow the reference's `## What to persist` section. It says what
+`stack_config` holds for that backend, where each value comes from, and
+what to ask the user for — including the backends where the answer is
+**nothing**, so the skill knows not to ask.
 
 Write with `odd_config_set {"stack_config": {"<stack>": {...}}}`. The
 payload is merged into that stack's entry and every other stack's entry
@@ -99,20 +106,20 @@ that key (deleting the last one leaves the present-but-empty entry —
 "not configured", the normal state), and
 `{"stack_config": {"<stack>": null}}` removes the stack's entry
 entirely. A deletion never boots or resets the container either, and it
-is the tool-surface answer to "clear the workspace for azure-monitor" —
-never hand-edit the file.
+is the tool-surface answer to "clear the <value> for <stack>" — never
+hand-edit the file.
 
-An entry that is present and empty (`{"grafana": {}}`) means "not
-configured", which for the context-bearing backends — `grafana`,
-`datadog`, `dynatrace`, `splunk` — is the **correct final state**:
-normal, not an error, and not something to fill in with invented
-values.
+An entry that is present and empty (`{"<stack>": {}}`) means "not
+configured", which for the backends whose reference says `stack_config`
+holds **nothing** — the context-bearing CLIs, whose own context names
+the instance — is the **correct final state**: normal, not an error,
+and not something to fill in with invented values.
 
 A **persist-only** request — targeting values named, no switch asked
-("persist workspace `<guid>` for azure-monitor" while the configured
-stack is `local`) — enters the skill here and stands alone. Resolve the
-target stack (section 1) for validation only, so the values land in the
-right entry and are read against the right reference; **skip the switch
+("persist workspace `<guid>` for <stack>" while the configured stack is
+another) — enters the skill here and stands alone. Resolve the target
+stack (section 1) for validation only, so the values land in the right
+entry and are read against the right reference; **skip the switch
 persist** (section 3) entirely; write the values as above; end at
 verification (section 5) as every path does. The configured stack is
 left exactly as it was — naming a backend to persist values for is not
@@ -131,6 +138,6 @@ retry the auth on the user's behalf.
 
 Two outcomes worth stating explicitly rather than swallowing: the
 configuration is switched but the CLI is unconfigured (the write stands,
-the guidance is the next step), and the user meant the local stack all
-along (the fix is `odd_config_set {"stack": "local"}`, not an
-authentication).
+the guidance is the next step), and the user meant the default stack
+all along (the fix is `odd_config_set {"stack": "<default>"}`, the row
+`builtin-stacks.md` marks as the default, not an authentication).

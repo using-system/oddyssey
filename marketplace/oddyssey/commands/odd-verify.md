@@ -45,32 +45,70 @@ Resolve the report first:
   guess the original: ask the user to name the observation report to
   verify against before proceeding.
 
-Preflight next - in the main conversation, before any dispatch: the
-report's `stack` is the contract being replayed - both report kinds,
-observation and instrumentation, name it `stack`. When it disagrees
-with the configured stack (`odd_config_get`), say so and **follow the
-report** - a verify run replays the baseline's stack, never silently
-retargets the current one (and it does not rewrite the configuration:
-the divergence is stated, not persisted). Then run the
-`check-backend-configuration` skill against the report's stack: show
-the CLI's configuration, fail fast when it is not connected, and ask for
-what is missing before dispatching.
+Preflight next - in the main conversation, before any dispatch, in
+this order:
+
+1. **The stack.** The report's `stack` is the contract being replayed -
+   both report kinds, observation and instrumentation, name it
+   `stack`. When it disagrees with the configured stack
+   (`odd_config_get`), say so and **follow the report** - a verify run
+   replays the baseline's stack, never silently retargets the current
+   one (and it does not rewrite the configuration: the divergence is
+   stated, not persisted).
+2. **The execution mode, and the remote-drive question.** Resolve the
+   mode - the mission block below restates the rule: the frontmatter's
+   mode; for a `verify` or `re-measure` baseline, the mode of the
+   report its `verifies` names; `drive` for an instrumentation report,
+   whose frontmatter has no mode - never inferred from what the record
+   contains. Driving is self-authorized only when the stack and the
+   target are both local. When the resolved mode is `drive` and the
+   report's `stack` is remote - whatever the report kind - ask the
+   user for explicit confirmation before the CLI check, the k6 step,
+   or any dispatch, naming what will be driven (the recorded
+   scenario's commands; the stored benchmark the record names, with
+   the revision the baseline recorded - the replay runs the current
+   checkout; or, for an instrumentation report, the scenario its
+   verification protocol names) and against which target. When that
+   target is itself local (`localhost`) while the stack is remote, say
+   so - the confirmation is then about the backend the run writes
+   into; when the stack is local but the recorded target is remote,
+   ask all the same - `observe-run`'s own rule keys on the service.
+   The authorization the baseline run had was given for that run;
+   `observe-run` drives a remote service only when the caller says so,
+   this mission, and a stored report or manifest never carries a
+   standing permission. A refusal ends the mission before anything is
+   installed or checked: never downgrade the replay to `observe` on
+   your own - that changes the protocol.
+3. **The CLI.** Run the `check-backend-configuration` skill against the
+   report's stack: show the CLI's configuration, fail fast when it is
+   not connected, and ask for what is missing before dispatching.
+4. **k6.** When the replay will be `drive` with a stored benchmark (the
+   report's record names one), ensure the `k6` binary is present, per
+   the `k6-guides` skill's `install.md` auto-install step:
+   `command -v k6`; when it is missing, run `brew install k6` directly
+   when Homebrew is available (no confirmation - k6 needs no account
+   and no configuration), otherwise follow that reference's
+   non-interactive path for the platform or hand the remaining steps
+   to the user and stop.
 
 Then build the mission block from that report:
 
-- services and stack come from its frontmatter; mode is drive when the
-  report records a scenario to replay, otherwise the frontmatter's mode
-  — and when the baseline is itself a verification (its frontmatter
-  says `verify`, which is no execution mode), the execution mode of
-  the report **its** `verifies` names.
+- services and stack come from its frontmatter; the mode is the
+  frontmatter's mode, **never inferred from whether the report records
+  a scenario or a benchmark** — an `observe`-mode report backed by a
+  stored benchmark records a replayable protocol nobody authorized
+  this run to drive, so it replays as `observe` — and when the
+  baseline is itself a verification or a re-measure (its frontmatter
+  says `verify` or `re-measure`, neither an execution mode), the
+  execution mode of the report **its** `verifies` names.
   For an **instrumentation report** the frontmatter has no `services` or
   `mode`: the services are the ones its per-service plan names (summary
   table), the stack is its frontmatter's `stack` all the same, and the
   mode is drive - the verification protocol runs the services and
-  exercises a scenario. Driving is self-authorized only on the local
-  stack: when the report's stack is remote, ask the user for explicit
-  confirmation before building a drive-mode mission - the agent will not
-  drive a remote service without the caller saying so;
+  exercises a scenario;
+- remote drive: the confirmation preflight step 2 obtained is what
+  authorizes a `drive` mission on a remote stack - state in the
+  mission block that it was given, and for what;
 - baseline: the report itself - name its path and tell the agent to use
   it as the recalled baseline;
 - baseline environment: hand the report's `environment` value over with
@@ -92,29 +130,63 @@ Then build the mission block from that report:
   shape is what says the baseline lives outside the observation
   directory. **Unless the replay tests no fix**: when the observed
   repo's code is unchanged since the baseline's `revision` — no
-  commits beyond `.odd/` and documentation AND a clean working tree
-  (uncommitted changes beyond `.odd/` and documentation are changed
-  code) — the mission is a
-  **re-measure**, not a verification: same replay, but the agent
-  persists `YYYY-MM-DD-HHmm-remeasure-<run_name>.md` with
-  `mode: re-measure` and the same `verifies` field — calling it a
-  verification would fabricate a fix that never existed. Check before
-  dispatching; the preferred boundary is the baseline's `tree_anchor`:
-  compare its entry hashes against `git ls-tree HEAD`, ignoring `.odd`
-  and every entry that cannot change the observed service's runtime
-  behavior (documentation is the canonical case, but so are CI
-  configuration, generated/packaging artifacts, and release-metadata
-  files) — resolvable in any clone whatever the merge strategy;
-  differing entries you cannot classify make the check undecidable
+  commits beyond the loop's own memory and documentation AND a clean
+  working tree (uncommitted changes to anything else are changed
+  code) — the mission is a **re-measure**, not a verification: same
+  replay, but the agent persists
+  `YYYY-MM-DD-HHmm-remeasure-<run_name>.md` with `mode: re-measure`
+  and the same `verifies` field — calling it a
+  verification would fabricate a fix that never existed. The loop's
+  memory is the append-only report stores and the ledger —
+  `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`,
+  `.odd/decisions.md` — and nothing else under `.odd/`:
+  `.odd/benchmarks/` is living source, and the benchmark the replay
+  runs, when its script or manifest changed since the baseline, is
+  changed code like any other path (a drive replay runs it, so a fix
+  to it is a fix under test — calling that a re-measure would deny a
+  fix that
+  happened). Check before dispatching; the preferred boundary is the
+  baseline's `tree_anchor`: compare its entry hashes against
+  `git ls-tree HEAD`, ignoring `.odd` (its top-level hash moves with
+  every report written) and every entry that cannot change the
+  observed service's runtime behavior (documentation is the canonical
+  case, but so are CI configuration, generated/packaging artifacts,
+  and release-metadata files) — resolvable in any clone whatever the
+  merge strategy. Then test the benchmark by path, anchor or not: the
+  path is the benchmark the baseline's scenario record names
+  (`.odd/benchmarks/<name>/`); when the record names none, there is
+  nothing to test — a benchmark the replay does not run cannot be its
+  fix, and an unrelated benchmark's update is not this service's
+  fix. Commits touching that path since the baseline, or uncommitted
+  changes under it, are changed code. When the revision does not
+  resolve (a squash-merged clone), the boundary is the baseline report
+  file's own commit date, and that commit sits inside the window —
+  ignore it:
+
+  ```text
+  git rev-parse --verify <revision>^{commit}          # does the revision resolve?
+  git log <revision>..HEAD -- <path>                  # yes: commits since it
+  git log -1 --format=%cI -- <baseline report path>   # no: the report's own commit date
+  git log --since=<that date> -- <path>               # is the boundary
+  ```
+
+  Differing entries you cannot classify make the check undecidable
   (the rule below), never a silent "code changed". With no anchor,
   compare trees, not ancestry, and when the baseline carries no
-  `revision` either, its commit date is the substitute boundary (the
-  same rule `/odd-status` applies). When the
-  check is still undecidable, or its outcome contradicts how the
-  caller framed the mission — they asked to *verify* but nothing
+  `revision` either, the report's own commit date (the same command
+  as above) is the substitute boundary — the same rule `/odd-status`
+  applies. When the check is still undecidable, or its outcome
+  contradicts how
+  the caller framed the mission — they asked to *verify* but nothing
   changed, or they said *re-measure* but commits landed — say so and
   ask which of the two the mission is, never silently reclassify. Say
-  which one it is in the mission block;
+  which one it is in the mission block. When what changed is the
+  benchmark a drive replay runs, say that too: the agent rules the
+  baseline's findings against the benchmark itself (a script defect,
+  an unattainable threshold) on the new revision, and compares the
+  service's before/after numbers only when the load did not change
+  (same requests, pacing, and stages) — otherwise it says so, rules
+  what it can, and its numbers open the service's new baseline;
 - focus, **instrumentation baseline**: not before/after measurements
   but **presence rulings**. For every item the report's verification
   protocol and per-service plan recorded - planned spans searchable per

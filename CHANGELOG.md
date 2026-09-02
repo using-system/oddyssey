@@ -1,3 +1,25 @@
+## [1.10.2] - 2026-09-02
+
+### 🚀 Features
+
+- *(agent)* Validate a k6 benchmark with inspect and one smoke iteration before persisting (#237)
+- *(skill)* Auto-install k6 from the prompts' preflight when it is missing (#239)
+
+### 🐛 Bug Fixes
+
+- *(prompts)* Run a stored k6 benchmark through /odd-observe and run-scenario (#236)
+- *(skill)* Count .odd/benchmarks/ changes as changed code for the verify-vs-re-measure boundary (#238)
+- *(agent)* Cross-check every threshold against the service floors the investigation found (#240)
+- *(prompts)* Ask before any drive replay on a remote stack, whatever the report kind (#241)
+
+### 🚜 Refactor
+
+- *(skill)* Centralize per-stack knowledge in observability-cli-guides (#244)
+
+### 📚 Documentation
+
+- *(skill)* Name gcx's Unix-seconds convention and the traces get envelope in the grafana reference (#242)
+- *(readme)* Embed the trailer video in place of the banner image (#246)
 ## [1.10.1] - 2026-09-02
 
 ### 🚀 Features
