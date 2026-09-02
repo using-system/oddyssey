@@ -8,11 +8,12 @@ decided before it can be written, and who can answer it.
 | --- | --- | --- |
 | New benchmark, or update to a named existing one | human | intent - the agent can list what exists for the service but not choose |
 | Test type (smoke / load / stress / soak / spike / breakpoint) | human | encodes what the caller wants to learn (see test-types.md) |
-| Thresholds (the pass/fail targets) | human | a target is a product decision, not a measurement |
+| Thresholds (the pass/fail targets) | human | a target is a product decision, not a measurement - but whether the service can structurally meet it (a fixed sleep, a rate limit, an injected error rate) is a fact the investigation already holds, so the agent cross-checks each threshold against the floors it finds and hands an unattainable one back, with the evidence, before persisting; the caller raises, drops, re-scopes, or keeps it with the floor acknowledged |
 | Load shape, executor, and pacing | agent proposes, human confirms | follows mechanically from the test type, but concurrency changes every latency number and pacing sets the request rate the VU count alone does not (see scripting.md) - state them explicitly |
 | Target scope (which endpoints/operations) | agent | discoverable: routes, OpenAPI, hot operations in stored `.odd/` reports |
 | Duration and stage lengths | agent proposes, human confirms | the type's documented range is discoverable; the actual time budget is the caller's |
 | Target base URL / environment | human | mission-time input, never guessed by probing |
+| One-iteration smoke at the target before persisting | human (remote target only; a local target is self-authorized) | one real pass over the script's requests, with real side effects, on someone's environment - the caller says yes each time, at mission time, never as a stored standing permission (see running-tests.md, "Validating without running") |
 
 **This is the whole contract**: `/odd-instrument-bench` asks about every
 row marked "human" (and confirms the "agent proposes, human confirms"

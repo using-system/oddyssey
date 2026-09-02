@@ -18,7 +18,22 @@ Official docs: https://grafana.com/docs/k6/latest/using-k6/
   small fraction: `http_req_failed: ['rate==0']` (not one failed
   request) and `checks: ['rate==1.00']` (every check passed). Verified
   live (this machine, k6 v2.2.0): both pass with exit 0 on a clean run,
-  and a single 404 among 10 requests crosses both and exits 99. Source:
+  and a single 404 among 10 requests crosses both and exits 99. A
+  threshold can be **scoped to a tag** - tagged requests create
+  sub-metrics, keyed `'metric_name{tag_name:tag_value}'` (the docs'
+  "Set thresholds for specific tags"), e.g.
+  `'http_req_duration{name:checkout}': ['p(95)<300']` - **only when a
+  request carries that tag**: `http.post(url, body, { tags: { name:
+  'checkout' } })`. `name` is a system tag whose default is the request
+  URL, so the tag must be set explicitly. Verified live (this machine,
+  2026-09-02, k6 v2.2.0): a threshold on `{name:checkout}` with no
+  request tagged `checkout` evaluates on an **empty** sub-metric and
+  passes (`p(95)=0s`, green check, exit 0, and no warning on stderr -
+  nothing at runtime says the sub-metric was empty); the same
+  threshold with the request tagged is evaluated for real and crossed
+  when unmet. A
+  sub-metric threshold no request populates is a pass that measures
+  nothing - check the tag exists on a request before persisting. Source:
   https://grafana.com/docs/k6/latest/using-k6/thresholds/
 - **Assertions** (`expect`, from the `k6-testing` jslib) - a third,
   newer concept, Playwright-inspired, distinct from both checks and
@@ -104,6 +119,52 @@ pace with `sleep`: use the `constant-arrival-rate` executor (named
 above), which holds iterations/s directly and starts however many VUs
 that takes. Source:
 https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/constant-arrival-rate/
+
+## Response bodies - `discardResponseBodies` and `responseType`
+
+Official docs:
+https://grafana.com/docs/k6/latest/using-k6/k6-options/reference/#discard-response-bodies
+and https://grafana.com/docs/k6/latest/javascript-api/k6-http/params/
+(`Params.responseType`).
+
+`discardResponseBodies: true` in `options` changes the default
+`responseType` of **every** request to `none`: `res.body` is `null`,
+and `res.json()` throws. The docs recommend exactly that - discard
+globally, it lightens memory and GC on the load generator - **and then
+set `responseType: 'text'` (or `'binary'`) on the individual requests
+whose body the script reads**:
+
+```javascript
+export const options = { discardResponseBodies: true };
+
+export default function () {
+  const res = http.post(`${__ENV.BASE_URL}/orders`, payload, {
+    headers: { 'Content-Type': 'application/json' },
+    responseType: 'text', // this body is read below
+  });
+  const id = res.json('id');
+}
+```
+
+Verified live (this machine, 2026-09-02, k6 v2.2.0, one iteration
+against a trivial local JSON endpoint):
+
+- global discard, `res.json('id')` on the POST, **no override** -
+  `res.body` is `null`, then `GoError: the body is null so we can't
+  transform it to JSON - this likely was because of a request error
+  getting the response`, a script exception on every iteration. The
+  request itself succeeded: the error message's guess is wrong, the
+  cause is the discard.
+- the same script with `responseType: 'text'` on that request - the id
+  is read, no error.
+
+This is a **runtime** defect: `k6 inspect` does not see it (see
+running-tests.md, "Validating without running"), and a benchmark
+carrying it reports a clean run whose every dependent request went to
+a nonexistent id. The static check is trivial - a global discard plus
+any `res.json()` / `res.body` / `res.html()` on a request without an
+explicit `responseType` is a self-contradiction to fix before
+persisting.
 
 ## Minimal runnable script
 

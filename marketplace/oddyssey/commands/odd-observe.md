@@ -9,22 +9,33 @@ Preflight first - in the main conversation, before any dispatch (the
 steps needing the user cannot happen inside a subagent):
 
 1. Resolve the target stack: the configured one (`odd_config_get`), or
-   the one the arguments name - a stack is one of the seven configured
-   values (`local`, `grafana`, `azure-monitor`, `cloudwatch`,
-   `datadog`, `dynatrace`, `splunk`); a location word that is none of
-   them ("on prod") is a deployment-environment expectation, never a
-   switch - see below. A named stack is persisted with
-   `odd_config_set` so the next run starts from it. A local mission on
-   a non-local stack switches to `local` - the local stack is
-   self-serve, nothing to authenticate; every other stack value names
-   a remote backend (for `grafana`, the gcx context says which
-   instance).
+   the one the arguments name - a stack is one of the values the
+   `observability-cli-guides` skill's `references/builtin-stacks.md`
+   lists (its **Also called** column maps a user's phrasing onto one); a
+   location word that is none of them ("on prod") is a
+   deployment-environment expectation, never a switch - see below. A
+   named stack is persisted with `odd_config_set` so the next run starts
+   from it. A local mission on a non-local stack switches to `local` -
+   the local stack is self-serve, nothing to authenticate; every other
+   stack value names a remote backend (for `grafana`, the gcx context
+   says which instance).
+
 2. Run the `check-backend-configuration` skill: show the CLI's effective
    configuration to the user (no confirmation needed), and fail fast
    with its "CLI not configured for <backend>" error instead of letting
    the agent attempt interactive auth. Ask for whatever the mission
    still needs (instance URL, tenant, access material by name) before
    dispatching.
+3. When the arguments name a stored benchmark, read its manifest under
+   `.odd/benchmarks/<name>/` for the target service (the service the
+   mission uses unless the arguments name one), and - unless the
+   arguments say someone else is running it - ensure the `k6` binary
+   is present, per the `k6-guides` skill's `install.md` auto-install
+   step: `command -v k6`; when it is missing, run `brew install k6`
+   directly when Homebrew is available (no confirmation - k6 needs no
+   account and no configuration), otherwise follow that reference's
+   non-interactive path for the platform or hand the remaining steps
+   to the user and stop.
 
 Build the mission block from the arguments below, applying the agent's own
 defaults for every field not specified:
@@ -32,14 +43,23 @@ defaults for every field not specified:
 - Arguments: $ARGUMENTS
 - Expected fields (any order, free-form): service name(s), stack
   (defaults to the configured one - the preflight resolved it), mode
-  (drive / observe / post-hoc), window, focus, baseline expectations.
+  (drive / observe / post-hoc), benchmark, window, focus, baseline
+  expectations.
+- `benchmark` names a stored k6 benchmark - its directory name under
+  `.odd/benchmarks/` or that path. `run .odd/benchmarks/<name>/` means
+  mode `drive` with that benchmark; "someone is running <name>" means
+  mode `observe` with it. It composes with `drive` and `observe`, never
+  with `post-hoc` (the agent refuses that combination). The service is
+  the manifest's target service (read in the preflight) unless the
+  arguments name one.
 - The deployment environment is not a mission field: the agent detects
   it from the telemetry (`deployment.environment.name`) and records it -
   never pass one, never guess one here. When the arguments name one
   ("on prod", "on uat"), it is neither the stack nor a mission input:
   carry it into the baseline expectations, so the agent compares it
   against the environment it detects and flags a divergence.
-- If no service name can be determined and the ask is an observation
+- If no service name can be determined - no argument names one and no
+  benchmark manifest supplies one - and the ask is an observation
   mission, ask for it before invoking the agent. A service-less
   **discovery question** about the stack's telemetry (which services
   exist, what emits metrics, over what window) is answered directly in
