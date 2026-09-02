@@ -195,7 +195,9 @@ report is picked.
   never inferring `drive` from the benchmark's presence; see
   [docs/guide/benchmarks.md](benchmarks.md);
 - when the replay tests no fix - the code (commits and working tree
-  alike, `.odd/` and documentation aside) is unchanged since the
+  alike; the loop's memory and documentation aside, the memory being
+  the two report stores and `.odd/decisions.md`, never
+  `.odd/benchmarks/`, which is living source) is unchanged since the
   report's `revision` - the run persists as a **re-measure**
   (`remeasure-<run_name>.md`, `mode: re-measure`, same `verifies`
   link), not as a verification: `/odd-status` counts it as an

@@ -100,10 +100,19 @@ a manifest never carries a standing permission.
 `/odd-verify` replays a benchmark-backed report through the same
 `observe-run` dispatch, in the mode the report's frontmatter records —
 never inferring `drive` from the benchmark's presence, so an observed
-run is never re-driven. The replay compares the recorded revision with
-the benchmark's current one: when the benchmark moved in between (a
-diff-reviewed update landed), the run is reported as a new baseline,
-never as a verdict on a fix. Checking the benchmark out **at the
-recorded revision** instead of running it at `HEAD` is designed but not
-built yet; the recorded revision in the scenario record is what that
-step will read.
+run is never re-driven.
+
+A benchmark is living source, so a change to it counts as changed
+code for the verify-vs-re-measure boundary (`/odd-verify` and
+`/odd-status` alike): a fix to a benchmark's script or manifest makes
+the next replay a **verification**, never a re-measure — only the two
+report stores and `.odd/decisions.md` are the loop's memory that a
+replay ignores. What that verification can rule depends on what
+moved: the baseline's findings against the benchmark itself (a script
+defect, an unattainable threshold) are ruled on the new revision;
+the service's before/after numbers compare only when the load did not
+change (same requests, pacing, and stages) — otherwise the report
+says so, rules what it can, and its numbers open the service's new
+baseline. Checking the benchmark out **at the recorded revision**
+instead of running it at `HEAD` is designed but not built yet; the
+recorded revision in the scenario record is what that step will read.

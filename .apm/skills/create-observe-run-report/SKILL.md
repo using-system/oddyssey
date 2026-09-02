@@ -158,7 +158,10 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   any later commit, with `.odd` and every entry that cannot change the
   observed service's runtime behavior (documentation, CI
   configuration, generated artifacts, release metadata) ignored by
-  the consumers.
+  the consumers — `.odd` because its top-level hash moves with every
+  report written, not because everything under it is memory:
+  consumers test `.odd/benchmarks/` separately, by path, since a
+  benchmark is living source and a change to it is a code change.
 - `workload` names the input that shaped the run when the runtime
   profile depends on what was processed, not only on the service (an
   analysis service run against two different repositories produces

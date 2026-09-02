@@ -233,8 +233,13 @@ differs is how the load is generated and how the record cites it:
   dirty benchmark has no revision to replay at — say so in the record.
   A replay runs the same benchmark at the same revision; when the
   stored benchmark moved between the two runs (a diff-reviewed update
-  landed), the protocol changed and the second run is a new baseline,
-  stated as such — never a verdict on a fix.
+  landed), the load may have changed with it. The record then says
+  what moved: findings against the benchmark itself (a script defect,
+  an unattainable threshold) are ruled on the new revision, while the
+  service's before/after numbers compare only when the requests,
+  pacing, and stages are the same — otherwise the second run's numbers
+  open the service's new baseline, stated as such, never a before/after
+  against the first.
 - **Warmup is the manifest's stage boundaries.** A k6 run is one
   continuous window, so step 2's "discard the warmup" becomes a
   sub-window: quote steady-state numbers from the interval the

@@ -56,8 +56,12 @@ as tables — never a committed artifact.
    the last observation when newest, and never let it satisfy "verified"
    in the chain.
    "Fixed" means commits landed after the report's `revision`,
-   **excluding commits that only touch `.odd/` or documentation** — the
-   loop's own memory is not a fix. Scope the commit test to the
+   **excluding commits that only touch the loop's own memory or
+   documentation** — the memory being the append-only report stores
+   and the ledger (`.odd/observe-run-reports/`,
+   `.odd/otel-instrumentation-reports/`, `.odd/decisions.md`), never
+   `.odd/benchmarks/`: a benchmark is living source, and a commit
+   changing one is a fix like any other. Scope the commit test to the
    service's path when a report names one (an instrumentation report's
    `project`); otherwise say the count is repo-wide, not service-scoped.
    A verification covers the commits its own `revision` has as ancestors
@@ -68,12 +72,16 @@ as tables — never a committed artifact.
    otherwise inconclusive, say coverage is uncertain rather than ruling
    a verification due. When a report carries a `tree_anchor`, that is
    the **preferred boundary**: compare its entry hashes against
-   `git ls-tree` of the candidate commit, ignoring `.odd` and every
-   entry that cannot change the observed service's runtime behavior —
+   `git ls-tree` of the candidate commit, ignoring `.odd` (its
+   top-level hash moves with every report written) and every entry
+   that cannot change the observed service's runtime behavior —
    documentation is the canonical case, but so are CI configuration,
-   generated/packaging artifacts, and release-metadata files. Equal
-   hashes mean no code change, and the comparison resolves in any
-   clone whatever the merge strategy; when the only differing entries
+   generated/packaging artifacts, and release-metadata files — then
+   test `.odd/benchmarks/` by path (commits touching it since the
+   report, by revision when it resolves and by commit date otherwise).
+   Equal hashes and no benchmark commit mean no code change, and the
+   comparison resolves in any clone whatever the merge strategy; when
+   the only differing entries
    are ones you cannot classify, the boundary is uncertain — say so,
    never rule "code changed". When a report carries neither an anchor
    nor a `revision`, its commit date — already a source — is the

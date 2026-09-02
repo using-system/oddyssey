@@ -64,7 +64,12 @@ exception to some other rule.
 - **Invisible to `/odd-status`.** `get-status` inventories the two
   report directories and the decisions ledger; benchmarks are not loop
   state and never appear there.
-- `/odd-verify`'s verify-vs-re-measure boundary already ignores commits
-  that touch only `.odd/` - authoring or updating a benchmark never
-  counts as "a fix landed", by construction, with no special-casing
-  needed here.
+- **Visible to the verify-vs-re-measure boundary.** `/odd-verify` and
+  `/odd-status` ignore commits that touch only the loop's memory - the
+  two report stores and the decisions ledger - but `.odd/benchmarks/`
+  is living source, not memory: a commit that updates a benchmark
+  counts as changed code, so a replay after it is a verification, never
+  a re-measure. Which of the baseline's findings that verification can
+  rule depends on what moved (the benchmark's own defects always; the
+  service's before/after only when the load did not change) - the
+  `/odd-verify` prompt owns that rule.
