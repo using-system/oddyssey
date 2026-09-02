@@ -45,23 +45,51 @@ Resolve the report first:
   guess the original: ask the user to name the observation report to
   verify against before proceeding.
 
-Preflight next - in the main conversation, before any dispatch: the
-report's `stack` is the contract being replayed - both report kinds,
-observation and instrumentation, name it `stack`. When it disagrees
-with the configured stack (`odd_config_get`), say so and **follow the
-report** - a verify run replays the baseline's stack, never silently
-retargets the current one (and it does not rewrite the configuration:
-the divergence is stated, not persisted). Then run the
-`check-backend-configuration` skill against the report's stack: show
-the CLI's configuration, fail fast when it is not connected, and ask for
-what is missing before dispatching. When the replay will be `drive`
-with a stored benchmark (the report's record names one), ensure the
-`k6` binary is present, per the `k6-guides` skill's `install.md`
-auto-install step: `command -v k6`; when it is missing, run
-`brew install k6` directly when Homebrew is available (no
-confirmation - k6 needs no account and no configuration), otherwise
-follow that reference's non-interactive path for the platform or hand
-the remaining steps to the user and stop.
+Preflight next - in the main conversation, before any dispatch, in
+this order:
+
+1. **The stack.** The report's `stack` is the contract being replayed -
+   both report kinds, observation and instrumentation, name it
+   `stack`. When it disagrees with the configured stack
+   (`odd_config_get`), say so and **follow the report** - a verify run
+   replays the baseline's stack, never silently retargets the current
+   one (and it does not rewrite the configuration: the divergence is
+   stated, not persisted).
+2. **The execution mode, and the remote-drive question.** Resolve the
+   mode - the mission block below restates the rule: the frontmatter's
+   mode; for a `verify` or `re-measure` baseline, the mode of the
+   report its `verifies` names; `drive` for an instrumentation report,
+   whose frontmatter has no mode - never inferred from what the record
+   contains. Driving is self-authorized only when the stack and the
+   target are both local. When the resolved mode is `drive` and the
+   report's `stack` is remote - whatever the report kind - ask the
+   user for explicit confirmation before the CLI check, the k6 step,
+   or any dispatch, naming what will be driven (the recorded
+   scenario's commands; the stored benchmark the record names, with
+   the revision the baseline recorded - the replay runs the current
+   checkout; or, for an instrumentation report, the scenario its
+   verification protocol names) and against which target. When that
+   target is itself local (`localhost`) while the stack is remote, say
+   so - the confirmation is then about the backend the run writes
+   into; when the stack is local but the recorded target is remote,
+   ask all the same - `observe-run`'s own rule keys on the service.
+   The authorization the baseline run had was given for that run;
+   `observe-run` drives a remote service only when the caller says so,
+   this mission, and a stored report or manifest never carries a
+   standing permission. A refusal ends the mission before anything is
+   installed or checked: never downgrade the replay to `observe` on
+   your own - that changes the protocol.
+3. **The CLI.** Run the `check-backend-configuration` skill against the
+   report's stack: show the CLI's configuration, fail fast when it is
+   not connected, and ask for what is missing before dispatching.
+4. **k6.** When the replay will be `drive` with a stored benchmark (the
+   report's record names one), ensure the `k6` binary is present, per
+   the `k6-guides` skill's `install.md` auto-install step:
+   `command -v k6`; when it is missing, run `brew install k6` directly
+   when Homebrew is available (no confirmation - k6 needs no account
+   and no configuration), otherwise follow that reference's
+   non-interactive path for the platform or hand the remaining steps
+   to the user and stop.
 
 Then build the mission block from that report:
 
@@ -70,17 +98,17 @@ Then build the mission block from that report:
   a scenario or a benchmark** — an `observe`-mode report backed by a
   stored benchmark records a replayable protocol nobody authorized
   this run to drive, so it replays as `observe` — and when the
-  baseline is itself a verification (its frontmatter says `verify`,
-  which is no execution mode), the execution mode of the report
-  **its** `verifies` names.
+  baseline is itself a verification or a re-measure (its frontmatter
+  says `verify` or `re-measure`, neither an execution mode), the
+  execution mode of the report **its** `verifies` names.
   For an **instrumentation report** the frontmatter has no `services` or
   `mode`: the services are the ones its per-service plan names (summary
   table), the stack is its frontmatter's `stack` all the same, and the
   mode is drive - the verification protocol runs the services and
-  exercises a scenario. Driving is self-authorized only on the local
-  stack: when the report's stack is remote, ask the user for explicit
-  confirmation before building a drive-mode mission - the agent will not
-  drive a remote service without the caller saying so;
+  exercises a scenario;
+- remote drive: the confirmation preflight step 2 obtained is what
+  authorizes a `drive` mission on a remote stack - state in the
+  mission block that it was given, and for what;
 - baseline: the report itself - name its path and tell the agent to use
   it as the recalled baseline;
 - baseline environment: hand the report's `environment` value over with
