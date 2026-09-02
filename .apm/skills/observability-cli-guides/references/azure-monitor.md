@@ -364,9 +364,8 @@ credential behind `az` stays in its own auth store, established by
   changes under you and the stored value is what pins the target.
 - `resource_group` — list the workspaces the identity can see and read
   the group each sits in. The exact listing command comes from the
-  query sections earlier in this file, or from
-  `az monitor log-analytics workspace --help` — never from
-  memory.
+  `## Setup` table earlier in this file, or from
+  `az monitor log-analytics workspace --help` — never from memory.
 - `workspace` — `az monitor log-analytics workspace show -g
   <resource_group> -n <name> --query customerId -o tsv` is the command
   that turns a workspace name into the GUID to store. Deriving it is

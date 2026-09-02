@@ -115,8 +115,8 @@ its place.
 ### Connection proof
 
 A trivial authenticated search, per the setup section earlier in this
-file: `splunk search '<trivial SPL>'
--maxout 1`, adding `-uri` for a remote instance. A successful response
+file: `splunk search '<trivial SPL>' -maxout 1`, adding `-uri` for a
+remote instance. A successful response
 = connected. Failure = stop and guide the login or the
 `-uri`/credential inputs; never authenticate on the user's behalf.
 
@@ -158,7 +158,7 @@ requires.
 Note also that Splunk Enterprise / Cloud Platform (SPL, the `splunk`
 CLI) and Splunk Observability Cloud (SignalFlow, APM) are separate
 products with separate credentials. Nothing about that distinction is
-stored here either; the query sections earlier in this file own it.
+stored here either; the file's header and Planning notes own it.
 
 ### What to ask the user
 

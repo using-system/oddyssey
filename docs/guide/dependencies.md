@@ -204,6 +204,7 @@ flowchart LR
   observe --> cfgget
   observe --> cfgset
   observe --> kg
+  observe --> ocg
   observe --> benchdir
   sorr --> obsdir
 
@@ -423,6 +424,7 @@ flowchart LR
 
   config --> cbc
   config -.-> ubc
+  config --> ocg
 
   ubc --> ocg
   ubc --> cfgset
@@ -517,8 +519,9 @@ via its `## What to persist` section, persistence via
 `check-backend-configuration`. `observability-cli-guides` carries one
 reference per stack — query surface, configuration display, what to
 persist — and routes the local-stack case to `setup-local-stack`,
-which reads the effective ports from `odd_config_get`. `run-scenario` orders the clean-base
-sequence around `odd_stack_reset`; for a stored benchmark it reads the
+which reads the effective ports from `odd_config_get`. `run-scenario`
+orders the clean-base sequence around `odd_stack_reset`; for a stored
+benchmark it reads the
 script and manifest under `.odd/benchmarks/<name>/` (never writing
 there) and takes the `k6 run` flags, exit codes, and install check from
 `k6-guides`. The two create-report skills own

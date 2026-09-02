@@ -52,7 +52,7 @@ UIDs. gcx is the stack's mandatory query CLI.
 - Planning notes are a snapshot (last verified 2026-08); the fetched
   official page always overrides them.
 - A reference talks about its own backend only — never a comparison with
-  another stack's.
+  another backend's product (routing to the local stack is not one).
 - If the stack's backend is not in the table, say so and fall back to the
   backend's documented REST API over `curl` — the discover-then-query
   method still applies.

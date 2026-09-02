@@ -91,9 +91,9 @@ DQL queries will run against.
   URL (`https://<envid>.apps.dynatrace.com`) of the active context.
   Show the context name, the environment, and the identity; never the
   token value behind them.
-- The setup section earlier in this file owns the CLI specifics
-  (OAuth vs token contexts, how a context is
-  created); this file owns only what to display.
+- The setup section earlier in this file owns the CLI specifics (OAuth
+  vs token contexts, how a context is created); this section owns only
+  what to display.
 
 `stack_config.dynatrace` is expected **empty** — the dtctl context
 already names the environment. Present-and-empty (`{}`) or missing both

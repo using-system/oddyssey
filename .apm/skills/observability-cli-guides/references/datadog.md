@@ -108,10 +108,10 @@ its place.
 
 ### Connection proof
 
-`pup auth status` — the cheapest call that
-verifies the active credential, per the setup section earlier in
-this file. But **the exit code is not the
-signal**: pup exits 0 authenticated or not (verified on pup 1.14.0 —
+`pup auth status` — the cheapest call that verifies the active
+credential, per the setup section earlier in this file. But **the exit
+code is not the signal**: pup exits 0 authenticated or not (verified on
+pup 1.14.0 —
 `pup auth status` prints `{"authenticated": false, "org": null, ...}`
 and exits 0; `pup auth test` exits 0 while reporting
 `API Key: not set`). Unlike the other backends' probes (`aws sts

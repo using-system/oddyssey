@@ -18,6 +18,14 @@ a missing gcx is a step to run, never a "CLI not configured" error, and
 `setup-local-stack` configures it against the stack in an isolated
 context of its own.
 
+## Setup
+
+The method is `setup-local-stack`'s: the isolated gcx context pointed at
+the configured Grafana port, the datasource UIDs, the push-model
+caveats. The CLI's own setup steps are [grafana.md](grafana.md)'s
+`## Setup`; nothing to authenticate here - the stack serves its API
+anonymously.
+
 ## Configuration display
 
 ### Display

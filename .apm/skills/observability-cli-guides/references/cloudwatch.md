@@ -353,11 +353,9 @@ the configuration.
   record has an `_aws.CloudWatchMetrics` key at the top level — grep a
   sample event for it to confirm a candidate group is actually the
   metrics source, don't guess from the name alone.
-- `xray` — the X-Ray command surface earlier in this file owns it;
-  take the group-listing command from there, or from `aws xray help`,
-  rather
-  than from memory. Skip the field entirely unless the user says traces
-  come from X-Ray.
+- `xray` — take the group-listing command from `aws xray help`, never
+  from memory. Skip the field entirely unless the user says traces come
+  from X-Ray.
 
 `aws sts get-caller-identity` is the identity check, not a source of
 targeting values — it belongs to the connection proof in
