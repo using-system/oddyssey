@@ -197,8 +197,8 @@ report is picked.
 - a `drive` replay on a **remote** stack asks you for explicit
   confirmation first - before the CLI check, before k6 is installed,
   whatever the report kind - naming what will be driven (the recorded
-  scenario, the stored benchmark with the revision the baseline
-  recorded while the replay runs the current checkout, or an
+  scenario; the stored benchmark with the revision the baseline
+  recorded, though the replay runs the current checkout; or an
   instrumentation report's verification scenario) and against which
   target; the authorization the original run had was for that run,
   never a standing one, and a refusal ends the mission rather than

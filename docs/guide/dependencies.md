@@ -244,13 +244,14 @@ flowchart LR
 
 ## /odd-verify
 
-Resolves the baseline report across both `.odd/` stores, resolves the
-execution mode and asks the user before any drive replay on a remote
-stack (whatever the report kind - before the CLI check and before k6
-is installed), preflights against the report's `stack` (never silently
-retargeting the configured one - so no `odd_config_set` in this
-subgraph), mandates `create-observe-run-report`'s verification rules
-for the report its agent will persist, ensures the `k6` binary is
+Resolves the baseline report across both `.odd/` stores, preflights
+against the report's `stack` (never silently retargeting the
+configured one - so no `odd_config_set` in this subgraph), resolves
+the execution mode and asks the user before any drive replay on a
+remote stack (whatever the report kind - before the CLI check and
+before k6 is installed), mandates `create-observe-run-report`'s
+verification rules for the report its agent will persist, ensures the
+`k6` binary is
 present per `k6-guides`' `install.md` (its auto-install step) when a
 drive replay carries a stored benchmark, dispatches to `observe-run`,
 and closes the mission with `show-observe-run-report`'s synthesis of
