@@ -44,8 +44,8 @@ plus a manifest - into `.odd/benchmarks/<name>/`, through the
 persisting it - a static check, `k6 inspect`, one smoke iteration at
 the target - and never runs it as a benchmark. The mission closes
 with a short synthesis of the stored benchmark (the `show-benchmark`
-skill); the stored files are the deliverable, never
-the synthesis. Free-form arguments map to: the **service** to benchmark
+skill); the stored files are the deliverable, never the synthesis.
+Free-form arguments map to: the **service** to benchmark
 (required), **new benchmark or an update** to a named existing one, the
 **test type** (smoke / load / stress / soak / spike / breakpoint), the
 **thresholds**, the **target base URL or environment**, the **smoke
