@@ -7,9 +7,9 @@ identically for as long as it stays useful.
 
 Needed to **run** a benchmark, never to author one — authoring only
 writes the script and the manifest, it never executes k6 itself. The
-`/odd-observe` preflight checks for the binary before dispatching a
-run and stops with the install steps when it is missing; nothing
-installs it for you.
+`/odd-observe` and `/odd-verify` preflights check for the binary before
+dispatching a run and stop with the install steps when it is missing;
+nothing installs it for you.
 
 **Binary**: `k6` — `brew install k6` (macOS/Linux), or the official
 install script / prebuilt binaries for other platforms:
@@ -88,4 +88,3 @@ never as a verdict on a fix. Checking the benchmark out **at the
 recorded revision** instead of running it at `HEAD` is designed but not
 built yet; the recorded revision in the scenario record is what that
 step will read.
-

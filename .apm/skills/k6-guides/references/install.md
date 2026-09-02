@@ -36,7 +36,7 @@ stored-benchmark step (its section 6, reached from `/odd-observe` in
 `drive` mode with a `benchmark`) runs `k6 run` and must fail fast with
 the install steps above when the binary is absent - never approximating
 the script with other tooling, never installing silently. The
-`/odd-observe` preflight checks the binary before dispatching, so the
-missing-k6 case is reported in the main conversation where the user can
-act on it. This project's README Prerequisites section lists k6 on
+`/odd-observe` and `/odd-verify` preflights check the binary before
+dispatching a drive mission with a benchmark, so the missing-k6 case is
+reported in the main conversation where the user can act on it. This project's README Prerequisites section lists k6 on
 exactly those terms: needed to **run** a benchmark, never to author one.

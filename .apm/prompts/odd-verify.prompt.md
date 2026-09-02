@@ -54,7 +54,11 @@ retargets the current one (and it does not rewrite the configuration:
 the divergence is stated, not persisted). Then run the
 `check-backend-configuration` skill against the report's stack: show
 the CLI's configuration, fail fast when it is not connected, and ask for
-what is missing before dispatching.
+what is missing before dispatching. When the replay will be `drive`
+with a stored benchmark (the report's record names one), confirm the
+`k6` binary is on the path (`command -v k6`); when it is missing, stop
+with the install steps from the `k6-guides` skill's `install.md` -
+installing is the user's call, never the agent's.
 
 Then build the mission block from that report:
 
@@ -65,11 +69,7 @@ Then build the mission block from that report:
   this run to drive, so it replays as `observe` — and when the
   baseline is itself a verification (its frontmatter says `verify`,
   which is no execution mode), the execution mode of the report
-  **its** `verifies` names. When the replay is `drive` with a stored
-  benchmark, confirm the `k6` binary is on the path (`command -v k6`)
-  before dispatching; when it is missing, stop with the install steps
-  from the `k6-guides` skill's `install.md` — installing is the user's
-  call, never the agent's.
+  **its** `verifies` names.
   For an **instrumentation report** the frontmatter has no `services` or
   `mode`: the services are the ones its per-service plan names (summary
   table), the stack is its frontmatter's `stack` all the same, and the

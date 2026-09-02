@@ -302,8 +302,9 @@ More invocation examples for every prompt live in
 - **[k6](https://grafana.com/docs/k6/latest/set-up/install-k6/)** —
   needed to **run** a benchmark, never to author one:
   `/odd-instrument-bench` only writes the script and the manifest, and
-  `/odd-observe` runs it (its preflight stops with the install steps
-  when the binary is missing — it never installs it for you). Install it
+  `/odd-observe` runs it (its preflight, like `/odd-verify`'s, stops
+  with the install steps when the binary is missing — neither installs
+  it for you). Install it
   before running an authored benchmark: `brew install k6` on macOS, the
   official APT/YUM repositories or a release binary on Linux, or the
   `grafana/k6` Docker image.

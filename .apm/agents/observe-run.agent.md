@@ -291,8 +291,10 @@ with its stored path:
    | Operation | Requests | Rate | p50 | p95 | p99 | Error % | DB/downstream calls per req | Notable |
 
    With a benchmark in the mission, follow it with the threshold table
-   — one row per manifest threshold, ruled from the service's own
-   telemetry, never from k6's summary:
+   — one row per threshold in the benchmark's manifest
+   (`.odd/benchmarks/<name>/`; `run-scenario` reads it when you drive,
+   read it directly when you only observe), ruled from the service's
+   own telemetry, never from k6's summary:
 
    | Threshold (manifest) | Measured | Query | Pass/fail |
 
@@ -328,8 +330,9 @@ with its stored path:
    section 1, via the `run-scenario` skill — for a stored benchmark,
    the same benchmark at the same revision); otherwise, the window and
    conditions a comparable run needs. Then every verification check with
-   its before-value and its pass criterion — a threshold to meet, an
-   error that must be gone, a gap that must be filled — so the
+   its before-value and its pass criterion — a threshold to meet (for a
+   benchmark, the manifest's thresholds, carried over from section 2's
+   table), an error that must be gone, a gap that must be filled — so the
    improvement is verified with evidence, not impressions. Each check
    states how its query was validated on healthy data, or carries
    `not validated` (the persistence skill defines the marker). For an

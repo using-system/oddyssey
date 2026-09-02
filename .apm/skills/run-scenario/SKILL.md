@@ -252,8 +252,9 @@ differs is how the load is generated and how the record cites it:
   a scratch location, never inside `.odd/benchmarks/<name>/` (it would
   dirty the directory the record just declared clean), and never
   count on it existing when the run is verified later. Then measure
-  through the service's own telemetry, after step 5's flush wait. A generator that never
-  connected, crashed mid-run, or threw on every iteration leaves
+  through the service's own telemetry, after step 5's flush wait. A
+  generator that never connected, crashed mid-run, or threw on every
+  iteration leaves
   telemetry that looks deceptively clean — "a failed or partial run is
   data" applies to the generator too. The manifest's thresholds are
   what the observation rules on, each against a telemetry-derived
@@ -285,7 +286,7 @@ Stages (UTC): ramp 10:04:12–10:05:12 (excluded), steady 10:05:12–10:10:12, r
 Started (UTC): 2026-09-02T10:04:12Z
 Ended   (UTC): 2026-09-02T10:10:42Z
 Command:
-  K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run .odd/benchmarks/orders-read-heavy/script.js -o opentelemetry --summary-export /tmp/k6-summary-orders-run-0902.json -e BASE_URL=http://localhost:8080
+  K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run .odd/benchmarks/orders-read-heavy/script.js -o opentelemetry --summary-export /tmp/k6-summary-orders-run-0902.json -e BASE_URL=http://localhost:8080   # -o opentelemetry and its env: local stack only
 k6:        exit 0, 1234 requests, checks 100%, dropped iterations 0, script errors 0 (summary file transient, numbers above are the record)
 Not reproducible: none
 ```
