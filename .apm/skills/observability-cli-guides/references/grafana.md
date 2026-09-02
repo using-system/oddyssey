@@ -94,7 +94,7 @@ and set it as the matching `datasources.<kind>` default
 | Logs | `gcx logs series` | [gcx_logs_series.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_series.md) | List log streams; requires at least one `-M/--match` LogQL stream selector (repeatable, OR logic). |
 | Logs | `gcx logs query [LOGQL]` | [gcx_logs_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_query.md) | Default `-o table`; use `-o raw` for bare line bodies or `-o json` for the full response. `--limit` defaults to 50 (0 = documented unlimited — unverified; after the traces `--limit 0` finding, prefer an explicit large limit). |
 | Profiles | `gcx profiles list-profile-types` | [gcx_profiles_list-profile-types.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_list-profile-types.md) | Lists available profile type IDs (e.g. `process_cpu:cpu:nanoseconds:cpu:nanoseconds`) — required input to `profiles query`. |
-| Profiles | `gcx profiles labels` | [gcx_profiles_labels.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_labels.md) | List all labels, or values for one (`-l`, e.g. `service_name`). Pyroscope's underlying `querier.v1.QuerierService/LabelValues` endpoint **requires a time range in epoch milliseconds** — without start/end it fails with "missing time range in the query", a message that names neither the parameter nor the unit. Through gcx, the range is optional: `--since 1h`, or `--from`/`--to` (RFC3339, **Unix seconds**, or relative like `now-1h`), or nothing at all — gcx supplies a default range (verified 2026-09-02, gcx 1.2.0: no flags and `--since 1h` both answer). gcx's "Unix timestamp" is seconds, not the raw endpoint's milliseconds: a millisecond value is read as seconds, a one-hour window becomes ~1000h, and the query fails with `the query time range exceeds the limit (max_query_length, actual: 1000h0m0s, limit: 1d)`. Supply `start`/`end` in ms yourself only when replaying the raw endpoint. |
+| Profiles | `gcx profiles labels` | [gcx_profiles_labels.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_labels.md) | List all labels, or values for one (`-l`, e.g. `service_name`). Pyroscope's underlying `querier.v1.QuerierService/LabelValues` endpoint **requires a time range in epoch milliseconds** — without start/end it fails with "missing time range in the query", a message that names neither the parameter nor the unit. Through gcx, the range is optional: `--since 1h`, or `--from`/`--to` (RFC3339, **Unix seconds**, or relative like `now-1h`), or nothing at all — gcx answers without one (verified 2026-09-02, gcx 1.2.0: no flags and `--since 1h` both answer), but the window it then covers is documented neither in `--help` nor in the CLI reference, so pass an explicit range whenever the window matters. gcx's "Unix timestamp" is seconds, not the raw endpoint's milliseconds: a millisecond value is read as seconds, a one-hour window becomes ~1000h, and the query fails with `the query time range exceeds the limit (max_query_length, actual: 1000h0m0s, limit: 1d)`. Supply `start`/`end` in ms yourself only when replaying the raw endpoint. |
 | Profiles | `gcx profiles query [SELECTOR]` | [gcx_profiles_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_query.md) | Requires `--profile-type`; can drill into specific `--profile-id`s (from `profiles exemplars`), restrict by `--span-id`/`--trace-id`, or filter the flamegraph with repeatable `--stacktrace-selector`. `-o pprof` writes a pprof binary. |
 
 Every query command resolves its datasource from `-d/--datasource <UID>` or
@@ -104,9 +104,9 @@ passing `-d` on every call. Time flags differ per signal family:
 `traces query` takes `--since` or `--from`/`--to`, `traces labels` takes
 none, `logs labels` rejects `--since` too (`Unknown flag`),
 `profiles labels` takes `--since`, `--from`/`--to`, or nothing — the raw
-Pyroscope endpoint behind it is what requires a range, and gcx supplies
-one when none is given (see its row, and its seconds-not-milliseconds
-trap).
+Pyroscope endpoint behind it is what requires a range; through gcx the
+call answers without one, over an unspecified window (see its row, and
+its seconds-not-milliseconds trap).
 
 ### Reading gcx output
 
