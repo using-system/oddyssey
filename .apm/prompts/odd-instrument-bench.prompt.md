@@ -41,7 +41,15 @@ actually answer better than the codebase can.
 
 Once every human-decided value is resolved, invoke the
 `k6-benchmark-expert` agent. It owns the investigation method and the
-authoring - this prompt only hands it a well-formed mission.
+authoring - this prompt only hands it a well-formed mission. One
+round-trip to expect: when the agent finds a threshold the service can
+structurally never meet (a fixed delay or an injected error rate above
+the target, with the file and line), it stops before persisting
+anything and reports - put that evidence to the caller, get the target
+raised, dropped, re-scoped to the path it means, or kept with the
+floor acknowledged (a goal a fix wave is driving toward is a valid
+target once the caller has seen the floor), and re-dispatch with the
+decided value and that acknowledgment; never pick one for them.
 
 Build the mission from the arguments and the Q&A above:
 
@@ -49,7 +57,9 @@ Build the mission from the arguments and the Q&A above:
 - Expected fields (any order, free-form): the **service** to benchmark
   (required), **new or update** (default: ask if ambiguous, per above),
   **test type**, **thresholds**, **target base URL**, the **smoke
-  check** authorization for a remote target (asked above), and
+  check** authorization for a remote target (asked above), on a
+  re-dispatch the caller's **decision per flagged threshold** (the new
+  value, or the floor acknowledged for a target kept as is), and
   optionally a **load shape/duration** the caller already has in mind
   (otherwise propose one during the Q&A above).
 

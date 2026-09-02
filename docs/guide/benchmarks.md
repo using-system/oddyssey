@@ -35,9 +35,26 @@ iteration may be sent at it — and proposes a load shape/duration for
 you to confirm; everything else (which endpoints matter) it figures
 out on its own.
 
+Your thresholds are yours, but the agent checks them against what it
+finds in the service: a fixed delay, a rate limit, an injected error
+rate, a downstream floor, each with its file and line. A threshold the
+service can structurally never meet on the path it gates (a
+`p(95)<300ms` on a handler that sleeps 300–800 ms before answering)
+comes back to you with that evidence instead of being persisted — such
+a threshold can only "pass" by measuring traffic that never reaches
+the gated logic. You raise it, drop it, re-scope it to the path it
+means, or keep it with the floor acknowledged (a goal your fix wave is
+driving toward is a valid target once you have seen the floor); the
+agent never adjusts a target on its own, and persists nothing until
+you have decided. An ambitious-but-reachable threshold, or one with no
+floor found, is kept as given, with its floor recorded next to it in
+the manifest.
+
 Before persisting, the agent validates what it wrote, in this order: a
 static check for the `discardResponseBodies` / `res.json()`
-self-contradiction (a runtime crash no parser sees), `k6 inspect` (a
+self-contradiction (a runtime crash no parser sees) and for a
+tag-scoped threshold no request populates (a pass that measures
+nothing), `k6 inspect` (a
 parse and schema check that contacts nothing — a non-integer
 `constant-arrival-rate` `rate` fails here), and a one-iteration smoke,
 `k6 run --vus 1 --iterations 1 --no-thresholds`, which replaces the
@@ -45,11 +62,12 @@ script's scenarios with exactly one pass over its requests. A failure
 is fixed and re-validated, never persisted. The manifest records the
 validation (k6 version, date, the smoke's result — passed, declined,
 not applicable when the script exports no default function, or the
-functions it did not cover) and the closing synthesis renders it. The
-smoke is self-authorized against a local target and asked for a remote
-one, every time: its single iteration is real traffic with real side
-effects. It never runs the benchmark itself — nothing beyond that one
-iteration.
+functions it did not cover — and the threshold cross-check: each
+threshold, its floor or none found, and the outcome) and the closing
+synthesis renders it. The smoke is self-authorized against a local
+target and asked for a remote one, every time: its single iteration is
+real traffic with real side effects. It never runs the benchmark
+itself — nothing beyond that one iteration.
 
 Updating an existing benchmark follows the same prompt — the change
 comes back as a reviewed diff against the stored version, never a
