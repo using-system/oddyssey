@@ -123,8 +123,9 @@ generated trees alone.
 invocations. Update it in the same change whenever a prompt is added or
 removed, or a prompt's behavior/arguments change — examples and
 field-mapping annotations must keep matching the `.apm/prompts/`
-contracts. Update the `README.md` too: the primitives table, the How to
-steps, and the Miscellaneous prompts subsection all reference prompts.
+contracts. Update the `README.md` too: the How to steps and the
+Miscellaneous prompts subsection both reference prompts — and the
+`Prompts` table of `docs/guide/dependencies.md` lists every prompt.
 
 ## Keep the dependency map in sync
 
@@ -132,9 +133,11 @@ steps, and the Miscellaneous prompts subsection all reference prompts.
 agents, skills, and MCP tools. Update it in the same change whenever a
 prompt, agent, skill, or MCP tool is added or removed, or a dependency
 between them changes — every edge must match an actual invocation in
-the `.apm/` sources (no aspirational edges). Update the `README.md`
-too: its primitives table lists every component, and its MCP tools
-table the server's tool surface.
+the `.apm/` sources (no aspirational edges). Its `Prompts`, `Agents`,
+and `Skills` tables list every component with its role and its edges —
+they are the package's component catalog, the README carries none.
+Update the `README.md` too: its MCP tools table lists the server's
+tool surface.
 
 ## Keep the reports guide in sync
 

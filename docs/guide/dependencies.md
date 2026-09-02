@@ -4,7 +4,8 @@ Who invokes what across the APM package's three layers - prompts,
 agents, skills - plus the MCP server tools and the report stores.
 Every edge below matches an actual invocation or routing statement in
 the `.apm/` sources; the diagrams carry the structure, the paragraphs
-carry the intent.
+carry the intent, and the per-layer tables at the end list every
+component with its role and its edges.
 
 The map is split into **one diagram per prompt**, each limited to that
 prompt's reachable subgraph. Shared plumbing (the preflight routing,
@@ -449,110 +450,54 @@ flowchart LR
 
 ## Prompts
 
-`/odd-instrument-otel` and `/odd-observe` are dispatchers: they build
-a mission block, hand it to their agent, and close the mission with
-their show-report skill's synthesis of the stored report
-(`show-otel-instrumentation-report` and `show-observe-run-report`
-respectively; `/odd-verify` closes with the latter too, verdict
-first). `/odd-observe`'s preflight
-runs in the main conversation first - resolve the stack
-(`odd_config_get`, the valid values from `observability-cli-guides`'
-`builtin-stacks.md`, persisting a switch with `odd_config_set`) and
-prove the CLI connected (`check-backend-configuration`). `/odd-verify`
-resolves the baseline report across both `.odd/` stores, preflights
-against the report's `stack` (never silently retargeting the
-configured one), asks before any drive replay on a remote stack, and
-mandates `create-observe-run-report`'s verification rules for the
-report its agent will persist.
-`/odd-instrument-bench` is a dispatcher too: it ensures the `k6`
-binary is present (`k6-guides`' `install.md`, auto-install) and asks
-its human-decided questions first (`k6-guides`' `authoring-inputs.md`
-classifies them, the remote smoke authorization among them), recalling
-through `create-update-benchmark` when new-versus-update is ambiguous,
-before handing the mission to `k6-benchmark-expert` and closing with
-`show-benchmark`'s synthesis of the stored benchmark.
-`/odd-status` dispatches no agent: it is a thin router over two skills
-running in the main conversation - `get-status` for the render, and
-`record-finding-decision` when, and only when, the user asks for a
-decision on a finding, followed by a re-render. `/odd-config` composes
-two skills - display through `check-backend-configuration`, and the
-backend switch routed to `update-backend-configuration` when the user
-picks one.
+The user entry points. Each builds a mission from the arguments, runs
+its preflight in the main conversation, dispatches (or routes to
+skills), and closes with a show skill's synthesis of what was stored.
+
+| Prompt | Role | Invokes |
+| --- | --- | --- |
+| [`/odd-instrument-otel`](../../.apm/prompts/odd-instrument-otel.prompt.md) | Entry point: point the `otel-instrumentation-expert` agent at a codebase | `otel-instrumentation-expert`; `show-otel-instrumentation-report` |
+| [`/odd-instrument-bench`](../../.apm/prompts/odd-instrument-bench.prompt.md) | Entry point: resolve what only a human can decide - test type, thresholds, target environment, new benchmark or an update, a smoke iteration at a remote target - ensure `k6` is present, then point the `k6-benchmark-expert` agent at a service to author its k6 benchmark | `k6-benchmark-expert`; `k6-guides` (`authoring-inputs.md`, `install.md`); `show-benchmark`; routes to `create-update-benchmark` for the recall when new-versus-update is ambiguous |
+| [`/odd-observe`](../../.apm/prompts/odd-observe.prompt.md) | Entry point: resolve the stack, prove the CLI connected, build a well-formed mission from the arguments and invoke the `observe-run` agent | `observe-run`; `check-backend-configuration`; `observability-cli-guides` (`builtin-stacks.md`); `k6-guides` (`install.md`); `show-observe-run-report`; `odd_config_get`, `odd_config_set`; reads `.odd/benchmarks/` |
+| [`/odd-verify`](../../.apm/prompts/odd-verify.prompt.md) | Entry point: replay a stored report's protocol through the `observe-run` agent - a full observation report again, this time ruling on everything the previous one recorded: measurements, anomalies, telemetry gaps. Preflights against the report's `stack`, never retargeting the configured one, and asks before any drive replay on a remote stack. A replay with no fix under test persists as a re-measure, not a verification | `observe-run`; `check-backend-configuration`; `k6-guides` (`install.md`); `show-observe-run-report`; `odd_config_get`; follows `create-observe-run-report`'s verification rules; reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/` |
+| [`/odd-status`](../../.apm/prompts/odd-status.prompt.md) | Where is the loop? Per-service state, findings ledger, trends, open telemetry gaps, and the next recommended action - read from the `.odd/` history and git alone, no backend queries - and record wontfix decisions on findings. Dispatches no agent | `get-status`; routes to `record-finding-decision` when, and only when, the user asks for a decision on a finding, then re-renders |
+| [`/odd-config`](../../.apm/prompts/odd-config.prompt.md) | Show the configured backend - stack, targeted instance, connection proof - and guide a backend switch | `check-backend-configuration`; `observability-cli-guides`; routes to `update-backend-configuration` when the user picks a backend |
 
 ## Agents
 
-`otel-instrumentation-expert` maps each service to the official docs
-through `otel-guides`, derives effective ports from `odd_config_get`,
-and persists through `create-otel-instrumentation-report`; its report
-hands the confirmation of landed signals to `observe-run`.
-`observe-run` owns the observation method: backend commands come from
-`observability-cli-guides`, the local stack is configured through
-`setup-local-stack`, drive-mode traffic goes through `run-scenario`
-(ad-hoc requests, or a stored benchmark from `.odd/benchmarks/` run
-unmodified when the mission names one),
-the stack is piloted with the `odd_stack_*` tools, and the report is
-recalled and persisted through `create-observe-run-report`. When a
-named service emits no telemetry at all, it recommends
-`otel-instrumentation-expert`. `k6-benchmark-expert` authors k6
-benchmarks and only that: it sources every k6 claim from `k6-guides`,
-reads the stored observation reports for the service's hot operations,
-validates the script (`k6 inspect`, one smoke iteration) before
-persisting it through `create-update-benchmark`, closes with
-`show-benchmark` - and never runs what it wrote as a benchmark.
+The dispatched missions. They investigate and report, never modify
+the code, and persist through the create skills that own the stores.
+
+| Agent | Role | Invokes |
+| --- | --- | --- |
+| [`otel-instrumentation-expert`](../../.apm/agents/otel-instrumentation-expert.agent.md) | Investigate a codebase and hand back every input for a spec-driven plan to implement OpenTelemetry: stack inventory, per-service approach sourced from the official docs, open decisions, verification protocol | `otel-guides`; `create-otel-instrumentation-report`; `odd_config_get`; hands the confirmation of landed signals off to `observe-run` |
+| [`observe-run`](../../.apm/agents/observe-run.agent.md) | Observe a running service - on the local stack or any remote backend - through its telemetry (metrics, traces, logs, profiles) and hand back every input for a spec-driven plan of fixes and improvements | `observability-cli-guides`; `setup-local-stack`; `run-scenario` (ad-hoc requests, or a stored benchmark run unmodified); `create-observe-run-report`; `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset`; recommends `otel-instrumentation-expert` when a named service emits no telemetry at all |
+| [`k6-benchmark-expert`](../../.apm/agents/k6-benchmark-expert.agent.md) | Investigate a service and author a k6 load-test benchmark - a script plus a manifest - as reviewed code under `.odd/benchmarks/`, every k6 claim sourced from the official docs; validates it with `k6 inspect` and one smoke iteration before persisting, never runs it as a benchmark | `k6-guides` (`scripting.md`, `running-tests.md`); `create-update-benchmark`; `show-benchmark`; reads `.odd/observe-run-reports/` for the service's hot operations |
 
 ## Skills
 
-`check-backend-configuration` is the routing hub of the preflight, and
-knows no stack by name: it resolves the configured stack
-(`odd_config_get`), finds it in `observability-cli-guides`'
-`builtin-stacks.md`, follows the stack's reference — its `##
-Configuration display` section for what to show and how to prove the
-connection (the local stack's reference routes the method to
-`setup-local-stack`) — and routes a missing CLI binary to the guided
-install offer of `update-backend-configuration`, and, where a reference
-defines a targeting proof, a persisted targeting value that does not
-resolve to the same skill for correction.
-`update-backend-configuration`, equally stack-agnostic, owns the switch:
-the target resolved through `builtin-stacks.md`, CLI presence via the
-reference's `## CLI binary` section, the `stack_config` write via its
-`## What to persist` section, persistence via `odd_config_set`,
-verification handed back to `check-backend-configuration`.
-`observability-cli-guides` carries one reference per stack — query
-surface, configuration display, what to persist — and routes the
-local-stack case to `setup-local-stack`, which reads the effective ports
-from `odd_config_get`. `run-scenario` orders the clean-base sequence
-around `odd_stack_reset`; for a stored benchmark it reads the script and
-manifest under `.odd/benchmarks/<name>/` (never writing there) and takes
-the `k6 run` flags, exit codes, and install check from `k6-guides`. The
-two create-report skills own the two report stores
-(`.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`):
-naming, frontmatter contracts, recall - nothing else writes to them, and
-whatever reads them directly follows those file contracts rather than
-defining its own. The two show-report skills (`show-observe-run-report`,
-`show-otel-instrumentation-report`) read a stored report and render its
-closing synthesis - display only: they follow the create skills' file
-contracts, write nothing, and invoke no other component. `k6-guides` is
-the k6 counterpart of `otel-guides` - a topic-selection map read by
-`/odd-instrument-bench` (which questions to ask, and the `install.md`
-auto-install step), by `k6-benchmark-expert` (authoring and validating:
-`scripting.md`, `running-tests.md`), by `run-scenario` (running a stored
-benchmark: `running-tests.md` and `install.md`), and by `/odd-observe`
-and `/odd-verify` (the `install.md` auto-install step in their
-preflight), invoking nothing itself. `create-update-benchmark` owns
-`.odd/benchmarks/` - the naming, the recall by service and by benchmark
-name, the reviewed diff an update goes through, the commit; unlike the
-two create-report skills it stores living source, not append-only
-records. `show-benchmark` renders the closing synthesis from what
-`create-update-benchmark` just returned, and reads nothing else.
-`get-status` owns the status surface - its sources (both stores, git,
-the decisions ledger), the build order, the empty-filter answer, the
-degradation - and invokes no other component: it only reads.
-`record-finding-decision` owns `.odd/decisions.md` - the row format, the
-resolution of a finding reference to `<report filename> / <finding ID>`,
-and the commit of that file alone; it reads the observation reports to
-resolve the reference, never edits one, and invokes no other component
-either. `get-status` follows that ledger contract when it reads the
-file, without calling the skill.
+The reusable contracts. A skill invokes another only where an edge is
+drawn: the guides and the show skills invoke nothing, the create
+skills own their store, and the two configuration skills route to
+each other.
+
+| Skill | Role | Invokes |
+| --- | --- | --- |
+| [`otel-guides`](../../.apm/skills/otel-guides/SKILL.md) | Curated map of the official OpenTelemetry docs: every supported language plus the cross-language guides (SDK configuration, semantic conventions, Collector deployment) | Nothing |
+| [`k6-guides`](../../.apm/skills/k6-guides/SKILL.md) | Curated map of the official k6 docs: install, running a script, scripting (checks, thresholds, scenarios), test types, protocols - and which of a benchmark's inputs a human must decide rather than an agent | Nothing |
+| [`observability-cli-guides`](../../.apm/skills/observability-cli-guides/SKILL.md) | One reference per stack - query surface, configuration display, what to persist - plus the built-in stack list: the local stack, Grafana (gcx), Datadog (Pup), Dynatrace (dtctl), Azure Monitor (az), CloudWatch (aws), Splunk | Routes the local-stack case to `setup-local-stack` |
+| [`setup-local-stack`](../../.apm/skills/setup-local-stack/SKILL.md) | Configure gcx against the local stack without touching the user's contexts, with the datasource UIDs and the push-model caveats | `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset` |
+| [`check-backend-configuration`](../../.apm/skills/check-backend-configuration/SKILL.md) | Before a run: display the configured stack's CLI context, prove it is connected, and guide the user through the backend's setup - stack-agnostic, everything about a stack read from its `observability-cli-guides` reference (its `## Configuration display` section); never authenticates on their behalf | `observability-cli-guides` (`builtin-stacks.md`); `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset`; routes to `setup-local-stack` for the local stack, and to `update-backend-configuration` for a missing CLI binary or a persisted targeting value that fails to resolve |
+| [`update-backend-configuration`](../../.apm/skills/update-backend-configuration/SKILL.md) | Owns the backend switch: the target resolved from the built-in stack list, its CLI checked for presence with a guided install offer, the switch persisted, the per-stack `stack_config` values persisted per the stack's reference (its `## CLI binary` and `## What to persist` sections) | `observability-cli-guides` (`builtin-stacks.md`); `odd_config_set`; hands the verification back to `check-backend-configuration` |
+| [`run-scenario`](../../.apm/skills/run-scenario/SKILL.md) | Drive a reproducible request scenario against a local service - ad-hoc requests, or a stored k6 benchmark run unmodified - and record it verbatim, so the same numbers are measurable before a fix and after it | `k6-guides` (`running-tests.md`, `install.md`); reads `.odd/benchmarks/<name>/` (never writes there); orders the clean-base sequence around `odd_stack_reset` and follows `setup-local-stack` |
+| [`create-observe-run-report`](../../.apm/skills/create-observe-run-report/SKILL.md) | The ODD loop's memory: persist each observation report into the observed repo and recall the previous ones as the next run's baseline - naming, frontmatter contract, verification rules | Owns `.odd/observe-run-reports/` - nothing else writes there |
+| [`create-otel-instrumentation-report`](../../.apm/skills/create-otel-instrumentation-report/SKILL.md) | Same memory for the instrumentation side: persist each investigation into the investigated repo and recall it before the next one | Owns `.odd/otel-instrumentation-reports/` - nothing else writes there |
+| [`create-update-benchmark`](../../.apm/skills/create-update-benchmark/SKILL.md) | Persist an authored benchmark (script + manifest) and recall the ones a service already has: living source, updated in place through reviewed diffs - not an append-only report | Owns `.odd/benchmarks/` - naming, recall by service and by name, the reviewed diff, the commit |
+| [`show-observe-run-report`](../../.apm/skills/show-observe-run-report/SKILL.md) | Close an observe or verify mission: render a one-screen synthesis of the stored report - verdict-first headline, stored path, findings that matter, next action - the raw report stays the loop's memory | Reads `.odd/observe-run-reports/` under `create-observe-run-report`'s file contract; writes nothing |
+| [`show-otel-instrumentation-report`](../../.apm/skills/show-otel-instrumentation-report/SKILL.md) | Close an instrument mission: render a one-screen synthesis of the stored report - headline, stored path, plan-at-a-glance table, open decisions, next action - the raw report stays the plan's input | Reads `.odd/otel-instrumentation-reports/` under `create-otel-instrumentation-report`'s file contract; writes nothing |
+| [`show-benchmark`](../../.apm/skills/show-benchmark/SKILL.md) | Close an authoring mission: render a short synthesis of the stored benchmark - stored path, what it exercises, next action - the script and manifest stay the deliverable | Nothing - it renders what `create-update-benchmark` just returned, and reads nothing else |
+| [`get-status`](../../.apm/skills/get-status/SKILL.md) | Render the state of the ODD loop from the committed `.odd/` history and git alone - per-service loop state, findings ledger, trends, open telemetry gaps, next recommended action - read-only, no backend query, no report written | Reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`, and `.odd/decisions.md` (under `record-finding-decision`'s ledger contract, without calling it); recommends `/odd-instrument-otel` or `/odd-observe` |
+| [`record-finding-decision`](../../.apm/skills/record-finding-decision/SKILL.md) | Record a maintainer decision on a finding - wontfix, or its reversal - into the committed ledger: the write that lets the status stop rendering a declined finding as open. Never edits a report | Owns `.odd/decisions.md` - the row format, the commit of that file alone; reads `.odd/observe-run-reports/` to resolve the finding reference |
 
 ## MCP tools
 
