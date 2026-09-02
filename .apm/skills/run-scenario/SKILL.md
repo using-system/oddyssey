@@ -194,20 +194,26 @@ Only then read the window recorded in step 4.
 
 When the mission names a benchmark under `.odd/benchmarks/<name>/`
 (`k6-benchmark-expert` authored it, `create-update-benchmark` stored it),
-the load comes from its script instead of a curl loop. Steps 0, 3, 4
-and 5 apply unchanged — the clean-base order, the sample-count rules,
-the verbatim record, the flush wait. What differs is how the load is
-generated and how the record cites it:
+the load comes from its script instead of a curl loop. Steps 0, 3 and
+5 apply unchanged — the clean-base order, the sample-count rules, the
+flush wait — and step 4 applies with the record shape below. What
+differs is how the load is generated and how the record cites it:
 
-- **Confirm k6 is installed first** — `command -v k6`, per the
-  `k6-guides` skill's `install.md`. When it is absent, stop and report
-  with that reference's install steps: never approximate the script
-  with a curl loop, never install silently. `running-tests.md` in the
-  same skill carries the flags, the output surface, and the exit codes
-  cited below.
-- **Read the manifest, then run the script unmodified**, as one blocking
-  foreground command from the repository root, with k6's end-of-test
-  summary exported to a file the record cites:
+- **Confirm k6 is installed before anything else — before step 0.**
+  `command -v k6`, per the `k6-guides` skill's `install.md`. When it is
+  absent, stop and report with that reference's install steps, with the
+  observed process and the store untouched: never restart or reset for
+  a run you cannot perform, never approximate the script with a curl
+  loop, never install silently. `running-tests.md` in the same skill
+  carries the flags, the output surface, and the exit codes cited
+  below.
+- **Read the manifest, then run the script unmodified.** The benchmark
+  directory holds one k6 script and one manifest
+  (`create-update-benchmark`'s layout): the script is `script.js`
+  unless the manifest names another file. Run it from the repository
+  root, as one blocking foreground command (or the detached poller
+  below when the run outlasts a tool call), with k6's end-of-test
+  summary exported to a scratch file:
 
   ```text
   k6 run .odd/benchmarks/<name>/script.js --summary-export <summary-file>
@@ -241,24 +247,30 @@ generated and how the record cites it:
   Record the exit code (`0` every threshold passed, `99` a threshold
   was crossed, anything else a setup or script error — read stderr),
   the request count, failed checks, dropped iterations, and script
-  exceptions from stderr. Then measure through the service's own
-  telemetry, after step 5's flush wait. A generator that never
+  exceptions from stderr — folded into the record's `k6:` line, which
+  is what survives. The summary file itself is transient: write it to
+  a scratch location, never inside `.odd/benchmarks/<name>/` (it would
+  dirty the directory the record just declared clean), and never
+  count on it existing when the run is verified later. Then measure
+  through the service's own telemetry, after step 5's flush wait. A generator that never
   connected, crashed mid-run, or threw on every iteration leaves
   telemetry that looks deceptively clean — "a failed or partial run is
   data" applies to the generator too. The manifest's thresholds are
   what the observation rules on, each against a telemetry-derived
   measurement carrying its query.
 - **k6's own OpenTelemetry output is a bonus signal.** Against the local
-  stack, `K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run -o opentelemetry`
-  lands k6's client-side view in the same store under
+  stack, `K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run -o opentelemetry
+  <script>` lands k6's client-side view in the same store under
   `service_name="k6"` (`running-tests.md`): cross-confirm against it
   when it lands, never require it, never mistake it for the target
   service.
 - **A run longer than a tool call uses step 3's detached poller.** A
   staged benchmark routinely exceeds one tool call's budget; the poller
   script and its output file are part of the record.
-- **A remote target needs authorization given at mission time**, by the
-  caller of the observation, every run — a manifest carries none.
+- **This skill stays scoped to locally running services.** Whether a
+  benchmark may be driven at a remote target is the observation
+  caller's decision, given at mission time through `observe-run`'s own
+  rule — never read from the manifest, never decided here.
 
 The record replaces step 4's `Commands:` lines with the benchmark's
 identity, the single command, and k6's own evidence:
@@ -269,13 +281,12 @@ Benchmark: .odd/benchmarks/orders-read-heavy/ @ 3ccfd18 (clean)
 Base URL:  http://localhost:8080   # BASE_URL, mission-time
 Backend:   odd_stack_reset, env: defaults
 Instance:  orders-run-0902 (restarted before reset)
-Stages:    ramp 10:04:12–10:05:12 (excluded), steady 10:05:12–10:10:12, ramp-down 10:10:12–10:10:42
+Stages (UTC): ramp 10:04:12–10:05:12 (excluded), steady 10:05:12–10:10:12, ramp-down 10:10:12–10:10:42
 Started (UTC): 2026-09-02T10:04:12Z
 Ended   (UTC): 2026-09-02T10:10:42Z
 Command:
-  k6 run .odd/benchmarks/orders-read-heavy/script.js --summary-export <summary-file> -e BASE_URL=http://localhost:8080
-k6:        exit 0, 1234 requests, checks 100 %, dropped iterations 0, script errors 0
-Summary:   <summary-file>
+  K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run .odd/benchmarks/orders-read-heavy/script.js -o opentelemetry --summary-export /tmp/k6-summary-orders-run-0902.json -e BASE_URL=http://localhost:8080
+k6:        exit 0, 1234 requests, checks 100%, dropped iterations 0, script errors 0 (summary file transient, numbers above are the record)
 Not reproducible: none
 ```
 

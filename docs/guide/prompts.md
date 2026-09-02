@@ -179,6 +179,11 @@ report is picked.
 - naming an instrumentation report turns the mission into presence
   rulings (planned spans, metrics, log correlation - closed or still
   missing);
+- a report backed by a stored k6 benchmark replays in the mode its
+  frontmatter records - `drive` re-runs the benchmark through the
+  `run-scenario` skill (k6 must be installed), `observe` only watches -
+  never inferring `drive` from the benchmark's presence; see
+  [docs/guide/benchmarks.md](benchmarks.md);
 - when the replay tests no fix - the code (commits and working tree
   alike, `.odd/` and documentation aside) is unchanged since the
   report's `revision` - the run persists as a **re-measure**

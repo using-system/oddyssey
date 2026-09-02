@@ -193,7 +193,8 @@ flowchart LR
   observe --> sorr
   observe --> cfgget
   observe --> cfgset
-  observe -.-> kg
+  observe --> kg
+  observe --> benchdir
   sorr --> obsdir
 
   runner --> ocg
@@ -214,7 +215,7 @@ flowchart LR
   sls --> stack
   rs -.-> stack
   rs -.-> sls
-  rs -.-> kg
+  rs --> kg
   rs --> benchdir
 
   corr --> obsdir
@@ -280,6 +281,7 @@ flowchart LR
   verify --> cbc
   verify --> sorr
   verify --> cfgget
+  verify --> kg
   verify -.-> corr
   verify --> obsdir
   verify --> insdir
@@ -303,7 +305,7 @@ flowchart LR
   sls --> stack
   rs -.-> stack
   rs -.-> sls
-  rs -.-> kg
+  rs --> kg
   rs --> benchdir
 
   corr --> obsdir

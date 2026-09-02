@@ -58,11 +58,18 @@ what is missing before dispatching.
 
 Then build the mission block from that report:
 
-- services and stack come from its frontmatter; mode is drive when the
-  report records a scenario to replay, otherwise the frontmatter's mode
-  — and when the baseline is itself a verification (its frontmatter
-  says `verify`, which is no execution mode), the execution mode of
-  the report **its** `verifies` names.
+- services and stack come from its frontmatter; the mode is the
+  frontmatter's mode, **never inferred from whether the report records
+  a scenario or a benchmark** — an `observe`-mode report backed by a
+  stored benchmark records a replayable protocol nobody authorized
+  this run to drive, so it replays as `observe` — and when the
+  baseline is itself a verification (its frontmatter says `verify`,
+  which is no execution mode), the execution mode of the report
+  **its** `verifies` names. When the replay is `drive` with a stored
+  benchmark, confirm the `k6` binary is on the path (`command -v k6`)
+  before dispatching; when it is missing, stop with the install steps
+  from the `k6-guides` skill's `install.md` — installing is the user's
+  call, never the agent's.
   For an **instrumentation report** the frontmatter has no `services` or
   `mode`: the services are the ones its per-service plan names (summary
   table), the stack is its frontmatter's `stack` all the same, and the

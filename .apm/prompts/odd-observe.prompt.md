@@ -25,10 +25,13 @@ steps needing the user cannot happen inside a subagent):
    the agent attempt interactive auth. Ask for whatever the mission
    still needs (instance URL, tenant, access material by name) before
    dispatching.
-3. When the mission names a stored benchmark and the mode is `drive`,
-   confirm the `k6` binary is on the path (`command -v k6`); when it
-   is missing, stop with the install steps from the `k6-guides` skill's
-   `install.md` - installing is the user's call, never the agent's.
+3. When the arguments name a stored benchmark, read its manifest under
+   `.odd/benchmarks/<name>/` for the target service (the service the
+   mission uses unless the arguments name one), and - unless the
+   arguments say someone else is running it - confirm the `k6` binary
+   is on the path (`command -v k6`); when it is missing, stop with the
+   install steps from the `k6-guides` skill's `install.md` - installing
+   is the user's call, never the agent's.
 
 Build the mission block from the arguments below, applying the agent's own
 defaults for every field not specified:
@@ -43,14 +46,16 @@ defaults for every field not specified:
   mode `drive` with that benchmark; "someone is running <name>" means
   mode `observe` with it. It composes with `drive` and `observe`, never
   with `post-hoc` (the agent refuses that combination). The service is
-  the manifest's target service unless the arguments name one.
+  the manifest's target service (read in the preflight) unless the
+  arguments name one.
 - The deployment environment is not a mission field: the agent detects
   it from the telemetry (`deployment.environment.name`) and records it -
   never pass one, never guess one here. When the arguments name one
   ("on prod", "on uat"), it is neither the stack nor a mission input:
   carry it into the baseline expectations, so the agent compares it
   against the environment it detects and flags a divergence.
-- If no service name can be determined and the ask is an observation
+- If no service name can be determined - no argument names one and no
+  benchmark manifest supplies one - and the ask is an observation
   mission, ask for it before invoking the agent. A service-less
   **discovery question** about the stack's telemetry (which services
   exist, what emits metrics, over what window) is answered directly in

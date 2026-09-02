@@ -79,9 +79,13 @@ a manifest never carries a standing permission.
 ## Verify
 
 `/odd-verify` replays a benchmark-backed report through the same
-`observe-run` dispatch. Replaying at the **recorded revision** rather
-than at `HEAD` — so a diff-reviewed update to the benchmark between the
-observation and its verification is reported as a new baseline instead
-of silently changing the protocol — is designed but not built yet; the
-recorded revision in the scenario record is what that step will read.
+`observe-run` dispatch, in the mode the report's frontmatter records —
+never inferring `drive` from the benchmark's presence, so an observed
+run is never re-driven. The replay compares the recorded revision with
+the benchmark's current one: when the benchmark moved in between (a
+diff-reviewed update landed), the run is reported as a new baseline,
+never as a verdict on a fix. Checking the benchmark out **at the
+recorded revision** instead of running it at `HEAD` is designed but not
+built yet; the recorded revision in the scenario record is what that
+step will read.
 

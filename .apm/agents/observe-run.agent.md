@@ -77,9 +77,12 @@ the report.
     say why — a report claiming a benchmark it cannot prove looks
     replayable when it is not.
 
-  The manifest's thresholds are the pass criteria the report rules on,
-  each against a telemetry-derived measurement carrying its query — k6's
-  own summary is recorded as evidence, never as the verdict.
+  The manifest's thresholds are the pass criteria the report rules on:
+  section 2 carries a threshold table (threshold, telemetry-derived
+  measurement with its query, pass or fail) right after the
+  per-operation table, and section 7 restates them as the next run's
+  pass criteria — k6's own summary is recorded as evidence, never as
+  the verdict.
 - **Window** — how far back to look; default the last 30 minutes. In drive
   mode the window is the scenario's own start and end.
 - **Focus** — performance, errors, correctness, cost/cardinality, a named
@@ -286,6 +289,12 @@ with its stored path:
 2. **Observed behavior** — start with the per-operation summary table:
 
    | Operation | Requests | Rate | p50 | p95 | p99 | Error % | DB/downstream calls per req | Notable |
+
+   With a benchmark in the mission, follow it with the threshold table
+   — one row per manifest threshold, ruled from the service's own
+   telemetry, never from k6's summary:
+
+   | Threshold (manifest) | Measured | Query | Pass/fail |
 
    Then the narrative: what the service actually does, in its own
    vocabulary — request rates, latency distribution, error rates, query
