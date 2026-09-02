@@ -298,6 +298,11 @@ with its stored path:
 
    | Threshold (manifest) | Measured | Query | Pass/fail |
 
+   When the scenario record's `k6:` line carries script errors above
+   zero, no threshold is ruled: every row reads `void`, and the defect
+   is section 3's first finding (`run-scenario` section 6 — the
+   benchmark did not exercise what it measures).
+
    Then the narrative: what the service actually does, in its own
    vocabulary — request rates, latency distribution, error rates, query
    volumes, hottest spans, notable log lines — every number carrying the

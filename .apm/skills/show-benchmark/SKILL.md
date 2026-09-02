@@ -16,12 +16,16 @@ authoring a k6 benchmark is no exception.
   manifest (`.odd/benchmarks/<name>/`).
 - **What it exercises** - target service, the endpoints/operations in
   scope, the test type (smoke/load/stress/soak/spike/breakpoint).
-- **Next recommended action** - how to actually run it, e.g.
-  `/odd-observe check checkout under benchmark checkout-read-heavy` (the
-  exact composition with `/odd-observe`'s `benchmark:` field is out of
-  scope for this authoring implementation - phrase the next action
-  generically until execution is built, never invent a syntax that
-  doesn't exist yet).
+- **Validation** - what the manifest records: `k6 inspect` passed (k6
+  version, date) and the smoke's result - passed (local or remote
+  target, the URL only when the manifest stores it), declined, not
+  applicable (with the scenarios it could not reach), or the functions
+  it did not cover. One line; a benchmark whose manifest records no
+  validation is an upstream contract failure to surface, not a line to
+  invent.
+- **Next recommended action** - how to actually run it:
+  `/odd-observe run .odd/benchmarks/<name>/` (drive mode with that
+  benchmark, see `docs/guide/benchmarks.md`).
 - **For an update**: a short headline of what changed against the
   previous version - the full diff already lives in the commit, this is
   the human-readable one-liner, not a diff dump.

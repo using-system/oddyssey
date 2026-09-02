@@ -93,14 +93,16 @@ complete (a summary cannot feed a diff):
    it, the recalled baseline (or "no previous report"); in drive mode,
    the verbatim scenario record (exact commands, counts, UTC
    start/end — for a stored k6 benchmark, its name and git revision,
-   the `k6 run` command, k6's exit status and summary, and the stage
-   boundaries) so the run replays identically; in observe mode with a
-   benchmark, its name and revision stand in for the commands the
-   agent did not run.
+   the `k6 run` command, k6's exit status and summary including its
+   script-error count, and the stage boundaries) so the run replays
+   identically; in observe mode with a benchmark, its name and
+   revision stand in for the commands the agent did not run.
 2. **Observed behavior** — the per-operation summary table (requests,
    rate, p50/p95/p99, error %, downstream calls), followed, with a
    benchmark, by the threshold table (manifest threshold, measurement
-   with its query, pass/fail), then the narrative,
+   with its query, pass/fail — or `void` on every row when the run
+   record's k6 line carries script errors above zero, the defect then
+   being section 3's first finding), then the narrative,
    every number carrying the query that produced it and a sample;
    with a baseline, the per-operation deltas and the fate of its
    findings; the service graph closes the section.

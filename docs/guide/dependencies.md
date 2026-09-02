@@ -98,8 +98,11 @@ persists the script and manifest through `create-update-benchmark`,
 which owns `.odd/benchmarks/`. Both the agent and the prompt close on
 `show-benchmark`, which renders only what `create-update-benchmark`
 just wrote and returned - it never reads the store itself, hence no
-edge to it. No MCP tool appears here: authoring touches no stack and no
-configuration, and never executes the benchmark.
+edge to it. The prompt checks the `k6` binary per `k6-guides`'
+`install.md` before dispatching: the agent validates the script with
+`k6 inspect` and one smoke iteration at the target (both from
+`running-tests.md`). No MCP tool appears here: authoring touches no
+stack and no configuration, and never executes the benchmark.
 
 ```mermaid
 flowchart LR
@@ -450,11 +453,13 @@ resolves the baseline report across both `.odd/` stores, preflights
 against the report's `stack` (never silently retargeting the
 configured one), and mandates `create-observe-run-report`'s
 verification rules for the report its agent will persist.
-`/odd-instrument-bench` is a dispatcher too, and asks its human-decided
-questions first (`k6-guides`' `authoring-inputs.md` classifies them),
-recalling through `create-update-benchmark` when new-versus-update is
-ambiguous, before handing the mission to `k6-benchmark-expert` and
-closing with `show-benchmark`'s synthesis of the stored benchmark.
+`/odd-instrument-bench` is a dispatcher too: it checks the `k6` binary
+(`k6-guides`' `install.md`) and asks its human-decided questions first
+(`k6-guides`' `authoring-inputs.md` classifies them, the remote smoke
+authorization among them), recalling through `create-update-benchmark`
+when new-versus-update is ambiguous, before handing the mission to
+`k6-benchmark-expert` and closing with `show-benchmark`'s synthesis of
+the stored benchmark.
 `/odd-status` dispatches no agent: it is a thin router over two skills
 running in the main conversation - `get-status` for the render, and
 `record-finding-decision` when, and only when, the user asks for a
@@ -480,8 +485,9 @@ named service emits no telemetry at all, it recommends
 `otel-instrumentation-expert`. `k6-benchmark-expert` authors k6
 benchmarks and only that: it sources every k6 claim from `k6-guides`,
 reads the stored observation reports for the service's hot operations,
-persists script and manifest through `create-update-benchmark`, closes
-with `show-benchmark` - and never executes what it wrote.
+validates the script (`k6 inspect`, one smoke iteration) before
+persisting it through `create-update-benchmark`, closes with
+`show-benchmark` - and never runs what it wrote as a benchmark.
 
 ## Skills
 
@@ -511,11 +517,12 @@ show-report skills (`show-observe-run-report`,
 its closing synthesis - display only: they follow the create skills'
 file contracts, write nothing, and invoke no other component.
 `k6-guides` is the k6 counterpart of `otel-guides` - a topic-selection
-map read by `/odd-instrument-bench` (which questions to ask), by
-`k6-benchmark-expert` (authoring), by `run-scenario` (running a stored
-benchmark: `running-tests.md` and `install.md`), and by `/odd-observe`
-and `/odd-verify` (the `install.md` binary check in their preflight),
-invoking nothing itself.
+map read by `/odd-instrument-bench` (which questions to ask, and the
+`install.md` binary check), by `k6-benchmark-expert` (authoring and
+validating: `scripting.md`, `running-tests.md`), by `run-scenario`
+(running a stored benchmark: `running-tests.md` and `install.md`), and
+by `/odd-observe` and `/odd-verify` (the `install.md` binary check in
+their preflight), invoking nothing itself.
 `create-update-benchmark` owns `.odd/benchmarks/` - the naming, the
 recall by service and by benchmark name, the reviewed diff an update
 goes through, the commit; unlike the two create-report skills it stores

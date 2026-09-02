@@ -1,6 +1,6 @@
 ---
 name: k6-guides
-description: Curated map of the official k6 load-testing docs - installation, running a script, scripting (checks/thresholds/scenarios), test types, protocols, and which questions a benchmark's inputs require before it can be authored. Use when authoring or reasoning about a k6 benchmark - pick the topic, open its reference file, and follow the linked official docs. Read by /odd-instrument-bench (which questions to ask) and k6-benchmark-expert (authoring).
+description: Curated map of the official k6 load-testing docs - installation, running a script, scripting (checks/thresholds/scenarios), test types, protocols, and which questions a benchmark's inputs require before it can be authored. Use when authoring or reasoning about a k6 benchmark - pick the topic, open its reference file, and follow the linked official docs. Read by /odd-instrument-bench (which questions to ask), k6-benchmark-expert (authoring and validating), and run-scenario (running a stored benchmark).
 ---
 
 # k6 guides
@@ -30,6 +30,8 @@ concluding they don't exist.
 | --- | --- |
 | Is k6 installed? How do I install/detect it? | [install.md](references/install.md) |
 | How do I run a k6 script, read its output, know if it passed? | [running-tests.md](references/running-tests.md) |
+| How do I validate a script without running the benchmark - `k6 inspect`, a one-iteration smoke? | [running-tests.md](references/running-tests.md) |
+| Why is `res.body` null / why does `res.json()` throw? | [scripting.md](references/scripting.md) |
 | How do I write the script - requests, checks, thresholds, staged load? | [scripting.md](references/scripting.md) |
 | Which test type fits this investigation - smoke, load, stress, soak, spike, breakpoint? | [test-types.md](references/test-types.md) |
 | What does a benchmark's authoring need decided, and by whom - human or agent? | [authoring-inputs.md](references/authoring-inputs.md) |

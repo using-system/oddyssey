@@ -257,7 +257,12 @@ differs is how the load is generated and how the record cites it:
   iteration leaves telemetry that looks deceptively clean — "a failed
   or partial run is data" applies to the generator too. The manifest's
   thresholds are what the observation rules on, each against a
-  telemetry-derived measurement carrying its query.
+  telemetry-derived measurement carrying its query — **unless the
+  generator threw**: script exceptions above zero mean the benchmark
+  did not exercise what it was built to measure, every threshold
+  ruling is void, and the run is reported as a defective benchmark (a
+  finding against the script, to fix through `/odd-instrument-bench`),
+  never as a pass.
 - **k6's own OpenTelemetry output is a bonus signal.** Against the local
   stack, `K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run -o opentelemetry
   <script>` lands k6's client-side view in the same store under

@@ -230,13 +230,15 @@ only you can decide (test type, thresholds, target environment, new
 benchmark or an update to an existing one) and proposes a load shape
 and duration for you to confirm; the agent discovers the rest — which
 endpoints matter, what the stored `.odd/` reports already say about the
-service — and **never executes what it writes**. Run the stored
-benchmark through `/odd-observe` (`/odd-observe run
-.odd/benchmarks/<name>/`): the `observe-run` agent drives the script
-unmodified through the `run-scenario` skill and rules on the manifest's
-thresholds from the service's own telemetry, k6's summary recorded as
-evidence only. The full lifecycle, and what a benchmark is versus a
-report, are in [docs/guide/benchmarks.md](docs/guide/benchmarks.md).
+service — validates what it wrote (`k6 inspect`, one smoke iteration
+at the target, asked for first when the target is remote) and **never
+runs it as a benchmark**. Run the stored benchmark through
+`/odd-observe` (`/odd-observe run .odd/benchmarks/<name>/`): the
+`observe-run` agent drives the script unmodified through the
+`run-scenario` skill and rules on the manifest's thresholds from the
+service's own telemetry, k6's summary recorded as evidence only. The
+full lifecycle, and what a benchmark is versus a report, are in
+[docs/guide/benchmarks.md](docs/guide/benchmarks.md).
 
 More invocation examples for every prompt live in
 [docs/guide/prompts.md](docs/guide/prompts.md).
@@ -300,11 +302,12 @@ More invocation examples for every prompt live in
   ([dtctl](https://github.com/dynatrace-oss/dtctl)), Azure Monitor
   (`az`), AWS CloudWatch/X-Ray (`aws`), Splunk (`splunk`).
 - **[k6](https://grafana.com/docs/k6/latest/set-up/install-k6/)** —
-  needed to **run** a benchmark, never to author one:
-  `/odd-instrument-bench` only writes the script and the manifest, and
-  `/odd-observe` runs it (its preflight, like `/odd-verify`'s, stops
-  with the install steps when the binary is missing — neither installs
-  it for you). Install it before running an authored benchmark:
+  needed to author a benchmark and to run one: `/odd-instrument-bench`
+  validates the script it writes with `k6 inspect` and one smoke
+  iteration (never a benchmark run), and `/odd-observe` and
+  `/odd-verify` run it. The three prompts' preflights stop with the
+  install steps when the binary is missing — none installs it for you.
+  Install it before authoring or running a benchmark:
   `brew install k6` on macOS, the official APT/YUM repositories or a
   release binary on Linux, or the `grafana/k6` Docker image.
 
@@ -345,7 +348,7 @@ dropped — the normal state, and never a failure of the server.
 | --- | --- |
 | [`otel-instrumentation-expert`](.apm/agents/otel-instrumentation-expert.agent.md) (agent) | Investigate a codebase and hand back every input for a spec-driven plan to implement OpenTelemetry: stack inventory, per-service approach sourced from the official docs, open decisions, verification protocol |
 | [`observe-run`](.apm/agents/observe-run.agent.md) (agent) | Observe a running service — on the local stack or any remote backend — through its telemetry (metrics, traces, logs, profiles) and hand back every input for a spec-driven plan of fixes and improvements |
-| [`k6-benchmark-expert`](.apm/agents/k6-benchmark-expert.agent.md) (agent) | Investigate a service and author a k6 load-test benchmark — a script plus a manifest — as reviewed code under `.odd/benchmarks/`, every k6 claim sourced from the official docs; it authors only, it never runs what it writes |
+| [`k6-benchmark-expert`](.apm/agents/k6-benchmark-expert.agent.md) (agent) | Investigate a service and author a k6 load-test benchmark — a script plus a manifest — as reviewed code under `.odd/benchmarks/`, every k6 claim sourced from the official docs; validates it with `k6 inspect` and one smoke iteration before persisting, never runs it as a benchmark |
 | [`otel-guides`](.apm/skills/otel-guides/SKILL.md) (skill) | Curated map of the official OpenTelemetry docs: every supported language plus the cross-language guides (SDK configuration, semantic conventions, Collector deployment) |
 | [`k6-guides`](.apm/skills/k6-guides/SKILL.md) (skill) | Curated map of the official k6 docs: install, running a script, scripting (checks, thresholds, scenarios), test types, protocols — and which of a benchmark's inputs a human must decide rather than an agent |
 | [`setup-local-stack`](.apm/skills/setup-local-stack/SKILL.md) (skill) | Configure gcx against the local stack without touching the user's contexts, with the datasource UIDs and the push-model caveats |
@@ -363,7 +366,7 @@ dropped — the normal state, and never a failure of the server.
 | [`record-finding-decision`](.apm/skills/record-finding-decision/SKILL.md) (skill) | Record a maintainer decision on a finding — wontfix, or its reversal — into the committed ledger at `.odd/decisions.md`: the write that lets the status stop rendering a declined finding as open. Never edits a report |
 | [`/odd-observe`](.apm/prompts/odd-observe.prompt.md) (prompt) | Entry point: build a well-formed mission from your arguments and invoke the `observe-run` agent |
 | [`/odd-instrument-otel`](.apm/prompts/odd-instrument-otel.prompt.md) (prompt) | Entry point: point the `otel-instrumentation-expert` agent at a codebase |
-| [`/odd-instrument-bench`](.apm/prompts/odd-instrument-bench.prompt.md) (prompt) | Entry point: resolve what only you can decide — test type, thresholds, target environment, new benchmark or an update — then point the `k6-benchmark-expert` agent at a service to author its k6 benchmark |
+| [`/odd-instrument-bench`](.apm/prompts/odd-instrument-bench.prompt.md) (prompt) | Entry point: resolve what only you can decide — test type, thresholds, target environment, new benchmark or an update, a smoke iteration at a remote target — then point the `k6-benchmark-expert` agent at a service to author its k6 benchmark |
 | [`/odd-verify`](.apm/prompts/odd-verify.prompt.md) (prompt) | Entry point: replay a stored report's protocol through the `observe-run` agent — a full observation report again, this time ruling on everything the previous one recorded: measurements, anomalies, telemetry gaps. A replay with no fix under test persists as a re-measure, not a verification |
 | [`/odd-status`](.apm/prompts/odd-status.prompt.md) (prompt) | Where is the loop? Per-service state, findings ledger, trends, open telemetry gaps, and the next recommended action — read from the `.odd/` history and git alone, no backend queries — and record wontfix decisions on findings |
 | [`/odd-config`](.apm/prompts/odd-config.prompt.md) (prompt) | Show the configured backend — stack, targeted instance, connection proof — and guide a backend switch through the `update-backend-configuration` skill |

@@ -13,6 +13,7 @@ decided before it can be written, and who can answer it.
 | Target scope (which endpoints/operations) | agent | discoverable: routes, OpenAPI, hot operations in stored `.odd/` reports |
 | Duration and stage lengths | agent proposes, human confirms | the type's documented range is discoverable; the actual time budget is the caller's |
 | Target base URL / environment | human | mission-time input, never guessed by probing |
+| One-iteration smoke at the target before persisting | human (remote target only; a local target is self-authorized) | one real pass over the script's requests, with real side effects, on someone's environment - the caller says yes each time, at mission time, never as a stored standing permission (see running-tests.md, "Validating without running") |
 
 **This is the whole contract**: `/odd-instrument-bench` asks about every
 row marked "human" (and confirms the "agent proposes, human confirms"
