@@ -28,8 +28,10 @@ Official docs: https://grafana.com/docs/k6/latest/using-k6/
   URL, so the tag must be set explicitly. Verified live (this machine,
   2026-09-02, k6 v2.2.0): a threshold on `{name:checkout}` with no
   request tagged `checkout` evaluates on an **empty** sub-metric and
-  passes (`p(95)=0s`, green check, exit 0); the same threshold with the
-  request tagged is evaluated for real and crossed when unmet. A
+  passes (`p(95)=0s`, green check, exit 0, and no warning on stderr -
+  nothing at runtime says the sub-metric was empty); the same
+  threshold with the request tagged is evaluated for real and crossed
+  when unmet. A
   sub-metric threshold no request populates is a pass that measures
   nothing - check the tag exists on a request before persisting. Source:
   https://grafana.com/docs/k6/latest/using-k6/thresholds/

@@ -239,9 +239,9 @@ the target is remote) and **never runs it as a benchmark**. Run the
 stored benchmark through `/odd-observe` (`/odd-observe run
 .odd/benchmarks/<name>/`): the `observe-run` agent drives the script
 unmodified through the `run-scenario` skill and rules on the
-manifest's thresholds from the
-service's own telemetry, k6's summary recorded as evidence only. The
-full lifecycle, and what a benchmark is versus a report, are in
+manifest's thresholds from the service's own telemetry, k6's summary
+recorded as evidence only. The full lifecycle, and what a benchmark is
+versus a report, are in
 [docs/guide/benchmarks.md](docs/guide/benchmarks.md).
 
 More invocation examples for every prompt live in

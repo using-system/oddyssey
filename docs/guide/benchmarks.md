@@ -52,7 +52,9 @@ the manifest.
 
 Before persisting, the agent validates what it wrote, in this order: a
 static check for the `discardResponseBodies` / `res.json()`
-self-contradiction (a runtime crash no parser sees), `k6 inspect` (a
+self-contradiction (a runtime crash no parser sees) and for a
+tag-scoped threshold no request populates (a pass that measures
+nothing), `k6 inspect` (a
 parse and schema check that contacts nothing — a non-integer
 `constant-arrival-rate` `rate` fails here), and a one-iteration smoke,
 `k6 run --vus 1 --iterations 1 --no-thresholds`, which replaces the
@@ -65,8 +67,7 @@ threshold, its floor or none found, and the outcome) and the closing
 synthesis renders it. The smoke is self-authorized against a local
 target and asked for a remote one, every time: its single iteration is
 real traffic with real side effects. It never runs the benchmark
-itself — nothing beyond that one
-iteration.
+itself — nothing beyond that one iteration.
 
 Updating an existing benchmark follows the same prompt — the change
 comes back as a reviewed diff against the stored version, never a
