@@ -2,8 +2,6 @@
 
 https://github.com/user-attachments/assets/776b98b0-862d-4865-b8f1-568e6710c228
 
-<sup>The trailer above is [`assets/videos/trailer/oddyssey-trailer.mp4`](assets/videos/trailer/), uploaded as a GitHub attachment because the README renders a player only for those; it opens on the [banner](assets/images/banner.png), which is the thumbnail you see before pressing play.</sup>
-
 **A CLI toolbox for Observability-Driven Development (ODD).**
 
 [![CI](https://github.com/using-system/oddyssey/actions/workflows/ci-mcp-server.yml/badge.svg?event=pull_request)](https://github.com/using-system/oddyssey/actions/workflows/ci-mcp-server.yml)
