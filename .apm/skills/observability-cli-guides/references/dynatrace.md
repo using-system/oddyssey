@@ -79,3 +79,76 @@ that, DQL is executed over the Grail Query REST API with `curl`.
   (dashboards, settings, workflows) and cannot query telemetry at all;
   `dt-cli` only packages/signs *extensions* — neither touches logs,
   metrics, or traces.
+
+## Configuration display
+
+### Display
+
+The active `dtctl` context is the configuration: which environment the
+DQL queries will run against.
+
+- `dtctl auth whoami` — the authenticated identity and the environment
+  URL (`https://<envid>.apps.dynatrace.com`) of the active context.
+  Show the context name, the environment, and the identity; never the
+  token value behind them.
+- The setup section earlier in this file owns the CLI specifics (OAuth
+  vs token contexts, how a context is created); this section owns only
+  what to display.
+
+`stack_config.dynatrace` is expected **empty** — the dtctl context
+already names the environment. Present-and-empty (`{}`) or missing both
+display as "nothing persisted — the dtctl context is the source".
+
+Add any `invalid_ignored` dotted names as degradations: the stored
+value was invalid and was dropped. `stack_config` has no defaults behind
+it, so a dropped value reads as not persisted — nothing silently took
+its place.
+
+### Connection proof
+
+`dtctl auth whoami`. It is both the context display and the cheapest
+probe — one call that either returns the identity and environment
+(connected) or fails. Failure = stop and guide `dtctl auth login` /
+the token context setup; never run the login for the user.
+
+### Change-request phrasing
+
+- "change backend to dynatrace"
+
+## What to persist
+
+### What stack_config holds
+
+**Nothing.** `stack_config.dynatrace` is expected to stay empty, and an
+empty entry is the correct final state of a switch to `dynatrace`.
+
+`dtctl` is context-bearing: the active context already names the
+**environment** the DQL queries run against
+(`https://<envid>.apps.dynatrace.com`) and the identity behind it.
+Storing the environment id or URL here would only be a stale copy of
+what `dtctl auth whoami` reports first-hand, and the context is what the
+query uses either way.
+
+### Where each value comes from
+
+From the active dtctl context, read at use time:
+
+- `dtctl auth whoami` — the authenticated identity and the environment
+  URL of the active context. One call, and it is both the display and
+  the connection proof.
+
+Whether the context is an OAuth context or a token context, the
+credential lives in dtctl's own configuration; name the mechanism if it
+helps the user, never the value. The setup section earlier in this
+file owns how a context is created.
+
+### What to ask the user
+
+**Nothing about targeting.** Do not ask for the environment id, the
+environment URL, or any credential.
+
+If the user has several dtctl contexts and the active one is not the
+environment they mean, the fix is a dtctl context switch, not a value in
+this configuration — say so and let them run it, then re-verify.
+
+Leave `stack_config.dynatrace` alone.

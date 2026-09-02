@@ -157,14 +157,16 @@ backend's contract to call it changes — a new parameter becomes
 required to query it, the CLI or its install command changes, the
 resource prerequisite changes — or a backend is added to or removed
 from `STACKS` — the guide must keep matching
-`.apm/skills/observability-cli-guides/references/*.md` and
-`.apm/skills/update-backend-configuration/references/*.md`.
+`.apm/skills/observability-cli-guides/references/*.md`, the one place a
+stack's knowledge lives (its query surface, its `## Configuration
+display`, its `## What to persist`); `references/builtin-stacks.md`
+there must list exactly the `STACKS` values (a unit test asserts it).
 
 This applies to adding a new stack to `STACKS` and to modifying an
 existing one — a new or changed `stack_config` field, a changed
-targeting requirement, a changed CLI command or flag in
-`observability-cli-guides`/`check-backend-configuration`/
-`update-backend-configuration`. **Non-negotiable**: every such change
+targeting requirement, a changed CLI command or flag in any section of
+the stack's `observability-cli-guides` reference. **Non-negotiable**:
+every such change
 must be verified live, through the backend's own CLI, against a real
 account carrying real data — not from documentation, memory, or a
 mocked response. Verification means actually querying every signal

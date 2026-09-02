@@ -30,9 +30,9 @@ STACKS = (
     "splunk",
 )
 
-# Per-stack stack_config field whitelist, mirroring what each backend's
-# "what to persist" reference (update-backend-configuration skill)
-# documents. None means unrestricted: "local"'s keys are container
+# Per-stack stack_config field whitelist, mirroring each backend's
+# "## What to persist" section in the observability-cli-guides skill's
+# references/<stack>.md. None means unrestricted: "local"'s keys are container
 # environment variable names (setup-local-stack's otel-lgtm-env.md
 # catalog), an open set by design, not a closed field list like the
 # remote backends'. A stack absent here would silently accept anything -

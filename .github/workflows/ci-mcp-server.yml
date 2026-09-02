@@ -6,6 +6,7 @@ on:
       - "src/mcp-server/**"
       - "tests/mcp-server/**"
       - "integration-tests/mcp-server/**"
+      - ".apm/skills/observability-cli-guides/references/builtin-stacks.md"
       - ".github/workflows/ci-mcp-server.yml"
 
 # This workflow executes pull-request-controlled code (uv sync, pytest,

@@ -9,8 +9,10 @@ anything to query — "nothing" is stated explicitly where that's true,
 never left silent — an example **switch prompt**, and exactly what
 `stack_config` **persists**, if anything. Source of truth is each
 backend's own `references/<stack>.md` under the
-`observability-cli-guides` and `update-backend-configuration` skills —
-this page only restates them, never extends them.
+`observability-cli-guides` skill — its `## CLI binary`, `## Setup`, and
+`## What to persist` sections — and the list of backends is that
+skill's `references/builtin-stacks.md`; this page only restates them,
+never extends them.
 
 Naming a stack directly in an `/odd-observe` mission switches the
 configuration too, the same as going through `/odd-config` first; more
