@@ -254,11 +254,10 @@ differs is how the load is generated and how the record cites it:
   count on it existing when the run is verified later. Then measure
   through the service's own telemetry, after step 5's flush wait. A
   generator that never connected, crashed mid-run, or threw on every
-  iteration leaves
-  telemetry that looks deceptively clean — "a failed or partial run is
-  data" applies to the generator too. The manifest's thresholds are
-  what the observation rules on, each against a telemetry-derived
-  measurement carrying its query.
+  iteration leaves telemetry that looks deceptively clean — "a failed
+  or partial run is data" applies to the generator too. The manifest's
+  thresholds are what the observation rules on, each against a
+  telemetry-derived measurement carrying its query.
 - **k6's own OpenTelemetry output is a bonus signal.** Against the local
   stack, `K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run -o opentelemetry
   <script>` lands k6's client-side view in the same store under
