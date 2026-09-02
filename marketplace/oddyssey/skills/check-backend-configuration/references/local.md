@@ -3,12 +3,15 @@
 ## Display
 
 Every value comes from `odd_config_get`, never from a hardcoded
-default: the host ports are configurable, so `3000`/`4317`/`4318` are
+default: the host ports are configurable, so `3000`/`4317`/`4318`/`4040` are
 what a fresh machine happens to show, not what the display may assume.
 
 - Grafana URL — `http://localhost:<local.grafana_port>`
 - OTLP gRPC endpoint — `http://localhost:<local.otlp_grpc_port>`
 - OTLP HTTP endpoint — `http://localhost:<local.otlp_http_port>`
+- Pyroscope ingest endpoint — `http://localhost:<local.pyroscope_port>`
+  (profiles only: pyroscope-io-style SDKs push here directly, not over
+  OTLP)
 
 Then `stack_config.local`: the container environment reapplied on every
 container creation (the `setup-local-stack` skill's

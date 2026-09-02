@@ -1,3 +1,17 @@
+## [1.10.1] - 2026-09-02
+
+### 🚀 Features
+
+- *(mcp)* Publish pyroscope ingest port 4040 as a fourth named local port (#233)
+
+### 🐛 Bug Fixes
+
+- *(skill)* Distinguish expired SSO token from NoCredentials in cloudwatch guides (#230)
+- *(skill)* Flag cumulative-temporality trap in cloudwatch statistics roll-ups (#231)
+
+### 📚 Documentation
+
+- *(skill)* Add cloudwatch CLI pagination, dimensions, percentile, and X-Ray filter edge cases (#232)
 ## [1.10.0] - 2026-08-31
 
 ### 🚀 Features
