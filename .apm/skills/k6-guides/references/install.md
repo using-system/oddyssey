@@ -55,9 +55,10 @@ report:
    is a hand-back, not an auto-install. On Windows the page names
    `winget` (manifests created by the community) and `choco` (an
    **unofficial** package, the page's own word) - prefer `winget`, pass
-   the manager's non-interactive flags (`--accept-source-agreements
-   --accept-package-agreements` for winget, `-y` for choco), and treat
-   a UAC or agreement prompt as the hand-back above; the official
+   the manager's confirmation-suppressing flags
+   (`--accept-source-agreements`, `--accept-package-agreements` and
+   `--silent` for winget, `-y` for choco), and treat a UAC or
+   agreement prompt as the hand-back above; the official
    Windows route the page also offers, the MSI installer, is
    interactive and goes to the user. The Linux package paths
    (Debian/Ubuntu APT, Fedora/CentOS DNF) all require `sudo` and a
@@ -88,8 +89,8 @@ a subagent.
 writes - `k6 inspect` and the one-iteration smoke (running-tests.md,
 "Validating without running") - without ever running the benchmark;
 `run-scenario`'s stored-benchmark step (its section 6, reached from
-`/odd-observe` or `/odd-verify` in `drive` mode with a `benchmark`)
-needs it to **run** one. The `/odd-instrument-bench`, `/odd-observe`,
+`/odd-observe` or `/odd-verify` in `drive` mode with a `benchmark`, or
+entered directly) needs it to **run** one. The `/odd-instrument-bench`, `/odd-observe`,
 and `/odd-verify` preflights ensure it is present before dispatching
 (the auto-install step above); the subagent-side steps fail fast when
 it is still absent - never approximating the script with other

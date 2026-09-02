@@ -209,9 +209,8 @@ differs is how the load is generated and how the record cites it:
   auto-install step first. Either way, when k6 is absent the observed
   process and the store stay untouched: never restart or reset for a
   run you cannot perform, never approximate the script with a curl
-  loop. `running-tests.md` in the same skill
-  carries the flags, the output surface, and the exit codes cited
-  below.
+  loop. `running-tests.md` in the same skill carries the flags, the
+  output surface, and the exit codes cited below.
 - **Read the manifest, then run the script unmodified.** The benchmark
   directory holds one k6 script and one manifest
   (`create-update-benchmark`'s layout): the script is `script.js`
