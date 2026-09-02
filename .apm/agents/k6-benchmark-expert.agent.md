@@ -38,7 +38,9 @@ human-decided:
   one under that name).
 - **Test type** - smoke / load / stress / soak / spike / breakpoint
   (`k6-guides`' `test-types.md`).
-- **Thresholds** - the pass/fail targets the caller named.
+- **Thresholds** - the pass/fail targets the caller named. Yours to
+  cross-check against the service's floors (Investigation step 3),
+  never to adjust.
 - **Target base URL / environment** - where the benchmark points.
 - **Load shape, pacing, and duration** - proposed by the prompt,
   confirmed by the caller; refine within that confirmed envelope, never
@@ -63,8 +65,34 @@ human-decided:
    service naming known hot operations. Prefer a handful of
    representative operations covered properly over every endpoint
    covered once - the same preference `run-scenario` states for
-   functional scenarios.
-3. **Decide the script and manifest content**, informed by `k6-guides`:
+   functional scenarios. While reading, note every **service-side
+   floor or ceiling** with its file and line: a fixed `sleep`, a
+   hardcoded latency range, a rate limit, a retry with backoff, a
+   downstream call with a floor of its own, an injected error rate, a
+   queue or pool bound. They are evidence for two decisions - the load
+   shape (step 4) and the thresholds (step 3) - and both must draw on
+   the same facts.
+3. **Cross-check every threshold against the floors you found.** The
+   thresholds are the caller's (human-decided), but whether the service
+   can meet them at all is a fact step 2 already holds. Put each
+   threshold next to the floor that bounds the path it gates. A
+   threshold the service can structurally never meet on that path - a
+   `p(95)<300ms` on a handler that sleeps 300-800 ms before any
+   response, an error rate under 1% on a path that injects 5% - is not
+   a target, it is a measurement of the wrong path: it can only "pass"
+   by measuring traffic that never reaches the gated logic (a
+   fast-reject 404 instead of the checkout). **Stop and report it to
+   the caller with the evidence** - the threshold, the floor, its
+   `file:line`, what the threshold would actually end up measuring -
+   and ask which target to keep, raise, or drop. Never persist it,
+   never adjust it yourself: a target is a product decision
+   (`authoring-inputs.md`), the floor is the fact that informs it. A
+   threshold that is merely ambitious - tight but reachable on the
+   evidence - is persisted as given, with its floor recorded next to it
+   so the first run reads the margin. The cross-check goes into the
+   manifest with the validation (step 5): each threshold, the floor it
+   was checked against (`file:line`) or `none found`, and the outcome.
+4. **Decide the script and manifest content**, informed by `k6-guides`:
    - `scripting.md` for requests/checks/thresholds/scenarios/secrets -
      never invent k6 syntax from memory, fetch and confirm;
    - `test-types.md` to shape the load profile around the confirmed test
@@ -85,7 +113,7 @@ human-decided:
    - never inline a credential in the script - `k6-guides`' `secrets`
      guidance names the alternative (`k6/secrets`, or a named environment
      variable the manifest never stores a value for).
-4. **Validate before persisting.** Three checks in this order, then
+5. **Validate before persisting.** Three checks in this order, then
    the record of their outcome, each sourced from `k6-guides`
    (`scripting.md` "Response bodies", `running-tests.md` "Validating
    without running"). A failure at any check is authoring feedback you
@@ -143,19 +171,21 @@ human-decided:
    - **Record the outcome in the manifest** - at minimum the k6 version
      that inspected the script and the date, and the smoke's result:
      `passed` (local target, or remote target with the base URL given at
-     mission time - the URL itself is written only if step 3 decided the
+     mission time - the URL itself is written only if step 4 decided the
      manifest stores it, never as a side effect of the smoke),
      `declined`, `not applicable` with the scenarios it could not reach,
-     or the functions it did not cover. A human reading the stored
-     benchmark must see the validation happened, not assume it. A
+     or the functions it did not cover - plus the threshold
+     cross-check of step 3 (each threshold, its floor or `none found`,
+     the outcome). A human reading the stored benchmark must see the
+     validation happened, not assume it. A
      recorded smoke is a record of what happened, never authorization
      for the next one: on an update mission the smoke is authorized
      fresh, whatever the stored manifest says.
-5. **Persist through `create-update-benchmark`.** Hand it the decided
+6. **Persist through `create-update-benchmark`.** Hand it the decided
    script and manifest; it owns the file layout, the commit, and the
    diff-review presentation for an update. You decide content, it
    writes.
-6. **Close with `show-benchmark`.** Never re-dump the script or manifest
+7. **Close with `show-benchmark`.** Never re-dump the script or manifest
    in your final answer - the stored path and the synthesis are the
    deliverable a human reads.
 
@@ -165,7 +195,7 @@ human-decided:
   scenarios, its stages, its duration - is execution, and belongs to
   `/odd-observe` (`run-scenario`'s stored-benchmark step), never here.
   Two things are **not** execution, and are mandatory before persisting
-  (Investigation step 4): `k6 inspect`, a parse/schema check with zero
+  (Investigation step 5): `k6 inspect`, a parse/schema check with zero
   network I/O, and the one-iteration smoke - `--vus 1 --iterations 1`,
   one pass over the default function, authorized per the mission. Nothing
   in between: no "just a short run", no `--duration`, no second
@@ -181,3 +211,7 @@ human-decided:
   never guessed.** If the mission is missing one (the prompt should have
   asked, but didn't), stop and report what's missing rather than
   inventing a value.
+- **A threshold is never persisted below a floor that makes it
+  unattainable.** The caller decides the target; you hand back the
+  floor and its evidence (Investigation step 3). Silently persisting
+  it ships a benchmark whose pass measures the wrong path.

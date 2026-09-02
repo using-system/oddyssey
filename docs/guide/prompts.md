@@ -74,7 +74,11 @@ official steps are handed to you).
   of the six k6 names (each answers a different question - see the
   `k6-guides` skill's `test-types.md`);
 - "p95 under 300ms" / "error rate must stay under 1%" - the thresholds,
-  the pass/fail targets the benchmark records;
+  the pass/fail targets the benchmark records; the agent checks each
+  against the service-side floors it discovers (a fixed delay, an
+  injected error rate) and hands an unattainable one back with the
+  evidence for you to keep, raise, or drop - it never adjusts a target
+  itself;
 - "against http://localhost:8080" / "on staging" - the target base URL
   or environment; never guessed by probing, so a mission that omits it
   gets asked;

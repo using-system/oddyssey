@@ -35,6 +35,17 @@ iteration may be sent at it — and proposes a load shape/duration for
 you to confirm; everything else (which endpoints matter) it figures
 out on its own.
 
+Your thresholds are yours, but the agent checks them against what it
+finds in the service: a fixed delay, a rate limit, an injected error
+rate, a downstream floor, each with its file and line. A threshold the
+service can structurally never meet on the path it gates (a
+`p(95)<300ms` on a handler that sleeps 300–800 ms before answering)
+comes back to you with that evidence instead of being persisted — such
+a threshold can only "pass" by measuring traffic that never reaches
+the gated logic. You keep, raise, or drop it; the agent never adjusts
+a target on its own. An ambitious-but-reachable threshold is kept as
+given, with its floor recorded next to it in the manifest.
+
 Before persisting, the agent validates what it wrote, in this order: a
 static check for the `discardResponseBodies` / `res.json()`
 self-contradiction (a runtime crash no parser sees), `k6 inspect` (a
@@ -45,7 +56,9 @@ script's scenarios with exactly one pass over its requests. A failure
 is fixed and re-validated, never persisted. The manifest records the
 validation (k6 version, date, the smoke's result — passed, declined,
 not applicable when the script exports no default function, or the
-functions it did not cover) and the closing synthesis renders it. The
+functions it did not cover — and the threshold cross-check, each
+threshold against its floor or none found) and the closing synthesis
+renders it. The
 smoke is self-authorized against a local target and asked for a remote
 one, every time: its single iteration is real traffic with real side
 effects. It never runs the benchmark itself — nothing beyond that one

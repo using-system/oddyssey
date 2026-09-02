@@ -20,7 +20,9 @@ authoring a k6 benchmark is no exception.
   version, date) and the smoke's result - passed (local or remote
   target, the URL only when the manifest stores it), declined, not
   applicable (with the scenarios it could not reach), or the functions
-  it did not cover. One line; a benchmark whose manifest records no
+  it did not cover - and the threshold cross-check: each threshold
+  against the service-side floor it was checked against, or none
+  found. One or two lines; a benchmark whose manifest records no
   validation is an upstream contract failure to surface, not a line to
   invent.
 - **Next recommended action** - how to actually run it:
