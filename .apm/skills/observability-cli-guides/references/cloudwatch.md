@@ -193,3 +193,189 @@ Verified live (`aws-cli/2.36.34`, 2026-08; last three against
   per `sso-session`; automation (CI, long-running agents) should prefer a
   static IAM user, assumed role, or instance/container role over an
   interactive `aws sso login` flow that a human must periodically refresh.
+
+## Configuration display
+
+### Display
+
+Two sources, labelled per line — the CLI's effective credentials and
+the persisted targeting values.
+
+**If `stack_config.cloudwatch.profile` is persisted, run every command
+below (display and connection proof alike) with `--profile <profile>`**
+— a bare call answers for whatever profile happens to resolve without a
+flag, which on an SSO setup with no `default` is routinely none at all,
+reporting a degradation on an account that is actually configured and
+working.
+
+From the `aws` CLI:
+
+- `aws sts get-caller-identity` — the account id and the caller ARN
+  (which identity the queries run as).
+- `aws configure list` — the effective profile, region, and where each
+  came from (env, config file, IAM role). Show the source column: a
+  region coming from an env var is the usual explanation for queries
+  hitting the wrong one.
+
+On an SSO profile whose cached token has expired, `aws configure list
+--profile <name>` itself errors (`Error when retrieving token from sso:
+Token has expired and refresh failed`, exit 255) while still printing a
+partial table — the display step failing this way is not a separate
+problem, it is the same auth failure the connection proof below
+diagnoses, surfacing one step earlier. Carry on to the connection
+proof's expired-token guidance rather than treating the display as
+broken.
+
+From `stack_config.cloudwatch` (per `odd_config_get`):
+
+- `region` — the region the mission queries, when pinned separately
+  from the CLI's effective one.
+- `profile` — the named `aws` CLI profile the mission runs under, when
+  no `default` profile resolves on its own (the SSO norm).
+- `log_group` — the CloudWatch Logs group the mission reads for
+  application logs.
+- `metrics_log_group` — the CloudWatch Logs group metrics arrive
+  through as Embedded Metric Format, when the account exports them that
+  way rather than writing directly to the CloudWatch metrics API. May
+  equal `log_group`, may not — display both, never assume one covers
+  the other.
+- `xray` — the X-Ray context values the mission needs (group or
+  sampling target), when persisted.
+
+Every field the user did not persist is listed as "not persisted — the
+mission will ask", and a present-but-empty `stack_config.cloudwatch`
+(`{}`) means exactly that for all of them: a valid state, not an error.
+Call out a persisted `region` that differs from the CLI's effective
+one — the query targets the persisted value.
+
+Add any `invalid_ignored` dotted names as degradations: the stored
+value was invalid and was dropped. `stack_config` has no defaults behind
+it, so a dropped value reads as not persisted — nothing silently took
+its place.
+
+### Connection proof
+
+`aws sts get-caller-identity --profile <profile>` when
+`stack_config.cloudwatch.profile` is persisted (see Display above),
+plain `aws sts get-caller-identity` otherwise. It needs no permissions
+and returns the account and ARN, so a success is proof the credentials
+resolve and work.
+
+On failure, check the single most likely real-world cause **first**: no
+`default` profile resolves, even though a named one is fully configured
+and working. `aws configure list-profiles` enumerates what exists
+locally; retry the identity check with `--profile <name>` (or `export
+AWS_PROFILE=<name>`) before concluding nothing is configured — an
+error naming `NoCredentials` and suggesting `aws login` reads like "not
+set up at all" but is routinely just "no default among the profiles
+that do exist," even when there's only the one. Only after that comes
+up empty is it a genuine stop-and-guide (profile creation, SSO login,
+env vars) — never run the login for the user, never echo an access key.
+
+A second, distinct failure family: the profile is correctly persisted
+and correctly configured, but its cached SSO token has expired. The
+error reads `Error when retrieving token from sso: Token has expired
+and refresh failed` — not `NoCredentials` — and the fix is different
+too: guide the user to run `aws sso login --profile <name>` (an
+interactive browser flow) — not the retry-with-`--profile` step above
+(the flag is already applied here), and not the `aws login` subcommand
+a `NoCredentials` error suggests. Same
+rule as everything else here: display the command, never run the login
+on the user's behalf.
+
+### Change-request phrasing
+
+- "persist log group <name> for cloudwatch"
+- "clear the log group for cloudwatch"
+- "use profile <name> for cloudwatch"
+- "persist metrics log group <name> for cloudwatch"
+- "change backend to cloudwatch"
+
+## What to persist
+
+### What stack_config holds
+
+Same rationale as Azure Monitor: `aws` is a **general-purpose** CLI. A
+profile says which credentials and which region — it never says which
+log group holds the service's logs, which log group its metrics arrive
+through, or which X-Ray group the missions read. So `stack_config.cloudwatch`
+holds the targeting information:
+
+- `region` — the region the missions query, pinned separately from
+  whatever the CLI's effective region happens to be.
+- `profile` — the named `aws` CLI profile the missions run every command
+  under (`--profile <name>` / `AWS_PROFILE`). SSO setups routinely have
+  **no `default` profile at all** — without this, `aws sts
+  get-caller-identity` fails with `NoCredentials` even though the CLI is
+  genuinely configured and working under its named profile. Skip the
+  field only when a `default` profile truly resolves on its own.
+- `log_group` — the CloudWatch Logs group the missions read for
+  **application logs**. When the services follow a convention rather
+  than one fixed group, store the **naming pattern** instead
+  (`/aws/ecs/<service>`, `/aws/lambda/<function>`) — a pattern the
+  mission can expand beats a single group that only covers one service.
+- `metrics_log_group` — the CloudWatch Logs group **metrics arrive
+  through**, when the account exports metrics as Embedded Metric Format
+  (EMF) log records (an OTel Collector's `awsemf`-style exporter is the
+  common source) rather than writing directly to the CloudWatch metrics
+  API. Good practice keeps this separate from `log_group` even though
+  the two **may hold the same value** for a team that doesn't split
+  them — persist whatever the account actually does, don't assume one
+  group serves both. Omit entirely when metrics don't arrive via a log
+  group (i.e. nothing to extract, `list-metrics` is already the whole
+  story).
+- `xray` — the X-Ray group or context the missions use, when X-Ray is
+  part of the picture. Omit it entirely when it is not.
+
+Region names, profile names, group names, and patterns — all
+identifiers, none of them a secret. Access keys, session tokens, and SSO
+sessions stay where the `aws` CLI keeps them and are never copied into
+the configuration.
+
+### Where each value comes from
+
+- `region` — `aws configure list` prints the effective profile, region,
+  and the **source** of each (env var, config file, IAM role). Take the
+  region from there when it is the one the missions want; the source
+  column is also what explains a surprising value.
+- `profile` — `aws configure list-profiles` enumerates every named
+  profile the identity has locally; `aws configure list` (or `--profile
+  <name>` beside `aws sts get-caller-identity`) shows which one, if any,
+  currently resolves without an explicit flag. Persist it whenever more
+  than one profile exists or `aws configure list` shows nothing set for
+  a bare (no-flag) call — never assume a `default` profile exists.
+- `log_group` — `aws logs describe-log-groups --query
+  'logGroups[].logGroupName'` lists what the identity can actually see;
+  pick the group (or read the convention off the list) with the user.
+- `metrics_log_group` — same listing command as `log_group`; ask the
+  user which group (if any) the account's metrics exporter writes EMF
+  records to, distinctly from the application-logs group. A raw EMF
+  record has an `_aws.CloudWatchMetrics` key at the top level — grep a
+  sample event for it to confirm a candidate group is actually the
+  metrics source, don't guess from the name alone.
+- `xray` — the X-Ray command surface earlier in this file owns it;
+  take the group-listing command from there, or from `aws xray help`,
+  rather
+  than from memory. Skip the field entirely unless the user says traces
+  come from X-Ray.
+
+`aws sts get-caller-identity` is the identity check, not a source of
+targeting values — it belongs to the connection proof in
+`check-backend-configuration`.
+
+### What to ask the user
+
+Ask for whatever `aws configure list` and the list commands above do not
+settle, in one question:
+
+> Which region and profile should the runs use? Which log group (or
+> log-group naming pattern) holds application logs — and is there a
+> separate one metrics arrive through as Embedded Metric Format? Is
+> X-Ray part of it, and if so which group?
+
+Persist only what the user confirms. An unpersisted field reads "not
+persisted, the mission will ask", which is a valid state — never guess a
+log group from a service name, never assume `log_group` and
+`metrics_log_group` are the same value without checking, and never
+persist a region (or a profile) simply because it is what the CLI
+defaults to today when the user has not said it is the right one.

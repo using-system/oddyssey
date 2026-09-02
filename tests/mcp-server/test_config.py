@@ -1,4 +1,6 @@
 import json
+import re
+from pathlib import Path
 
 import pytest
 from oddyssey_mcp import config
@@ -129,6 +131,20 @@ def test_local_is_a_stack_value_and_the_default():
     # targets the self-serve local stack.
     assert "local" in config.STACKS
     assert config.DEFAULTS["stack"] == "local"
+
+
+def test_builtin_stacks_reference_lists_exactly_the_stacks_values():
+    # Issue #243: the observability-cli-guides skill's builtin-stacks.md
+    # is what the stack-agnostic configuration skills and /odd-config read
+    # to know which stacks exist; STACKS is what the server enforces. The
+    # two must never drift - a stack added to one without the other is
+    # either unknown to the agents or rejected by odd_config_set.
+    reference = (
+        Path(__file__).resolve().parents[2]
+        / ".apm/skills/observability-cli-guides/references/builtin-stacks.md"
+    )
+    rows = re.findall(r"^\| `([a-z-]+)` \| \[", reference.read_text(), re.MULTILINE)
+    assert rows == list(config.STACKS)
 
 
 def test_every_stack_has_a_stack_config_fields_entry():

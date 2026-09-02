@@ -1,30 +1,43 @@
 ---
 name: observability-cli-guides
-description: Curated map of the terminal query surface of every major observability backend. Use when observing a run - local or remote - to pick the stack's backend and learn how to authenticate and query its metrics, traces, logs, and profiles from a CLI - Grafana (gcx), Datadog (Pup CLI), Dynatrace (dtctl and DQL), Azure Monitor (az), AWS CloudWatch and X-Ray (aws), Splunk (splunk CLI and SPL).
+description: The package's knowledge of every observability stack it supports, one reference file per stack - the terminal query surface (how to authenticate and query metrics, traces, logs, and profiles from the CLI), how the stack's configuration is displayed and proven, and what its stack_config persists - plus the list of built-in stacks. Use when observing a run, local or remote, and when check-backend-configuration or update-backend-configuration need anything about a stack - Grafana (gcx), Datadog (Pup CLI), Dynatrace (dtctl and DQL), Azure Monitor (az), AWS CloudWatch and X-Ray (aws), Splunk (splunk CLI and SPL), and the local stack.
 ---
 
 # Observability CLI Guides
 
-A selection map over the query CLIs of the major observability backends.
-Pick the observed stack's backend, read its reference file, then follow the
-linked official docs — the fetched page is the source of truth, not memory.
-The method is the same everywhere: authenticate, **discover** what the
-service emits, then **query** what you discovered.
+One reference file per stack, carrying everything the package knows about
+it: the query CLI and how to set it up, the discovery-then-query commands
+per signal, how its configuration is displayed and proven, and what its
+`stack_config` persists. Pick the observed stack's reference, then follow
+the linked official docs — the fetched page is the source of truth, not
+memory. The method is the same everywhere: authenticate, **discover**
+what the service emits, then **query** what you discovered.
 
 ## Pick the backend
 
+The list of built-in stacks — every value the MCP server's `STACKS`
+accepts, with its reference, CLI, and aliases — is
+[references/builtin-stacks.md](references/builtin-stacks.md); it is what
+`check-backend-configuration`, `update-backend-configuration`, and
+`/odd-config` read. The query surface per backend:
+
 | Backend | CLI | Reference |
 | --- | --- | --- |
-| Grafana (local oddyssey stack, self-hosted, Cloud) | `gcx` | [references/grafana.md](references/grafana.md) |
+| Local oddyssey stack (`local`) | `gcx` via `setup-local-stack` | [references/local.md](references/local.md), routing to grafana.md |
+| Grafana (self-hosted, Cloud — `grafana`) | `gcx` | [references/grafana.md](references/grafana.md) |
 | Datadog | Pup CLI (`pup`) | [references/datadog.md](references/datadog.md) |
 | Dynatrace | `dtctl` (DQL) | [references/dynatrace.md](references/dynatrace.md) |
 | Azure Monitor (App Insights, Log Analytics) | `az` (KQL) | [references/azure-monitor.md](references/azure-monitor.md) |
 | AWS CloudWatch + X-Ray | `aws` | [references/cloudwatch.md](references/cloudwatch.md) |
 | Splunk (Enterprise / Cloud Platform, Observability Cloud) | `splunk` (SPL) | [references/splunk.md](references/splunk.md) |
 
-Each reference covers: setup and authentication, the discovery-then-query
-commands per signal (metrics, traces, logs, profiles where the backend has
-them), and Planning notes with the backend's coverage gaps and quirks.
+Each reference covers: `## CLI binary` (detect and install), setup and
+authentication, the discovery-then-query commands per signal (metrics,
+traces, logs, profiles where the backend has them), Planning notes with
+the backend's coverage gaps and quirks — and, for the configuration
+skills, `## Configuration display` (what to show, the connection proof,
+the change-request phrasings) and `## What to persist` (what
+`stack_config` holds, where each value comes from, what to ask).
 
 For the **local oddyssey stack** (the Grafana case), the `setup-local-stack`
 skill carries the ready-made gcx context — isolated config and datasource
@@ -38,6 +51,8 @@ UIDs. gcx is the stack's mandatory query CLI.
   stores); never invent, echo, or store them.
 - Planning notes are a snapshot (last verified 2026-08); the fetched
   official page always overrides them.
+- A reference talks about its own backend only — never a comparison with
+  another stack's.
 - If the stack's backend is not in the table, say so and fall back to the
   backend's documented REST API over `curl` — the discover-then-query
   method still applies.

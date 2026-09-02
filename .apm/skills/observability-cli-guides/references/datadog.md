@@ -80,3 +80,98 @@ including from environments where Pup isn't installed.
   commands only need default OAuth2 scopes or API+APP keys, with no extra
   scope called out in the docs — request `apm_read` up front if traces will
   be queried in an OAuth2 session.
+
+## Configuration display
+
+### Display
+
+The Pup CLI's own session is the context: which site and org the
+queries will hit.
+
+- `pup auth list` — every stored session with its site, org, and
+  expiry; the one the mission will use is the org/site pair the run
+  targets (`--org`/`DD_ORG`, `--site`/`DD_SITE`).
+- The credential **by name only**: which of `DD_ACCESS_TOKEN`, an
+  OAuth2 session from `pup auth login`, or `DD_API_KEY` +
+  `DD_APP_KEY` is set — never the value of any of them, never a
+  partial or masked value. See the setup section earlier in this file
+  for the priority order between the three and for the site list.
+
+`stack_config.datadog` is expected **empty** — the CLI session already
+names the site and org. Present-and-empty (`{}`) or missing both
+display as "nothing persisted — the Pup session is the source".
+
+Add any `invalid_ignored` dotted names as degradations: the stored
+value was invalid and was dropped. `stack_config` has no defaults behind
+it, so a dropped value reads as not persisted — nothing silently took
+its place.
+
+### Connection proof
+
+`pup auth status` — the cheapest call that
+verifies the active credential, per the setup section earlier in
+this file. But **the exit code is not the
+signal**: pup exits 0 authenticated or not (verified on pup 1.14.0 —
+`pup auth status` prints `{"authenticated": false, "org": null, ...}`
+and exits 0; `pup auth test` exits 0 while reporting
+`API Key: not set`). Unlike the other backends' probes (`aws sts
+get-caller-identity` exits 253, `dtctl auth whoami` exits 1), a shell
+exit-code check on pup proves nothing. The proof is the **output**:
+connected means the status JSON carries `"authenticated": true` —
+that boolean is the sole authority. `pup auth test`'s `not set` lines
+corroborate a missing API-key pair, but an OAuth or bearer session
+leaves those keys unset while authenticated — never rule a failed
+proof on `not set` alone. `"authenticated": false` is the failed
+proof: stop and guide `pup auth login` or the API/app key setup;
+never authenticate on the user's behalf.
+
+Site mismatch is silent here: a read against the wrong region returns
+empty rather than failing, so show the site even when the probe passes.
+
+### Change-request phrasing
+
+- "change backend to datadog"
+
+## What to persist
+
+### What stack_config holds
+
+**Nothing.** `stack_config.datadog` is expected to stay empty, and an
+empty entry is the correct final state of a switch to `datadog`.
+
+The Pup CLI carries its own session, and that session is what names the
+**site** (`datadoghq.com`, `datadoghq.eu`, `us3`, `us5`, `ap1`, …) and
+the **org** the queries hit. Persisting a site or org here would
+duplicate the session and diverge from it the moment the user logs in
+elsewhere — while the CLI's own session is still what the query
+actually uses.
+
+### Where each value comes from
+
+From the Pup session, read at use time:
+
+- `pup auth list` — every stored session with its site, org, and
+  expiry; the org/site pair a run targets is the one selected via
+  `--org`/`DD_ORG` and `--site`/`DD_SITE`.
+
+The credential is whichever of the documented mechanisms is in play — an
+OAuth2 session from `pup auth login`, or the environment-variable
+credentials the CLI reads. Refer to it **by name only** (which variable
+is set, which login was used); never read, echo, mask, or persist a
+value. The setup section earlier in this file owns the priority
+order between them.
+
+### What to ask the user
+
+**Nothing about targeting.** Do not ask for the site, the org, the API
+key, or the application key — the first two belong to the session and
+the last two are secrets that never enter this configuration.
+
+One thing is worth saying out loud after the switch, because it fails
+quietly: a session pointed at the wrong site returns **empty results
+rather than an error**. So confirm with the user that the session's site
+is the region their data lives in, and let
+`check-backend-configuration` display it. That is a confirmation, not a
+value to store.
+
+Leave `stack_config.datadog` alone.

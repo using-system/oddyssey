@@ -166,3 +166,265 @@ banner: the `ERROR:` line is the diagnosis, not the stack below it.
   September 2025 MFA mandate for interactive `az login`; plan automation
   (CI, agents) around a service principal or managed identity rather than a
   user identity from the start.
+
+## Configuration display
+
+### Display
+
+Two sources, and every line says which one it came from — the CLI
+identity and the persisted targeting values are different facts and a
+mismatch between them is exactly what this display exists to catch.
+
+From `az account show` (the CLI's own context):
+
+- the active subscription (name and id) and the tenant.
+
+From `stack_config.azure-monitor` (persisted by the user through
+`odd_config_set`, per `odd_config_get`):
+
+- `subscription` — the subscription the mission queries, when it is
+  pinned separately from the CLI's active one.
+- `resource_group` — the resource group holding the workspace; the
+  Application Insights component may sit in another one.
+- `workspace` — the Log Analytics **customer ID** GUID, the value
+  `az monitor log-analytics query` takes as `--workspace`; not the
+  workspace resource name.
+- `app_insights_app` — the Application Insights component's **appId**
+  GUID, the value `az monitor app-insights query` takes as `--app`; not
+  the component's resource name.
+
+Show each stored value next to the field it came from. Every field the
+user did not persist is listed as "not persisted — the mission will
+ask": a present-but-empty `stack_config.azure-monitor` (`{}`) means all
+four are unset, which is a valid state, not an error. Say it plainly
+when the persisted `subscription` differs from the one `az account
+show` reports — the query targets the persisted one.
+
+`app_insights_app` is the one exception to that neutral wording. A
+workspace carries logs and platform metrics; distributed tracing lives
+in the `requests`/`dependencies` tables, which exist only inside an
+Application Insights component. So when `app_insights_app` is unset,
+the line is a **named degradation**, not a shrug:
+
+> no Application Insights configured — `requests`/`dependencies` and the
+> Profiler are unavailable, and the run will see Log Analytics tables
+> only. Distributed tracing will be reported as a telemetry gap.
+
+The mission carries that sentence into the report's telemetry gaps. Say
+it whether the user declined the resource or was never asked: the
+consequence for the run is identical, and stating it is what stops an
+observation from quietly degrading into a logs-only run that reads like
+a complete one.
+
+Add any `invalid_ignored` dotted names as degradations: the stored
+value was invalid and was dropped. `stack_config` has no defaults behind
+it, so a dropped value reads as not persisted — nothing silently took
+its place.
+
+### Connection proof
+
+This section defines the probe the skill's step 3 runs, and it has
+**two parts**, because `az` answering says nothing about whether the
+persisted target exists. A successful identity proof alone is not a
+connected verdict when `app_insights_app` is persisted: both parts must
+pass. The second is skipped — not failed — when nothing is persisted to
+check.
+
+**Identity** — `az account show` succeeding. It doubles as the context
+display: unauthenticated, it fails with a "Please run 'az login'"
+message. Never run `az login` for the user: guide it.
+
+**Targeting** — when `app_insights_app` is persisted, prove the GUID
+resolves before a mission spends a run on it:
+
+```bash
+az monitor app-insights query --app <app_insights_app> \
+  --analytics-query "print 1" --offset 5m -o none
+```
+
+Exit 0 is the proof (about a second against a live component). This
+queries the data plane rather than reading the resource through ARM,
+which is deliberate: it proves the access a mission actually needs, and
+an identity with query rights but no ARM read still passes. The appId
+resolves on the data plane and carries no subscription, so a
+persisted/active subscription mismatch does not affect this proof —
+**do not add `--subscription`** to reconcile it (verified: the probe
+returns exit 0 even under a subscription that does not exist).
+
+Two things this command will not tolerate, both verified on az 2.77.0:
+**never add `-g` beside the GUID** — the pair fails with exit 3 even
+when both values are correct — and never substitute the component's
+resource name. A name would need a `-g` this probe does not pass, and
+proving a name proves nothing about the GUID that is actually stored.
+The `--app` table earlier in this file has the full matrix.
+
+**Read the error line before diagnosing — the exit code alone is not
+enough.** az reserves exit **3** for one thing, a resource that does not
+exist (`ResourceNotFoundError`), and funnels almost everything else into
+exit **1**: authorization failures, expired credentials, network and
+proxy errors, throttling and service errors alike
+(`azure/cli/core/util.py`, az 2.77.0 — `exit_code = 1` is the default
+and `3` is set only for `ResourceNotFoundError`). So:
+
+- **Exit 0** — connected, the persisted appId resolves and is queryable.
+- **Exit 3** — the appId does not resolve. This is the wrong-value case:
+  stop, report the persisted GUID as unresolvable, and route to
+  `update-backend-configuration` to correct it. Catching it here is far
+  cheaper than in an observation that returns empty trace queries and
+  looks merely quiet.
+- **Exit 1** — read the message, and mind that az may wrap it in an
+  "unexpected error … Here is the traceback" banner: the diagnosis is
+  the `ERROR:` line, never the Python stack under it. `The Application
+  Insight is not found. Please check the app id again.` means the
+  persisted value is not an appId GUID — typically the component's
+  resource name, which this probe cannot resolve without a `-g` it does
+  not pass. That is a wrong value: route once, exactly as exit 3. An
+  authorization/`Forbidden` message instead means the identity is
+  authenticated but lacks **query rights** on this component — a
+  permissions problem, **not** a wrong value: re-persisting the same
+  correct GUID will not fix it, so say that plainly and name the missing
+  access rather than routing. A re-authentication message (`AADSTS…`, or
+  a "run `az login`") is an **identity** failure surfacing late: `az
+  account show` reads the local profile and never touches the network,
+  so it returns 0 on a stale token and only this probe reveals it. Hand
+  it to the identity guidance above — do not retry it, and do not route
+  it to `update-backend-configuration`, which cannot fix a login.
+  Anything else (connection, proxy, throttling, service error) is
+  reported verbatim and retried; never rewrite it as a targeting
+  failure.
+- **Exit 2** — az could not parse the command. That is a defect in the
+  command as written, not a configuration problem and never a wrong
+  stored value: fix the invocation against the reference.
+
+Exit 1 is a bucket, not a diagnosis: mistaking a 403 for a bad GUID
+sends the user to re-persist a value that was right all along, and
+mistaking a stored name for a transient error retries it forever.
+
+A failed targeting proof is **not** a "CLI not configured" error and is
+never reported as one: the binary is installed, `az` is authenticated,
+and the backend answered. What is wrong is the stored value or the
+access to it — say it in those terms. Route to
+`update-backend-configuration` **once** for a corrected value; if the
+proof fails again on the value that came back, stop and report rather
+than bouncing between the two skills.
+
+`app_insights_app` unset is **not** a failed proof: it is the
+degradation stated in the display above, and the mission proceeds
+logs-only having said so.
+
+### Change-request phrasing
+
+- "persist workspace <guid> for azure-monitor"
+- "persist app insights <name-or-guid> for azure-monitor"
+- "clear the workspace for azure-monitor"
+- "change backend to azure-monitor"
+
+## What to persist
+
+### What stack_config holds
+
+`az` is a **general-purpose** CLI: its context says who you are and
+which subscription is active, and nothing at all about where the
+telemetry lives. A Log Analytics query needs a workspace GUID that no
+`az` context carries. So `stack_config.azure-monitor` holds the
+targeting information the missions would otherwise ask for on every
+single run:
+
+- `subscription` — the subscription the missions query, by name or id.
+- `resource_group` — the resource group holding the workspace. The
+  Application Insights component may well sit in another one; this field
+  pins the workspace's.
+- `workspace` — the Log Analytics workspace's **customer ID** GUID: the
+  value `az monitor log-analytics query` takes as `--workspace`. Not the
+  workspace resource name, which looks plausible in the same slot and
+  fails.
+- `app_insights_app` — the Application Insights component's **appId**
+  GUID: the value `az monitor app-insights query` takes as `--app` with
+  no `-g` beside it. Not the resource name, which needs a resource group
+  to mean anything, and not the instrumentation key.
+
+The workspace and the component are two different things and the runs
+need both. A workspace holds logs and platform metrics; the
+`requests`/`dependencies` tables that carry distributed tracing exist
+only once an Application Insights component is provisioned and grafted
+onto that workspace. Persisting a workspace and no component configures
+a run that can read logs and cannot see a single trace — which is why
+`app_insights_app` is asked for on every azure-monitor pass rather than
+waited for.
+
+All four are identifiers and names. None of them is a secret: the
+credential behind `az` stays in its own auth store, established by
+`az login`, and is never copied here.
+
+### Where each value comes from
+
+- `subscription` — `az account show` reports the active subscription's
+  name, id, and tenant. If the missions target that one, take it from
+  there; persist it anyway, because "active" is machine state that
+  changes under you and the stored value is what pins the target.
+- `resource_group` — list the workspaces the identity can see and read
+  the group each sits in. The exact listing command comes from the
+  query sections earlier in this file, or from
+  `az monitor log-analytics workspace --help` — never from
+  memory.
+- `workspace` — `az monitor log-analytics workspace show -g
+  <resource_group> -n <name> --query customerId -o tsv` is the command
+  that turns a workspace name into the GUID to store. Deriving it is
+  strictly better than asking: users know their workspace by name and
+  rarely by GUID.
+- `app_insights_app` — `az monitor app-insights component show --app
+  <name> -g <resource_group> --query appId -o tsv` turns a component
+  name into the GUID to store, exactly as the workspace command turns a
+  workspace name into its customer ID. When the user does not know which
+  component to name, list them first —
+  `az monitor app-insights component show -g <resource_group> --query
+  "[].{name:name, appId:appId}" -o table` — and note there is no
+  `component list` subcommand; the discovery block earlier in this
+  file has the full command set.
+  **An empty listing is not an answer.** A component often sits in a
+  different resource group from the workspace it writes to, and a
+  group-scoped listing that finds nothing returns an empty table with
+  exit 0 — indistinguishable, at a glance, from a subscription that has
+  no Application Insights at all. Always widen to the subscription-wide
+  form (`component show --query "[].{name:name, rg:resourceGroup,
+  appId:appId}" -o table`, which reports each component's own group)
+  before concluding there is none. Concluding "no Application Insights"
+  from a narrow listing persists the degradation this field exists to
+  prevent.
+
+### What to ask the user
+
+Ask for **every value that is not derivable** from `az account show` and
+the list commands above, one question rather than four:
+
+> Which subscription, resource group, Log Analytics workspace, and
+> Application Insights resource should the runs query? (I can resolve
+> both GUIDs from their names, and list the candidates if you are
+> unsure.)
+
+The Application Insights part of that question is asked on **every**
+azure-monitor pass, not only when the user brings it up first. It is
+the one value a user is least likely to volunteer and the one whose
+absence costs the most — see above.
+
+If `az` is not yet logged in, do not turn this into an auth flow: state
+what will be asked once the CLI answers, persist what the user does
+supply, and let `check-backend-configuration` guide the login.
+
+**"There is no Application Insights here" is an answer, not a blank** —
+once the user says so outright, or the subscription-wide listing has
+come back empty too. Some Azure Monitor deployments genuinely collect
+infrastructure logs and platform metrics and nothing else. Take that
+answer, persist nothing for
+`app_insights_app`, and say plainly what it costs: the runs will read
+logs and metrics and will report distributed tracing as a telemetry gap.
+Do not persist a placeholder to fill the slot, and do not offer to
+create the resource — provisioning Azure infrastructure is not this
+skill's job.
+
+A value the user cannot supply yet is left unpersisted — that field
+simply reads "not persisted — the mission will ask". Every field except
+`app_insights_app`, whose unset state is the named degradation stated
+above and never a neutral blank. Never invent a GUID, never guess a
+resource group from a name that looks similar, and never persist a
+partial GUID.

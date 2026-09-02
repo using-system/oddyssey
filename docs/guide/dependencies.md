@@ -499,19 +499,25 @@ persisting it through `create-update-benchmark`, closes with
 
 ## Skills
 
-`check-backend-configuration` is the routing hub of the preflight: it
-resolves the configured stack (`odd_config_get`), routes `local` to
-`setup-local-stack`, remote backends to their
-`observability-cli-guides` reference, a missing CLI binary to the
-guided install offer of `update-backend-configuration`, and — where a
-reference defines a targeting proof — a persisted targeting value that
-does not resolve to the same skill for correction.
-`update-backend-configuration`
-owns the switch: CLI presence via the guides' `## CLI binary`
-sections, persistence via `odd_config_set`, verification handed back
-to `check-backend-configuration`. `observability-cli-guides` routes
-the local-stack case to `setup-local-stack`, which reads the effective
-ports from `odd_config_get`. `run-scenario` orders the clean-base
+`check-backend-configuration` is the routing hub of the preflight, and
+knows no stack by name: it resolves the configured stack
+(`odd_config_get`), finds it in `observability-cli-guides`'
+`builtin-stacks.md`, follows the stack's reference — its
+`## Configuration display` section for what to show and how to prove
+the connection (the local stack's reference routes the method to
+`setup-local-stack`) — and routes a missing CLI binary to the guided
+install offer of `update-backend-configuration`, and, where a reference
+defines a targeting proof, a persisted targeting value that does not
+resolve to the same skill for correction.
+`update-backend-configuration`, equally stack-agnostic, owns the
+switch: the target resolved through `builtin-stacks.md`, CLI presence
+via the reference's `## CLI binary` section, the `stack_config` write
+via its `## What to persist` section, persistence via
+`odd_config_set`, verification handed back to
+`check-backend-configuration`. `observability-cli-guides` carries one
+reference per stack — query surface, configuration display, what to
+persist — and routes the local-stack case to `setup-local-stack`,
+which reads the effective ports from `odd_config_get`. `run-scenario` orders the clean-base
 sequence around `odd_stack_reset`; for a stored benchmark it reads the
 script and manifest under `.odd/benchmarks/<name>/` (never writing
 there) and takes the `k6 run` flags, exit codes, and install check from

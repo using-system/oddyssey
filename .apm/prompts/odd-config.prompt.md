@@ -33,7 +33,8 @@ With no arguments, in this order:
 
 1. **Display.** Run the `check-backend-configuration` skill for the
    configured stack: the effective configuration in that backend's own
-   display shape (its `references/<stack>.md`), which instance, tenant,
+   display shape (the `## Configuration display` section of its
+   `observability-cli-guides` reference), which instance, tenant,
    or site the runs will hit, and the connection proof. Surface any
    `invalid_ignored` field `odd_config_get` reports - the stored value
    was tolerated but ignored, and only the user can say what they meant.
@@ -41,9 +42,10 @@ With no arguments, in this order:
    a `stack_config` dotted name was simply dropped - nothing defaults it,
    so it now reads as not persisted.
 2. **Offer the change**, starting with **"Change backend?"**: list the
-   seven backends - `local` (the local stack), `grafana` (a **remote**
-   Grafana), `azure-monitor`, `cloudwatch`, `datadog`, `dynatrace`,
-   `splunk` - with the current one marked. Anything the user picks goes
+   built-in stacks from the `observability-cli-guides` skill's
+   `references/builtin-stacks.md` - every `STACKS` value with its
+   one-line "where" (local or remote) - with the current one marked.
+   Anything the user picks goes
    to the `update-backend-configuration` skill, which owns the switch
    end to end: CLI presence preflight with a guided install offer, the
    persisted switch, the per-stack `stack_config` values, and the

@@ -85,3 +85,90 @@ halves below.
 - The Splunk Cloud `acs` CLI is a distinct, admin-only tool (index/HEC/IP
   allow-list management) and must not be confused with `splunk search` —
   it has no search or query capability at all.
+
+## Configuration display
+
+### Display
+
+The `splunk` CLI has **no whoami surface**, so the context is the
+target the mission provides — display it explicitly rather than
+implying one:
+
+- The instance — the `-uri https://<host>:8089` the commands will
+  carry, or, when the CLI runs on the instance itself, the local
+  `$SPLUNK_HOME` whose `bin/splunk` is being used.
+- The user the commands authenticate as (`splunk login` session or the
+  `-auth <user>:<pass>` the mission supplies) — the **username only**,
+  never the password, and never a full `-auth` string echoed back.
+- The app/index scope when the mission pins one.
+
+`stack_config.splunk` is expected **empty** — the target is per-mission
+and the CLI keeps no shareable context. Present-and-empty (`{}`) or
+missing both display as "nothing persisted — the mission supplies the
+target".
+
+Add any `invalid_ignored` dotted names as degradations: the stored
+value was invalid and was dropped. `stack_config` has no defaults behind
+it, so a dropped value reads as not persisted — nothing silently took
+its place.
+
+### Connection proof
+
+A trivial authenticated search, per the setup section earlier in this
+file: `splunk search '<trivial SPL>'
+-maxout 1`, adding `-uri` for a remote instance. A successful response
+= connected. Failure = stop and guide the login or the
+`-uri`/credential inputs; never authenticate on the user's behalf.
+
+### Change-request phrasing
+
+- "change backend to splunk"
+
+## What to persist
+
+### What stack_config holds
+
+**Nothing.** `stack_config.splunk` is expected to stay empty, and an
+empty entry is the correct final state of a switch to `splunk`.
+
+The reason differs from the other context-bearing CLIs. The `splunk`
+binary ships with the instance it belongs to
+(`$SPLUNK_HOME/bin/splunk`), and the target is either the instance the
+binary lives on or the `-uri https://<host>:8089` a command carries.
+There is no shareable, persistent context to mirror and no whoami
+surface to read one from: the target is supplied **per mission**, so
+storing it here would pin a value the next mission may legitimately
+override.
+
+### Where each value comes from
+
+From the mission and the invocation, not from a stored context:
+
+- the instance — the `-uri https://<host>:8089` the commands carry, or
+  the local `$SPLUNK_HOME` whose `bin/splunk` is being used;
+- the user — the `splunk login` session or the `-auth <user>:<...>` the
+  mission supplies, referred to by **username only**;
+- the app or index scope — when a mission pins one, and only for that
+  mission.
+
+The `splunk` Detect command references `$SPLUNK_HOME`, which is usually
+unset — run it in a shell without `set -u`, as the CLI preflight
+requires.
+
+Note also that Splunk Enterprise / Cloud Platform (SPL, the `splunk`
+CLI) and Splunk Observability Cloud (SignalFlow, APM) are separate
+products with separate credentials. Nothing about that distinction is
+stored here either; the query sections earlier in this file own it.
+
+### What to ask the user
+
+**Nothing to persist.** Do not ask for the instance host, the username,
+the password, or any authentication value with the intent of storing it
+— the credential lives in the CLI's login session or in the mission's
+own inputs.
+
+Asking which instance a run should target is a **mission** question, and
+`check-backend-configuration` displays whatever the mission supplies.
+Keep it there.
+
+Leave `stack_config.splunk` alone.
