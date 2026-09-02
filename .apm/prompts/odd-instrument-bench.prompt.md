@@ -1,10 +1,15 @@
 ---
-description: Investigate a service and author a k6 load-test benchmark plan as code in .odd/benchmarks/ - asks back whatever only a human can decide before dispatching the authoring agent, never executes the benchmark
+description: Investigate a service and author a k6 load-test benchmark plan as code in .odd/benchmarks/ - asks back whatever only a human can decide before dispatching the authoring agent, which validates the script with k6 inspect and one smoke iteration and never runs the benchmark
 ---
 
-Before dispatching anything: consult the `k6-guides` skill's
-`authoring-inputs.md` reference for which dimensions of this benchmark
-only a human can decide, and which the agent can discover on its own.
+Before dispatching anything: confirm the `k6` binary is on the path
+(`command -v k6`) - authoring validates the script with `k6 inspect`
+and a one-iteration smoke, both need it; when it is missing, stop with
+the install steps from the `k6-guides` skill's `install.md` -
+installing is the user's call, never the agent's. Then consult the
+`k6-guides` skill's `authoring-inputs.md` reference for which
+dimensions of this benchmark only a human can decide, and which the
+agent can discover on its own.
 Ask the caller, **in this conversation, before any dispatch** - the
 steps needing the caller cannot happen inside a subagent, the same
 principle `/odd-observe`'s own preflight states outright. Specifically:
@@ -20,6 +25,12 @@ principle `/odd-observe`'s own preflight states outright. Specifically:
   test type and the service's known scale, then confirm it with the
   caller rather than silently deciding (VU count alone is not the request
   rate - the pacing belongs in what gets confirmed).
+- **Smoke check at a remote target** - when the target base URL is not
+  local (`localhost`, `127.0.0.1`), ask whether one iteration of the
+  script may be sent at it before persisting: one real pass over the
+  script's requests, with real side effects, and nothing more. A local
+  target is self-authorized, no question. A refusal is passed to the
+  agent as `declined`, never silently turned into a yes.
 
 Never ask about anything `authoring-inputs.md` classifies as
 agent-discoverable (target scope/endpoints) - that's the agent's job,
@@ -35,9 +46,10 @@ Build the mission from the arguments and the Q&A above:
 - Arguments: $ARGUMENTS
 - Expected fields (any order, free-form): the **service** to benchmark
   (required), **new or update** (default: ask if ambiguous, per above),
-  **test type**, **thresholds**, **target base URL**, and optionally a
-  **load shape/duration** the caller already has in mind (otherwise
-  propose one during the Q&A above).
+  **test type**, **thresholds**, **target base URL**, the **smoke
+  check** authorization for a remote target (asked above), and
+  optionally a **load shape/duration** the caller already has in mind
+  (otherwise propose one during the Q&A above).
 
 Close the mission with the `show-benchmark` skill: render its synthesis
 of the stored benchmark as the final answer, stating the stored path.

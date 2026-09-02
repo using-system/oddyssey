@@ -105,6 +105,50 @@ above), which holds iterations/s directly and starts however many VUs
 that takes. Source:
 https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/constant-arrival-rate/
 
+## Response bodies - `discardResponseBodies` and `responseType`
+
+Official docs: `using-k6/k6-options/reference/#discard-response-bodies`,
+`javascript-api/k6-http/params/` (`Params.responseType`).
+
+`discardResponseBodies: true` in `options` changes the default
+`responseType` of **every** request to `none`: `res.body` is `null`,
+and `res.json()` throws. The docs recommend exactly that - discard
+globally, it lightens memory and GC on the load generator - **and then
+set `responseType: 'text'` (or `'binary'`) on the individual requests
+whose body the script reads**:
+
+```javascript
+export const options = { discardResponseBodies: true };
+
+export default function () {
+  const res = http.post(`${__ENV.BASE_URL}/orders`, payload, {
+    headers: { 'Content-Type': 'application/json' },
+    responseType: 'text', // this body is read below
+  });
+  const id = res.json('id');
+}
+```
+
+Verified live (this machine, 2026-09-02, k6 v2.2.0, one iteration
+against a trivial local JSON endpoint):
+
+- global discard, `res.json('id')` on the POST, **no override** -
+  `res.body` is `null`, then `GoError: the body is null so we can't
+  transform it to JSON - this likely was because of a request error
+  getting the response`, a script exception on every iteration. The
+  request itself succeeded: the error message's guess is wrong, the
+  cause is the discard.
+- the same script with `responseType: 'text'` on that request - the id
+  is read, no error.
+
+This is a **runtime** defect: `k6 inspect` does not see it (see
+running-tests.md, "Validating without running"), and a benchmark
+carrying it reports a clean run whose every dependent request went to
+a nonexistent id. The static check is trivial - a global discard plus
+any `res.json()` / `res.body` / `res.html()` on a request without an
+explicit `responseType` is a self-contradiction to fix before
+persisting.
+
 ## Minimal runnable script
 
 The blocks above are fragments. This is the structure that makes them

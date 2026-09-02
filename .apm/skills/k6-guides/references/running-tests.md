@@ -19,6 +19,41 @@ https://grafana.com/docs/k6/latest/results-output/
 | `-e KEY=value` | set an environment variable for the script (`__ENV.KEY`) - how a mission-time base URL or a named secret reaches the script without editing it |
 | `--no-setup` / `--no-teardown` | skip the script's `setup()`/`teardown()` |
 
+## Validating without running - `k6 inspect` and the one-iteration smoke
+
+Two checks sit between "written" and "run", both verified live on this
+machine (2026-09-02, k6 v2.2.0):
+
+- **`k6 inspect <script>`** - loads the script, runs its init context,
+  resolves the options, prints them as JSON. Parse and schema errors
+  fail here with the exact message: `constant-arrival-rate` with
+  `rate: 1.5` exits **104** - `parsing options from script got error
+  ... json: cannot unmarshal number 1.5 into Go struct field
+  Options.scenarios.rate of type int64`. **Zero network I/O**: a script
+  whose requests target an unresolvable host inspects with exit 0 - no
+  request is ever sent, no target is contacted. Equally, it catches
+  nothing that only happens at runtime - a `discardResponseBodies` /
+  `res.json()` contradiction (scripting.md, "Response bodies") inspects
+  clean. Official docs carry no dedicated page for the command; `k6
+  inspect --help` is the reference.
+- **The one-iteration smoke** - `k6 run --vus 1 --iterations 1
+  --no-thresholds <script>`. When the script defines
+  `options.scenarios`, these CLI flags **replace the scenarios
+  entirely** - k6 logs `"cli" level configuration overrode scenarios
+  configuration entirely` - so exactly one VU runs the default function
+  exactly once (verified: a `constant-arrival-rate` script at 5 req/s
+  for 20 s ran 1 iteration, 1 request, in 0.17 s). `--no-thresholds`
+  keeps a one-sample latency from crossing a p95 threshold and turning
+  a clean smoke into exit 99. Two limits to state when relying on it:
+  the override runs the **default** function only, so a scenario naming
+  another function through `exec` is not exercised; and the iteration's
+  requests are real, with real side effects on the target - the smoke
+  is authorized like any traffic at that target, never assumed.
+
+Neither is the benchmark: the first sends nothing, the second sends one
+iteration. Anything beyond - a `--duration`, a second iteration - is a
+run, and belongs to the execution side (`run-scenario`).
+
 ## Exit codes
 
 **Verified live** (this machine, 2026-08-31, k6 v2.2.0):

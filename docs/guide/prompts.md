@@ -40,15 +40,20 @@ the local oddyssey stack).
 
 Investigates a service and authors a k6 load-test benchmark - a script
 plus a manifest - into `.odd/benchmarks/<name>/`, through the
-`k6-benchmark-expert` agent. It never runs what it writes. The mission
+`k6-benchmark-expert` agent. The agent validates the script before
+persisting it - a static check, `k6 inspect`, one smoke iteration at
+the target - and never runs it as a benchmark. The mission
 closes with a short synthesis of the stored benchmark (the
 `show-benchmark` skill); the stored files are the deliverable, never
 the synthesis. Free-form arguments map to: the **service** to benchmark
 (required), **new benchmark or an update** to a named existing one, the
 **test type** (smoke / load / stress / soak / spike / breakpoint), the
-**thresholds**, the **target base URL or environment**, and optionally
-a **load shape and duration**. Whatever the arguments leave open, the
-prompt asks back in the conversation before dispatching the agent.
+**thresholds**, the **target base URL or environment**, the **smoke
+check** authorization when that target is remote, and optionally a
+**load shape and duration**. Whatever the arguments leave open, the
+prompt asks back in the conversation before dispatching the agent -
+after confirming the `k6` binary is installed, since validation needs
+it.
 
 ```text
 /odd-instrument-bench author a load benchmark for checkout, p95 under 300ms
@@ -72,6 +77,11 @@ prompt asks back in the conversation before dispatching the agent.
 - "against http://localhost:8080" / "on staging" - the target base URL
   or environment; never guessed by probing, so a mission that omits it
   gets asked;
+- a remote target ("on staging") also gets the smoke question: may one
+  iteration of the script - one real pass over its requests, with real
+  side effects - be sent at it before the benchmark is persisted? A
+  local target is self-authorized; a refusal is recorded as `declined`
+  in the manifest, and the validation stops at `k6 inspect`;
 - "50 VUs for 2 hours" / "1 VU for 1 minute" - the load shape and
   duration; leave them out and the prompt proposes a shape fitting the
   test type for you to confirm, never decides one silently;

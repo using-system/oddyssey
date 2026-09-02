@@ -5,11 +5,13 @@ identically for as long as it stays useful.
 
 ## Install k6
 
-Needed to **run** a benchmark, never to author one — authoring only
-writes the script and the manifest, it never executes k6 itself. The
-`/odd-observe` and `/odd-verify` preflights check for the binary before
-dispatching a run and stop with the install steps when it is missing;
-nothing installs it for you.
+Needed on both sides. Authoring **validates** the script with it —
+`k6 inspect` (parse and schema, no network) and one smoke iteration at
+the target — without ever running the benchmark; running one is
+`/odd-observe`'s job. The `/odd-instrument-bench`, `/odd-observe`, and
+`/odd-verify` preflights check for the binary before dispatching and
+stop with the install steps when it is missing; nothing installs it
+for you.
 
 **Binary**: `k6` — `brew install k6` (macOS/Linux), or the official
 install script / prebuilt binaries for other platforms:
@@ -24,9 +26,25 @@ https://grafana.com/docs/k6/latest/set-up/install-k6/
 Investigates the service and writes a k6 script + manifest into
 `.odd/benchmarks/<name>/`. It asks you back for whatever only you can
 decide — test type, thresholds, target environment, new benchmark or an
-update to an existing one — and proposes a load shape/duration for you
-to confirm; everything else (which endpoints matter) it figures out on
-its own. It never runs what it writes.
+update to an existing one, and, for a remote target, whether one smoke
+iteration may be sent at it — and proposes a load shape/duration for
+you to confirm; everything else (which endpoints matter) it figures
+out on its own.
+
+Before persisting, the agent validates what it wrote, in this order: a
+static check for the `discardResponseBodies` / `res.json()`
+self-contradiction (a runtime crash no parser sees), `k6 inspect` (a
+parse and schema check that contacts nothing — a non-integer
+`constant-arrival-rate` `rate` fails here), and a one-iteration smoke,
+`k6 run --vus 1 --iterations 1 --no-thresholds`, which replaces the
+script's scenarios with exactly one pass over its requests. A failure
+is fixed and re-validated, never persisted. The manifest records the
+validation (k6 version, date, the smoke's result — passed, declined,
+or the functions it did not cover) and the closing synthesis renders
+it. The smoke is self-authorized against a local target and asked for
+a remote one, every time: its single iteration is real traffic with
+real side effects. It never runs the benchmark itself — nothing beyond
+that one iteration.
 
 Updating an existing benchmark follows the same prompt — the change
 comes back as a reviewed diff against the stored version, never a

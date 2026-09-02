@@ -98,8 +98,11 @@ persists the script and manifest through `create-update-benchmark`,
 which owns `.odd/benchmarks/`. Both the agent and the prompt close on
 `show-benchmark`, which renders only what `create-update-benchmark`
 just wrote and returned - it never reads the store itself, hence no
-edge to it. No MCP tool appears here: authoring touches no stack and no
-configuration, and never executes the benchmark.
+edge to it. The prompt checks the `k6` binary per `k6-guides`'
+`install.md` before dispatching: the agent validates the script with
+`k6 inspect` and one smoke iteration at the target (both from
+`running-tests.md`). No MCP tool appears here: authoring touches no
+stack and no configuration, and never executes the benchmark.
 
 ```mermaid
 flowchart LR
@@ -480,8 +483,9 @@ named service emits no telemetry at all, it recommends
 `otel-instrumentation-expert`. `k6-benchmark-expert` authors k6
 benchmarks and only that: it sources every k6 claim from `k6-guides`,
 reads the stored observation reports for the service's hot operations,
-persists script and manifest through `create-update-benchmark`, closes
-with `show-benchmark` - and never executes what it wrote.
+validates the script (`k6 inspect`, one smoke iteration) before
+persisting it through `create-update-benchmark`, closes with
+`show-benchmark` - and never runs what it wrote as a benchmark.
 
 ## Skills
 
