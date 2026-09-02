@@ -11,15 +11,15 @@ steps needing the user cannot happen inside a subagent):
 1. Resolve the target stack: the configured one (`odd_config_get`), or
    the one the arguments name - a stack is one of the values the
    `observability-cli-guides` skill's `references/builtin-stacks.md`
-   lists (its **Also called** column maps a user's phrasing onto one);
-   a location word that is none of them ("on prod") is a
+   lists (its **Also called** column maps a user's phrasing onto one); a
+   location word that is none of them ("on prod") is a
    deployment-environment expectation, never a switch - see below. A
-   named stack is persisted with `odd_config_set` so the next run
-   starts from it. A local mission on
-   a non-local stack switches to `local` - the local stack is
-   self-serve, nothing to authenticate; every other stack value names
-   a remote backend (for `grafana`, the gcx context says which
-   instance).
+   named stack is persisted with `odd_config_set` so the next run starts
+   from it. A local mission on a non-local stack switches to `local` -
+   the local stack is self-serve, nothing to authenticate; every other
+   stack value names a remote backend (for `grafana`, the gcx context
+   says which instance).
+
 2. Run the `check-backend-configuration` skill: show the CLI's effective
    configuration to the user (no confirmation needed), and fail fast
    with its "CLI not configured for <backend>" error instead of letting

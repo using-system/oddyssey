@@ -505,57 +505,54 @@ persisting it through `create-update-benchmark`, closes with
 `check-backend-configuration` is the routing hub of the preflight, and
 knows no stack by name: it resolves the configured stack
 (`odd_config_get`), finds it in `observability-cli-guides`'
-`builtin-stacks.md`, follows the stack's reference — its
-`## Configuration display` section for what to show and how to prove
-the connection (the local stack's reference routes the method to
+`builtin-stacks.md`, follows the stack's reference — its `##
+Configuration display` section for what to show and how to prove the
+connection (the local stack's reference routes the method to
 `setup-local-stack`) — and routes a missing CLI binary to the guided
 install offer of `update-backend-configuration`, and, where a reference
 defines a targeting proof, a persisted targeting value that does not
 resolve to the same skill for correction.
-`update-backend-configuration`, equally stack-agnostic, owns the
-switch: the target resolved through `builtin-stacks.md`, CLI presence
-via the reference's `## CLI binary` section, the `stack_config` write
-via its `## What to persist` section, persistence via
-`odd_config_set`, verification handed back to
-`check-backend-configuration`. `observability-cli-guides` carries one
-reference per stack — query surface, configuration display, what to
-persist — and routes the local-stack case to `setup-local-stack`,
-which reads the effective ports from `odd_config_get`. `run-scenario`
-orders the clean-base sequence around `odd_stack_reset`; for a stored
-benchmark it reads the script and manifest under
-`.odd/benchmarks/<name>/` (never writing
-there) and takes the `k6 run` flags, exit codes, and install check from
-`k6-guides`. The two create-report skills own
-the two report stores (`.odd/observe-run-reports/`,
-`.odd/otel-instrumentation-reports/`): naming, frontmatter contracts,
-recall - nothing else writes to them, and whatever reads them directly
-follows those file contracts rather than defining its own. The two
-show-report skills (`show-observe-run-report`,
-`show-otel-instrumentation-report`) read a stored report and render
-its closing synthesis - display only: they follow the create skills'
-file contracts, write nothing, and invoke no other component.
-`k6-guides` is the k6 counterpart of `otel-guides` - a topic-selection
-map read by `/odd-instrument-bench` (which questions to ask, and the
-`install.md` auto-install step), by `k6-benchmark-expert` (authoring and
-validating: `scripting.md`, `running-tests.md`), by `run-scenario`
-(running a stored benchmark: `running-tests.md` and `install.md`), and
-by `/odd-observe` and `/odd-verify` (the `install.md` auto-install step
-in their preflight), invoking nothing itself.
-`create-update-benchmark` owns `.odd/benchmarks/` - the naming, the
-recall by service and by benchmark name, the reviewed diff an update
-goes through, the commit; unlike the two create-report skills it stores
-living source, not append-only records. `show-benchmark` renders the
-closing synthesis from what `create-update-benchmark` just returned,
-and reads nothing else. `get-status` owns
-the status surface - its sources (both stores, git, the decisions
-ledger), the build order, the empty-filter answer, the degradation -
-and invokes no other component: it only reads.
-`record-finding-decision` owns `.odd/decisions.md` - the row format,
-the resolution of a finding reference to `<report filename> / <finding
-ID>`, and the commit of that file alone; it reads the observation
-reports to resolve the reference, never edits one, and invokes no
-other component either. `get-status` follows that ledger contract when
-it reads the file, without calling the skill.
+`update-backend-configuration`, equally stack-agnostic, owns the switch:
+the target resolved through `builtin-stacks.md`, CLI presence via the
+reference's `## CLI binary` section, the `stack_config` write via its
+`## What to persist` section, persistence via `odd_config_set`,
+verification handed back to `check-backend-configuration`.
+`observability-cli-guides` carries one reference per stack — query
+surface, configuration display, what to persist — and routes the
+local-stack case to `setup-local-stack`, which reads the effective ports
+from `odd_config_get`. `run-scenario` orders the clean-base sequence
+around `odd_stack_reset`; for a stored benchmark it reads the script and
+manifest under `.odd/benchmarks/<name>/` (never writing there) and takes
+the `k6 run` flags, exit codes, and install check from `k6-guides`. The
+two create-report skills own the two report stores
+(`.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`):
+naming, frontmatter contracts, recall - nothing else writes to them, and
+whatever reads them directly follows those file contracts rather than
+defining its own. The two show-report skills (`show-observe-run-report`,
+`show-otel-instrumentation-report`) read a stored report and render its
+closing synthesis - display only: they follow the create skills' file
+contracts, write nothing, and invoke no other component. `k6-guides` is
+the k6 counterpart of `otel-guides` - a topic-selection map read by
+`/odd-instrument-bench` (which questions to ask, and the `install.md`
+auto-install step), by `k6-benchmark-expert` (authoring and validating:
+`scripting.md`, `running-tests.md`), by `run-scenario` (running a stored
+benchmark: `running-tests.md` and `install.md`), and by `/odd-observe`
+and `/odd-verify` (the `install.md` auto-install step in their
+preflight), invoking nothing itself. `create-update-benchmark` owns
+`.odd/benchmarks/` - the naming, the recall by service and by benchmark
+name, the reviewed diff an update goes through, the commit; unlike the
+two create-report skills it stores living source, not append-only
+records. `show-benchmark` renders the closing synthesis from what
+`create-update-benchmark` just returned, and reads nothing else.
+`get-status` owns the status surface - its sources (both stores, git,
+the decisions ledger), the build order, the empty-filter answer, the
+degradation - and invokes no other component: it only reads.
+`record-finding-decision` owns `.odd/decisions.md` - the row format, the
+resolution of a finding reference to `<report filename> / <finding ID>`,
+and the commit of that file alone; it reads the observation reports to
+resolve the reference, never edits one, and invokes no other component
+either. `get-status` follows that ledger contract when it reads the
+file, without calling the skill.
 
 ## MCP tools
 
