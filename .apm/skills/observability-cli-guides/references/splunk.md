@@ -116,9 +116,9 @@ its place.
 
 A trivial authenticated search, per the setup section earlier in this
 file: `splunk search '<trivial SPL>' -maxout 1`, adding `-uri` for a
-remote instance. A successful response
-= connected. Failure = stop and guide the login or the
-`-uri`/credential inputs; never authenticate on the user's behalf.
+remote instance. A successful response = connected. Failure = stop and
+guide the login or the `-uri`/credential inputs; never authenticate on
+the user's behalf.
 
 ### Change-request phrasing
 

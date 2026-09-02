@@ -129,8 +129,10 @@ never an argument - the agent detects it from the service's telemetry.
 
 - "checkout", "payment", "orders" - the services;
 - "on the local stack" / "switch to grafana" - the stack (one of the
-  seven configured values; a named stack is persisted as the new
-  configured one); the backend queried is otherwise the configured
+  values the `observability-cli-guides` skill's
+  `references/builtin-stacks.md` lists; a named stack is persisted as
+  the new configured one); the backend queried is otherwise the
+  configured
   one - `/odd-config` is the guided way to switch;
 - if the observability stack is shared across deployment environments
   (one Grafana receiving prod AND uat), mention the environment in

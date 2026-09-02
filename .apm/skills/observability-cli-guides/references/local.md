@@ -23,7 +23,7 @@ context of its own.
 The method is `setup-local-stack`'s: the isolated gcx context pointed at
 the configured Grafana port, the datasource UIDs, the push-model
 caveats. The CLI's own setup steps are [grafana.md](grafana.md)'s
-`## Setup`; nothing to authenticate here - the stack serves its API
+`## Setup`; nothing to authenticate here — the stack serves its API
 anonymously.
 
 ## Configuration display

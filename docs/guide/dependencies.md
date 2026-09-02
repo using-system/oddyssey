@@ -456,7 +456,8 @@ their show-report skill's synthesis of the stored report
 respectively; `/odd-verify` closes with the latter too, verdict
 first). `/odd-observe`'s preflight
 runs in the main conversation first - resolve the stack
-(`odd_config_get`, persisting a switch with `odd_config_set`) and
+(`odd_config_get`, the valid values from `observability-cli-guides`'
+`builtin-stacks.md`, persisting a switch with `odd_config_set`) and
 prove the CLI connected (`check-backend-configuration`). `/odd-verify`
 resolves the baseline report across both `.odd/` stores, preflights
 against the report's `stack` (never silently retargeting the
@@ -521,8 +522,8 @@ reference per stack — query surface, configuration display, what to
 persist — and routes the local-stack case to `setup-local-stack`,
 which reads the effective ports from `odd_config_get`. `run-scenario`
 orders the clean-base sequence around `odd_stack_reset`; for a stored
-benchmark it reads the
-script and manifest under `.odd/benchmarks/<name>/` (never writing
+benchmark it reads the script and manifest under
+`.odd/benchmarks/<name>/` (never writing
 there) and takes the `k6 run` flags, exit codes, and install check from
 `k6-guides`. The two create-report skills own
 the two report stores (`.odd/observe-run-reports/`,

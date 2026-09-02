@@ -13,8 +13,9 @@ steps needing the user cannot happen inside a subagent):
    `observability-cli-guides` skill's `references/builtin-stacks.md`
    lists (its **Also called** column maps a user's phrasing onto one);
    a location word that is none of them ("on prod") is a
-   deployment-environment expectation, never a switch - see below. A named stack is persisted with
-   `odd_config_set` so the next run starts from it. A local mission on
+   deployment-environment expectation, never a switch - see below. A
+   named stack is persisted with `odd_config_set` so the next run
+   starts from it. A local mission on
    a non-local stack switches to `local` - the local stack is
    self-serve, nothing to authenticate; every other stack value names
    a remote backend (for `grafana`, the gcx context says which
