@@ -9,10 +9,9 @@ need it. `command -v k6`; when it is missing, run `brew install k6`
 directly when Homebrew is available (no confirmation - k6 needs no
 account and no configuration), otherwise follow that reference's
 non-interactive path for the platform or hand the remaining steps to
-the user and stop. Then consult the
-`k6-guides` skill's `authoring-inputs.md` reference for which
-dimensions of this benchmark only a human can decide, and which the
-agent can discover on its own.
+the user and stop. Then consult the `k6-guides` skill's
+`authoring-inputs.md` reference for which dimensions of this benchmark
+only a human can decide, and which the agent can discover on its own.
 Ask the caller, **in this conversation, before any dispatch** - the
 steps needing the caller cannot happen inside a subagent, the same
 principle `/odd-observe`'s own preflight states outright. Specifically:

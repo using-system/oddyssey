@@ -1,6 +1,6 @@
 ---
 name: k6-guides
-description: Curated map of the official k6 load-testing docs - installation, running a script, scripting (checks/thresholds/scenarios), test types, protocols, and which questions a benchmark's inputs require before it can be authored. Use when authoring or reasoning about a k6 benchmark - pick the topic, open its reference file, and follow the linked official docs. Read by /odd-instrument-bench (which questions to ask), k6-benchmark-expert (authoring and validating), and run-scenario (running a stored benchmark).
+description: Curated map of the official k6 load-testing docs - installation, running a script, scripting (checks/thresholds/scenarios), test types, protocols, and which questions a benchmark's inputs require before it can be authored. Use when authoring or reasoning about a k6 benchmark - pick the topic, open its reference file, and follow the linked official docs. Read by /odd-instrument-bench (which questions to ask), k6-benchmark-expert (authoring and validating), run-scenario (running a stored benchmark), and the /odd-instrument-bench, /odd-observe, and /odd-verify preflights (ensuring k6 is present).
 ---
 
 # k6 guides

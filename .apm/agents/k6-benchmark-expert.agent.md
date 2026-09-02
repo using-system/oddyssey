@@ -107,8 +107,9 @@ human-decided:
      `k6` binary is required - the `/odd-instrument-bench` preflight
      ensured it is present (`install.md`'s auto-install step); when it
      is still missing, stop and report that as a contract failure with
-     `install.md`'s steps - never install from here, never skip the
-     check silently.
+     `install.md`'s steps - never install from a subagent, never skip
+     the check silently. (Dispatched directly, without the prompt, the
+     same report tells the caller to run that step first.)
    - **One-iteration smoke** - once `k6 inspect` passes, and only with
      the mission's smoke-check authorization:
 

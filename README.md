@@ -308,10 +308,12 @@ More invocation examples for every prompt live in
   `/odd-verify` run it. The three prompts' preflights install it on
   the spot when it is missing and Homebrew is available
   (`brew install k6`, no confirmation — k6 needs no account and no
-  configuration); without Homebrew they hand you the official steps.
-  To install it yourself: `brew install k6` on macOS, the official
-  APT/YUM repositories or a release binary on Linux, or the
-  `grafana/k6` Docker image.
+  configuration); without Homebrew they follow the platform's
+  non-interactive path when one exists, otherwise hand you the
+  official steps. To install it yourself: `brew install k6` on macOS,
+  the official APT/YUM repositories or a release binary on Linux, the
+  MSI installer or a package manager on Windows — a `k6` on your path,
+  which the `grafana/k6` Docker image does not provide.
 
 ## The MCP server
 

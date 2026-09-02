@@ -17,9 +17,9 @@ preflight follows the official page's non-interactive path where one
 exists (Windows package managers) and otherwise hands you the steps
 (the Linux packages need `sudo` and a repository key) and stops.
 
-**Binary**: `k6` — `brew install k6` (macOS/Linux), or the official
-install script / prebuilt binaries for other platforms:
-https://grafana.com/docs/k6/latest/set-up/install-k6/
+**Binary**: `k6` on your path — `brew install k6` (macOS/Linux), or
+the official packages, MSI installer, or standalone binary for other
+platforms: https://grafana.com/docs/k6/latest/set-up/install-k6/
 
 ## Author
 

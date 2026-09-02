@@ -193,8 +193,8 @@ report is picked.
 - a report backed by a stored k6 benchmark replays in the mode its
   frontmatter records - `drive` re-runs the benchmark through the
   `run-scenario` skill (k6 installed on the spot when missing and
-  Homebrew is available), `observe` only watches -
-  never inferring `drive` from the benchmark's presence; see
+  Homebrew is available), `observe` only watches - never inferring
+  `drive` from the benchmark's presence; see
   [docs/guide/benchmarks.md](benchmarks.md);
 - when the replay tests no fix - the code (commits and working tree
   alike; the loop's memory and documentation aside, the memory being

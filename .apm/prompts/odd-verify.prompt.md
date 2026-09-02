@@ -58,10 +58,10 @@ what is missing before dispatching. When the replay will be `drive`
 with a stored benchmark (the report's record names one), ensure the
 `k6` binary is present, per the `k6-guides` skill's `install.md`
 auto-install step: `command -v k6`; when it is missing, run
-`brew install k6` directly when Homebrew is available (no confirmation
-- k6 needs no account and no configuration), otherwise follow that
-reference's non-interactive path for the platform or hand the
-remaining steps to the user and stop.
+`brew install k6` directly when Homebrew is available (no
+confirmation - k6 needs no account and no configuration), otherwise
+follow that reference's non-interactive path for the platform or hand
+the remaining steps to the user and stop.
 
 Then build the mission block from that report:
 

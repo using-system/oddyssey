@@ -100,10 +100,10 @@ which owns `.odd/benchmarks/`. Both the agent and the prompt close on
 just wrote and returned - it never reads the store itself, hence no
 edge to it. The prompt ensures the `k6` binary is present per
 `k6-guides`' `install.md` (its auto-install step) before dispatching:
-the agent validates the script with
-`k6 inspect` and one smoke iteration at the target (both from
-`running-tests.md`). No MCP tool appears here: authoring touches no
-stack and no configuration, and never executes the benchmark.
+the agent validates the script with `k6 inspect` and one smoke
+iteration at the target (both from `running-tests.md`). No MCP tool
+appears here: authoring touches no stack and no configuration, and
+never executes the benchmark.
 
 ```mermaid
 flowchart LR
@@ -156,12 +156,12 @@ prove the CLI connected (`check-backend-configuration`); when the
 arguments name a stored benchmark, the preflight also reads its
 manifest under `.odd/benchmarks/` for the target service and ensures
 the `k6` binary is present the way `k6-guides`' `install.md` says
-(its auto-install step) - then the
-mission dispatches to `observe-run`, and the prompt closes it with
-`show-observe-run-report`, rendering a synthesis of the stored report
-as the final answer. `otel-instrumentation-expert` is
-a boundary node - recommended when a named service emits no telemetry
-at all; its path is the `/odd-instrument-otel` diagram.
+(its auto-install step) - then the mission dispatches to
+`observe-run`, and the prompt closes it with `show-observe-run-report`,
+rendering a synthesis of the stored report as the final answer.
+`otel-instrumentation-expert` is a boundary node - recommended when a
+named service emits no telemetry at all; its path is the
+`/odd-instrument-otel` diagram.
 
 ```mermaid
 flowchart LR
@@ -248,9 +248,9 @@ configured one - so no `odd_config_set` in this subgraph), mandates
 `create-observe-run-report`'s verification rules for the report its
 agent will persist, ensures the `k6` binary is present per
 `k6-guides`' `install.md` (its auto-install step) when a drive replay
-carries a stored benchmark, dispatches to
-`observe-run`, and closes the mission with `show-observe-run-report`'s
-synthesis of the stored report - verdict first.
+carries a stored benchmark, dispatches to `observe-run`, and closes
+the mission with `show-observe-run-report`'s synthesis of the stored
+report - verdict first.
 `otel-instrumentation-expert` is the same boundary node as in
 `/odd-observe` - its path is the `/odd-instrument-otel` diagram.
 
@@ -458,12 +458,11 @@ configured one), and mandates `create-observe-run-report`'s
 verification rules for the report its agent will persist.
 `/odd-instrument-bench` is a dispatcher too: it ensures the `k6`
 binary is present (`k6-guides`' `install.md`, auto-install) and asks
-its human-decided questions first
-(`k6-guides`' `authoring-inputs.md` classifies them, the remote smoke
-authorization among them), recalling through `create-update-benchmark`
-when new-versus-update is ambiguous, before handing the mission to
-`k6-benchmark-expert` and closing with `show-benchmark`'s synthesis of
-the stored benchmark.
+its human-decided questions first (`k6-guides`' `authoring-inputs.md`
+classifies them, the remote smoke authorization among them), recalling
+through `create-update-benchmark` when new-versus-update is ambiguous,
+before handing the mission to `k6-benchmark-expert` and closing with
+`show-benchmark`'s synthesis of the stored benchmark.
 `/odd-status` dispatches no agent: it is a thin router over two skills
 running in the main conversation - `get-status` for the render, and
 `record-finding-decision` when, and only when, the user asks for a
