@@ -44,6 +44,7 @@ step "a fresh machine reads pure defaults"
 mcp_call odd_config_get > "$workdir/defaults.json"
 assert_result_contains "$workdir/defaults.json" '"stack": "local"'
 assert_result_contains "$workdir/defaults.json" '"grafana_port": 3000'
+assert_result_contains "$workdir/defaults.json" '"pyroscope_port": 4040'
 assert_result_contains "$workdir/defaults.json" '"stack_config": {}'
 
 step "the stack switch round-trips through every allowed value"

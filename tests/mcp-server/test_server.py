@@ -123,6 +123,33 @@ def test_config_set_boots_a_stopped_container_before_writing_ports(
     assert events == ["up", "save", "reset"]
 
 
+def test_config_set_preboot_skips_the_port_guard(monkeypatch, tmp_path):
+    # #224 review: after an upgrade adds a named port, every pre-change
+    # container mismatches the configuration - the enumeration pre-boot
+    # must bypass stack_up's guard or the pre-wipe listing reads a dead
+    # container and reports services_wiped: [] over real data (#35).
+    monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / "config.json")
+    monkeypatch.setattr(stack, "_container_state", lambda: "stopped")
+    monkeypatch.setattr(stack, "container_user_env", lambda: None, raising=False)
+    guard_flags: list[bool] = []
+    monkeypatch.setattr(
+        stack,
+        "stack_up",
+        lambda env=None, persist=True, check_ports=True: (
+            guard_flags.append(check_ports) or {"running": True}
+        ),
+    )
+    monkeypatch.setattr(
+        stack,
+        "stack_reset",
+        lambda env=None, **kwargs: {"running": True, "services_wiped": []},
+    )
+
+    server.odd_config_set({"local": {"grafana_port": 3300}})
+
+    assert guard_flags == [False]
+
+
 def test_config_set_description_states_the_wipe_and_the_restart_note():
     tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
     description = tools["odd_config_set"].description

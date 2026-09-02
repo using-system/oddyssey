@@ -39,7 +39,16 @@ SUPERSEDED_DEFAULT_ENV: tuple[str, ...] = ()
 # Container-side ports are fixed by the image; only the host side is
 # configurable (issue #59). Ports and URLs are resolved at call time so
 # a configuration change is honored without restarting the server.
-CONTAINER_PORTS = {"grafana_port": 3000, "otlp_grpc_port": 4317, "otlp_http_port": 4318}
+# pyroscope_port is published for pyroscope-io-style SDK pushes (issue
+# #224): profiles are not an OTLP signal - the SDK speaks Pyroscope's
+# own HTTP protocol straight to the ingest port, which the image exposes
+# but a container only reaches the host through an explicit publish.
+CONTAINER_PORTS = {
+    "grafana_port": 3000,
+    "otlp_grpc_port": 4317,
+    "otlp_http_port": 4318,
+    "pyroscope_port": 4040,
+}
 
 
 def local_ports() -> dict:
@@ -231,12 +240,22 @@ def _container_host_ports() -> dict | None:
         return None
     try:
         bindings = json.loads(result.stdout.strip())
-        return {
-            key: int(bindings[f"{container_port}/tcp"][0]["HostPort"])
-            for key, container_port in CONTAINER_PORTS.items()
-        }
-    except (ValueError, KeyError, IndexError, TypeError):
+    except ValueError:
         return None
+    if not isinstance(bindings, dict):
+        return None
+
+    def host_port(container_port: int) -> int | None:
+        # A readable bindings map that lacks the port (a container
+        # created before that port existed - issue #224) reads as a
+        # mismatch the stack_up guard must surface, never as the
+        # unreadable-inspect no-guard path.
+        try:
+            return int(bindings[f"{container_port}/tcp"][0]["HostPort"])
+        except (KeyError, IndexError, TypeError, ValueError):
+            return None
+
+    return {key: host_port(p) for key, p in CONTAINER_PORTS.items()}
 
 
 def container_user_env() -> dict[str, str] | None:
@@ -395,7 +414,9 @@ def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
     }
 
 
-def stack_up(env: dict[str, str] | None = None, *, persist: bool = True) -> dict:
+def stack_up(
+    env: dict[str, str] | None = None, *, persist: bool = True, check_ports: bool = True
+) -> dict:
     """Start the stack container (idempotent) and wait until it is ready.
 
     Docker only applies env at container creation, so env reaches the
@@ -419,10 +440,17 @@ def stack_up(env: dict[str, str] | None = None, *, persist: bool = True) -> dict
     and reports neither env_persisted nor env_not_persisted. The
     odd_config_set auto-reset uses it to carry the live container env
     forward without resurrecting variables the caller just deleted.
+
+    check_ports is internal too: False skips the port-mismatch guard, for
+    the enumeration pre-boots of stack_reset and odd_config_set - after
+    an upgrade adds a named port (issue #224), every pre-change container
+    mismatches the configuration, and a guarded pre-boot would leave the
+    stopped container unenumerable, reporting services_wiped: [] over
+    real data (#35). The final recreation keeps the guard.
     """
     _validate_env(env)
     state = _container_state()
-    if state != "absent":
+    if state != "absent" and check_ports:
         actual = _container_host_ports()
         configured = local_ports()
         if actual is not None and actual != configured:
@@ -518,6 +546,13 @@ def stored_services(transport: httpx.BaseTransport | None = None) -> list[str]:
     # URLs and report an empty wipe over real data (issue #35). Without a
     # container to inspect, the configuration is the only truth left.
     ports = _container_host_ports()
+    if ports is not None and ports.get("grafana_port") is None:
+        # Readable bindings without a published Grafana port (a hand-run
+        # container: --network host, no -p): building
+        # http://localhost:None would raise InvalidURL past the HTTPError
+        # catches below. Fall back to the configured ports - degrade to
+        # fewer names, never to an error.
+        ports = None
     now_s = int(time.time())
 
     def values(payload: object, field: str) -> list[str]:
@@ -599,7 +634,10 @@ def stack_reset(env: dict[str, str] | None = None, *, persist: bool = True) -> d
     _validate_env(env)
     if _container_state() == "stopped":
         try:
-            stack_up()
+            # check_ports=False: a pre-change container mismatching a
+            # newly added named port must still be booted and enumerated
+            # - this reset IS the guard's advertised remedy (issue #224).
+            stack_up(check_ports=False)
         except RuntimeError:
             pass
     services = stored_services()

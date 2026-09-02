@@ -45,8 +45,8 @@ write only corrects or clears what the tools recorded.
 
 Host ports are **not** part of `stack_config.local`: they live in the
 configuration's own `local` block (`grafana_port`, `otlp_grpc_port`,
-`otlp_http_port`) and changing one resets the stack. Never fold a port
-into this payload.
+`otlp_http_port`, `pyroscope_port`) and changing one resets the stack.
+Never fold a port into this payload.
 
 ## What to ask the user
 

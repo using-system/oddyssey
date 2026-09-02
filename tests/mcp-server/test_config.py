@@ -13,9 +13,22 @@ def test_load_returns_defaults_when_file_is_missing(tmp_path):
             "grafana_port": 3000,
             "otlp_grpc_port": 4317,
             "otlp_http_port": 4318,
+            "pyroscope_port": 4040,
         },
         "stack_config": {},
     }
+
+
+def test_save_accepts_the_pyroscope_port(tmp_path):
+    # Issue #224: Pyroscope's ingest port is a named local port like the
+    # other three - pyroscope-io pushes over its own HTTP protocol, not
+    # OTLP, so the port must be publishable and configurable.
+    path = tmp_path / "config.json"
+
+    result = config.save({"local": {"pyroscope_port": 4140}}, path)
+
+    assert result["local"]["pyroscope_port"] == 4140
+    assert result["local"]["grafana_port"] == 3000
 
 
 def test_load_merges_stored_values_over_defaults(tmp_path):
