@@ -6,13 +6,17 @@ description: Configure gcx against the local oddyssey Grafana stack and query it
 # gcx on the local oddyssey stack
 
 The local stack is a single otel-lgtm container: Grafana, OTLP (gRPC and
-HTTP), and four datasources — Tempo, Prometheus, Loki, Pyroscope — behind
-the Grafana datasource proxy. The host ports come from the **global
-configuration** (defaults `3000` / `4317` / `4318`): read the effective
-URLs from `odd_stack_up`'s result (`grafana_url`, `otlp_endpoint`) or
-`odd_config_get` — never assume the defaults, and point an application's
+HTTP), Pyroscope's ingest endpoint, and four datasources — Tempo,
+Prometheus, Loki, Pyroscope — behind the Grafana datasource proxy. The
+host ports come from the **global configuration** (defaults `3000` /
+`4317` / `4318` / `4040`): read the effective URLs from `odd_stack_up`'s
+result (`grafana_url`, `otlp_endpoint`) or `odd_config_get` — never
+assume the defaults, and point an application's
 `OTEL_EXPORTER_OTLP_ENDPOINT` at those values, never at a hardcoded
-port. Grafana serves its API **anonymously** here: no credentials are
+port. Profiles are the one signal that does not arrive over OTLP:
+pyroscope-io-style SDKs push over Pyroscope's own HTTP protocol,
+straight to `http://localhost:<local.pyroscope_port>` (issue #224) —
+discover that port from `odd_config_get` the same way. Grafana serves its API **anonymously** here: no credentials are
 required, and the
 `admin`/`admin` entries in the context below are accepted but inert (kept
 only so the template also fits an auth-enabled Grafana).
