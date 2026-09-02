@@ -104,8 +104,12 @@ human-decided:
      `constant-arrival-rate` `rate`, an unknown option, a syntax error
      all fail here with the exact message. A non-zero exit is fix and
      re-inspect; a script `k6 inspect` rejects is never persisted. The
-     `k6` binary is required - when it is missing, stop and report with
-     `install.md`'s steps, never skip the check silently.
+     `k6` binary is required - the `/odd-instrument-bench` preflight
+     ensured it is present (`install.md`'s auto-install step); when it
+     is still missing, stop and report that as a contract failure with
+     `install.md`'s steps - never install from a subagent, never skip
+     the check silently. (Dispatched directly, without the prompt, the
+     same report tells the caller to run that step first.)
    - **One-iteration smoke** - once `k6 inspect` passes, and only with
      the mission's smoke-check authorization:
 

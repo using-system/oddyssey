@@ -52,8 +52,9 @@ Free-form arguments map to: the **service** to benchmark
 check** authorization when that target is remote, and optionally a
 **load shape and duration**. Whatever the arguments leave open, the
 prompt asks back in the conversation before dispatching the agent -
-after confirming the `k6` binary is installed, since validation needs
-it.
+after making sure the `k6` binary is present, since validation needs
+it (installed on the spot through Homebrew when missing; otherwise the
+official steps are handed to you).
 
 ```text
 /odd-instrument-bench author a load benchmark for checkout, p95 under 300ms
@@ -191,8 +192,9 @@ report is picked.
   missing);
 - a report backed by a stored k6 benchmark replays in the mode its
   frontmatter records - `drive` re-runs the benchmark through the
-  `run-scenario` skill (k6 must be installed), `observe` only watches -
-  never inferring `drive` from the benchmark's presence; see
+  `run-scenario` skill (k6 installed on the spot when missing and
+  Homebrew is available), `observe` only watches - never inferring
+  `drive` from the benchmark's presence; see
   [docs/guide/benchmarks.md](benchmarks.md);
 - when the replay tests no fix - the code (commits and working tree
   alike; the loop's memory and documentation aside, the memory being

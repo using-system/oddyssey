@@ -200,13 +200,17 @@ flush wait — and step 4 applies with the record shape below. What
 differs is how the load is generated and how the record cites it:
 
 - **Confirm k6 is installed before anything else — before step 0.**
-  `command -v k6`, per the `k6-guides` skill's `install.md`. When it is
-  absent, stop and report with that reference's install steps, with the
-  observed process and the store untouched: never restart or reset for
-  a run you cannot perform, never approximate the script with a curl
-  loop, never install silently. `running-tests.md` in the same skill
-  carries the flags, the output surface, and the exit codes cited
-  below.
+  `command -v k6`, per the `k6-guides` skill's `install.md`. Reached
+  from a prompt's preflight (the nominal case, inside `observe-run`),
+  the binary is already there — a still-missing one is a contract
+  failure to report with the reference's install steps, never a reason
+  to install from a subagent. Entered directly in the main
+  conversation, with no preflight behind it, run that reference's
+  auto-install step first. Either way, when k6 is absent the observed
+  process and the store stay untouched: never restart or reset for a
+  run you cannot perform, never approximate the script with a curl
+  loop. `running-tests.md` in the same skill carries the flags, the
+  output surface, and the exit codes cited below.
 - **Read the manifest, then run the script unmodified.** The benchmark
   directory holds one k6 script and one manifest
   (`create-update-benchmark`'s layout): the script is `script.js`
