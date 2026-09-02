@@ -231,10 +231,12 @@ benchmark or an update to an existing one) and proposes a load shape
 and duration for you to confirm; the agent discovers the rest — which
 endpoints matter, what the stored `.odd/` reports already say about the
 service — and **never executes what it writes**. Run the stored
-benchmark by pointing `/odd-observe` at its script
-(`/odd-observe run .odd/benchmarks/<name>/`). The full lifecycle, and
-what a benchmark is versus a report, are in
-[docs/guide/benchmarks.md](docs/guide/benchmarks.md).
+benchmark through `/odd-observe` (`/odd-observe run
+.odd/benchmarks/<name>/`): the `observe-run` agent drives the script
+unmodified through the `run-scenario` skill and rules on the manifest's
+thresholds from the service's own telemetry, k6's summary recorded as
+evidence only. The full lifecycle, and what a benchmark is versus a
+report, are in [docs/guide/benchmarks.md](docs/guide/benchmarks.md).
 
 More invocation examples for every prompt live in
 [docs/guide/prompts.md](docs/guide/prompts.md).
@@ -298,12 +300,13 @@ More invocation examples for every prompt live in
   ([dtctl](https://github.com/dynatrace-oss/dtctl)), Azure Monitor
   (`az`), AWS CloudWatch/X-Ray (`aws`), Splunk (`splunk`).
 - **[k6](https://grafana.com/docs/k6/latest/set-up/install-k6/)** —
-  needed to **run** a benchmark, never to author one: nothing shipped
-  today executes k6, `/odd-instrument-bench` only writes the script and
-  the manifest. Install it when you want to run an authored benchmark
-  yourself: `brew install k6` on macOS, the official APT/YUM
-  repositories or a release binary on Linux, or the `grafana/k6` Docker
-  image.
+  needed to **run** a benchmark, never to author one:
+  `/odd-instrument-bench` only writes the script and the manifest, and
+  `/odd-observe` runs it (its preflight stops with the install steps
+  when the binary is missing — it never installs it for you). Install it
+  before running an authored benchmark: `brew install k6` on macOS, the
+  official APT/YUM repositories or a release binary on Linux, or the
+  `grafana/k6` Docker image.
 
 ## The MCP server
 
@@ -349,7 +352,7 @@ dropped — the normal state, and never a failure of the server.
 | [`check-backend-configuration`](.apm/skills/check-backend-configuration/SKILL.md) (skill) | Before a run: display the configured stack's CLI context, prove it is connected, and guide the user through the backend's setup — never authenticates on their behalf |
 | [`update-backend-configuration`](.apm/skills/update-backend-configuration/SKILL.md) (skill) | Owns the backend switch: the target's CLI checked for presence with a guided install offer, the switch persisted through `odd_config_set`, the per-stack `stack_config` values persisted, and the verification handed back to `check-backend-configuration` |
 | [`observability-cli-guides`](.apm/skills/observability-cli-guides/SKILL.md) (skill) | Curated map of every major backend's terminal query surface: Grafana (gcx), Datadog (Pup), Dynatrace (dtctl), Azure Monitor (az), CloudWatch (aws), Splunk |
-| [`run-scenario`](.apm/skills/run-scenario/SKILL.md) (skill) | Drive a reproducible request scenario against a local service and record it verbatim, so the same numbers are measurable before a fix and after it |
+| [`run-scenario`](.apm/skills/run-scenario/SKILL.md) (skill) | Drive a reproducible request scenario against a local service — ad-hoc requests, or a stored k6 benchmark run unmodified — and record it verbatim, so the same numbers are measurable before a fix and after it |
 | [`create-observe-run-report`](.apm/skills/create-observe-run-report/SKILL.md) (skill) | The ODD loop's memory: persist each observation report into the observed repo (`.odd/observe-run-reports/`) and recall the previous ones as the next run's baseline |
 | [`create-otel-instrumentation-report`](.apm/skills/create-otel-instrumentation-report/SKILL.md) (skill) | Same memory for the instrumentation side: persist each investigation into the investigated repo (`.odd/otel-instrumentation-reports/`) and recall it before the next one |
 | [`create-update-benchmark`](.apm/skills/create-update-benchmark/SKILL.md) (skill) | Persist an authored benchmark (script + manifest) into `.odd/benchmarks/<name>/` and recall the ones a service already has: living source, updated in place through reviewed diffs — not an append-only report |

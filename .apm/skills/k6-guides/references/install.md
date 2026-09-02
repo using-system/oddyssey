@@ -31,9 +31,12 @@ if a script or command predates v2.
 
 **Not `k6-benchmark-expert`.** Authoring a benchmark never runs it - the
 agent writes a script and a manifest, it does not execute `k6 run`.
-Installation matters on the **execution** side (`run-scenario`, at
-`/odd-observe`/`/odd-verify` time, out of scope for this authoring
-implementation) - that is where a missing binary must fail fast with the
-install steps above. This project's README Prerequisites section lists
-k6 on exactly those terms (verified 2026-08-31): needed to **run** a
-benchmark, never to author one.
+Installation matters on the **execution** side: `run-scenario`'s
+stored-benchmark step (its section 6, reached from `/odd-observe` in
+`drive` mode with a `benchmark`) runs `k6 run` and must fail fast with
+the install steps above when the binary is absent - never approximating
+the script with other tooling, never installing silently. The
+`/odd-observe` preflight checks the binary before dispatching, so the
+missing-k6 case is reported in the main conversation where the user can
+act on it. This project's README Prerequisites section lists k6 on
+exactly those terms: needed to **run** a benchmark, never to author one.

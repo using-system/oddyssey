@@ -171,6 +171,7 @@ flowchart LR
     ocg[observability-cli-guides]
     sls[setup-local-stack]
     rs[run-scenario]
+    kg[k6-guides]
     corr[create-observe-run-report]
     sorr[show-observe-run-report]
     ubc[update-backend-configuration]
@@ -184,6 +185,7 @@ flowchart LR
 
   subgraph Stores[".odd/ stores"]
     obsdir[observe-run-reports/]
+    benchdir[benchmarks/]
   end
 
   observe --> runner
@@ -191,6 +193,7 @@ flowchart LR
   observe --> sorr
   observe --> cfgget
   observe --> cfgset
+  observe -.-> kg
   sorr --> obsdir
 
   runner --> ocg
@@ -211,6 +214,8 @@ flowchart LR
   sls --> stack
   rs -.-> stack
   rs -.-> sls
+  rs -.-> kg
+  rs --> benchdir
 
   corr --> obsdir
 
@@ -221,9 +226,9 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class observe prompt
   class runner,expert agent
-  class cbc,ocg,sls,rs,corr,sorr,ubc skill
+  class cbc,ocg,sls,rs,kg,corr,sorr,ubc skill
   class cfgget,cfgset,stack mcp
-  class obsdir store
+  class obsdir,benchdir store
 ```
 
 ## /odd-verify
@@ -254,6 +259,7 @@ flowchart LR
     ocg[observability-cli-guides]
     sls[setup-local-stack]
     rs[run-scenario]
+    kg[k6-guides]
     corr[create-observe-run-report]
     sorr[show-observe-run-report]
     ubc[update-backend-configuration]
@@ -267,6 +273,7 @@ flowchart LR
   subgraph Stores[".odd/ stores"]
     obsdir[observe-run-reports/]
     insdir[otel-instrumentation-reports/]
+    benchdir[benchmarks/]
   end
 
   verify --> runner
@@ -296,6 +303,8 @@ flowchart LR
   sls --> stack
   rs -.-> stack
   rs -.-> sls
+  rs -.-> kg
+  rs --> benchdir
 
   corr --> obsdir
 
@@ -306,9 +315,9 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class verify prompt
   class runner,expert agent
-  class cbc,ocg,sls,rs,corr,sorr,ubc skill
+  class cbc,ocg,sls,rs,kg,corr,sorr,ubc skill
   class cfgget,stack mcp
-  class obsdir,insdir store
+  class obsdir,insdir,benchdir store
 ```
 
 ## /odd-status
@@ -456,7 +465,9 @@ and persists through `create-otel-instrumentation-report`; its report
 hands the confirmation of landed signals to `observe-run`.
 `observe-run` owns the observation method: backend commands come from
 `observability-cli-guides`, the local stack is configured through
-`setup-local-stack`, drive-mode traffic goes through `run-scenario`,
+`setup-local-stack`, drive-mode traffic goes through `run-scenario`
+(ad-hoc requests, or a stored benchmark from `.odd/benchmarks/` run
+unmodified when the mission names one),
 the stack is piloted with the `odd_stack_*` tools, and the report is
 recalled and persisted through `create-observe-run-report`. When a
 named service emits no telemetry at all, it recommends
@@ -481,7 +492,10 @@ sections, persistence via `odd_config_set`, verification handed back
 to `check-backend-configuration`. `observability-cli-guides` routes
 the local-stack case to `setup-local-stack`, which reads the effective
 ports from `odd_config_get`. `run-scenario` orders the clean-base
-sequence around `odd_stack_reset`. The two create-report skills own
+sequence around `odd_stack_reset`; for a stored benchmark it reads the
+script and manifest under `.odd/benchmarks/<name>/` (never writing
+there) and takes the `k6 run` flags, exit codes, and install check from
+`k6-guides`. The two create-report skills own
 the two report stores (`.odd/observe-run-reports/`,
 `.odd/otel-instrumentation-reports/`): naming, frontmatter contracts,
 recall - nothing else writes to them, and whatever reads them directly
@@ -491,8 +505,10 @@ show-report skills (`show-observe-run-report`,
 its closing synthesis - display only: they follow the create skills'
 file contracts, write nothing, and invoke no other component.
 `k6-guides` is the k6 counterpart of `otel-guides` - a topic-selection
-map read by `/odd-instrument-bench` (which questions to ask) and by
-`k6-benchmark-expert` (authoring), invoking nothing itself.
+map read by `/odd-instrument-bench` (which questions to ask), by
+`k6-benchmark-expert` (authoring), and by `run-scenario` (running a
+stored benchmark: `running-tests.md` and `install.md`), invoking
+nothing itself.
 `create-update-benchmark` owns `.odd/benchmarks/` - the naming, the
 recall by service and by benchmark name, the reviewed diff an update
 goes through, the commit; unlike the two create-report skills it stores

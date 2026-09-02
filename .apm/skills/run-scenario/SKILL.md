@@ -1,6 +1,6 @@
 ---
 name: run-scenario
-description: Drive a reproducible request scenario against a locally running service and record it verbatim, so the telemetry it produces can be compared with a later run. Use when traffic must be generated before observing a service, when an observation report needs a replayable scenario, or when verifying after a fix that the same scenario now measures better.
+description: Drive a reproducible request scenario against a locally running service - ad-hoc requests, or a stored k6 benchmark from .odd/benchmarks/ - and record it verbatim, so the telemetry it produces can be compared with a later run. Use when traffic must be generated before observing a service, when a stored k6 benchmark must be run, when an observation report needs a replayable scenario, or when verifying after a fix that the same scenario now measures better.
 ---
 
 # Run a Scenario
@@ -190,11 +190,101 @@ Telemetry lags the last request. Before querying:
 
 Only then read the window recorded in step 4.
 
+## 6. Replay a stored k6 benchmark
+
+When the mission names a benchmark under `.odd/benchmarks/<name>/`
+(`k6-benchmark-expert` authored it, `create-update-benchmark` stored it),
+the load comes from its script instead of a curl loop. Steps 0, 3, 4
+and 5 apply unchanged — the clean-base order, the sample-count rules,
+the verbatim record, the flush wait. What differs is how the load is
+generated and how the record cites it:
+
+- **Confirm k6 is installed first** — `command -v k6`, per the
+  `k6-guides` skill's `install.md`. When it is absent, stop and report
+  with that reference's install steps: never approximate the script
+  with a curl loop, never install silently. `running-tests.md` in the
+  same skill carries the flags, the output surface, and the exit codes
+  cited below.
+- **Read the manifest, then run the script unmodified**, as one blocking
+  foreground command from the repository root, with k6's end-of-test
+  summary exported to a file the record cites:
+
+  ```text
+  k6 run .odd/benchmarks/<name>/script.js --summary-export <summary-file>
+  ```
+
+  Inputs the manifest leaves to mission time (a base URL, a named
+  environment variable) are passed through k6's `-e KEY=value` or the
+  environment, and recorded by name — a credential's value never lands
+  in the record. Never edit the script or the manifest to make the run
+  nicer: a benchmark that cannot run as stored is a reported failure,
+  and a change to it goes through `/odd-instrument-bench`'s reviewed
+  diff, never through the run.
+- **The record cites the benchmark by name and git revision, not by
+  commands.** Record the repository revision (`git rev-parse HEAD`) and
+  whether the benchmark's directory is clean
+  (`git status --porcelain .odd/benchmarks/<name>/` prints nothing). A
+  dirty benchmark has no revision to replay at — say so in the record.
+  A replay runs the same benchmark at the same revision; when the
+  stored benchmark moved between the two runs (a diff-reviewed update
+  landed), the protocol changed and the second run is a new baseline,
+  stated as such — never a verdict on a fix.
+- **Warmup is the manifest's stage boundaries.** A k6 run is one
+  continuous window, so step 2's "discard the warmup" becomes a
+  sub-window: quote steady-state numbers from the interval the
+  manifest's ramp and steady stages delimit, record those boundaries
+  as UTC timestamps, and say the ramp was excluded. Step 3's standard
+  sample counts apply (>= 30 requests before a p95, ~100 before a p99)
+  — k6 load is cheap, high-volume, and deterministic, so the
+  expensive-iteration carve-out does not.
+- **k6's own summary and exit status are evidence, never the verdict.**
+  Record the exit code (`0` every threshold passed, `99` a threshold
+  was crossed, anything else a setup or script error — read stderr),
+  the request count, failed checks, dropped iterations, and script
+  exceptions from stderr. Then measure through the service's own
+  telemetry, after step 5's flush wait. A generator that never
+  connected, crashed mid-run, or threw on every iteration leaves
+  telemetry that looks deceptively clean — "a failed or partial run is
+  data" applies to the generator too. The manifest's thresholds are
+  what the observation rules on, each against a telemetry-derived
+  measurement carrying its query.
+- **k6's own OpenTelemetry output is a bonus signal.** Against the local
+  stack, `K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run -o opentelemetry`
+  lands k6's client-side view in the same store under
+  `service_name="k6"` (`running-tests.md`): cross-confirm against it
+  when it lands, never require it, never mistake it for the target
+  service.
+- **A run longer than a tool call uses step 3's detached poller.** A
+  staged benchmark routinely exceeds one tool call's budget; the poller
+  script and its output file are part of the record.
+- **A remote target needs authorization given at mission time**, by the
+  caller of the observation, every run — a manifest carries none.
+
+The record replaces step 4's `Commands:` lines with the benchmark's
+identity, the single command, and k6's own evidence:
+
+```text
+Scenario:  benchmark orders-read-heavy
+Benchmark: .odd/benchmarks/orders-read-heavy/ @ 3ccfd18 (clean)
+Base URL:  http://localhost:8080   # BASE_URL, mission-time
+Backend:   odd_stack_reset, env: defaults
+Instance:  orders-run-0902 (restarted before reset)
+Stages:    ramp 10:04:12–10:05:12 (excluded), steady 10:05:12–10:10:12, ramp-down 10:10:12–10:10:42
+Started (UTC): 2026-09-02T10:04:12Z
+Ended   (UTC): 2026-09-02T10:10:42Z
+Command:
+  k6 run .odd/benchmarks/orders-read-heavy/script.js --summary-export <summary-file> -e BASE_URL=http://localhost:8080
+k6:        exit 0, 1234 requests, checks 100 %, dropped iterations 0, script errors 0
+Summary:   <summary-file>
+Not reproducible: none
+```
+
 ## Output
 
-The scenario block from step 4, ready to paste into an observation report
-(the run record, and the replay instruction in the measurement protocol) —
-and ready to re-run unchanged after a fix.
+The scenario block from step 4 (or step 6 for a stored benchmark), ready
+to paste into an observation report (the run record, and the replay
+instruction in the measurement protocol) — and ready to re-run unchanged
+after a fix.
 
 ## Rules
 

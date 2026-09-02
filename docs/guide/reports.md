@@ -92,7 +92,9 @@ complete (a summary cannot feed a diff):
    default applied, the detected environment with the query that found
    it, the recalled baseline (or "no previous report"); in drive mode,
    the verbatim scenario record (exact commands, counts, UTC
-   start/end) so the run replays identically.
+   start/end — for a stored k6 benchmark, its name and git revision,
+   the `k6 run` command, k6's exit status and summary, and the stage
+   boundaries) so the run replays identically.
 2. **Observed behavior** — the per-operation summary table (requests,
    rate, p50/p95/p99, error %, downstream calls), then the narrative,
    every number carrying the query that produced it and a sample;
