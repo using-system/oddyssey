@@ -106,10 +106,6 @@ Everything is packaged for any coding agent
 ([APM](https://microsoft.github.io/apm/): Claude Code, Copilot, Cursor,
 Codex, Gemini, and friends).
 
-Every prompt, agent, and skill of the package — its role, and who
-invokes what across them and the MCP tools — is listed in
-[docs/guide/dependencies.md](docs/guide/dependencies.md).
-
 ## How to
 
 The loop in three prompts — every example below links to a real artifact
@@ -353,6 +349,19 @@ to anything else is not honored). Any `OTEL_*` variable set in the MCP
 client's env block overrides the defaults, and `OTEL_SDK_DISABLED=true`
 turns telemetry off entirely. When the stack is down, telemetry is silently
 dropped — the normal state, and never a failure of the server.
+
+## The agents and skills
+
+The loop: **investigate** (agents) → **spec & implement** (the main
+agent's spec-driven workflow) → **observe again** — telemetry on both
+ends. Each observation report is stored in the observed repo
+(`.odd/observe-run-reports/`), versioned by git and shared with the whole
+team, and becomes the baseline the next run diffs against — the loop
+accumulates knowledge instead of starting blind.
+
+Every prompt, agent, and skill of the package — its role, and who
+invokes what across them and the MCP tools — is listed in
+[docs/guide/dependencies.md](docs/guide/dependencies.md).
 
 ## Development
 
