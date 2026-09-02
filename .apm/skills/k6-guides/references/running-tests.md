@@ -15,6 +15,8 @@ https://grafana.com/docs/k6/latest/results-output/
 | `-i`, `--iterations <int>` | total iteration limit across all VUs |
 | `-s`, `--stage <dur>:<target>` | add one load stage - repeat the flag for multiple stages, or use `options.stages` in the script (see scripting.md) |
 | `-o`, `--out <output>` | where to send results - `json=<file>` (newline-delimited JSON), `opentelemetry` (see below), and others |
+| `--summary-export <file>` | write the end-of-test summary (per-metric values, threshold results, checks) as JSON to `<file>` - what `run-scenario`'s stored-benchmark step reads for k6's own evidence (verified 2026-09 against k6 v2.2.0). Its schema is the legacy one unless `--new-machine-readable-summary` is also passed, which switches the export to the new shape - never assume a fixed schema across the two |
+| `-e KEY=value` | set an environment variable for the script (`__ENV.KEY`) - how a mission-time base URL or a named secret reaches the script without editing it |
 | `--no-setup` / `--no-teardown` | skip the script's `setup()`/`teardown()` |
 
 ## Exit codes
@@ -24,11 +26,10 @@ https://grafana.com/docs/k6/latest/results-output/
 - **`0`** - every threshold passed (or no thresholds declared).
 - **`99`** - a declared threshold was crossed. Stderr carries
   `level=error msg="thresholds on metrics '<name>' have been crossed"`.
-  This is **not** the pass/fail signal `/odd-verify` uses (that's
-  telemetry-only, per the design) - it is k6's own execution evidence, to
-  be recorded alongside the telemetry-derived numbers on the **execution**
-  side (`run-scenario`, at `/odd-observe`/`/odd-verify` time, out of scope
-  for this authoring implementation).
+  This is **not** the pass/fail signal `/odd-observe`/`/odd-verify` use
+  (that's telemetry-only, per the design) - it is k6's own execution
+  evidence, recorded alongside the telemetry-derived numbers by
+  `run-scenario`'s stored-benchmark step (its section 6).
 - Other non-zero codes cover setup/script errors - always read stderr,
   don't infer the failure kind from the code alone (this repo's own
   convention with other CLIs' exit codes, e.g. `az`'s).

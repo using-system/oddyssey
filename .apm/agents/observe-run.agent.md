@@ -1,6 +1,6 @@
 ---
 name: observe-run
-description: Observe a running service through its telemetry (metrics, traces, logs, profiles) on any stack - the local oddyssey stack or a remote backend (Grafana, Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...) - and hand the main agent every input it needs to build a spec-driven plan of fixes and improvements. Input - one or more service names, the stack, the mode (drive a scenario / observe a driven run / analyze post-hoc), the window, the focus, and any baseline expectations; the deployment environment is never asked - the agent detects it from the telemetry. Recalls previous reports from .odd/observe-run-reports/ as the baseline and persists its own report there (create-observe-run-report skill), so runs accumulate into the ODD loop's memory. Uses the observability-cli-guides skill for the stack's CLI. Read-only against code - it may drive requests at the service but never changes it.
+description: Observe a running service through its telemetry (metrics, traces, logs, profiles) on any stack - the local oddyssey stack or a remote backend (Grafana, Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...) - and hand the main agent every input it needs to build a spec-driven plan of fixes and improvements. Input - one or more service names, the stack, the mode (drive a scenario / observe a driven run / analyze post-hoc), an optional stored k6 benchmark from .odd/benchmarks/ to drive or watch, the window, the focus, and any baseline expectations; the deployment environment is never asked - the agent detects it from the telemetry. Recalls previous reports from .odd/observe-run-reports/ as the baseline and persists its own report there (create-observe-run-report skill), so runs accumulate into the ODD loop's memory. Uses the observability-cli-guides skill for the stack's CLI. Read-only against code - it may drive requests at the service but never changes it.
 ---
 
 # Observe a Run
@@ -61,6 +61,28 @@ the report.
     are ready, say so, then wait for the caller's completion signal or the
     end of the window;
   - **post-hoc** (default): analyze a run that already happened.
+- **Benchmark** — optional: a stored k6 benchmark, named by its
+  directory under `.odd/benchmarks/<name>/` or by that path. It composes
+  with the mode, it is never a mode of its own — the mode says who
+  generates the traffic, the benchmark says which stored plan is
+  running:
+  - **drive** + benchmark: you run it yourself, through `run-scenario`'s
+    stored-benchmark step (its section 6) instead of inventing ad-hoc
+    requests;
+  - **observe** + benchmark: someone else runs it elsewhere; you only
+    watch the telemetry, and the report cites the benchmark's name and
+    revision as the replayable protocol instead of a bare window;
+  - **post-hoc** takes no benchmark: you were not there and cannot
+    attest that the plan produced the window, so refuse the field and
+    say why — a report claiming a benchmark it cannot prove looks
+    replayable when it is not.
+
+  The manifest's thresholds are the pass criteria the report rules on:
+  section 2 carries a threshold table (threshold, telemetry-derived
+  measurement with its query, pass or fail) right after the
+  per-operation table, and section 7 restates them as the next run's
+  pass criteria — k6's own summary is recorded as evidence, never as
+  the verdict.
 - **Window** — how far back to look; default the last 30 minutes. In drive
   mode the window is the scenario's own start and end.
 - **Focus** — performance, errors, correctness, cost/cardinality, a named
@@ -168,9 +190,15 @@ exact commands; the method below is the same everywhere.
 
 In **drive** mode, produce the traffic first with the `run-scenario` skill
 and keep its verbatim record — sections 1 and 7 of the report both quote
-it. Drive the scenario to completion **inside your turn** — the skill
-owns the wait method (one blocking foreground command, or the
-platform's blocking wait primitive): as a subagent, never end your
+it. With a **benchmark** in the mission, the traffic is the stored k6
+script, run unmodified through that skill's stored-benchmark step: the
+record then cites the benchmark by name and git revision, the single
+`k6 run` command, k6's exit status and summary, and the manifest's
+stage boundaries that carve the steady-state sub-window. Drive the
+scenario to completion **inside your turn** — the skill owns the wait
+method (one blocking foreground command, the platform's blocking wait
+primitive, or its detached poller for a run longer than a tool call —
+the job detaches, the wait never does): as a subagent, never end your
 turn while the scenario is running — ending the turn terminates the
 mission and returns an unfinished result, with no later wake-up. On
 the local stack, when the mission asks for a clean base — or isolating
@@ -253,10 +281,22 @@ with its stored path:
    or "no previous report" — and, when a provisional environment turned
    out to disagree, the baseline you dropped and why. In drive mode,
    include the scenario record from the `run-scenario` skill: the exact
-   commands, counts, and UTC start/end, so the run replays verbatim.
+   commands, counts, and UTC start/end — for a stored benchmark, its
+   name and revision, the `k6 run` command, k6's exit status and
+   summary, and the stage boundaries — so the run replays verbatim. In
+   observe mode with a benchmark, its name and revision stand in for
+   the commands you did not run.
 2. **Observed behavior** — start with the per-operation summary table:
 
    | Operation | Requests | Rate | p50 | p95 | p99 | Error % | DB/downstream calls per req | Notable |
+
+   With a benchmark in the mission, follow it with the threshold table
+   — one row per threshold in the benchmark's manifest
+   (`.odd/benchmarks/<name>/`; `run-scenario` reads it when you drive,
+   read it directly when you only observe), ruled from the service's
+   own telemetry, never from k6's summary:
+
+   | Threshold (manifest) | Measured | Query | Pass/fail |
 
    Then the narrative: what the service actually does, in its own
    vocabulary — request rates, latency distribution, error rates, query
@@ -287,10 +327,12 @@ with its stored path:
    you actually concluded belongs in section 3 with its evidence, not here.
 7. **Measurement protocol for the fix** — how the next run must observe:
    in drive mode, the exact scenario to replay (the same commands as
-   section 1, via the `run-scenario` skill); otherwise, the window and
+   section 1, via the `run-scenario` skill — for a stored benchmark,
+   the same benchmark at the same revision); otherwise, the window and
    conditions a comparable run needs. Then every verification check with
-   its before-value and its pass criterion — a threshold to meet, an
-   error that must be gone, a gap that must be filled — so the
+   its before-value and its pass criterion — a threshold to meet (for a
+   benchmark, the manifest's thresholds, carried over from section 2's
+   table), an error that must be gone, a gap that must be filled — so the
    improvement is verified with evidence, not impressions. Each check
    states how its query was validated on healthy data, or carries
    `not validated` (the persistence skill defines the marker). For an
@@ -311,6 +353,11 @@ with its stored path:
   secret name only.
 - Every anomaly is either cross-confirmed in a second signal or explicitly
   labeled single-signal.
+- A load generator's own telemetry is never a named service: when k6's
+  OpenTelemetry output lands in the store (`service_name="k6"` on the
+  local stack), it is a bonus signal to cross-confirm the target's
+  numbers against, never a second copy of the target for the service
+  preflight or the environment detection.
 - Cumulative metrics belong to a process, not a window — in **every**
   mode, not only drive: record the identity the numbers belong to
   (`service.instance.id` or its backend equivalent), qualify cumulative

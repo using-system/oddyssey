@@ -92,9 +92,15 @@ complete (a summary cannot feed a diff):
    default applied, the detected environment with the query that found
    it, the recalled baseline (or "no previous report"); in drive mode,
    the verbatim scenario record (exact commands, counts, UTC
-   start/end) so the run replays identically.
+   start/end — for a stored k6 benchmark, its name and git revision,
+   the `k6 run` command, k6's exit status and summary, and the stage
+   boundaries) so the run replays identically; in observe mode with a
+   benchmark, its name and revision stand in for the commands the
+   agent did not run.
 2. **Observed behavior** — the per-operation summary table (requests,
-   rate, p50/p95/p99, error %, downstream calls), then the narrative,
+   rate, p50/p95/p99, error %, downstream calls), followed, with a
+   benchmark, by the threshold table (manifest threshold, measurement
+   with its query, pass/fail), then the narrative,
    every number carrying the query that produced it and a sample;
    with a baseline, the per-operation deltas and the fate of its
    findings; the service graph closes the section.
@@ -108,7 +114,9 @@ complete (a summary cannot feed a diff):
 6. **Decisions the spec must settle** — the open questions telemetry
    cannot answer.
 7. **Measurement protocol for the fix** — how the next run must
-   observe: the exact scenario to replay (or window and conditions),
+   observe: the exact scenario to replay (for a stored benchmark, the
+   same benchmark at the same revision; otherwise window and
+   conditions),
    then every verification check with its before-value, pass
    criterion, and how the query was validated (or `not validated`).
 

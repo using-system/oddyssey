@@ -87,9 +87,10 @@ synthesis of the persisted report (the `show-observe-run-report`
 skill); the stored file under `.odd/observe-run-reports/` is the
 deliverable the next wave consumes. Free-form arguments map to:
 **service name(s)**, **stack** (defaults to the configured one), **mode**
-(`drive` / `observe` / `post-hoc`), **window**, **focus**, and
-**baseline expectations**. The deployment environment is never an
-argument - the agent detects it from the service's telemetry.
+(`drive` / `observe` / `post-hoc`), **benchmark** (a stored k6
+benchmark under `.odd/benchmarks/`, by name or path), **window**,
+**focus**, and **baseline expectations**. The deployment environment is
+never an argument - the agent detects it from the service's telemetry.
 
 > **Important** - the target stack's observability CLI must be
 > configured and connected beforehand: the preflight proves the
@@ -106,6 +107,8 @@ argument - the agent detects it from the service's telemetry.
 /odd-observe post-hoc: what did orders do between 14:00 and 15:00 UTC?
 /odd-observe switch to grafana and observe checkout, focus on errors
 /odd-observe observe checkout after my last deployment, error rate should stay under 1%
+/odd-observe run .odd/benchmarks/checkout-read-heavy/
+/odd-observe someone is running the checkout-read-heavy benchmark right now - observe it
 /odd-observe list the services with metrics on my stack grafana over the last 30 days - just the names
 ```
 
@@ -121,6 +124,13 @@ argument - the agent detects it from the service's telemetry.
   mission input (the agent detects the real one from the telemetry)
   but an expectation it reconciles, flagging any divergence;
 - "drive a ... scenario" / "observe the run" / "post-hoc" - the mode;
+- "run .odd/benchmarks/checkout-read-heavy/" / "someone is running the
+  checkout-read-heavy benchmark" - the benchmark, a stored k6 plan the
+  `observe-run` agent drives itself (mode `drive`, through the
+  `run-scenario` skill's stored-benchmark step) or only watches (mode
+  `observe`); it never combines with `post-hoc`, and the service defaults
+  to the manifest's target - see
+  [docs/guide/benchmarks.md](benchmarks.md);
 - "list the services with metrics ..." - a discovery ask: the remote
   telemetry can be questioned directly (which services exist, over
   what window) and answered with the query as evidence, without a full
@@ -169,6 +179,11 @@ report is picked.
 - naming an instrumentation report turns the mission into presence
   rulings (planned spans, metrics, log correlation - closed or still
   missing);
+- a report backed by a stored k6 benchmark replays in the mode its
+  frontmatter records - `drive` re-runs the benchmark through the
+  `run-scenario` skill (k6 must be installed), `observe` only watches -
+  never inferring `drive` from the benchmark's presence; see
+  [docs/guide/benchmarks.md](benchmarks.md);
 - when the replay tests no fix - the code (commits and working tree
   alike, `.odd/` and documentation aside) is unchanged since the
   report's `revision` - the run persists as a **re-measure**
