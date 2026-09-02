@@ -122,10 +122,11 @@ human-decided:
      threw: the only signal is the `level=error ... hint="script
      exception"` line on stderr, while the summary shows
      `http_req_failed 0.00%` and `1 complete and 0 interrupted
-     iterations`. A script exception (`GoError`, `TypeError`), a failed
-     check, or a failed request on stderr is a defect to fix and
-     re-smoke - the re-smoke is a fresh one-iteration check, never a
-     longer one. The iteration's side effects on the target (a created
+     iterations`. A script exception (`GoError`, `TypeError`) on
+     stderr, a non-zero `http_req_failed`, or a failed check in the
+     summary (a failed check writes nothing to stderr; a refused request
+     logs a warning, not an error) is a defect to fix and re-smoke - the
+     re-smoke is a fresh one-iteration check, never a longer one. The iteration's side effects on the target (a created
      order, a queued job) are real - the caller who authorized it
      knows. Two limits: a scenario that names a non-default function
      through `exec` is not covered by the smoke - say so in the manifest

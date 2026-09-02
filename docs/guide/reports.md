@@ -95,9 +95,8 @@ complete (a summary cannot feed a diff):
    start/end — for a stored k6 benchmark, its name and git revision,
    the `k6 run` command, k6's exit status and summary including its
    script-error count, and the stage boundaries) so the run replays
-   identically; in observe mode with a
-   benchmark, its name and revision stand in for the commands the
-   agent did not run.
+   identically; in observe mode with a benchmark, its name and
+   revision stand in for the commands the agent did not run.
 2. **Observed behavior** — the per-operation summary table (requests,
    rate, p50/p95/p99, error %, downstream calls), followed, with a
    benchmark, by the threshold table (manifest threshold, measurement

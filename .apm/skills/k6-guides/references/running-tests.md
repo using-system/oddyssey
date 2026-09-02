@@ -59,7 +59,7 @@ machine (2026-09-02, k6 v2.2.0):
   `exec` and that exports no default function does not start at all -
   exit **104**, `executor default: function 'default' not found in
   exports` (verified live; `k6 inspect` passes it) - and is recorded as
-  not smokeable rather than patched with a default function; and the
+  not applicable rather than patched with a default function; and the
   iteration's requests are real, with real side effects on the target -
   the smoke is authorized like any traffic at that target, never
   assumed.

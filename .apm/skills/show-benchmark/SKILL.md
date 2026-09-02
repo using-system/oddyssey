@@ -17,10 +17,12 @@ authoring a k6 benchmark is no exception.
 - **What it exercises** - target service, the endpoints/operations in
   scope, the test type (smoke/load/stress/soak/spike/breakpoint).
 - **Validation** - what the manifest records: `k6 inspect` passed (k6
-  version, date) and the smoke's result - passed at the target, declined,
-  or the functions it did not cover. One line; a benchmark whose
-  manifest records no validation is an upstream contract failure to
-  surface, not a line to invent.
+  version, date) and the smoke's result - passed (local or remote
+  target, the URL only when the manifest stores it), declined, not
+  applicable (with the scenarios it could not reach), or the functions
+  it did not cover. One line; a benchmark whose manifest records no
+  validation is an upstream contract failure to surface, not a line to
+  invent.
 - **Next recommended action** - how to actually run it:
   `/odd-observe run .odd/benchmarks/<name>/` (drive mode with that
   benchmark, see `docs/guide/benchmarks.md`).

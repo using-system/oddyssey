@@ -40,8 +40,8 @@ parse and schema check that contacts nothing — a non-integer
 script's scenarios with exactly one pass over its requests. A failure
 is fixed and re-validated, never persisted. The manifest records the
 validation (k6 version, date, the smoke's result — passed, declined,
-or the functions it did not cover) and the closing synthesis renders
-it. The smoke is self-authorized against a local target and asked for
+not applicable when the script exports no default function, or the
+functions it did not cover) and the closing synthesis renders it. The smoke is self-authorized against a local target and asked for
 a remote one, every time: its single iteration is real traffic with
 real side effects. It never runs the benchmark itself — nothing beyond
 that one iteration.
