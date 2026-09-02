@@ -169,6 +169,9 @@ not inherit the report stores' rules:
   do not appear there. `/odd-verify`'s verify-vs-re-measure boundary
   already ignores commits that only touch `.odd/`, so authoring or
   updating a benchmark correctly never counts as "a fix landed".
+  *Superseded by #223 (2026-09-02): the boundary now ignores only the
+  two report stores and `.odd/decisions.md`; a benchmark change counts
+  as changed code — see `docs/guide/benchmarks.md`, "Verify".*
 
 ### `k6-guides` (skill)
 

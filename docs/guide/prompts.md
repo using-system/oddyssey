@@ -195,13 +195,20 @@ report is picked.
   never inferring `drive` from the benchmark's presence; see
   [docs/guide/benchmarks.md](benchmarks.md);
 - when the replay tests no fix - the code (commits and working tree
-  alike, `.odd/` and documentation aside) is unchanged since the
-  report's `revision` - the run persists as a **re-measure**
+  alike; the loop's memory and documentation aside, the memory being
+  the two report stores and `.odd/decisions.md`) is unchanged since
+  the report's `revision` - the run persists as a **re-measure**
   (`remeasure-<run_name>.md`, `mode: re-measure`, same `verifies`
   link), not as a verification: `/odd-status` counts it as an
   observation, never as "verified". The code state decides; when it
   contradicts how the arguments framed the mission, the prompt asks
-  instead of silently reclassifying.
+  instead of silently reclassifying;
+- a fix to the benchmark the replay runs (`.odd/benchmarks/` is living
+  source, never memory) is changed code: the replay is a verification,
+  the prompt says in the mission block that the benchmark moved, and
+  the agent rules the findings against the benchmark itself while
+  comparing the service's numbers only when the load did not change -
+  see [docs/guide/benchmarks.md](benchmarks.md).
 
 ## /odd-status
 

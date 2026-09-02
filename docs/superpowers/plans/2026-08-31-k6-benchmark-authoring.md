@@ -751,6 +751,10 @@ exception to some other rule.
   needed here.
 ```
 
+*The second lifecycle bullet above is superseded by #223 (2026-09-02):
+`.odd/benchmarks/` now counts as changed code - see
+`docs/guide/benchmarks.md`, "Verify".*
+
 - [ ] **Step 3: Validate with `apm audit`**
 
 Run:
