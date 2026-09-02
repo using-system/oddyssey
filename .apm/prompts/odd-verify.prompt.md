@@ -56,7 +56,7 @@ this order:
    one (and it does not rewrite the configuration: the divergence is
    stated, not persisted).
 2. **The execution mode, and the remote-drive question.** Resolve the
-   mode by the rule the mission block states below: the frontmatter's
+   mode - the mission block below restates the rule: the frontmatter's
    mode; for a `verify` or `re-measure` baseline, the mode of the
    report its `verifies` names; `drive` for an instrumentation report,
    whose frontmatter has no mode - never inferred from what the record

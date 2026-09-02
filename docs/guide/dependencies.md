@@ -251,11 +251,10 @@ the execution mode and asks the user before any drive replay on a
 remote stack (whatever the report kind - before the CLI check and
 before k6 is installed), mandates `create-observe-run-report`'s
 verification rules for the report its agent will persist, ensures the
-`k6` binary is
-present per `k6-guides`' `install.md` (its auto-install step) when a
-drive replay carries a stored benchmark, dispatches to `observe-run`,
-and closes the mission with `show-observe-run-report`'s synthesis of
-the stored report - verdict first.
+`k6` binary is present per `k6-guides`' `install.md` (its auto-install
+step) when a drive replay carries a stored benchmark, dispatches to
+`observe-run`, and closes the mission with `show-observe-run-report`'s
+synthesis of the stored report - verdict first.
 `otel-instrumentation-expert` is the same boundary node as in
 `/odd-observe` - its path is the `/odd-instrument-otel` diagram.
 
@@ -459,8 +458,9 @@ runs in the main conversation first - resolve the stack
 prove the CLI connected (`check-backend-configuration`). `/odd-verify`
 resolves the baseline report across both `.odd/` stores, preflights
 against the report's `stack` (never silently retargeting the
-configured one), and mandates `create-observe-run-report`'s
-verification rules for the report its agent will persist.
+configured one), asks before any drive replay on a remote stack, and
+mandates `create-observe-run-report`'s verification rules for the
+report its agent will persist.
 `/odd-instrument-bench` is a dispatcher too: it ensures the `k6`
 binary is present (`k6-guides`' `install.md`, auto-install) and asks
 its human-decided questions first (`k6-guides`' `authoring-inputs.md`
