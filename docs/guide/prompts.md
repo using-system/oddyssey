@@ -42,8 +42,8 @@ Investigates a service and authors a k6 load-test benchmark - a script
 plus a manifest - into `.odd/benchmarks/<name>/`, through the
 `k6-benchmark-expert` agent. The agent validates the script before
 persisting it - a static check, `k6 inspect`, one smoke iteration at
-the target - and never runs it as a benchmark. The mission
-closes with a short synthesis of the stored benchmark (the
+the target - and never runs it as a benchmark. The mission closes
+with a short synthesis of the stored benchmark (the
 `show-benchmark` skill); the stored files are the deliverable, never
 the synthesis. Free-form arguments map to: the **service** to benchmark
 (required), **new benchmark or an update** to a named existing one, the

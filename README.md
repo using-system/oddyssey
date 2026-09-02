@@ -232,9 +232,9 @@ and duration for you to confirm; the agent discovers the rest — which
 endpoints matter, what the stored `.odd/` reports already say about the
 service — validates what it wrote (`k6 inspect`, one smoke iteration
 at the target, asked for first when the target is remote) and **never
-runs it as a benchmark**. Run the stored
-benchmark through `/odd-observe` (`/odd-observe run
-.odd/benchmarks/<name>/`): the `observe-run` agent drives the script
+runs it as a benchmark**. Run the stored benchmark through
+`/odd-observe` (`/odd-observe run .odd/benchmarks/<name>/`): the
+`observe-run` agent drives the script
 unmodified through the `run-scenario` skill and rules on the manifest's
 thresholds from the service's own telemetry, k6's summary recorded as
 evidence only. The full lifecycle, and what a benchmark is versus a
@@ -304,10 +304,10 @@ More invocation examples for every prompt live in
 - **[k6](https://grafana.com/docs/k6/latest/set-up/install-k6/)** —
   needed to author a benchmark and to run one: `/odd-instrument-bench`
   validates the script it writes with `k6 inspect` and one smoke
-  iteration (never a benchmark run), and `/odd-observe` runs it. The
-  three prompts' preflights stop with the install steps when the
-  binary is missing — none installs it for you. Install it before
-  authoring or running a benchmark:
+  iteration (never a benchmark run), and `/odd-observe` and
+  `/odd-verify` run it. The three prompts' preflights stop with the
+  install steps when the binary is missing — none installs it for you.
+  Install it before authoring or running a benchmark:
   `brew install k6` on macOS, the official APT/YUM repositories or a
   release binary on Linux, or the `grafana/k6` Docker image.
 

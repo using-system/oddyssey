@@ -44,11 +44,25 @@ machine (2026-09-02, k6 v2.2.0):
   exactly once (verified: a `constant-arrival-rate` script at 5 req/s
   for 20 s ran 1 iteration, 1 request, in 0.17 s). `--no-thresholds`
   keeps a one-sample latency from crossing a p95 threshold and turning
-  a clean smoke into exit 99. Two limits to state when relying on it:
-  the override runs the **default** function only, so a scenario naming
-  another function through `exec` is not exercised; and the iteration's
-  requests are real, with real side effects on the target - the smoke
-  is authorized like any traffic at that target, never assumed.
+  a clean smoke into exit 99. **The exit code is not the smoke's
+  verdict.** With `--no-thresholds`, a smoke whose single iteration
+  threw on `res.json()` still exits **0**, its summary reading
+  `http_req_failed 0.00% 0 out of 1` and `1 complete and 0 interrupted
+  iterations` (verified live, 2026-09-02, k6 v2.2.0) - the only trace
+  of the defect is one `level=error msg="GoError: ..." hint="script
+  exception"` line on stderr. So does a fully refused request (exit 0,
+  `http_req_failed 100.00%`). Grep stderr for `level=error` / `GoError`
+  and read `http_req_failed` and the checks; a clean exit proves
+  nothing. Three limits to state when relying on it: the override runs
+  the **default** function only, so a scenario naming another function
+  through `exec` is not exercised; a script whose scenarios all use
+  `exec` and that exports no default function does not start at all -
+  exit **104**, `executor default: function 'default' not found in
+  exports` (verified live; `k6 inspect` passes it) - and is recorded as
+  not smokeable rather than patched with a default function; and the
+  iteration's requests are real, with real side effects on the target -
+  the smoke is authorized like any traffic at that target, never
+  assumed.
 
 Neither is the benchmark: the first sends nothing, the second sends one
 iteration. Anything beyond - a `--duration`, a second iteration - is a

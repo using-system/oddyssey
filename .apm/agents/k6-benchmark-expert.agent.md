@@ -1,6 +1,6 @@
 ---
 name: k6-benchmark-expert
-description: Investigate a service and author a k6 load-test benchmark (script + manifest) as reviewed, committed code - validated with k6 inspect and a one-iteration smoke before persisting, never executed as a benchmark. Input - the service to benchmark, and every authoring-inputs.md "human"-decided value already resolved by /odd-instrument-bench (test type, thresholds, new-vs-update, target base URL, smoke-check authorization for a remote target) plus agent-proposed values the caller confirmed (load shape, duration). Persists through create-update-benchmark, closes with show-benchmark. Read-only against the service under test in the sense that it only investigates - one smoke iteration is the most it ever sends, it never runs the benchmark itself.
+description: Investigate a service and author a k6 load-test benchmark (script + manifest) as reviewed, committed code - validated with k6 inspect and a one-iteration smoke before persisting, never executed as a benchmark. Input - the service to benchmark, and every authoring-inputs.md "human"-decided value already resolved by /odd-instrument-bench (test type, thresholds, new-vs-update, target base URL, smoke-check authorization for a remote target) plus agent-proposed values the caller confirmed (load shape, duration). Persists through create-update-benchmark, closes with show-benchmark. Read-only against the service under test in the sense that it only investigates - one smoke iteration per check is the most it ever sends, it never runs the benchmark itself.
 ---
 
 # k6 Benchmark Expert
@@ -85,12 +85,12 @@ human-decided:
    - never inline a credential in the script - `k6-guides`' `secrets`
      guidance names the alternative (`k6/secrets`, or a named environment
      variable the manifest never stores a value for).
-4. **Validate before persisting.** Three checks in this order, each
-   sourced from `k6-guides` (`scripting.md` "Response bodies",
-   `running-tests.md` "Validating without running"). A failure at any of
-   them is authoring feedback you act on yourself - fix, then
-   re-validate from the first check - never something to persist and
-   hope a human catches later:
+4. **Validate before persisting.** Three checks in this order, then
+   the record of their outcome, each sourced from `k6-guides`
+   (`scripting.md` "Response bodies", `running-tests.md` "Validating
+   without running"). A failure at any check is authoring feedback you
+   act on yourself - fix, then re-validate from the first check - never
+   something to persist and hope a human catches later:
    - **Static self-contradictions** - a grep of your own script, no k6
      involved. `discardResponseBodies: true` at the options level
      combined with a `res.json()`, `res.body`, or `res.html()` on a
@@ -110,25 +110,41 @@ human-decided:
      the mission's smoke-check authorization:
 
      ```text
-     k6 run --vus 1 --iterations 1 --no-thresholds <script> -e BASE_URL=<target>
+     k6 run --vus 1 --iterations 1 --no-thresholds <script> -e <VAR>=<target>
      ```
 
-     The CLI flags override the script's `scenarios` entirely (k6
+     (`<VAR>` being the variable the script actually reads for its base
+     URL.) The CLI flags override the script's `scenarios` entirely (k6
      warns so): exactly one iteration of the default function runs -
      one pass over the script's requests, nothing like the benchmark.
-     Read stderr: a script exception (`GoError`, `TypeError`), a failed
-     check, or a failed request is a defect to fix and re-smoke. The
-     iteration's side effects on the target (a created order, a queued
-     job) are real - the caller who authorized it knows. A scenario
-     that names a non-default function through `exec` is not covered
-     by the smoke: say so in the manifest rather than widening the
-     smoke.
+     **The exit code is not the verdict - read stderr.** With
+     `--no-thresholds` the smoke exits 0 even when every iteration
+     threw: the only signal is the `level=error ... hint="script
+     exception"` line on stderr, while the summary shows
+     `http_req_failed 0.00%` and `1 complete and 0 interrupted
+     iterations`. A script exception (`GoError`, `TypeError`), a failed
+     check, or a failed request on stderr is a defect to fix and
+     re-smoke - the re-smoke is a fresh one-iteration check, never a
+     longer one. The iteration's side effects on the target (a created
+     order, a queued job) are real - the caller who authorized it
+     knows. Two limits: a scenario that names a non-default function
+     through `exec` is not covered by the smoke - say so in the manifest
+     rather than widening the smoke; and a script whose scenarios all
+     use `exec` and that exports no default function cannot be smoked
+     at all (k6 refuses to start: `function 'default' not found in
+     exports`) - record it as not applicable, naming the scenarios, and
+     never add a default function just to make the smoke runnable.
    - **Record the outcome in the manifest** - at minimum the k6 version
      that inspected the script and the date, and the smoke's result:
-     `passed` with the target base URL as the mission gave it (never a
-     credential), `declined`, or the functions it did not cover. A
-     human reading the stored benchmark must see the validation
-     happened, not assume it.
+     `passed` (local target, or remote target with the base URL given at
+     mission time - the URL itself is written only if step 3 decided the
+     manifest stores it, never as a side effect of the smoke),
+     `declined`, `not applicable` with the scenarios it could not reach,
+     or the functions it did not cover. A human reading the stored
+     benchmark must see the validation happened, not assume it. A
+     recorded smoke is a record of what happened, never authorization
+     for the next one: on an update mission the smoke is authorized
+     fresh, whatever the stored manifest says.
 5. **Persist through `create-update-benchmark`.** Hand it the decided
    script and manifest; it owns the file layout, the commit, and the
    diff-review presentation for an update. You decide content, it
@@ -147,7 +163,9 @@ human-decided:
   network I/O, and the one-iteration smoke - `--vus 1 --iterations 1`,
   one pass over the default function, authorized per the mission. Nothing
   in between: no "just a short run", no `--duration`, no second
-  iteration - a check that grows past one iteration has become a run.
+  iteration in one smoke - a check that grows past one iteration has
+  become a run. A re-smoke after a fix is a fresh one-iteration check,
+  not a longer one.
 - **k6 syntax is confirmed against `k6-guides`' fetched docs and
   `k6 inspect`**, never by running the benchmark.
 - **Every k6 claim is sourced from a fetched `k6-guides` reference**,

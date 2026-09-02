@@ -453,11 +453,13 @@ resolves the baseline report across both `.odd/` stores, preflights
 against the report's `stack` (never silently retargeting the
 configured one), and mandates `create-observe-run-report`'s
 verification rules for the report its agent will persist.
-`/odd-instrument-bench` is a dispatcher too, and asks its human-decided
-questions first (`k6-guides`' `authoring-inputs.md` classifies them),
-recalling through `create-update-benchmark` when new-versus-update is
-ambiguous, before handing the mission to `k6-benchmark-expert` and
-closing with `show-benchmark`'s synthesis of the stored benchmark.
+`/odd-instrument-bench` is a dispatcher too: it checks the `k6` binary
+(`k6-guides`' `install.md`) and asks its human-decided questions first
+(`k6-guides`' `authoring-inputs.md` classifies them, the remote smoke
+authorization among them), recalling through `create-update-benchmark`
+when new-versus-update is ambiguous, before handing the mission to
+`k6-benchmark-expert` and closing with `show-benchmark`'s synthesis of
+the stored benchmark.
 `/odd-status` dispatches no agent: it is a thin router over two skills
 running in the main conversation - `get-status` for the render, and
 `record-finding-decision` when, and only when, the user asks for a
@@ -515,11 +517,12 @@ show-report skills (`show-observe-run-report`,
 its closing synthesis - display only: they follow the create skills'
 file contracts, write nothing, and invoke no other component.
 `k6-guides` is the k6 counterpart of `otel-guides` - a topic-selection
-map read by `/odd-instrument-bench` (which questions to ask), by
-`k6-benchmark-expert` (authoring), by `run-scenario` (running a stored
-benchmark: `running-tests.md` and `install.md`), and by `/odd-observe`
-and `/odd-verify` (the `install.md` binary check in their preflight),
-invoking nothing itself.
+map read by `/odd-instrument-bench` (which questions to ask, and the
+`install.md` binary check), by `k6-benchmark-expert` (authoring and
+validating: `scripting.md`, `running-tests.md`), by `run-scenario`
+(running a stored benchmark: `running-tests.md` and `install.md`), and
+by `/odd-observe` and `/odd-verify` (the `install.md` binary check in
+their preflight), invoking nothing itself.
 `create-update-benchmark` owns `.odd/benchmarks/` - the naming, the
 recall by service and by benchmark name, the reviewed diff an update
 goes through, the commit; unlike the two create-report skills it stores

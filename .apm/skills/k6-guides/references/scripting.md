@@ -107,8 +107,10 @@ https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/constant-arrival
 
 ## Response bodies - `discardResponseBodies` and `responseType`
 
-Official docs: `using-k6/k6-options/reference/#discard-response-bodies`,
-`javascript-api/k6-http/params/` (`Params.responseType`).
+Official docs:
+https://grafana.com/docs/k6/latest/using-k6/k6-options/reference/#discard-response-bodies
+and https://grafana.com/docs/k6/latest/javascript-api/k6-http/params/
+(`Params.responseType`).
 
 `discardResponseBodies: true` in `options` changes the default
 `responseType` of **every** request to `none`: `res.body` is `null`,
