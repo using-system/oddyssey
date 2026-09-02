@@ -27,6 +27,49 @@ if a script or command predates v2.
     macOS/Linux/Docker - Windows, package-manager specifics change
     between k6 releases, don't guess).
 
+## Ensure k6 is present - auto-install
+
+k6 is the one CLI this package installs itself. The backend CLIs
+(`aws`, `az`, `gcx` against a remote instance, ...) are offered and
+never installed silently (`update-backend-configuration`'s rule),
+because each is tied to an account, credentials, and a tenant the user
+must set up regardless - the install is one step of a setup only they
+can finish. k6 has none of that: no account, no login, no
+configuration file - the binary existing is the entire setup, the same
+reasoning `setup-local-stack` applies to a missing gcx on the
+self-serve local stack ("install it if missing"). So a missing k6 is a
+step to run, not a stop to report:
+
+1. **Detect** - `command -v k6`. Present: done, cite `k6 version`.
+2. **Homebrew available** (`command -v brew` - macOS, Linuxbrew) - run
+   `brew install k6` directly, no confirmation asked, then re-detect
+   and cite `k6 version`. Verified live (2026-09-02, macOS arm64):
+   after `brew uninstall k6`, `brew install k6` restored `k6 v2.2.0`
+   from the core-tap bottle in under two seconds - a leaf formula, no
+   dependencies, no configuration touched.
+3. **No Homebrew** - fetch the official page (`set-up/install-k6/.md`)
+   and follow the platform's path only where it completes without
+   interaction: `winget install k6 --source winget` or
+   `choco install k6` on Windows when that manager is present. The
+   Linux package paths (Debian/Ubuntu APT, Fedora/CentOS DNF) all
+   require `sudo` and a repository key: surface those steps to the user
+   verbatim from the fetched page rather than running them, and say k6
+   is still missing. The `grafana/k6` Docker image is an option to
+   offer the user, never a substitute the agent switches to - it
+   changes the command shape (`k6 run -` reads the script from stdin,
+   no local filesystem) every stored benchmark and record assumes.
+4. **Say what happened** - "auto-installed" only when a step above
+   genuinely completed without interaction; otherwise the exact steps
+   left to the user.
+
+**Who runs it.** The three prompts' preflights - `/odd-instrument-bench`,
+`/odd-observe`, `/odd-verify` - in the main conversation, where the
+install command is visible as it runs. The subagent-side checks
+(`k6-benchmark-expert`'s validation step, `run-scenario`'s
+stored-benchmark step) stay fail-fast: a binary still missing there
+means the preflight did not run - a contract failure to report, never
+a reason to install from a subagent.
+
 ## Who needs k6 installed
 
 **Both sides.** `k6-benchmark-expert` needs it to **validate** what it
@@ -34,11 +77,11 @@ writes - `k6 inspect` and the one-iteration smoke (running-tests.md,
 "Validating without running") - without ever running the benchmark;
 `run-scenario`'s stored-benchmark step (its section 6, reached from
 `/odd-observe` or `/odd-verify` in `drive` mode with a `benchmark`)
-needs it to **run** one. Each must fail fast with the install steps
-above when the binary is absent - never approximating the script with
-other tooling, never installing silently. The `/odd-instrument-bench`,
-`/odd-observe`, and `/odd-verify` preflights check the binary before
-dispatching, so the missing-k6 case is reported in the main
-conversation where the user can act on it. This project's README
+needs it to **run** one. The `/odd-instrument-bench`, `/odd-observe`,
+and `/odd-verify` preflights ensure it is present before dispatching
+(the auto-install step above); the subagent-side steps fail fast when
+it is still absent - never approximating the script with other
+tooling, never installing from a subagent. This project's README
 Prerequisites section lists k6 on those terms: needed to author (to
-validate) and to run a benchmark; authoring never runs one.
+validate) and to run a benchmark, installed on the spot when missing
+and Homebrew is available; authoring never runs one.

@@ -28,10 +28,13 @@ steps needing the user cannot happen inside a subagent):
 3. When the arguments name a stored benchmark, read its manifest under
    `.odd/benchmarks/<name>/` for the target service (the service the
    mission uses unless the arguments name one), and - unless the
-   arguments say someone else is running it - confirm the `k6` binary
-   is on the path (`command -v k6`); when it is missing, stop with the
-   install steps from the `k6-guides` skill's `install.md` - installing
-   is the user's call, never the agent's.
+   arguments say someone else is running it - ensure the `k6` binary
+   is present, per the `k6-guides` skill's `install.md` auto-install
+   step: `command -v k6`; when it is missing, run `brew install k6`
+   directly when Homebrew is available (no confirmation - k6 needs no
+   account and no configuration), otherwise follow that reference's
+   non-interactive path for the platform or hand the remaining steps
+   to the user and stop.
 
 Build the mission block from the arguments below, applying the agent's own
 defaults for every field not specified:

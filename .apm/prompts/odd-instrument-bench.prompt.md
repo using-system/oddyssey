@@ -2,11 +2,14 @@
 description: Investigate a service and author a k6 load-test benchmark plan as code in .odd/benchmarks/ - asks back whatever only a human can decide before dispatching the authoring agent, which validates the script with k6 inspect and one smoke iteration and never runs the benchmark
 ---
 
-Before dispatching anything: confirm the `k6` binary is on the path
-(`command -v k6`) - authoring validates the script with `k6 inspect`
-and a one-iteration smoke, both need it; when it is missing, stop with
-the install steps from the `k6-guides` skill's `install.md` -
-installing is the user's call, never the agent's. Then consult the
+Before dispatching anything: ensure the `k6` binary is present, per
+the `k6-guides` skill's `install.md` auto-install step - authoring
+validates the script with `k6 inspect` and a one-iteration smoke, both
+need it. `command -v k6`; when it is missing, run `brew install k6`
+directly when Homebrew is available (no confirmation - k6 needs no
+account and no configuration), otherwise follow that reference's
+non-interactive path for the platform or hand the remaining steps to
+the user and stop. Then consult the
 `k6-guides` skill's `authoring-inputs.md` reference for which
 dimensions of this benchmark only a human can decide, and which the
 agent can discover on its own.

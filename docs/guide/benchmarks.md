@@ -9,9 +9,13 @@ Needed on both sides. Authoring **validates** the script with it —
 `k6 inspect` (parse and schema, no network) and one smoke iteration at
 the target — without ever running the benchmark; running one is
 `/odd-observe`'s job. The `/odd-instrument-bench`, `/odd-observe`, and
-`/odd-verify` preflights check for the binary before dispatching and
-stop with the install steps when it is missing; nothing installs it
-for you.
+`/odd-verify` preflights make sure it is present before dispatching:
+when it is missing and Homebrew is available, `brew install k6` runs on
+the spot, no confirmation asked — k6 needs no account and no
+configuration, the binary is the whole setup. Without Homebrew, the
+preflight follows the official page's non-interactive path where one
+exists (Windows package managers) and otherwise hands you the steps
+(the Linux packages need `sudo` and a repository key) and stops.
 
 **Binary**: `k6` — `brew install k6` (macOS/Linux), or the official
 install script / prebuilt binaries for other platforms:

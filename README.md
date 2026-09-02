@@ -305,11 +305,13 @@ More invocation examples for every prompt live in
   needed to author a benchmark and to run one: `/odd-instrument-bench`
   validates the script it writes with `k6 inspect` and one smoke
   iteration (never a benchmark run), and `/odd-observe` and
-  `/odd-verify` run it. The three prompts' preflights stop with the
-  install steps when the binary is missing — none installs it for you.
-  Install it before authoring or running a benchmark:
-  `brew install k6` on macOS, the official APT/YUM repositories or a
-  release binary on Linux, or the `grafana/k6` Docker image.
+  `/odd-verify` run it. The three prompts' preflights install it on
+  the spot when it is missing and Homebrew is available
+  (`brew install k6`, no confirmation — k6 needs no account and no
+  configuration); without Homebrew they hand you the official steps.
+  To install it yourself: `brew install k6` on macOS, the official
+  APT/YUM repositories or a release binary on Linux, or the
+  `grafana/k6` Docker image.
 
 ## The MCP server
 
