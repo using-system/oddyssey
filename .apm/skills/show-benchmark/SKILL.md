@@ -24,9 +24,8 @@ authoring a k6 benchmark is no exception.
   the service-side floor it was checked against or none found, and the
   outcome (reachable, kept with the floor acknowledged, or the value
   the caller changed it to). One or two lines; a benchmark whose
-  manifest records no
-  validation is an upstream contract failure to surface, not a line to
-  invent.
+  manifest records no validation is an upstream contract failure to
+  surface, not a line to invent.
 - **Next recommended action** - how to actually run it:
   `/odd-observe run .odd/benchmarks/<name>/` (drive mode with that
   benchmark, see `docs/guide/benchmarks.md`).

@@ -57,7 +57,9 @@ Build the mission from the arguments and the Q&A above:
 - Expected fields (any order, free-form): the **service** to benchmark
   (required), **new or update** (default: ask if ambiguous, per above),
   **test type**, **thresholds**, **target base URL**, the **smoke
-  check** authorization for a remote target (asked above), and
+  check** authorization for a remote target (asked above), on a
+  re-dispatch the caller's **decision per flagged threshold** (the new
+  value, or the floor acknowledged for a target kept as is), and
   optionally a **load shape/duration** the caller already has in mind
   (otherwise propose one during the Q&A above).
 

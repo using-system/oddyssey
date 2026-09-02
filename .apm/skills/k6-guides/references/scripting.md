@@ -18,7 +18,20 @@ Official docs: https://grafana.com/docs/k6/latest/using-k6/
   small fraction: `http_req_failed: ['rate==0']` (not one failed
   request) and `checks: ['rate==1.00']` (every check passed). Verified
   live (this machine, k6 v2.2.0): both pass with exit 0 on a clean run,
-  and a single 404 among 10 requests crosses both and exits 99. Source:
+  and a single 404 among 10 requests crosses both and exits 99. A
+  threshold can be **scoped to a tag** - tagged requests create
+  sub-metrics, keyed `'metric_name{tag_name:tag_value}'` (the docs'
+  "Set thresholds for specific tags"), e.g.
+  `'http_req_duration{name:checkout}': ['p(95)<300']` - **only when a
+  request carries that tag**: `http.post(url, body, { tags: { name:
+  'checkout' } })`. `name` is a system tag whose default is the request
+  URL, so the tag must be set explicitly. Verified live (this machine,
+  2026-09-02, k6 v2.2.0): a threshold on `{name:checkout}` with no
+  request tagged `checkout` evaluates on an **empty** sub-metric and
+  passes (`p(95)=0s`, green check, exit 0); the same threshold with the
+  request tagged is evaluated for real and crossed when unmet. A
+  sub-metric threshold no request populates is a pass that measures
+  nothing - check the tag exists on a request before persisting. Source:
   https://grafana.com/docs/k6/latest/using-k6/thresholds/
 - **Assertions** (`expect`, from the `k6-testing` jslib) - a third,
   newer concept, Playwright-inspired, distinct from both checks and

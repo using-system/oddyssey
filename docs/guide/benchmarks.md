@@ -63,9 +63,9 @@ not applicable when the script exports no default function, or the
 functions it did not cover — and the threshold cross-check: each
 threshold, its floor or none found, and the outcome) and the closing
 synthesis renders it. The smoke is self-authorized against a local
-target and asked for a remote
-one, every time: its single iteration is real traffic with real side
-effects. It never runs the benchmark itself — nothing beyond that one
+target and asked for a remote one, every time: its single iteration is
+real traffic with real side effects. It never runs the benchmark
+itself — nothing beyond that one
 iteration.
 
 Updating an existing benchmark follows the same prompt — the change

@@ -230,16 +230,16 @@ only you can decide (test type, thresholds, target environment, new
 benchmark or an update to an existing one) and proposes a load shape
 and duration for you to confirm; the agent discovers the rest — which
 endpoints matter, what the stored `.odd/` reports already say about the
-service — validates what it wrote (`k6 inspect`, one smoke iteration
-at the target, asked for first when the target is remote) and **never
-runs it as a benchmark**. It also checks your thresholds against the
-floors in the service's own code (a fixed delay, an injected error
-rate) and hands an unattainable one back with the evidence rather than
-persisting it: you raise, drop, re-scope, or keep it knowingly. Run
-the stored benchmark through `/odd-observe` (`/odd-observe run
+service. It checks your thresholds against the floors in the service's
+own code (a fixed delay, an injected error rate) and hands an
+unattainable one back with the evidence rather than persisting it: you
+raise, drop, re-scope, or keep it knowingly. It validates what it wrote
+(`k6 inspect`, one smoke iteration at the target, asked for first when
+the target is remote) and **never runs it as a benchmark**. Run the
+stored benchmark through `/odd-observe` (`/odd-observe run
 .odd/benchmarks/<name>/`): the `observe-run` agent drives the script
-unmodified through the
-`run-scenario` skill and rules on the manifest's thresholds from the
+unmodified through the `run-scenario` skill and rules on the
+manifest's thresholds from the
 service's own telemetry, k6's summary recorded as evidence only. The
 full lifecycle, and what a benchmark is versus a report, are in
 [docs/guide/benchmarks.md](docs/guide/benchmarks.md).
