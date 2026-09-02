@@ -21,6 +21,15 @@ From the `aws` CLI:
   region coming from an env var is the usual explanation for queries
   hitting the wrong one.
 
+On an SSO profile whose cached token has expired, `aws configure list
+--profile <name>` itself errors (`Error when retrieving token from sso:
+Token has expired and refresh failed`, exit 255) while still printing a
+partial table — the display step failing this way is not a separate
+problem, it is the same auth failure the connection proof below
+diagnoses, surfacing one step earlier. Carry on to the connection
+proof's expired-token guidance rather than treating the display as
+broken.
+
 From `stack_config.cloudwatch` (per `odd_config_get`):
 
 - `region` — the region the mission queries, when pinned separately
@@ -66,6 +75,17 @@ set up at all" but is routinely just "no default among the profiles
 that do exist," even when there's only the one. Only after that comes
 up empty is it a genuine stop-and-guide (profile creation, SSO login,
 env vars) — never run the login for the user, never echo an access key.
+
+A second, distinct failure family: the profile is correctly persisted
+and correctly configured, but its cached SSO token has expired. The
+error reads `Error when retrieving token from sso: Token has expired
+and refresh failed` — not `NoCredentials` — and the fix is different
+too: guide the user to run `aws sso login --profile <name>` (an
+interactive browser flow) — not the retry-with-`--profile` step above
+(the flag is already applied here), and not the `aws login` subcommand
+a `NoCredentials` error suggests. Same
+rule as everything else here: display the command, never run the login
+on the user's behalf.
 
 ## Change-request phrasing
 
