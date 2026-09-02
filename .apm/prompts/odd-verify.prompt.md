@@ -77,10 +77,18 @@ Then build the mission block from that report:
   `mode`: the services are the ones its per-service plan names (summary
   table), the stack is its frontmatter's `stack` all the same, and the
   mode is drive - the verification protocol runs the services and
-  exercises a scenario. Driving is self-authorized only on the local
-  stack: when the report's stack is remote, ask the user for explicit
-  confirmation before building a drive-mode mission - the agent will not
-  drive a remote service without the caller saying so;
+  exercises a scenario;
+- remote drive, whatever the report kind: driving is self-authorized
+  only on the local stack. When the resolved execution mode is `drive`
+  and the report's `stack` is remote, ask the user for explicit
+  confirmation before building the mission, naming what will be
+  driven (the recorded scenario's commands, or the stored benchmark
+  the record names at its recorded revision) and against which target.
+  The authorization the baseline run had was given for that run;
+  `observe-run` drives a remote service only when the caller says so,
+  this mission, and a stored report or manifest never carries a
+  standing permission. A refusal ends the mission - never downgrade the
+  replay to `observe` on your own, that changes the protocol;
 - baseline: the report itself - name its path and tell the agent to use
   it as the recalled baseline;
 - baseline environment: hand the report's `environment` value over with

@@ -122,7 +122,9 @@ a manifest never carries a standing permission.
 `/odd-verify` replays a benchmark-backed report through the same
 `observe-run` dispatch, in the mode the report's frontmatter records —
 never inferring `drive` from the benchmark's presence, so an observed
-run is never re-driven.
+run is never re-driven. A `drive` replay against a **remote** target
+asks you first, every time, naming the benchmark and its recorded
+revision: the authorization the original run had was for that run.
 
 A benchmark is living source, so a change to the benchmark a replay
 runs counts as changed code for the verify-vs-re-measure boundary

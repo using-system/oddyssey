@@ -250,9 +250,10 @@ configured one - so no `odd_config_set` in this subgraph), mandates
 `create-observe-run-report`'s verification rules for the report its
 agent will persist, ensures the `k6` binary is present per
 `k6-guides`' `install.md` (its auto-install step) when a drive replay
-carries a stored benchmark, dispatches to `observe-run`, and closes
-the mission with `show-observe-run-report`'s synthesis of the stored
-report - verdict first.
+carries a stored benchmark, asks the user before any drive replay on a
+remote stack (whatever the report kind), dispatches to `observe-run`,
+and closes the mission with `show-observe-run-report`'s synthesis of
+the stored report - verdict first.
 `otel-instrumentation-expert` is the same boundary node as in
 `/odd-observe` - its path is the `/odd-instrument-otel` diagram.
 

@@ -194,6 +194,12 @@ report is picked.
 - naming an instrumentation report turns the mission into presence
   rulings (planned spans, metrics, log correlation - closed or still
   missing);
+- a `drive` replay on a **remote** stack asks you for explicit
+  confirmation first, whatever the report kind, naming what will be
+  driven (the recorded scenario, or the stored benchmark at its
+  recorded revision) and against which target - the authorization the
+  original run had was for that run, never a standing one; a refusal
+  ends the mission rather than silently replaying as `observe`;
 - a report backed by a stored k6 benchmark replays in the mode its
   frontmatter records - `drive` re-runs the benchmark through the
   `run-scenario` skill (k6 installed on the spot when missing and
