@@ -103,7 +103,9 @@ agent detects it from the telemetry.
 - "drive a ... scenario" / "observe the run" / "post-hoc" - the mode;
   a drive mission starts from a clean base: the service is restarted
   and the local stack reset, so telemetry stored before the run is
-  wiped;
+  wiped; when the service's port is already served by something the
+  run did not start, the run leaves it alone and drives its own
+  instance on a free port, and the report says so;
 - "quick check that ..." / "full audit ..." - the depth: `quick`
   answers a one-question mission in minutes with the signals it
   needs, `full` runs the whole protocol; with no such word the prompt

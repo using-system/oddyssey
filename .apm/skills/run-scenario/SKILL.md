@@ -48,6 +48,30 @@ Start a clean run in this order — the reverse of what feels natural:
    too — otherwise its profiles fall back to `process.runtime.version`
    and application frames, stated in the record.
 
+**The port is already served.** Before launching the service, look at
+who listens on its port: `lsof -nP -iTCP:<port> -sTCP:LISTEN` (exit 1
+and no output on a free port). When the port is served by a process
+the run did not start — a stale instance from an earlier session, a
+compose container, someone's work — **never kill it**: run your own
+instance on a free port, launched with the run slug as its
+`service.instance.id` (above), and drive `127.0.0.1:<port>`, never
+`localhost` — on a dual-stack host `localhost` may resolve to whichever
+listener bound the other address family. Qualify every query by the
+run's identity: co-resident emitters sharing a `service.name` fold into
+one series otherwise, and their divergent code states re-export into
+the fresh store. A mission that says "start the service on :<port>"
+reads as "on that port, or the next free one": the deviation is a
+`Listeners:` line in the record — each foreign listener with its pid,
+command and bind address, and the port the run used instead; record
+those fields, never the raw `lsof` output, whose `USER` column is a
+login name — and a sentence in section 1 of the report. A replay
+reads the recorded port the same way: the requests and counts must
+match, the port need not, and a moved port is another `Listeners:`
+line. When the port cannot be moved — fixed in an image, a compose
+file or the code — neither kill the listener nor drive it: stop and
+report what holds the port, with the probe's fields. A run that cannot
+prove which process it measured is not a measurement.
+
 **Reset once.** That clean-base reset is the only reset this skill takes
 on its own. Any further `odd_stack_reset` inside a mission is an
 explicit mission requirement — an operation the mission observes (a
@@ -172,7 +196,8 @@ deliverable:
 
 ```text
 Scenario: <name>
-Base URL: http://localhost:<port>
+Base URL: http://127.0.0.1:<port>   # not localhost: a dual-stack host may resolve it to another listener
+Listeners: none   # or: :8000 served by 41234 uvicorn (127.0.0.1) and 51022 com.docker (*), ran on :8001
 Backend:  odd_stack_reset, env: {"PROMETHEUS_EXTRA_ARGS": "..."}   # or "defaults"
 Instance: af6070... (restarted before reset)   # or equivalent identity; add the start time when not restarted
 Warmup:   5 requests per endpoint (discarded)
@@ -181,8 +206,8 @@ Started (UTC): 2026-08-17T10:04:12Z
 Ended   (UTC): 2026-08-17T10:05:03Z
 Query points: 1 (after Ended)   # more than one only with a reason - see step 5
 Commands:
-  for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:8080/api/users; done
-  for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:8080/api/orders/42; done
+  for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:8080/api/users; done
+  for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:8080/api/orders/42; done
   # a mission-required reset is a Commands line too (step 0), e.g.:
   # odd_stack_reset env={"GF_LOG_LEVEL":"debug"}   # reason: the mission observes the reset itself
 Not reproducible: <auth token / seeded data / time-dependent input, or "none">
@@ -332,7 +357,8 @@ identity, the single command, and k6's own evidence:
 ```text
 Scenario:  benchmark orders-read-heavy
 Benchmark: .odd/benchmarks/orders-read-heavy/ @ 3ccfd18 (clean)
-Base URL:  http://localhost:8080   # BASE_URL, mission-time
+Base URL:  http://127.0.0.1:8080   # BASE_URL, mission-time
+Listeners: none
 Backend:   odd_stack_reset, env: defaults
 Instance:  orders-run-0902 (restarted before reset)
 Stages (UTC): ramp 10:04:12–10:05:12 (excluded), steady 10:05:12–10:10:12, ramp-down 10:10:12–10:10:42
@@ -340,7 +366,7 @@ Started (UTC): 2026-09-02T10:04:12Z
 Ended   (UTC): 2026-09-02T10:10:42Z
 Query points: 1 (after Ended)
 Command:
-  K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run .odd/benchmarks/orders-read-heavy/script.js -o opentelemetry --summary-export /tmp/k6-summary-orders-run-0902.json -e BASE_URL=http://localhost:8080   # -o opentelemetry and its env: local stack only
+  K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run .odd/benchmarks/orders-read-heavy/script.js -o opentelemetry --summary-export /tmp/k6-summary-orders-run-0902.json -e BASE_URL=http://127.0.0.1:8080   # -o opentelemetry and its env: local stack only
 k6:        exit 0, 1234 requests, checks 100%, dropped iterations 0, script errors 0 (summary file transient, numbers above are the record)
 Not reproducible: none
 ```
