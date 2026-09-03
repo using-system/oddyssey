@@ -40,6 +40,20 @@ steps needing the user cannot happen inside a subagent):
    account and no configuration), otherwise follow that reference's
    non-interactive path for the platform or hand the remaining steps
    to the user and stop.
+4. Resolve the **depth** — `quick` or `full`, how far the mission goes
+   (the agent's Depth section) — from the arguments when they carry it,
+   on the user's phrasing in any language, the way step 1 resolves a
+   stack from the **Also called** column: "quick", "fast", "simple
+   report", "just check that ...", "a first look" resolve to `quick`;
+   "audit", "full sweep", "complete", "before the SDD wave" resolve to
+   `full` — examples, not a closed list. A resolved depth is stated in
+   the preflight's display and in the mission block, never asked again.
+   Only when the arguments carry no depth signal, ask the user — with
+   the host's structured-question tool when it has one (Claude Code:
+   `AskUserQuestion`) — `quick` first and marked recommended, and carry
+   the answer; when the service is missing too (the rule below), one
+   ask carries both questions, never two in a row. A service-less
+   discovery question (below) has no depth.
 
 Build the mission block from the arguments below, applying the agent's own
 defaults for every field not specified:
@@ -47,7 +61,8 @@ defaults for every field not specified:
 - Arguments: $ARGUMENTS
 - Expected fields (any order, free-form): service name(s), stack
   (defaults to the configured one - the preflight resolved it), mode
-  (drive / observe / post-hoc), benchmark, window, focus, baseline
+  (drive / observe / post-hoc), depth (quick / full - the preflight
+  resolved or asked it), benchmark, window, focus, baseline
   expectations.
 - `benchmark` names a stored k6 benchmark - its directory name under
   `.odd/benchmarks/` or that path. `run .odd/benchmarks/<name>/` means

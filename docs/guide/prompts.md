@@ -102,10 +102,15 @@ synthesis of the persisted report (the `show-observe-run-report`
 skill); the stored file under `.odd/observe-run-reports/` is the
 deliverable the next wave consumes. Free-form arguments map to:
 **service name(s)**, **stack** (defaults to the configured one), **mode**
-(`drive` / `observe` / `post-hoc`), **benchmark** (a stored k6
+(`drive` / `observe` / `post-hoc`), **depth** (`quick` / `full` - how
+far the mission goes), **benchmark** (a stored k6
 benchmark under `.odd/benchmarks/`, by name or path), **window**,
 **focus**, and **baseline expectations**. The deployment environment is
 never an argument - the agent detects it from the service's telemetry.
+The depth is read from your phrasing in any language ("quick", "fast",
+"simple report", "just check that ..." mean `quick`; "audit", "full
+sweep", "complete" mean `full`) and asked - `quick` recommended - only
+when the phrasing carries no signal.
 
 > **Important** - the target stack's observability CLI must be
 > configured and connected beforehand: the preflight proves the
@@ -125,6 +130,8 @@ never an argument - the agent detects it from the service's telemetry.
 /odd-observe run .odd/benchmarks/checkout-read-heavy/
 /odd-observe someone is running the checkout-read-heavy benchmark right now - observe it
 /odd-observe list the services with metrics on my stack grafana over the last 30 days - just the names
+/odd-observe quick check that orders answers on /health
+/odd-observe full audit of checkout before the SDD wave
 ```
 
 - "checkout", "payment", "orders" - the services;
@@ -156,7 +163,13 @@ never an argument - the agent detects it from the service's telemetry.
 - "between 14:00 and 15:00 UTC" / "after my last deployment" - the
   window;
 - "focus on latency" / "error rate should stay under 1%" - focus and
-  baseline expectations.
+  baseline expectations;
+- "quick check that ..." / "full audit ... before the SDD wave" - the
+  depth: `quick` queries the signals the question touches, fetches one
+  exemplar per operation and writes a collapsed report under five
+  minutes on the local stack; `full` is the whole protocol; with no
+  such word the prompt asks, `quick` recommended - see
+  [docs/guide/reports.md](reports.md) for the report shape of each.
 
 ## /odd-verify
 
@@ -185,6 +198,7 @@ report is picked.
 /odd-verify verify my last prod report
 /odd-verify verify the instrumentation investigation of services/api - did the planned signals land?
 /odd-verify re-measure my last checkout report - nothing changed, is it stable?
+/odd-verify full verify of my last orders report
 ```
 
 - no arguments - the newest report across both `.odd/` report
@@ -196,6 +210,14 @@ report is picked.
 - naming an instrumentation report turns the mission into presence
   rulings (planned spans, metrics, log correlation - closed or still
   missing);
+- the depth is the baseline report's `depth` field, never asked; a
+  baseline without one (written before the field) replays at `quick`
+  and the run record says the depth was defaulted - "full verify" /
+  "quick check" in the arguments forces it either way - the preflight
+  says which depth the replay runs before anything is dispatched; an
+  instrumentation baseline replays at `full` (its presence rulings
+  span every signal). A quick verify rules what its signals cover and
+  counts the rest as `not ruled (quick)`;
 - a `drive` replay on a **remote** stack asks you for explicit
   confirmation first - before the CLI check, before k6 is installed,
   whatever the report kind - naming what will be driven (the recorded

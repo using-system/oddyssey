@@ -68,6 +68,7 @@ services: [checkout, payment]
 stack: local                  # local | the remote backend name (grafana, datadog, ...)
 environment: local            # detected: deployment.environment.name reported by the service's telemetry (local forced on the local stack; unknown when absent)
 mode: drive                   # drive | observe | post-hoc | verify | re-measure
+depth: full                   # quick | full: how far the mission went (the agent's Depth section); absent = written before the field, ran the full protocol
 window: 2026-08-22T10:04:12Z/2026-08-22T10:05:03Z
 run_name: checkout-latency-sweep
 date: 2026-08-22
@@ -110,6 +111,19 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   through `verifies`.
 - `window` is the observed interval as `start/end` in UTC; in drive mode
   it is the scenario's own start and end.
+- `depth` is how far the mission went — `quick` (the agent's bounded
+  protocol: the signals the question touched, one exemplar per
+  operation, sections 3 to 6 collapsed, section 7 carrying only what
+  was measured) or `full` (the whole protocol). Required on every new
+  report, so `/odd-status` and the recall can tell the two apart and a
+  quick run is never silently taken as the baseline of a full one. A
+  report without the field predates it and ran the full protocol: read
+  it as `full`. A verification or re-measure records the depth **it**
+  ran at (inherited from the baseline's field, or — the one deliberate
+  asymmetry — `quick` when an observation baseline has none: the
+  absent field says "ran full" to every reader and "replay quick" to
+  `/odd-verify`, whose preflight says so before dispatch and whose run
+  record says it was defaulted), which may differ from the baseline's.
 - `environment` is **detected**, never asked: the
   `deployment.environment.name` resource attribute the service's
   telemetry reports — pre-run probe on recent telemetry, provisional
@@ -201,7 +215,12 @@ Before a new run, load the baseline:
    once the value settles. When a match's `workload` differs from the
    mission's (or only one side has one), keep it but **warn**: its
    numbers were shaped by a different input, and diffing across
-   workloads violates the one-changed-variable rule.
+   workloads violates the one-changed-variable rule. Depth filters the
+   match: a **`full`** mission's baseline is the newest match whose
+   `depth` is `full` (or absent) — a newer `quick` match is skipped,
+   and section 1 names it ("newer quick report skipped: <path>") so the
+   skip is visible; a **`quick`** mission takes the newest match of
+   either depth (a full report carries more than a quick run needs).
 3. The first match is the baseline. Read it **by section, never
    whole** — the same partial read applies when the mission names the
    baseline itself: the frontmatter; section 1's scenario record block
