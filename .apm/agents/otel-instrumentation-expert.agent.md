@@ -150,7 +150,11 @@ with its stored path:
    (`service.instance.id` set through `OTEL_RESOURCE_ATTRIBUTES` for
    traces, metrics and logs; for profiles, a per-run tag mirroring it,
    since Pyroscope SDK profiles carry no instance identity, plus the
-   application frames the flamegraph must show) — so a later
+   application frames the flamegraph must show — as **anchored** frame
+   names read off the emitting process's own flamegraph, never a
+   module-path regex, since SDK profilers name frames `Class.method`
+   or bare, and `urlopen`-style names are shared with helper code) — so
+   a later
    `/odd-verify` run can rule **closed / present, unattributed / still
    missing** on each item without interpreting prose (the `observe-run`
    agent does the confirmation). A check satisfiable by any process
