@@ -14,3 +14,4 @@ the only place a decision lives.
 | 2026-08-29 | 2026-08-22-2154-mcp-otel-instrumentation-verification.md / A6 | accepted-by-design | Transient of the injected engine-kill scenario; a clean reset clears it (confirmed by 2026-08-22-2227) |
 | 2026-08-29 | 2026-08-28-1531-stack-config-lifecycle.md / N2 | tracked | Real attribution gap; carried by issue #148 instead of the loop |
 | 2026-08-29 | 2026-08-28-1531-stack-config-lifecycle.md / N2 | open | #148 shipped the opt-in (v1.8.2) and the 2026-08-29-1107 verification rules N2 FIXED - back to what the reports rule |
+| 2026-09-03 | 2026-08-28-1531-stack-config-lifecycle.md / N5 | wontfix | 25 ms absolute on a stack_config-only write; the state-inspect is not worth removing |
