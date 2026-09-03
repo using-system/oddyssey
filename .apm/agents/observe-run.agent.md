@@ -269,9 +269,10 @@ Then go from aggregates to explanations:
   reference file (a histogram's p99 comes out in seconds; the query
   language may want `340ms`); when it comes back empty (a histogram's
   p99 estimate can exceed the longest real span), one further search
-  with the same scope and window, no duration predicate, at the
-  reference's bounded result limit — take the longest span it returns,
-  and record the limit so the verify run carves the same way. Run the
+  with the same scope and window, no duration predicate, at an
+  **explicit** result limit taken from the reference — never the CLI's
+  silent default page — take the longest span it returns and fetch its
+  trace, and record the limit so the verify run carves the same way. Run the
   searches for all operations first, then **fetch every exemplar in one
   batch of parallel tool calls** — each fetch returns KBs of OTLP JSON,
   and one per turn is the slow shape. Diff their span trees: where the

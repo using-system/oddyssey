@@ -174,10 +174,12 @@ Warmup:   5 requests per endpoint (discarded)
 Load:     30 requests per endpoint, sequential
 Started (UTC): 2026-08-17T10:04:12Z
 Ended   (UTC): 2026-08-17T10:05:03Z
+Query points: 1 (after Ended)   # more than one only with a reason - see step 5
 Commands:
   for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:8080/api/users; done
   for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:8080/api/orders/42; done
-Query points: 1 (after Ended)   # more than one only with a reason - see step 5
+  # a mission-required reset is a Commands line too (step 0), e.g.:
+  # odd_stack_reset env={"GF_LOG_LEVEL":"debug"}   # reason: the mission observes the reset itself
 Not reproducible: <auth token / seeded data / time-dependent input, or "none">
 ```
 
@@ -185,7 +187,10 @@ Exact commands, exact counts, exact UTC start and end — the start/end pair
 is also the observation window for every query run against this scenario.
 The `Query points:` line is the default `1` — the whole scenario, then one
 flush wait, then every query (step 5); a mission that must read the store
-at several points lists them here with the reason each one exists.
+at several points lists them here with the reason each one exists. A
+reset the mission requires (step 0) is a `Commands:` line like any other
+driven call, with its env and its reason — in a benchmark record (step
+6) it keeps that slot next to the single `k6 run` command.
 The `Backend:` line records how the stack was (re)started, **including any
 `env`**: a replay must reproduce the backend and not only the requests. A
 bare `odd_stack_reset` reapplies the env persisted in `stack_config.local`,
