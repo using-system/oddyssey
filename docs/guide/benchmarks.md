@@ -50,8 +50,10 @@ replacement.
 Name the benchmark in an `/odd-observe` mission, by directory or path:
 
 - **drive**: the `observe-run` agent runs the stored script itself,
-  unmodified; a base URL or a named secret the manifest leaves open is
-  passed at mission time and recorded by name;
+  unmodified, from a clean base — the service restarted and the local
+  stack reset, so telemetry stored before the run is wiped; a base URL
+  or a named secret the manifest leaves open is passed at mission time
+  and recorded by name;
 - **observe**: someone else runs it, the agent only watches the
   telemetry;
 - **post-hoc** takes no benchmark: the agent cannot attest that the
@@ -59,7 +61,9 @@ Name the benchmark in an `/odd-observe` mission, by directory or path:
 
 The report cites the benchmark by name and git revision, rules on the
 manifest's thresholds from the service's own telemetry, and keeps k6's
-summary as evidence only. Driving a remote target is authorized in
+summary as evidence only; when the k6 run itself threw, no threshold
+is ruled — every row reads `void` and the defect is the report's first
+finding. Driving a remote target is authorized in
 the prompt, every run.
 
 ## Verify

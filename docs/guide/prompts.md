@@ -101,6 +101,9 @@ agent detects it from the telemetry.
 - "on prod" / "on uat" - an expectation about the deployment
   environment the agent detects, never a stack;
 - "drive a ... scenario" / "observe the run" / "post-hoc" - the mode;
+  a drive mission starts from a clean base: the service is restarted
+  and the local stack reset, so telemetry stored before the run is
+  wiped;
 - "quick check that ..." / "full audit ..." - the depth: `quick`
   answers a one-question mission in minutes with the signals it
   needs, `full` runs the whole protocol; with no such word the prompt
@@ -152,7 +155,8 @@ material** by name.
   mission, the prompt asks;
 - "full verify" / "quick check" - the depth; otherwise it is the
   baseline report's, `quick` for a report written before the field,
-  and the prompt says which before dispatching.
+  and the prompt says which before dispatching; an instrumentation
+  report replays at `full`, its rulings spanning every signal.
 
 ## /odd-status
 

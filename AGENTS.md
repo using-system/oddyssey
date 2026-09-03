@@ -166,7 +166,8 @@ structure for both report kinds. Update it in the same change whenever
 the file contracts of `create-observe-run-report` or
 `create-otel-instrumentation-report`, or the report sections of the
 `observe-run` or `otel-instrumentation-expert` agents, change — the
-guide documents those contracts and must never lag them.
+guide documents what a reader needs of those contracts and must never
+lag them.
 The editorial rule above applies: keep the guide true, never
 exhaustive.
 

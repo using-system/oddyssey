@@ -55,7 +55,7 @@ process_restarted: true
 | `stack` | yes | The backend the run queried | `local`, or a remote backend name |
 | `environment` | yes | The deployment environment, detected from the telemetry, never asked | the detected value; `local` on the local stack; `unknown` when the service emits none |
 | `mode` | yes | How the run executed, or what kind of replay it was | `drive`, `observe`, `post-hoc`, `verify`, `re-measure` |
-| `depth` | new reports | How far the mission went | `quick` (the signals the question touches, a collapsed report), `full`; absent on older reports, which ran full |
+| `depth` | new reports | How far the mission went | `quick` (the signals the question touches, a collapsed report), `full`; absent on older reports, which ran full — `/odd-verify` replays such a baseline at `quick` unless you say `full verify` |
 | `window` | yes | The observed interval, UTC | `start/end` |
 | `run_name` | yes | The filename's slug | kebab-case |
 | `date` | yes | The run's UTC date | `YYYY-MM-DD` |
@@ -83,20 +83,26 @@ rather than guessing.
 5. **Telemetry gaps** — what the service should emit but does not.
 6. **Decisions the spec must settle** — what telemetry cannot answer.
 7. **Measurement protocol for the fix** — the scenario to replay and
-   every check with its before-value and pass criterion.
+   every check with its before-value, its pass criterion, and how its
+   query was validated, or `not validated`.
 
 A `quick` report keeps the seven headings with sections 1, 2 and 7
 complete and 3 to 6 reduced to their essentials; section 5 names the
 signals the run did not query. A verification adds its verdicts: each
 check passed or failed, each anomaly fixed or still present, each gap
-filled or still missing. A re-measure carries the same numbers and
-rules on no fix.
+filled or still missing. A re-measure replays the same protocol and
+rules on no fix: its numbers extend the run's measurement history.
 
 ## Instrumentation reports — `.odd/otel-instrumentation-reports/`
 
-Written by `/odd-instrument-otel`, one file per investigation. Same
-filename rule, `<run_name>` naming what was investigated; no verify
-variant — verifying a plan writes an observation report whose
+Written by `/odd-instrument-otel`, one file per investigation.
+
+```text
+YYYY-MM-DD-HHmm-<run_name>.md
+```
+
+Same timestamp rule, `<run_name>` naming what was investigated; no
+verify variant — verifying a plan writes an observation report whose
 `verifies` points here.
 
 ### Frontmatter
