@@ -52,6 +52,7 @@ services: [checkout, payment]
 stack: local
 environment: local
 mode: drive
+depth: full
 window: 2026-08-22T10:04:12Z/2026-08-22T10:05:03Z
 run_name: checkout-latency-sweep
 date: 2026-08-22
@@ -68,6 +69,7 @@ process_restarted: true
 | `stack` | yes | The backend the run queried | `local`, or a remote backend name (`grafana`, `datadog`, ...) |
 | `environment` | yes | The deployment environment, **detected** from the `deployment.environment.name` resource attribute — never asked | any detected value (`prod`, `uat`, ...); `local` forced on the local stack; `unknown` when the service emits no attribute (stated, never guessed — and recorded as a telemetry gap) |
 | `mode` | yes | How the run executed — or, for `verify` and `re-measure`, what kind of replay it was (the replayed execution mode stays reachable through `verifies`) | `drive` (the run generated the traffic), `observe` (someone else drove, the run watched live), `post-hoc` (analysis of a past window), `verify` (protocol replay ruling on a fix), `re-measure` (protocol replay testing no fix — drift or stability) |
+| `depth` | yes (new reports) | How far the mission went — the second axis next to `mode`: `quick` queries the signals the question touches, fetches one exemplar per operation, collapses sections 3 to 6 and records only what it measured in section 7; `full` runs the whole protocol. A verification or re-measure records the depth it ran at | `quick`, `full`; absent on reports predating the field, which ran the full protocol and read as `full` |
 | `window` | yes | The observed interval, `start/end` in UTC; in drive mode, the scenario's own start and end | ISO 8601 interval |
 | `run_name` | yes | The slug the filename carries; a verification or re-measure takes the replayed report's | kebab-case slug |
 | `date` | yes | The run's UTC date | `YYYY-MM-DD` |
@@ -122,6 +124,15 @@ complete (a summary cannot feed a diff):
    conditions),
    then every verification check with its before-value, pass
    criterion, and how the query was validated (or `not validated`).
+
+A **quick** report (`depth: quick`) keeps the seven headings — the
+recall reads by section number — with sections 1, 2 and 7 complete,
+section 3 reduced to its ranked table, and sections 4, 5 and 6 to one
+line each; section 5's line names the signals the run did not query
+(`not queried (quick): logs, profiles` — a statement about the mission,
+never a gap of the service) before any gap it found, and section 7
+carries only the checks the run measured. A quick verification rules
+what its signals can rule and lists the rest as `not ruled (quick)`.
 
 A verification's body carries the same sections plus its verdicts:
 each §7 check of the baseline ruled pass/fail with before and after

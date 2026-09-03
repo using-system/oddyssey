@@ -36,12 +36,15 @@ conversation's memory of the mission.
    baseline delta (`3 anomalies (1 high, confirmed), 2 telemetry
    gaps, p95 stable vs baseline`); a verification leads with the
    ruling (`FAIL — 2/5 checks red`); a re-measure leads with drift
-   (`no drift — 5/5 measurements within range`).
+   (`no drift — 5/5 measurements within range`). A `quick` report says
+   so in the headline (`quick — 1 anomaly (suspected), logs and
+   profiles not queried`), and a quick verify counts what it did not
+   rule (`PASS — 3/3 checks ruled, 2 not ruled (quick)`).
 2. **Where it lives** — one line: the stored path and the commit that
    carries it.
 3. **Run block** — compact `key: value` lines: services, stack, mode,
-   window, detected environment (all from the frontmatter), and the
-   baseline report used — `verifies` when present, else section 1's
+   depth (`full` when the frontmatter has none), window, detected
+   environment (all from the frontmatter), and the baseline report used — `verifies` when present, else section 1's
    recalled baseline, or "none" when the report names none.
 4. **The core, by kind** — tables, capped at ~10 rows with a
    `+N more in the report` marker:

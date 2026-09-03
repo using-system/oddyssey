@@ -46,8 +46,8 @@ as tables — never a committed artifact.
 2. **Per-service loop state.** One row per service (`services` for
    observation reports; an instrumentation report contributes to the
    services its plan covers, `project` names its scope): last
-   observation (date, `stack`, `environment`, mode, `workload` when
-   present), last verification (`mode: verify` reports — their
+   observation (date, `stack`, `environment`, mode, `depth` — `full`
+   when the frontmatter has none — `workload` when present), last verification (`mode: verify` reports — their
    `verifies` value names what they replayed) with its verdict from the
    report body, and the chain as the files tell it:
    observed -> fixed -> verified. A `mode: re-measure` report is an

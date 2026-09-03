@@ -119,9 +119,17 @@ Then build the mission block from that report:
   it. The agent detects the environment of its own run, compares it
   against the one you handed over, and owns the hard stop when the two
   diverge - no verdict is ever ruled across environments. An
-  **instrumentation report** carries no `environment` by design: say so
+    **instrumentation report** carries no `environment` by design: say so
   in the mission block - the comparison is skipped and the environment
   the run detects is recorded fresh;
+- depth: the baseline's `depth` frontmatter field is the mission's
+  depth, no question asked. When the baseline carries none (a report
+  written before the field, or an instrumentation report), the replay
+  runs `quick` — say in the mission block that the depth was defaulted,
+  so the run record states it. The arguments may force `full` or
+  `quick` ("full verify", "quick check"): an argument wins over the
+  field. At `quick` depth the agent rules what its signals can rule and
+  counts the rest as `not ruled (quick)` (its Depth section);
 - persistence: state that the run is a **verification** of that report,
   naming its exact filename, so the agent persists per the
   `create-observe-run-report` skill's verification rules —
