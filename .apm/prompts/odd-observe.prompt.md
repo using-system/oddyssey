@@ -21,18 +21,19 @@ steps needing the user cannot happen inside a subagent):
    says which instance).
 
 2. Run the `check-backend-configuration` skill: show the CLI's effective
-   configuration to the user (no confirmation needed), and stop on
-   either of its two stop outcomes, in its own words — the binary is
-   **not installed** (it routes to the guided install offer and nothing
-   is dispatched) or the connection proof failed, **"CLI not configured
-   for <backend>"** (it guides the setup and never authenticates on the
-   user's behalf); never relabel the first as the second. Ask for
+   configuration to the user (no confirmation needed), and stop where
+   the skill stops, in its own words — the binary is **not installed**:
+   it offers the guided install and resumes once the binary exists,
+   stopping only if the user declines, and nothing is dispatched
+   meanwhile; or the connection proof failed, **"CLI not configured
+   for <backend>"**: it guides the setup and never authenticates on the
+   user's behalf; never relabel the first as the second. Ask for
    whatever the mission still needs (instance URL, tenant, access
-   material by name) before dispatching. Carry the skill's closing `Preflight:` handoff block
-   into the mission block verbatim: the agent then reads the
-   reference's other sections only (never the preflight's four: CLI
-   binary, Setup, Configuration display, What to persist) and never
-   re-proves what the preflight proved.
+   material by name) before dispatching. Carry the skill's closing
+   `Preflight:` handoff block into the mission block verbatim: the
+   agent then reads the reference's other sections only (never the
+   preflight's four: CLI binary, Setup, Configuration display, What to
+   persist) and never re-proves what the preflight proved.
 3. When the arguments name a stored benchmark, read its manifest under
    `.odd/benchmarks/<name>/` for the target service (the service the
    mission uses unless the arguments name one), and - unless the

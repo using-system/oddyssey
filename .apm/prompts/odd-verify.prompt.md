@@ -80,12 +80,13 @@ this order:
    installed or checked: never downgrade the replay to `observe` on
    your own - that changes the protocol.
 3. **The CLI.** Run the `check-backend-configuration` skill against the
-   report's stack: show the CLI's configuration, stop on either of its
-   two stop outcomes in its own words — the binary **not installed**
-   (guided install offer, no dispatch) or the connection proof failed,
-   **"CLI not configured for <backend>"** (guidance, never an
-   authentication on the user's behalf) — and ask for what is missing
-   before dispatching.
+   report's stack: show the CLI's configuration, stop where the skill
+   stops, in its own words — the binary **not installed**: it offers
+   the guided install and resumes once the binary exists, stopping only
+   if the user declines, nothing dispatched meanwhile; or the
+   connection proof failed, **"CLI not configured for <backend>"**:
+   guidance, never an authentication on the user's behalf — and ask
+   for what is missing before dispatching.
    Carry its closing `Preflight:` handoff block into the mission block
    verbatim — the agent reads the reference's other sections only (never
    the preflight's four: CLI binary, Setup, Configuration display,
