@@ -25,7 +25,11 @@ steps needing the user cannot happen inside a subagent):
    with its "CLI not configured for <backend>" error instead of letting
    the agent attempt interactive auth. Ask for whatever the mission
    still needs (instance URL, tenant, access material by name) before
-   dispatching.
+   dispatching. Carry the skill's closing `Preflight:` handoff block
+   into the mission block verbatim: the agent then reads the
+   reference's other sections only (never the preflight's four: CLI
+   binary, Setup, Configuration display, What to persist) and never
+   re-proves what the preflight proved.
 3. When the arguments name a stored benchmark, read its manifest under
    `.odd/benchmarks/<name>/` for the target service (the service the
    mission uses unless the arguments name one), and - unless the
@@ -68,8 +72,10 @@ defaults for every field not specified:
   offering the full mission as the follow-up.
 
 Close the mission with the `show-observe-run-report` skill: render its
-synthesis of the stored report as the final answer, stating the stored
-path. The report file - not the synthesis - is the deliverable the
+synthesis from the persistence return value the agent's reply carries
+(stored path, carrying commit, the report as written) as the final
+answer, stating the stored path — no re-read of the file just
+written. The report file - not the synthesis - is the deliverable the
 next spec-driven wave consumes: never re-dump the raw report in the
 conversation, and never let the synthesis replace the stored file as
 the plan's input.

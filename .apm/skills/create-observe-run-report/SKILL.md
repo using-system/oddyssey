@@ -202,10 +202,28 @@ Before a new run, load the baseline:
    mission's (or only one side has one), keep it but **warn**: its
    numbers were shaped by a different input, and diffing across
    workloads violates the one-changed-variable rule.
-3. The first match is the baseline: read that one report in full — its
-   per-operation numbers, findings, and measurement protocol are the
-   before-values the new run compares against. What the comparison must
-   report belongs to the calling agent's contract, not to this skill.
+3. The first match is the baseline. Read it **by section, never
+   whole** — the same partial read applies when the mission names the
+   baseline itself: the frontmatter; section 1's scenario record block
+   (`Scenario:` through `Not reproducible:`) together with the replay
+   notes around it — deviations, false starts, anything the report
+   flags as mattering for a replay — but not section 1's mission
+   restatement or its recalled-baseline line; section 2 (the
+   per-operation numbers and their deltas); section 3 (the findings
+   the new run rules on); and section 7 (the protocol's checks and
+   before-values). A **verification** or **re-measure** run also reads
+   section 5 (every gap it must rule filled or still missing).
+   Sections 4 and 6 are never part of the recall: a stored report runs
+   300 to 500 lines, and the new run re-derives those from live
+   telemetry. An **instrumentation report** baseline
+   (`.odd/otel-instrumentation-reports/`, the
+   `create-otel-instrumentation-report` contract) is read the same
+   way: its frontmatter, its summary table, its per-service decisions,
+   and its verification protocol — never its stack inventory or its
+   open decisions. Reading beyond that set is the exception — for a
+   stated need (a finding's detail, a gap's discovery query) — and the
+   calling agent's run record says so. What the comparison must report
+   belongs to the calling agent's contract, not to this skill.
 4. Older matches are history: only when a trend matters (a number
    degrading run after run), read at most the few most recent matches,
    and only the numbers in question — never the full files.
@@ -226,11 +244,35 @@ Before a new run, load the baseline:
    slug, no `verifies`) stay valid matches: their chain simply is not
    machine-readable, which is a fact to state, not an error.
 
+## Return value
+
+After persisting, return — to the agent, and through its reply to the
+caller closing the mission:
+
+- the stored path, repo-relative;
+- the carrying commit (`git rev-parse --short HEAD` right after the
+  commit), or `not committed` with the reason (default branch and no
+  work branch possible, not a repository, the caller said not to);
+- the report as written — frontmatter and body, verbatim: the file's
+  content, never a summary of it.
+
+`show-observe-run-report` renders the closing synthesis from this
+value; the file on disk is read again only by a later mission's recall
+or by a caller naming a stored report.
+
 ## Rules
 
 - **Never write secrets into a report**: no tokens, credentials, cookies,
   or connection strings — these files are made to be committed and
   shared. Refer to access material by variable or secret name only.
+  The same for **real identifiers** that carry no access on their own:
+  tenant, workspace, subscription, resource-group or site names and
+  GUIDs, account or login names, home-directory paths — anything that
+  identifies a real customer, tenant or environment. The mission
+  block's `Preflight:` handoff and a live `odd_config_get` or CLI
+  excerpt are the likeliest sources: never restate the identifiers
+  they carry; replace every such value with an obviously fake
+  placeholder before it lands in the file.
 - **A recorded query is a contract only once shown to work**: a check is
   authored against *broken* data, so "returns NaN/empty" and "the query
   is wrong" are indistinguishable at authoring time (measured: `rate()`

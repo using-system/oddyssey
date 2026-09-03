@@ -43,6 +43,13 @@ embedded definition plus env**: hand-mounted volumes and networks do not
 survive it. Bring it up with the oddyssey MCP tools (`odd_stack_status`,
 `odd_stack_up`) before configuring anything here.
 
+**Read by section.** The caller's preflight (`check-backend-configuration`)
+writes the isolated context below and proves it, and hands its path
+over in the mission block; an agent holding that handoff skips
+`## Configure an isolated context` (regenerate the file only when
+`gcx config check` fails on it) and reads `## Datasources` and
+`## This stack is push-based` — the two sections a query needs.
+
 ## Configure an isolated context
 
 Never edit the user's own gcx configuration. Point `GCX_CONFIG` at a

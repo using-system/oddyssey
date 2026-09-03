@@ -82,6 +82,10 @@ this order:
 3. **The CLI.** Run the `check-backend-configuration` skill against the
    report's stack: show the CLI's configuration, fail fast when it is
    not connected, and ask for what is missing before dispatching.
+   Carry its closing `Preflight:` handoff block into the mission block
+   verbatim — the agent reads the reference's other sections only (never
+   the preflight's four: CLI binary, Setup, Configuration display,
+   What to persist) and never re-proves what the preflight proved.
 4. **k6.** When the replay will be `drive` with a stored benchmark (the
    report's record names one), ensure the `k6` binary is present, per
    the `k6-guides` skill's `install.md` auto-install step:
@@ -129,39 +133,41 @@ Then build the mission block from that report:
   `.odd/observe-run-reports/` whatever the baseline's kind — the path
   shape is what says the baseline lives outside the observation
   directory. **Unless the replay tests no fix**: when the observed
-  repo's code is unchanged since the baseline's `revision` — no
-  commits beyond the loop's own memory and documentation AND a clean
-  working tree (uncommitted changes to anything else are changed
-  code) — the mission is a **re-measure**, not a verification: same
-  replay, but the agent persists
-  `YYYY-MM-DD-HHmm-remeasure-<run_name>.md` with `mode: re-measure`
-  and the same `verifies` field — calling it a
-  verification would fabricate a fix that never existed. The loop's
-  memory is the append-only report stores and the ledger —
-  `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`,
-  `.odd/decisions.md` — and nothing else under `.odd/`:
-  `.odd/benchmarks/` is living source, and the benchmark the replay
-  runs, when its script or manifest changed since the baseline, is
-  changed code like any other path (a drive replay runs it, so a fix
-  to it is a fix under test — calling that a re-measure would deny a
-  fix that
-  happened). Check before dispatching; the preferred boundary is the
-  baseline's `tree_anchor`: compare its entry hashes against
-  `git ls-tree HEAD`, ignoring `.odd` (its top-level hash moves with
-  every report written) and every entry that cannot change the
-  observed service's runtime behavior (documentation is the canonical
-  case, but so are CI configuration, generated/packaging artifacts,
-  and release-metadata files) — resolvable in any clone whatever the
-  merge strategy. Then test the benchmark by path, anchor or not: the
-  path is the benchmark the baseline's scenario record names
-  (`.odd/benchmarks/<name>/`); when the record names none, there is
-  nothing to test — a benchmark the replay does not run cannot be its
-  fix, and an unrelated benchmark's update is not this service's
-  fix. Commits touching that path since the baseline, or uncommitted
-  changes under it, are changed code. When the revision does not
-  resolve (a squash-merged clone), the boundary is the baseline report
-  file's own commit date, and that commit sits inside the window —
-  ignore it:
+  repo's code is unchanged since the baseline's `revision`, the
+  mission is a **re-measure**, not a verification — same replay, but
+  the agent persists `YYYY-MM-DD-HHmm-remeasure-<run_name>.md` with
+  `mode: re-measure` and the same `verifies` field; calling it a
+  verification would fabricate a fix that never existed. "Unchanged"
+  means no change beyond the loop's own memory
+  (`.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`,
+  `.odd/decisions.md`) and documentation, AND a clean working tree
+  (uncommitted changes to anything else are changed code).
+  `.odd/benchmarks/` is living source: a change to the benchmark the
+  replay runs is a fix under test like any other code change (calling
+  that a re-measure would deny a fix that happened); an unrelated
+  benchmark's change is not this service's fix, and a record naming
+  no benchmark has nothing to test there.
+
+  Decide it before dispatching, from the baseline's `tree_anchor` and
+  one tree read — no git walk while the anchor answers:
+
+  ```text
+  git ls-tree HEAD                                     # compare entry by entry with tree_anchor
+  git status --porcelain                               # clean tree, or changed code
+  git log <revision>..HEAD -- .odd/benchmarks/<name>/  # only when the record names a benchmark
+  ```
+
+  Ignore `.odd` (its hash moves with every report written) and every
+  entry that cannot change the observed service's runtime behavior
+  (documentation is the canonical case, but so are CI configuration,
+  generated/packaging artifacts, and release-metadata files). Every
+  runtime entry equal, a clean tree, no benchmark commit or change:
+  **re-measure**. A runtime entry differing, a dirty tree, or a
+  benchmark commit or change: **verification**. The git walk is the
+  fallback only — a baseline with no `tree_anchor`, or a `revision`
+  the benchmark command cannot resolve (a squash-merged clone), where
+  the baseline report file's own commit date is the boundary and that
+  commit sits inside the window (ignore it):
 
   ```text
   git rev-parse --verify <revision>^{commit}          # does the revision resolve?
@@ -170,17 +176,17 @@ Then build the mission block from that report:
   git log --since=<that date> -- <path>               # is the boundary
   ```
 
-  Differing entries you cannot classify make the check undecidable
-  (the rule below), never a silent "code changed". With no anchor,
-  compare trees, not ancestry, and when the baseline carries no
-  `revision` either, the report's own commit date (the same command
-  as above) is the substitute boundary — the same rule `/odd-status`
-  applies. When the check is still undecidable, or its outcome
-  contradicts how
-  the caller framed the mission — they asked to *verify* but nothing
-  changed, or they said *re-measure* but commits landed — say so and
-  ask which of the two the mission is, never silently reclassify. Say
-  which one it is in the mission block. When what changed is the
+  With no anchor, compare trees, not ancestry — a `git log` walk is
+  misled by the rebased or squash-merged clone the anchor exists to
+  survive — and with no `revision` either, that commit date is the
+  substitute boundary — the same rule `/odd-status` applies. A
+  differing entry you cannot classify makes the check undecidable,
+  never a silent "code changed". When it is undecidable, or its
+  outcome contradicts how the caller framed the mission — they asked
+  to *verify* but nothing changed, or they said *re-measure* but
+  commits landed — say so and ask which of the two the mission is,
+  never silently reclassify. Say which one it is in the mission
+  block. When what changed is the
   benchmark a drive replay runs, say that too: the agent rules the
   baseline's findings against the benchmark itself (a script defect,
   an unattainable threshold) on the new revision, and compares the
@@ -213,8 +219,10 @@ Then build the mission block from that report:
     discovery query.
 
 Close the mission with the `show-observe-run-report` skill: render its
-synthesis of the stored report as the final answer - the verdict-first
-headline leads, stating the stored path. The report file, stored in
+synthesis from the persistence return value the agent's reply carries
+(stored path, carrying commit, the report as written) as the final
+answer - the verdict-first headline leads, stating the stored path; no
+re-read of the file just written. The report file, stored in
 `.odd/observe-run-reports/`, remains the versioned record that the
 fix - or the planned instrumentation - was measured, not assumed:
 never re-dump the raw report in the conversation, and never let the
