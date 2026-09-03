@@ -303,7 +303,12 @@ or by a caller naming a stored report.
   did). Each verification check states how its query was validated —
   run against a healthy or adjacent series, or a synthetic one — or
   carries `not validated`, which tells the verify run to suspect the
-  query before the fix.
+  query before the fix. An equality check on log line counts ("every
+  line carries a trace id") is stated as two raw line counts over the
+  recorded window with the same filter — never as a range vector
+  evaluated at the window's edge, whose samples reach outside it — and
+  names the lines it excludes (startup lines, excluded URLs), so the
+  replay rules on the same residue.
 - **Record how the backend was started** when it needed configuration:
   the `env` passed to `odd_stack_up` / `odd_stack_reset` belongs in the
   measurement protocol (key names and values — secrets by name only). A
