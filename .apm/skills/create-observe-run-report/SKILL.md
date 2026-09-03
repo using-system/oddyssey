@@ -191,7 +191,10 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   map when only some were restarted. Cumulative-metric
   queries in the measurement protocol must be qualified by the recorded
   identity — a number that cannot be attributed to a process is not a
-  before-value.
+  before-value. Profiles carry no `service.instance.id`: the identity
+  that qualifies them is the per-run profiler tag, or, absent one,
+  `process.runtime.version` plus application frames — `instance` says
+  which holds for the profiles.
 - The body is the producing agent's report **as-is** — the report
   contract (sections, tables, evidence rules) belongs to the agent, not
   to this skill. Store the whole thing: a summary cannot feed a diff.

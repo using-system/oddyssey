@@ -52,8 +52,10 @@ as tables — never a committed artifact.
    what they replayed) with its verdict from the report body — a
    `depth: quick` verification renders its coverage
    (`PASS (quick, 3 of 5 ruled)`) and satisfies "verified" only for
-   the items it ruled, never for the service as a whole — and the
-   chain as the files tell it:
+   the items it ruled, never for the service as a whole; a
+   verification's presence rulings satisfy "verified" only for the
+   items ruled `closed`, `present, unattributed` closes nothing — and
+   the chain as the files tell it:
    observed -> fixed -> verified. A `mode: re-measure` report is an
    observation event, never a verification: it replayed the protocol of
    the report its `verifies` names without ruling on a fix — count it as
@@ -139,7 +141,9 @@ as tables — never a committed artifact.
    is listed apart. List incomparable runs apart, never diff them.
    Stored numbers only — no live queries.
 5. **Open telemetry gaps.** Gaps recorded in report bodies and not
-   closed by a later verification ruling or instrumentation report. A
+   closed by a later verification ruling or instrumentation report —
+   `closed` is the only closing ruling; a planned item ruled
+   `present, unattributed` stays open. A
    quick report's `not queried (quick): ...` list is a statement about
    that mission, never a gap — do not count it; and a gap a quick
    verification lists as `not ruled (quick)` stays open, not closed.

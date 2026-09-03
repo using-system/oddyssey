@@ -42,6 +42,11 @@ Start a clean run in this order — the reverse of what feels natural:
    long-lived process dumps its whole counter history into a
    seconds-old store) separable instead of merely suspected. The
    substitutes above stay the fallback for services that cannot opt in.
+   The OTel attribute never reaches a Pyroscope SDK: when the service
+   pushes profiles, pass the same slug to the profiler as a tag
+   (`service_instance_id=<run slug>`) so its profiles are attributable
+   too — otherwise its profiles fall back to `process.runtime.version`
+   and application frames, stated in the record.
 
 **Reset once.** That clean-base reset is the only reset this skill takes
 on its own. Any further `odd_stack_reset` inside a mission is an

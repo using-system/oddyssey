@@ -56,8 +56,8 @@ conversation's memory of the mission.
      pass/fail), then the anomalies ruled fixed / still present /
      worse and the gaps ruled filled / still missing, one line each —
      for an instrumentation baseline, the presence rulings instead
-     (planned item | closed / still missing), and nothing else to
-     rule.
+     (planned item | closed / present, unattributed / still missing),
+     and nothing else to rule.
 5. **Decisions the spec must settle** — the count, then one line per
    open question.
 6. **Next action** — one line naming the loop's next step: build the

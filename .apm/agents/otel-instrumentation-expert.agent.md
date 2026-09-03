@@ -145,10 +145,19 @@ with its stored path:
    scenario, and confirm each signal arrives. State every check in a **replayable form** — one check per
    planned item (spans searchable per service, each planned metric
    present, logs carrying trace IDs, resource attributes set), each
-   carrying the discovery query to run and its expected outcome — so a
-   later `/odd-verify` run can rule **closed / still missing** on each
-   item without interpreting prose (the `observe-run` agent does the
-   confirmation).
+   carrying the discovery query to run, its expected outcome, **and
+   the attribution evidence**: the identity the check filters on
+   (`service.instance.id` set through `OTEL_RESOURCE_ATTRIBUTES` for
+   traces, metrics and logs; for profiles, a per-run tag mirroring it,
+   since Pyroscope SDK profiles carry no instance identity, plus the
+   application frames the flamegraph must show) — so a later
+   `/odd-verify` run can rule **closed / present, unattributed / still
+   missing** on each item without interpreting prose (the `observe-run`
+   agent does the confirmation). A check satisfiable by any process
+   sharing the service name — a healthcheck inheriting the profiler
+   env, a co-resident instance — is not replayable evidence. Plan the
+   per-run tag in section 3's configuration block so the verify can
+   set it.
 
 ## Rules
 

@@ -357,7 +357,11 @@ signal from what came back:
   profiles for the service (the local stack has Pyroscope). If it does,
   report the top functions by CPU and by allocations for the hottest
   operations and correlate them with the slow spans. If it does not, that
-  is a line in **Telemetry gaps**, not a silent omission.
+  is a line in **Telemetry gaps**, not a silent omission. Profiles
+  pushed by a Pyroscope SDK carry no `service.instance.id`: qualify
+  them by the per-run tag the service was launched with (run-scenario
+  step 0), or, absent one, by `process.runtime.version` plus frames
+  from the application's own code — and say which.
 
 Then go from aggregates to explanations:
 
@@ -387,8 +391,24 @@ Then go from aggregates to explanations:
   the previous findings (fixed, still there, worse?), and the previous
   measurement protocol's before-values. When the recalled baseline is an
   **instrumentation report**, there are no previous numbers: the deltas
-  are presence rulings — closed / still missing per planned item, each
-  with its discovery query — reported in place of the numeric diff.
+  are presence rulings per planned item, each with its discovery query,
+  reported in place of the numeric diff. A ruling has three values:
+  **closed** only when the evidence ties the signal to the **process
+  under test** — it carries the run's identity (`service.instance.id`
+  for traces, metrics and logs; for profiles, the per-run tag that
+  mirrors it, plus frames from the application's own code paths and a
+  runtime identity); **present, unattributed** when the signal exists
+  but nothing proves which process emitted it — a listed name, a
+  bounded tag, a non-empty flamegraph from a healthcheck or a
+  co-resident process; **still missing** otherwise. A name in a labels
+  listing never closes an item: a healthcheck inheriting the profiler
+  env satisfies every name-only check while the server never
+  profiles. When the protocol names no attribution evidence (written
+  before this rule), the run supplies its own: drive the service with
+  the run slug and the profiler tag (`run-scenario` step 0) and rule
+  on that identity; only a signal you cannot tie to a process you
+  launched is `present, unattributed`, and section 1 says the protocol
+  predated the rule.
   With no recalled report either,
   compare within the run: p99 against p50 per operation, an endpoint
   against its siblings, the first half of the window against the second.
@@ -533,7 +553,9 @@ file:
   result; every improvement carries a number and a verification query with
   a before-value; every verification check carries its validation status;
   every single-signal or unprobed claim is marked
-  `suspected`; in drive mode, the run record's `Query points:` line
+  `suspected`; every presence ruling that says `closed` names the
+  identity evidence that ties the signal to the process under test; in
+  drive mode, the run record's `Query points:` line
   carries a reason for every point beyond the first, and every reset
   beyond the clean-base one names the mission requirement behind it;
   the deployment environment was detected, is definite (no
