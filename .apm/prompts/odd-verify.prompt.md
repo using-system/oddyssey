@@ -220,7 +220,7 @@ Then build the mission block from that report:
   protocol and per-service plan recorded - planned spans searchable per
   service, each planned metric present, logs carrying trace IDs,
   resource attributes set - prove it now exists with the discovery
-    query and rule **closed / present, unattributed / still missing**,
+  query and rule **closed / present, unattributed / still missing**,
   with the query as evidence: `closed` only when the signal carries
   the run's identity (the agent's attribution rule) - a signal from an
   unidentified process is present, unattributed, never closed. A

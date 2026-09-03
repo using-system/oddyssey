@@ -51,7 +51,7 @@ as tables — never a committed artifact.
    verification (`mode: verify` reports — their `verifies` value names
    what they replayed) with its verdict from the report body — a
    `depth: quick` verification renders its coverage
-      (`PASS (quick, 3 of 5 ruled)`) and satisfies "verified" only for
+   (`PASS (quick, 3 of 5 ruled)`) and satisfies "verified" only for
    the items it ruled, never for the service as a whole; a
    verification's presence rulings satisfy "verified" only for the
    items ruled `closed`, `present, unattributed` closes nothing — and

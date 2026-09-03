@@ -553,7 +553,7 @@ file:
   result; every improvement carries a number and a verification query with
   a before-value; every verification check carries its validation status;
   every single-signal or unprobed claim is marked
-    `suspected`; every presence ruling that says `closed` names the
+  `suspected`; every presence ruling that says `closed` names the
   identity evidence that ties the signal to the process under test; in
   drive mode, the run record's `Query points:` line
   carries a reason for every point beyond the first, and every reset
