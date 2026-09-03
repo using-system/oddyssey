@@ -124,7 +124,9 @@ stopping on divergence, is yours (Setup step 5).
    binary, the CLI context, the target's values, the connection proof
    with its UTC: never re-read those sections nor redo the display or
    the setup; re-run the reference's cheapest probe once only when the
-   stack was reset or brought up since that UTC. Without a handoff (a
+   stack was reset or brought up since that UTC — on a remote backend
+   the signal is a query answering with an auth error: stop and report
+   then, never re-authenticate. Without a handoff (a
    mission entered directly), read the reference's sections in its
    order and run the probe yourself; if it is not connected, stop and
    report ("CLI not configured for <backend>") — never authenticate
@@ -422,8 +424,9 @@ your reply, without re-reading the file:
   secret name only. The same for real identifiers — tenant, workspace,
   subscription, resource-group or site names and GUIDs, logins,
   home-directory paths: the report names them by an obviously fake
-  placeholder, never by the value the preflight or a tool result
-  showed.
+  placeholder, never by the real value a preflight or a tool result
+  showed for one of those — ports, URLs on `localhost`, service and
+  operation names stay the evidence they are.
 - Every anomaly is either cross-confirmed in a second signal or explicitly
   labeled single-signal.
 - A load generator's own telemetry is never a named service: when k6's

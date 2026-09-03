@@ -176,7 +176,7 @@ Then build the mission block from that report:
   git log --since=<that date> -- <path>               # is the boundary
   ```
 
-    With no anchor, compare trees, not ancestry — a `git log` walk is
+  With no anchor, compare trees, not ancestry — a `git log` walk is
   misled by the rebased or squash-merged clone the anchor exists to
   survive — and with no `revision` either, that commit date is the
   substitute boundary — the same rule `/odd-status` applies. A
