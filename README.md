@@ -195,25 +195,15 @@ body structure — are documented in
 /odd-status wontfix F4 of my last XXX report - port-move is rare, 14.5s accepted
 ```
 
-Answers "where is the loop?" from the committed `.odd/` history and git
-alone — no backend queries, no report written. Renders per-service loop
-state (last observation, last verification and its verdict, the
-observed → fixed → verified chain), the findings ledger as a burn-down,
-trends across runs from the stored numbers, telemetry gaps not yet
-closed, and a next recommended action (verify, observe, or rest) that
-cites its inputs. Optionally scope it to a service, a stack, or an
-environment: `/odd-status checkout on local`.
-
-It also **declines findings**: a finding no verification ever ruled on
-stays open forever, however deliberately you decided to live with it.
-Ask for the decision — in the arguments as above, or as a follow-up
-once the status is rendered — with a rationale, and it lands as one
-appended row in `.odd/decisions.md`, the committed ledger next to the
-reports; that file is committed on its own, and the reports themselves
-are never edited. The status then re-renders the finding as
-**declined**, with its verdict, date, and rationale, counted apart from
-the fixed ones. Reversing a decision (`/odd-status reopen F4: ...`) is
-a new row, so the history of the decision stays readable.
+Answers "where is the loop?" for this repository — per service, where
+the last observation and verification stand, which findings are still
+open, and what to do next — from the committed `.odd/` history and git
+alone: no backend query, nothing written. Scope it to a service, a
+stack, or an environment when the picture is wide. It also records
+your decision on a finding no fix will ever address: name the finding
+and give a one-sentence reason, and the decision lands in
+`.odd/decisions.md`, the committed ledger next to the reports, so the
+status stops counting that finding as open.
 
 #### /odd-instrument-bench
 
@@ -223,26 +213,15 @@ a new row, so the history of the decision stays readable.
 /odd-instrument-bench update the XXX-read-heavy benchmark - the cart endpoints moved
 ```
 
-Authors a k6 load-test benchmark for a service — a script plus a
-manifest — as reviewed code under `.odd/benchmarks/<name>/`, through
-the `k6-benchmark-expert` agent. The prompt first asks back whatever
-only you can decide (test type, thresholds, target environment, new
-benchmark or an update to an existing one) and proposes a load shape
-and duration for you to confirm; the agent discovers the rest — which
-endpoints matter, what the stored `.odd/` reports already say about the
-service. It checks your thresholds against the floors in the service's
-own code (a fixed delay, an injected error rate) and hands an
-unattainable one back with the evidence rather than persisting it: you
-raise, drop, re-scope, or keep it knowingly. It validates what it wrote
-(`k6 inspect`, one smoke iteration at the target, asked for first when
-the target is remote) and **never runs it as a benchmark**. Run the
-stored benchmark through `/odd-observe` (`/odd-observe run
-.odd/benchmarks/<name>/`): the `observe-run` agent drives the script
-unmodified through the `run-scenario` skill and rules on the
-manifest's thresholds from the service's own telemetry, k6's summary
-recorded as evidence only. The full lifecycle, and what a benchmark is
-versus a report, are in
-[docs/guide/benchmarks.md](docs/guide/benchmarks.md).
+Writes a k6 load-test benchmark for a service — a script plus a
+manifest — under `.odd/benchmarks/<name>/`, as code you review and
+commit like any other. It asks you only what a human must decide (test
+type, thresholds, target, new benchmark or an update) and proposes the
+load shape; a threshold the service can structurally never meet comes
+back to you with the evidence instead of being persisted. It validates
+the script without ever running the benchmark — running it is
+`/odd-observe`'s job: `/odd-observe run .odd/benchmarks/<name>/`. The
+lifecycle is in [docs/guide/benchmarks.md](docs/guide/benchmarks.md).
 
 More invocation examples for every prompt live in
 [docs/guide/prompts.md](docs/guide/prompts.md).
