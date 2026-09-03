@@ -207,6 +207,7 @@ flowchart LR
   observe --> kg
   observe --> ocg
   observe --> benchdir
+  sorr -.-> corr
   sorr --> obsdir
 
   runner --> ocg
@@ -301,6 +302,7 @@ flowchart LR
   verify -.-> corr
   verify --> obsdir
   verify --> insdir
+  sorr -.-> corr
   sorr --> obsdir
 
   runner --> ocg
@@ -493,7 +495,7 @@ each other.
 | [`create-observe-run-report`](../../.apm/skills/create-observe-run-report/SKILL.md) | The ODD loop's memory: persist each observation report into the observed repo and recall the previous ones as the next run's baseline - naming, frontmatter contract, verification rules | Owns `.odd/observe-run-reports/` - nothing else writes there |
 | [`create-otel-instrumentation-report`](../../.apm/skills/create-otel-instrumentation-report/SKILL.md) | Same memory for the instrumentation side: persist each investigation into the investigated repo and recall it before the next one | Owns `.odd/otel-instrumentation-reports/` - nothing else writes there |
 | [`create-update-benchmark`](../../.apm/skills/create-update-benchmark/SKILL.md) | Persist an authored benchmark (script + manifest) and recall the ones a service already has: living source, updated in place through reviewed diffs - not an append-only report | Owns `.odd/benchmarks/` - naming, recall by service and by name, the reviewed diff, the commit |
-| [`show-observe-run-report`](../../.apm/skills/show-observe-run-report/SKILL.md) | Close an observe or verify mission: render a one-screen synthesis of the stored report - verdict-first headline, stored path, findings that matter, next action - the raw report stays the loop's memory | Reads `.odd/observe-run-reports/` under `create-observe-run-report`'s file contract; writes nothing |
+| [`show-observe-run-report`](../../.apm/skills/show-observe-run-report/SKILL.md) | Close an observe or verify mission: render a one-screen synthesis of the stored report - verdict-first headline, stored path, findings that matter, next action - the raw report stays the loop's memory | Renders `create-observe-run-report`'s return value (stored path, carrying commit, the report as written); reads `.odd/observe-run-reports/` only for a stored report the caller names; writes nothing |
 | [`show-otel-instrumentation-report`](../../.apm/skills/show-otel-instrumentation-report/SKILL.md) | Close an instrument mission: render a one-screen synthesis of the stored report - headline, stored path, plan-at-a-glance table, open decisions, next action - the raw report stays the plan's input | Reads `.odd/otel-instrumentation-reports/` under `create-otel-instrumentation-report`'s file contract; writes nothing |
 | [`show-benchmark`](../../.apm/skills/show-benchmark/SKILL.md) | Close an authoring mission: render a short synthesis of the stored benchmark - stored path, what it exercises, next action - the script and manifest stay the deliverable | Nothing - it renders what `create-update-benchmark` just returned, and reads nothing else |
 | [`get-status`](../../.apm/skills/get-status/SKILL.md) | Render the state of the ODD loop from the committed `.odd/` history and git alone - per-service loop state, findings ledger, trends, open telemetry gaps, next recommended action - read-only, no backend query, no report written | Reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`, and `.odd/decisions.md` (under `record-finding-decision`'s ledger contract, without calling it); recommends `/odd-instrument-otel` or `/odd-observe` |

@@ -101,18 +101,31 @@ stopping on divergence, is yours (Setup step 5).
 
 ## Setup
 
-1. **Identify the backend and open its guide.** Use the
-   `observability-cli-guides` skill: pick the stack's backend, read
-   its reference file — the discovery and query commands per signal come
-   from that reference, not from memory. The CLI's auth and context are
-   the caller's preflight's job: confirm with the reference's cheapest
-   probe, and if it is not connected, stop and report ("CLI not
-   configured for <backend>") — never authenticate from here.
+1. **Identify the backend and open its guide — by section.** Use the
+   `observability-cli-guides` skill: pick the stack's backend and read
+   its reference file's **query sections** — `## Query by signal` with
+   its subsections, and `## Planning notes` — the discovery and query
+   commands per signal come from there, not from memory. The mission
+   block's `Preflight:` handoff (the caller's
+   `check-backend-configuration` run) already carries what the
+   reference's `## CLI binary` and `## Configuration display` sections
+   resolve — the binary, the CLI context, the target's URLs and ports,
+   the connection proof: never re-read those sections, and never
+   re-prove beyond the reference's cheapest probe. Without a handoff (a
+   mission entered directly), read the reference's sections in its
+   order and run the probe yourself; if it is not connected, stop and
+   report ("CLI not configured for <backend>") — never authenticate
+   from here.
 2. **Local stack.** The local stack is a Grafana (LGTM) stack —
    use the Grafana reference and gcx: call the
    oddyssey MCP tool `odd_stack_status`, then `odd_stack_up` if needed, and
-   configure gcx with the `setup-local-stack` skill (isolated config,
-   datasource UIDs) — gcx is the stack's mandatory query CLI.
+   query through the `setup-local-stack` skill's isolated gcx context —
+   the handoff's `context:` path is that file, already written and
+   proven: reuse it (regenerate it only when `gcx config check` fails
+   on it) and read only the skill's `## Datasources` and `## This stack
+   is push-based` sections; without a handoff, its `## Configure an
+   isolated context` section too. gcx is the stack's mandatory query
+   CLI.
 3. **Preflight every named service.** Before any analysis, prove its
    telemetry exists in the window, with the backend's own query surface:
    - **traces** — a search scoped to the service returns traces;
@@ -168,10 +181,13 @@ stopping on divergence, is yours (Setup step 5).
 5. **Recall the memory.** When the mission already names a baseline
    report, use that report as the recalled baseline and skip the recall.
    Otherwise load the baseline with the `create-observe-run-report`
-   skill's recall procedure — the skill owns the matching rules, and
-   they include the environment step 4 detected. Either way, the
-   recalled report's numbers and findings are what the new observations
-   diff against. No match is a normal first run — record "no previous
+   skill's recall procedure — the skill owns the matching rules, which
+   include the environment step 4 detected, and the **partial read**:
+   frontmatter, section 1's scenario record, sections 2, 3 and 7 (5 too
+   on a verify), never the whole file. Read beyond that set only for a
+   stated need (a finding's detail, a gap's discovery query) and say so
+   in section 1. Either way, the recalled report's numbers and
+   findings are what the new observations diff against. No match is a normal first run — record "no previous
    report" in section 1 and fall back to the within-run baseline.
 
    When the mission hands you a **baseline environment** to compare
@@ -300,7 +316,9 @@ Then go from aggregates to explanations:
 Build these seven sections, in this order — then persist the whole
 report with the `create-observe-run-report` skill (frontmatter, naming,
 storage path, no-secrets rule all come from there) and return it along
-with its stored path:
+with the skill's return value — the stored path and the carrying
+commit — so the caller renders the closing synthesis from your reply,
+without re-reading the file:
 
 1. **Mission and run record** — the mission as understood (services,
    stack and backend, mode, window, focus, expectations) and every

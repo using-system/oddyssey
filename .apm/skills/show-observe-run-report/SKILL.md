@@ -14,10 +14,20 @@ changes.
 
 ## Input
 
-The persisted report to render: the file the
-`create-observe-run-report` skill just stored, or any stored report
-the caller names. Read it from disk — the synthesis renders the
-stored file, not the conversation's memory of it.
+The report to render, in one of two forms:
+
+- **The persistence return value** — what `create-observe-run-report`
+  just returned for the mission being closed, carried in the agent's
+  reply: the stored path, the carrying commit (or `not committed`),
+  and the report as written. Render from it; never re-read the file
+  it just wrote — the value is the file's content, verbatim (the way
+  `show-benchmark` renders from `create-update-benchmark`'s return).
+- **A stored report the caller names** — no return value in hand:
+  read that file from disk, and its carrying commit from git
+  (`git log -1 --format=%h -- <path>`).
+
+Either way the synthesis renders the stored content, never the
+conversation's memory of the mission.
 
 ## The synthesis, in order
 
@@ -53,9 +63,10 @@ stored file, not the conversation's memory of it.
 ## Rules
 
 - Everything comes from the stored report: no backend query, no
-  re-derivation, no invented number (the carrying commit, read from
-  git, is the one value outside the file) — a value the report does
-  not carry is absent from the synthesis too.
+  re-derivation, no invented number (the carrying commit — from the
+  return value, or from git for a named file — is the one value
+  outside the report) — a value the report does not carry is absent
+  from the synthesis too.
 - One screen, hard cap: prefer dropping rows (behind the `+N more`
   marker) over growing sections.
 - Render in the conversation's language; the stored report itself
