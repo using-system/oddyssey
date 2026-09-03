@@ -211,13 +211,13 @@ report is picked.
   rulings (planned spans, metrics, log correlation - closed or still
   missing);
 - the depth is the baseline report's `depth` field, never asked; a
-  baseline without one (written before the field) replays at `quick` and the run record says
-  the depth was defaulted - "full verify" / "quick check" in the
-  arguments forces it either way - the preflight says which depth the
-  replay runs before anything is dispatched; an instrumentation
-  baseline replays at `full` (its presence rulings span every
-  signal). A quick verify rules what its signals cover and counts the
-  rest as `not ruled (quick)`;
+  baseline without one (written before the field) replays at `quick`
+  and the run record says the depth was defaulted - "full verify" /
+  "quick check" in the arguments forces it either way - the preflight
+  says which depth the replay runs before anything is dispatched; an
+  instrumentation baseline replays at `full` (its presence rulings
+  span every signal). A quick verify rules what its signals cover and
+  counts the rest as `not ruled (quick)`;
 - a `drive` replay on a **remote** stack asks you for explicit
   confirmation first - before the CLI check, before k6 is installed,
   whatever the report kind - naming what will be driven (the recorded
