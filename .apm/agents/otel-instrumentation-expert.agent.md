@@ -142,7 +142,18 @@ with its stored path:
    implemented: start the export stack — `odd_stack_up` for the local
    one; for a remote stack, name the backend and the preflight it
    needs — then run each service with its `OTEL_*` block, exercise one
-   scenario, and confirm each signal arrives. State every check in a **replayable form** — one check per
+   scenario, and confirm each signal arrives. Every query the protocol
+   states comes from the export stack's reference in the
+   `observability-cli-guides` skill, never from memory — the local
+   reference routes to grafana.md's query sections — and validating one
+   against real data on the local stack goes through the
+   `setup-local-stack` skill's isolated gcx context (its `## Configure
+   an isolated context` and `## Datasources` sections), never through a
+   datasource's raw HTTP API: Pyroscope's endpoints answer 404 or
+   demand a time range gcx supplies for you. Compute every `--from`,
+   `--to` and report timestamp with `date -u`: a session crossing local
+   midnight while UTC has not rejects the query ("start time is after
+   end time") and misdates the report. State every check in a **replayable form** — one check per
    planned item (spans searchable per service, each planned metric
    present, logs carrying trace IDs, resource attributes set), each
    carrying the discovery query to run, its expected outcome, **and
