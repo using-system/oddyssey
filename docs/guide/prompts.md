@@ -146,7 +146,8 @@ material** by name.
 - "my last report for checkout" / "my last prod report" - resolution
   by service or by detected environment;
 - an instrumentation report turns the mission into presence rulings:
-  each planned signal closed or still missing;
+  each planned signal closed, present but unattributed (nothing proves
+  which process emitted it), or still missing;
 - a `drive` replay on a remote stack asks you first, every time, and
   a refusal ends the mission;
 - when nothing changed in the code since the report, the run is
