@@ -14,10 +14,20 @@ changes.
 
 ## Input
 
-The persisted report to render: the file the
-`create-observe-run-report` skill just stored, or any stored report
-the caller names. Read it from disk — the synthesis renders the
-stored file, not the conversation's memory of it.
+The report to render, in one of two forms:
+
+- **The persistence return value** — what `create-observe-run-report`
+  just returned for the mission being closed, carried in the agent's
+  reply: the stored path, the carrying commit (or `not committed`),
+  and the report as written. Render from it; never re-read the file
+  it just wrote — the value is the file's content, verbatim (the way
+  `show-benchmark` renders from `create-update-benchmark`'s return).
+- **A stored report the caller names** — no return value in hand:
+  read that file from disk, and its carrying commit from git
+  (`git log -1 --format=%h -- <path>`).
+
+Either way the synthesis renders the stored content, never the
+conversation's memory of the mission.
 
 ## The synthesis, in order
 
@@ -26,13 +36,17 @@ stored file, not the conversation's memory of it.
    baseline delta (`3 anomalies (1 high, confirmed), 2 telemetry
    gaps, p95 stable vs baseline`); a verification leads with the
    ruling (`FAIL — 2/5 checks red`); a re-measure leads with drift
-   (`no drift — 5/5 measurements within range`).
+   (`no drift — 5/5 measurements within range`). A `quick` report says
+   so in the headline (`quick — 1 anomaly (suspected), logs and
+   profiles not queried`), and a quick verify counts what it did not
+   rule (`PASS — 3/3 checks ruled, 2 not ruled (quick)`).
 2. **Where it lives** — one line: the stored path and the commit that
    carries it.
 3. **Run block** — compact `key: value` lines: services, stack, mode,
-   window, detected environment (all from the frontmatter), and the
-   baseline report used — `verifies` when present, else section 1's
-   recalled baseline, or "none" when the report names none.
+   depth (`full` when the frontmatter has none), window, detected
+   environment (all from the frontmatter), and the baseline report
+   used — `verifies` when present, else section 1's recalled
+   baseline, or "none" when the report names none.
 4. **The core, by kind** — tables, capped at ~10 rows with a
    `+N more in the report` marker:
    - observation / re-measure: the findings table (severity |
@@ -42,8 +56,8 @@ stored file, not the conversation's memory of it.
      pass/fail), then the anomalies ruled fixed / still present /
      worse and the gaps ruled filled / still missing, one line each —
      for an instrumentation baseline, the presence rulings instead
-     (planned item | closed / still missing), and nothing else to
-     rule.
+     (planned item | closed / present, unattributed / still missing),
+     and nothing else to rule.
 5. **Decisions the spec must settle** — the count, then one line per
    open question.
 6. **Next action** — one line naming the loop's next step: build the
@@ -53,9 +67,10 @@ stored file, not the conversation's memory of it.
 ## Rules
 
 - Everything comes from the stored report: no backend query, no
-  re-derivation, no invented number (the carrying commit, read from
-  git, is the one value outside the file) — a value the report does
-  not carry is absent from the synthesis too.
+  re-derivation, no invented number (the carrying commit — from the
+  return value, or from git for a named file — is the one value
+  outside the report) — a value the report does not carry is absent
+  from the synthesis too.
 - One screen, hard cap: prefer dropping rows (behind the `+N more`
   marker) over growing sections.
 - Render in the conversation's language; the stored report itself

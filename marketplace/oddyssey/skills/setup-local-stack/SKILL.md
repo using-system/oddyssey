@@ -43,6 +43,13 @@ embedded definition plus env**: hand-mounted volumes and networks do not
 survive it. Bring it up with the oddyssey MCP tools (`odd_stack_status`,
 `odd_stack_up`) before configuring anything here.
 
+**Read by section.** The caller's preflight (`check-backend-configuration`)
+writes the isolated context below and proves it, and hands its path
+over in the mission block; an agent holding that handoff skips
+`## Configure an isolated context` (regenerate the file only when
+`gcx config check` fails on it) and reads `## Datasources` and
+`## This stack is push-based` — the two sections a query needs.
+
 ## Configure an isolated context
 
 Never edit the user's own gcx configuration. Point `GCX_CONFIG` at a
@@ -123,8 +130,26 @@ gcx; record a proof query in whichever form the verify run can replay
 exactly — both are contract-conform, and the report says which was
 used.
 
+Profiles carry no instance identity: a pyroscope-io profile's labels
+are `service_name`, `deployment_environment`, `otel.scope.name`,
+`otel.scope.version`, `process.runtime.name`, `process.runtime.version`
+— no `service.instance.id` equivalent (verified 2026-09-03, gcx 1.2.0:
+`gcx profiles exemplars profile '{service_name="<svc>"}' -d pyroscope
+--profile-type process_cpu:cpu:nanoseconds:cpu:nanoseconds --since 24h
+--jq '.exemplars[0].labels'`), and the store-wide `profiles labels`
+list mixes in Pyroscope's own self-profile labels (`hostname`,
+`pyroscope_spy`, `service_git_ref`, `service_repository`, `target`).
+Launch a driven service with a per-run profiler tag mirroring the
+OTel attribute (`service_instance_id=<run slug>`, through the profiler
+SDK's own tag mechanism — `tags` in the pyroscope-io SDKs), and
+qualify profile selectors by it; absent one, `process.runtime.version`
+plus application frames are the substitute, stated as such.
+
 Discover before you query: `gcx metrics labels` / `gcx metrics metadata`,
 `gcx traces labels`, `gcx logs labels`, `gcx profiles list-profile-types`.
+The four signals' discoveries are independent — **run them as your own
+parallel tool calls in one turn**, not serially; the same holds for the batch of
+`gcx traces get` fetches once a search has returned its trace IDs.
 `gcx metrics series` and `gcx logs series` are NOT discovery commands:
 bare, they error — both require at least one selector (e.g. `gcx metrics
 series 'target_info'`). Every service names its own telemetry — never

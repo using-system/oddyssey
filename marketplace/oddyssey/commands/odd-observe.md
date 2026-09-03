@@ -21,11 +21,19 @@ steps needing the user cannot happen inside a subagent):
    says which instance).
 
 2. Run the `check-backend-configuration` skill: show the CLI's effective
-   configuration to the user (no confirmation needed), and fail fast
-   with its "CLI not configured for <backend>" error instead of letting
-   the agent attempt interactive auth. Ask for whatever the mission
-   still needs (instance URL, tenant, access material by name) before
-   dispatching.
+   configuration to the user (no confirmation needed), and stop where
+   the skill stops, in its own words — the binary is **not installed**:
+   it offers the guided install and resumes once the binary exists,
+   stopping only if the user declines, and nothing is dispatched
+   meanwhile; or the connection proof failed, **"CLI not configured
+   for <backend>"**: it guides the setup and never authenticates on the
+   user's behalf; never relabel the first as the second. Ask for
+   whatever the mission still needs (instance URL, tenant, access
+   material by name) before dispatching. Carry the skill's closing
+   `Preflight:` handoff block into the mission block verbatim: the
+   agent then reads the reference's other sections only (never the
+   preflight's four: CLI binary, Setup, Configuration display, What to
+   persist) and never re-proves what the preflight proved.
 3. When the arguments name a stored benchmark, read its manifest under
    `.odd/benchmarks/<name>/` for the target service (the service the
    mission uses unless the arguments name one), and - unless the
@@ -36,6 +44,20 @@ steps needing the user cannot happen inside a subagent):
    account and no configuration), otherwise follow that reference's
    non-interactive path for the platform or hand the remaining steps
    to the user and stop.
+4. Resolve the **depth** — `quick` or `full`, how far the mission goes
+   (the agent's Depth section) — from the arguments when they carry it,
+   on the user's phrasing in any language, the way step 1 resolves a
+   stack from the **Also called** column: "quick", "fast", "simple
+   report", "just check that ...", "a first look" resolve to `quick`;
+   "audit", "full sweep", "complete", "before the SDD wave" resolve to
+   `full` — examples, not a closed list. A resolved depth is stated in
+   the preflight's display and in the mission block, never asked again.
+   Only when the arguments carry no depth signal, ask the user — with
+   the host's structured-question tool when it has one (Claude Code:
+   `AskUserQuestion`) — `quick` first and marked recommended, and carry
+   the answer; when the service is missing too (the rule below), one
+   ask carries both questions, never two in a row. A service-less
+   discovery question (below) has no depth.
 
 Build the mission block from the arguments below, applying the agent's own
 defaults for every field not specified:
@@ -43,7 +65,8 @@ defaults for every field not specified:
 - Arguments: $ARGUMENTS
 - Expected fields (any order, free-form): service name(s), stack
   (defaults to the configured one - the preflight resolved it), mode
-  (drive / observe / post-hoc), benchmark, window, focus, baseline
+  (drive / observe / post-hoc), depth (quick / full - the preflight
+  resolved or asked it), benchmark, window, focus, baseline
   expectations.
 - `benchmark` names a stored k6 benchmark - its directory name under
   `.odd/benchmarks/` or that path. `run .odd/benchmarks/<name>/` means
@@ -68,8 +91,10 @@ defaults for every field not specified:
   offering the full mission as the follow-up.
 
 Close the mission with the `show-observe-run-report` skill: render its
-synthesis of the stored report as the final answer, stating the stored
-path. The report file - not the synthesis - is the deliverable the
+synthesis from the persistence return value the agent's reply carries
+(stored path, carrying commit, the report as written) as the final
+answer, stating the stored path — no re-read of the file just
+written. The report file - not the synthesis - is the deliverable the
 next spec-driven wave consumes: never re-dump the raw report in the
 conversation, and never let the synthesis replace the stored file as
 the plan's input.

@@ -26,7 +26,9 @@ doubt, record the number.
 
 - `YYYY-MM-DD-HHmm` is the run's **UTC** start time — timestamped to the
   minute so two same-day runs never collide, and so a plain directory
-  listing sorts chronologically.
+  listing sorts chronologically. Compute it, `date:` and `window` with
+  `date -u`, never from the local clock: a session that crosses local
+  midnight while UTC has not names the wrong day.
 - `<run_name>` is a short kebab-case slug derived from what the run
   analyzed (e.g. `checkout-latency-sweep`, `orders-post-hoc-errors`).
   Name the content, not the date — the date is already in front.
@@ -68,6 +70,7 @@ services: [checkout, payment]
 stack: local                  # local | the remote backend name (grafana, datadog, ...)
 environment: local            # detected: deployment.environment.name reported by the service's telemetry (local forced on the local stack; unknown when absent)
 mode: drive                   # drive | observe | post-hoc | verify | re-measure
+depth: full                   # quick | full: how far the mission went (the agent's Depth section); absent = written before the field, ran the full protocol
 window: 2026-08-22T10:04:12Z/2026-08-22T10:05:03Z
 run_name: checkout-latency-sweep
 date: 2026-08-22
@@ -110,6 +113,19 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   through `verifies`.
 - `window` is the observed interval as `start/end` in UTC; in drive mode
   it is the scenario's own start and end.
+- `depth` is how far the mission went — `quick` (the agent's bounded
+  protocol: the signals the question touched, one exemplar per
+  operation, sections 3 to 6 collapsed, section 7 carrying only what
+  was measured) or `full` (the whole protocol). Required on every new
+  report, so `/odd-status` and the recall can tell the two apart and a
+  quick run is never silently taken as the baseline of a full one. A
+  report without the field predates it and ran the full protocol: read
+  it as `full`. A verification or re-measure records the depth **it**
+  ran at (inherited from the baseline's field, or — the one deliberate
+  asymmetry — `quick` when an observation baseline has none: the
+  absent field says "ran full" to every reader and "replay quick" to
+  `/odd-verify`, whose preflight says so before dispatch and whose run
+  record says it was defaulted), which may differ from the baseline's.
 - `environment` is **detected**, never asked: the
   `deployment.environment.name` resource attribute the service's
   telemetry reports — pre-run probe on recent telemetry, provisional
@@ -177,7 +193,10 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   map when only some were restarted. Cumulative-metric
   queries in the measurement protocol must be qualified by the recorded
   identity — a number that cannot be attributed to a process is not a
-  before-value.
+  before-value. Profiles carry no `service.instance.id`: the identity
+  that qualifies them is the per-run profiler tag, or, absent one,
+  `process.runtime.version` plus application frames — `instance` says
+  which holds for the profiles.
 - The body is the producing agent's report **as-is** — the report
   contract (sections, tables, evidence rules) belongs to the agent, not
   to this skill. Store the whole thing: a summary cannot feed a diff.
@@ -201,11 +220,34 @@ Before a new run, load the baseline:
    once the value settles. When a match's `workload` differs from the
    mission's (or only one side has one), keep it but **warn**: its
    numbers were shaped by a different input, and diffing across
-   workloads violates the one-changed-variable rule.
-3. The first match is the baseline: read that one report in full — its
-   per-operation numbers, findings, and measurement protocol are the
-   before-values the new run compares against. What the comparison must
-   report belongs to the calling agent's contract, not to this skill.
+   workloads violates the one-changed-variable rule. Depth filters the
+   match: a **`full`** mission's baseline is the newest match whose
+   `depth` is `full` (or absent) — a newer `quick` match is skipped,
+   and section 1 names it ("newer quick report skipped: <path>") so the
+   skip is visible; a **`quick`** mission takes the newest match of
+   either depth (a full report carries more than a quick run needs).
+3. The first match is the baseline. Read it **by section, never
+   whole** — the same partial read applies when the mission names the
+   baseline itself: the frontmatter; section 1's scenario record block
+   (`Scenario:` through `Not reproducible:`) together with the replay
+   notes around it — deviations, false starts, anything the report
+   flags as mattering for a replay — but not section 1's mission
+   restatement or its recalled-baseline line; section 2 (the
+   per-operation numbers and their deltas); section 3 (the findings
+   the new run rules on); and section 7 (the protocol's checks and
+   before-values). A **verification** or **re-measure** run also reads
+   section 5 (every gap it must rule filled or still missing).
+   Sections 4 and 6 are never part of the recall: a stored report runs
+   300 to 500 lines, and the new run re-derives those from live
+   telemetry. An **instrumentation report** baseline
+   (`.odd/otel-instrumentation-reports/`, the
+   `create-otel-instrumentation-report` contract) is read the same
+   way: its frontmatter, its summary table, its per-service decisions,
+   and its verification protocol — never its stack inventory or its
+   open decisions. Reading beyond that set is the exception — for a
+   stated need (a finding's detail, a gap's discovery query) — and the
+   calling agent's run record says so. What the comparison must report
+   belongs to the calling agent's contract, not to this skill.
 4. Older matches are history: only when a trend matters (a number
    degrading run after run), read at most the few most recent matches,
    and only the numbers in question — never the full files.
@@ -226,11 +268,35 @@ Before a new run, load the baseline:
    slug, no `verifies`) stay valid matches: their chain simply is not
    machine-readable, which is a fact to state, not an error.
 
+## Return value
+
+After persisting, return — to the agent, and through its reply to the
+caller closing the mission:
+
+- the stored path, repo-relative;
+- the carrying commit (`git rev-parse --short HEAD` right after the
+  commit), or `not committed` with the reason (default branch and no
+  work branch possible, not a repository, the caller said not to);
+- the report as written — frontmatter and body, verbatim: the file's
+  content, never a summary of it.
+
+`show-observe-run-report` renders the closing synthesis from this
+value; the file on disk is read again only by a later mission's recall
+or by a caller naming a stored report.
+
 ## Rules
 
 - **Never write secrets into a report**: no tokens, credentials, cookies,
   or connection strings — these files are made to be committed and
   shared. Refer to access material by variable or secret name only.
+  The same for **real identifiers** that carry no access on their own:
+  tenant, workspace, subscription, resource-group or site names and
+  GUIDs, account or login names, home-directory paths — anything that
+  identifies a real customer, tenant or environment. The mission
+  block's `Preflight:` handoff and a live `odd_config_get` or CLI
+  excerpt are the likeliest sources: never restate the identifiers
+  they carry; replace every such value with an obviously fake
+  placeholder before it lands in the file.
 - **A recorded query is a contract only once shown to work**: a check is
   authored against *broken* data, so "returns NaN/empty" and "the query
   is wrong" are indistinguishable at authoring time (measured: `rate()`
@@ -239,7 +305,13 @@ Before a new run, load the baseline:
   did). Each verification check states how its query was validated —
   run against a healthy or adjacent series, or a synthetic one — or
   carries `not validated`, which tells the verify run to suspect the
-  query before the fix.
+  query before the fix. An equality check on log line counts ("every
+  line carries a trace id") is stated as two raw line counts over the
+  recorded window and stream selector, one of them carrying the
+  trace-id filter — never as a range vector
+  evaluated at the window's edge, whose samples reach outside it — and
+  names the lines it excludes (startup lines, excluded URLs), so the
+  replay rules on the same residue.
 - **Record how the backend was started** when it needed configuration:
   the `env` passed to `odd_stack_up` / `odd_stack_reset` belongs in the
   measurement protocol (key names and values — secrets by name only). A

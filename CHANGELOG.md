@@ -1,3 +1,24 @@
+## [1.10.3] - 2026-09-03
+
+### 🚀 Features
+
+- *(agent)* Observe-run - one flush wait per mission and parallel signal discovery (#267)
+- *(skill)* Trim the preflight and baseline reads of an observe mission (#268)
+- *(prompts)* Quick mode for /odd-observe and /odd-verify - a bounded mission under five minutes (#269)
+- *(skill)* Run-scenario - a port already served by a foreign process is never killed, the run moves to a free one (#275)
+- *(agent)* Route instrumentation protocol queries and timestamps (#276)
+
+### 🐛 Bug Fixes
+
+- *(agent)* Presence rulings prove which process emitted the signal, and profiles get a per-run identity (#272)
+
+### 📚 Documentation
+
+- *(readme)* Move the primitives table into the dependency map (#253)
+- *(guide)* Simplify the README prompt sections and the guides - user docs are not specs (#271)
+- *(skill)* Grafana reference - profile selectors, labels scope, query envelope and frame naming (#273)
+- *(skill)* Grafana reference - count log lines over a finished window from raw lines, not edge-straddling samples (#274)
+- *(prompts)* Name both preflight stop outcomes - not installed, and not configured (#277)
 ## [1.10.2] - 2026-09-02
 
 ### 🚀 Features
