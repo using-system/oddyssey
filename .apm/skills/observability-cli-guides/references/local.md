@@ -85,8 +85,9 @@ agent reuses that file as-is and reads `setup-local-stack` for its
 ## Query by signal
 
 The query surface is [grafana.md](grafana.md)'s — read its
-`## Query by signal` with its subsections (`### Reading gcx output`,
-`### Loki over OTLP`) and `## Planning notes`; the datasource UIDs and
+`## Query by signal` with **all** its subsections (output reading,
+Loki over OTLP, profile output — whatever the file carries) and
+`## Planning notes`; the datasource UIDs and
 the push-model caveats are the `setup-local-stack` skill's
 `## Datasources` and `## This stack is push-based` sections. Nothing
 about querying is specific to `local` beyond those two skills'
