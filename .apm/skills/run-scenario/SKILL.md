@@ -48,6 +48,23 @@ Start a clean run in this order — the reverse of what feels natural:
    too — otherwise its profiles fall back to `process.runtime.version`
    and application frames, stated in the record.
 
+**The port is already served.** Before launching the service, look at
+who listens on its port: `lsof -nP -iTCP:<port> -sTCP:LISTEN` (exit 1
+and no output on a free port). When the port is served by a process
+the run did not start — a stale instance from an earlier session, a
+compose container, someone's work — **never kill it**: run your own
+instance on a free port, launched with the run slug as its
+`service.instance.id` (above), and drive `127.0.0.1:<port>`, never
+`localhost` — on a dual-stack host `localhost` may resolve to whichever
+listener bound the other address family. Qualify every query by the
+run's identity: co-resident emitters sharing a `service.name` fold into
+one series otherwise, and their divergent code states re-export into
+the fresh store. A mission that says "start the service on :<port>"
+reads as "on that port, or the next free one": the deviation is a
+`Listeners:` line in the record — each foreign listener with its pid,
+command and bind address, and the port the run used instead — and a
+sentence in section 1 of the report.
+
 **Reset once.** That clean-base reset is the only reset this skill takes
 on its own. Any further `odd_stack_reset` inside a mission is an
 explicit mission requirement — an operation the mission observes (a
@@ -172,7 +189,8 @@ deliverable:
 
 ```text
 Scenario: <name>
-Base URL: http://localhost:<port>
+Base URL: http://127.0.0.1:<port>   # not localhost: a dual-stack host may resolve it to another listener
+Listeners: none   # or: :8000 served by 41234 uvicorn (127.0.0.1) and 51022 com.docker (*), ran on :8001
 Backend:  odd_stack_reset, env: {"PROMETHEUS_EXTRA_ARGS": "..."}   # or "defaults"
 Instance: af6070... (restarted before reset)   # or equivalent identity; add the start time when not restarted
 Warmup:   5 requests per endpoint (discarded)

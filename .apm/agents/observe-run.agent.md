@@ -308,6 +308,12 @@ the run matters — restart the observed process, **then** call
 `odd_stack_reset` before the scenario (`run-scenario` step 0: a clean
 backend is not a clean run, and the order is load-bearing): everything
 the stack then contains IS the run, and the window becomes trivial.
+Before launching the service, apply that step's port rule: a port
+already served by a process you did not start is never killed — run
+on a free port with the run slug as `service.instance.id`, drive
+`127.0.0.1`, and record the foreign listeners and the port you used
+(the record's `Listeners:` line, restated in section 1); a mission
+naming a port means that port or the next free one.
 **That reset is the only one you take on your own initiative.** Any
 further reset is an explicit mission requirement — the reset is the
 operation under observation, or the mission dictates an env change
