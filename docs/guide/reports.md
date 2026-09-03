@@ -127,7 +127,8 @@ revision: 2299d4c
 | `tree_anchor` | optional | The top-level tree hashes at `revision` | entry name to hash |
 
 No `services`, `mode`, or `environment`: the services live in the
-plan, and an investigation reads code, not telemetry.
+plan, and an investigation reads code, not telemetry — beyond
+checking that a protocol's query runs.
 
 ### Body — five sections
 

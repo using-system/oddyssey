@@ -25,8 +25,11 @@ diagram.
 ## /odd-instrument-otel
 
 Dispatches `otel-instrumentation-expert`, which maps services to the
-official docs, persists through `create-otel-instrumentation-report`,
-and closes with `show-otel-instrumentation-report`'s synthesis.
+official docs, takes the protocol's queries from the export stack's
+`observability-cli-guides` reference (validating them locally through
+`setup-local-stack`'s gcx context), persists through
+`create-otel-instrumentation-report`, and closes with
+`show-otel-instrumentation-report`'s synthesis.
 `observe-run` is a boundary node: the report hands it the confirmation
 of landed signals.
 
@@ -43,6 +46,8 @@ flowchart LR
 
   subgraph Skills
     og[otel-guides]
+    ocg[observability-cli-guides]
+    sls[setup-local-stack]
     coir[create-otel-instrumentation-report]
     soir[show-otel-instrumentation-report]
   end
@@ -58,9 +63,12 @@ flowchart LR
   instrument --> expert
   instrument --> soir
   expert --> og
+  expert --> ocg
+  expert -.-> sls
   expert --> coir
   expert --> cfgget
   expert -. hands off .-> runner
+  ocg -.-> sls
   coir --> insdir
   soir --> insdir
 
@@ -71,7 +79,7 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class instrument prompt
   class expert,runner agent
-  class og,coir,soir skill
+  class og,ocg,sls,coir,soir skill
   class cfgget mcp
   class insdir store
 ```
@@ -421,7 +429,7 @@ the code, and persist through the create skills that own the stores.
 
 | Agent | Role | Invokes |
 | --- | --- | --- |
-| [`otel-instrumentation-expert`](../../.apm/agents/otel-instrumentation-expert.agent.md) | Investigate a codebase and hand back every input for a spec-driven plan to implement OpenTelemetry | `otel-guides`; `create-otel-instrumentation-report`; `odd_config_get`; hands the confirmation of landed signals off to `observe-run` |
+| [`otel-instrumentation-expert`](../../.apm/agents/otel-instrumentation-expert.agent.md) | Investigate a codebase and hand back every input for a spec-driven plan to implement OpenTelemetry | `otel-guides`; `observability-cli-guides` (the export stack's query surface, for the protocol's queries); routes to `setup-local-stack` to validate a query on the local stack; `create-otel-instrumentation-report`; `odd_config_get`; hands the confirmation of landed signals off to `observe-run` |
 | [`observe-run`](../../.apm/agents/observe-run.agent.md) | Observe a running service through its telemetry, on the local stack or a remote backend, and hand back every input for a plan of fixes | `observability-cli-guides`; `setup-local-stack`; `run-scenario` (ad-hoc requests, or a stored benchmark run unmodified); `create-observe-run-report`; `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset`; recommends `otel-instrumentation-expert` when a named service emits no telemetry at all |
 | [`k6-benchmark-expert`](../../.apm/agents/k6-benchmark-expert.agent.md) | Investigate a service and author its k6 benchmark as reviewed code, validated but never run as a benchmark | `k6-guides` (`scripting.md`, `running-tests.md`); `create-update-benchmark`; `show-benchmark`; reads `.odd/observe-run-reports/` for the service's hot operations |
 

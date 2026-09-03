@@ -26,7 +26,9 @@ doubt, record the number.
 
 - `YYYY-MM-DD-HHmm` is the run's **UTC** start time — timestamped to the
   minute so two same-day runs never collide, and so a plain directory
-  listing sorts chronologically.
+  listing sorts chronologically. Compute it, `date:` and `window` with
+  `date -u`, never from the local clock: a session that crosses local
+  midnight while UTC has not names the wrong day.
 - `<run_name>` is a short kebab-case slug derived from what the run
   analyzed (e.g. `checkout-latency-sweep`, `orders-post-hoc-errors`).
   Name the content, not the date — the date is already in front.
