@@ -49,8 +49,9 @@ explicit mission requirement — an operation the mission observes (a
 lifecycle test whose subject is the reset itself), an env change the
 mission dictates mid-run — never the agent's initiative: a reset
 costs ~6 s, wipes the store, and restarts the flush wait (step 5) from
-zero. Every reset the mission requires is a line in the record, with
-its reason.
+zero. Every reset the mission requires is its own `Commands:` line in
+the record (step 4), carrying the env it passed and the reason it
+exists.
 
 When restarting is not possible, say so in the record — and still record
 the identity **and the process start time**: the start time is what
@@ -192,7 +193,7 @@ so most of that configuration survives on its own; only credential-named
 variables — the ones the reset result lists under `env_not_persisted` — are
 never stored and must be passed again on the replay.
 
-## 5. Wait for the flush — once per mission
+## 5. Wait for the flush — once per query point
 
 Telemetry lags the last request. On the local stack:
 
@@ -201,20 +202,23 @@ Telemetry lags the last request. On the local stack:
   ID may work before search does — cross-check a suspicious search result
   against a fetch).
 
-**The wait is paid once per mission, not once per query.** Drive the
-whole scenario to its end, then wait once for the slowest signal the
-mission reads (60 s when it reads traces on the local stack; a remote
-backend's documented ingest latency, per its `observability-cli-guides`
-reference), then run every query against the window recorded in step 4.
-Never interleave requests, waits, and queries: a wait after every
-request batch turns a 3-minute scenario into 4 minutes of sleep.
+**The wait is paid once per query point, after the last request that
+point reads — never once per query, never once per request batch.**
+The default mission has exactly one point, after `Ended`: drive the
+whole scenario to its end, wait once for the slowest signal the mission
+reads (60 s when it reads traces), then run every query against the
+window recorded in step 4. Never interleave requests, waits, and
+queries outside the query points the record declares: a wait after
+every request batch turns a 3-minute scenario into 4 minutes of sleep.
 
 A mission that must read the store at several points — each reset
 wipes it, so a lifecycle test whose subject is the reset has one store
 per reset — declares them on the record's `Query points:` line with the
 reason each one exists, and pays each point one wait sized to the
 slowest signal **that point** reads (10 s when it reads metrics only).
-The default stays one point, after `Ended`.
+A remote backend's wait is not this skill's to size — `observe-run`
+owns it (the backend's documented ingest latency, or a bounded proof
+query); this skill stays scoped to locally running services.
 
 ## 6. Replay a stored k6 benchmark
 
@@ -324,6 +328,7 @@ Instance:  orders-run-0902 (restarted before reset)
 Stages (UTC): ramp 10:04:12–10:05:12 (excluded), steady 10:05:12–10:10:12, ramp-down 10:10:12–10:10:42
 Started (UTC): 2026-09-02T10:04:12Z
 Ended   (UTC): 2026-09-02T10:10:42Z
+Query points: 1 (after Ended)
 Command:
   K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run .odd/benchmarks/orders-read-heavy/script.js -o opentelemetry --summary-export /tmp/k6-summary-orders-run-0902.json -e BASE_URL=http://localhost:8080   # -o opentelemetry and its env: local stack only
 k6:        exit 0, 1234 requests, checks 100%, dropped iterations 0, script errors 0 (summary file transient, numbers above are the record)

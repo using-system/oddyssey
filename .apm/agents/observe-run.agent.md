@@ -229,9 +229,10 @@ has landed with a bounded query — not the local stack's ~10 s / ~60 s.
 
 Every service emits its **own** metrics, spans, and logs — **discover
 first, then query what you found; never assume names**. The five
-discoveries below are independent of each other: **issue them as
-parallel tool calls in one turn**, not one after the other — a round
-trip each is the serial cost of a phase that needs one. Then query per
+discoveries below are independent of each other: **issue them as your
+own parallel tool calls in one turn, never delegated**, not one after
+the other — a round trip each is the serial cost of a phase that needs
+one. Then query per
 signal from what came back:
 
 - **Metrics** — discover what the service exports (metric names, labels or
@@ -260,16 +261,22 @@ Then go from aggregates to explanations:
 
 - **Exemplars** — for each operation that matters, fetch three traces: one
   p50-representative, the worst-duration one, and an error one if errors
-  exist. The worst-duration search uses **one** duration filter, derived
-  from the p99 already measured for that operation (`duration > <p99>`)
-  — never a filter tightened over successive searches; when it comes
-  back empty (a histogram's p99 estimate can exceed the longest real
-  trace), take the longest trace of the unfiltered search and say so.
-  Run the searches for all operations first, then **fetch every
-  exemplar in one batch of parallel tool calls** — each fetch returns
-  KBs of OTLP JSON, and one per turn is the slow shape. Diff their span
-  trees: where the extra time or the failure lives is the finding.
-  Aggregates locate, exemplars explain.
+  exist. The worst-duration search is **at most two searches per
+  operation**, never a filter tightened over successive searches: one
+  search scoped to the service and the operation with a single
+  span-duration predicate at the p99 already measured for that
+  operation — written in the backend's own syntax and units, from its
+  reference file (a histogram's p99 comes out in seconds; the query
+  language may want `340ms`); when it comes back empty (a histogram's
+  p99 estimate can exceed the longest real span), one further search
+  with the same scope and window, no duration predicate, at the
+  reference's bounded result limit — take the longest span it returns,
+  and record the limit so the verify run carves the same way. Run the
+  searches for all operations first, then **fetch every exemplar in one
+  batch of parallel tool calls** — each fetch returns KBs of OTLP JSON,
+  and one per turn is the slow shape. Diff their span trees: where the
+  extra time or the failure lives is the finding. Aggregates locate,
+  exemplars explain.
 - **Baseline** — with no caller expectations, compare against the
   recalled report (Setup step 5 — same services, same stack, same
   detected environment): the same operations' previous numbers,
