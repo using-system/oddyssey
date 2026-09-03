@@ -76,8 +76,9 @@ plan-ready report under `.odd/observe-run-reports/`. Arguments:
 expectations**. The deployment environment is never an argument: the
 agent detects it from the telemetry.
 
-> The target stack's CLI must be configured and connected beforehand:
-> the preflight proves it and fails fast, it never authenticates for
+> The target stack's CLI must be installed, configured and connected
+> beforehand: the preflight proves it and fails fast — offering the
+> install when the binary is missing — and never authenticates for
 > you. `/odd-config` is the guided way to switch stacks; naming a
 > stack in the mission switches too.
 

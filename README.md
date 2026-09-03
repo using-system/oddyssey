@@ -158,9 +158,10 @@ the
 
 Let the deployment run for a while first — a remote observation needs
 real traffic history to read, not a freshly booted service. Then point
-the missions at the remote stack: **its CLI must be configured
-beforehand** (gcx for a Grafana stack), and `/odd-config` is the
-guided way to switch and prove the connection before any mission runs.
+the missions at the remote stack: **its CLI must be installed and
+configured beforehand** (gcx for a Grafana stack), and `/odd-config`
+is the guided way to switch and prove the connection before any
+mission runs.
 
 ```text
 /odd-config switch to grafana
