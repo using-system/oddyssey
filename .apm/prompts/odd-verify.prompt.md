@@ -94,6 +94,13 @@ this order:
    and no configuration), otherwise follow that reference's
    non-interactive path for the platform or hand the remaining steps
    to the user and stop.
+5. **The depth.** State it in the conversation before anything is
+   dispatched, with the override in the same line: the baseline's
+   `depth` when it has one; for an observation baseline without one,
+   "this baseline predates the depth field — replaying `quick`; say
+   `full verify` to replay at the protocol it ran"; for an
+   instrumentation baseline, `full`. The mission-block rule below
+   carries the detail.
 
 Then build the mission block from that report:
 
@@ -119,17 +126,24 @@ Then build the mission block from that report:
   it. The agent detects the environment of its own run, compares it
   against the one you handed over, and owns the hard stop when the two
   diverge - no verdict is ever ruled across environments. An
-    **instrumentation report** carries no `environment` by design: say so
+  **instrumentation report** carries no `environment` by design: say so
   in the mission block - the comparison is skipped and the environment
   the run detects is recorded fresh;
 - depth: the baseline's `depth` frontmatter field is the mission's
-  depth, no question asked. When the baseline carries none (a report
-  written before the field, or an instrumentation report), the replay
-  runs `quick` — say in the mission block that the depth was defaulted,
-  so the run record states it. The arguments may force `full` or
+  depth, no question asked. An **observation** baseline without one
+  predates the field: it ran the full protocol (that is how every
+  reader treats the absent field), but its replay runs `quick` — the
+  cheap re-check is the point of the default — and you say so **in the
+  conversation, before dispatch** (preflight step 5), then in the
+  mission block, so the run record states the depth was defaulted. An
+  **instrumentation** baseline has no `depth` because its contract has
+  no such field: its presence rulings span every signal the plan
+  names, so it replays at `full`. The arguments may force `full` or
   `quick` ("full verify", "quick check"): an argument wins over the
-  field. At `quick` depth the agent rules what its signals can rule and
-  counts the rest as `not ruled (quick)` (its Depth section);
+  field and the defaults. At `quick` depth the agent rules what its
+  signals can rule and counts the rest as `not ruled (quick)`; a
+  `full` replay of a `quick` baseline rules the baseline's checks and
+  says its coverage was quick (the agent's Depth section);
 - persistence: state that the run is a **verification** of that report,
   naming its exact filename, so the agent persists per the
   `create-observe-run-report` skill's verification rules —

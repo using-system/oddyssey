@@ -119,9 +119,11 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   quick run is never silently taken as the baseline of a full one. A
   report without the field predates it and ran the full protocol: read
   it as `full`. A verification or re-measure records the depth **it**
-  ran at (inherited from the baseline's field, or `quick` when the
-  baseline has none — the run record says it was defaulted), which may
-  differ from the baseline's.
+  ran at (inherited from the baseline's field, or — the one deliberate
+  asymmetry — `quick` when an observation baseline has none: the
+  absent field says "ran full" to every reader and "replay quick" to
+  `/odd-verify`, whose preflight says so before dispatch and whose run
+  record says it was defaulted), which may differ from the baseline's.
 - `environment` is **detected**, never asked: the
   `deployment.environment.name` resource attribute the service's
   telemetry reports — pre-run probe on recent telemetry, provisional

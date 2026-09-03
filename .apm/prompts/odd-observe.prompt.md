@@ -38,7 +38,7 @@ steps needing the user cannot happen inside a subagent):
    step: `command -v k6`; when it is missing, run `brew install k6`
    directly when Homebrew is available (no confirmation - k6 needs no
    account and no configuration), otherwise follow that reference's
-      non-interactive path for the platform or hand the remaining steps
+   non-interactive path for the platform or hand the remaining steps
    to the user and stop.
 4. Resolve the **depth** — `quick` or `full`, how far the mission goes
    (the agent's Depth section) — from the arguments when they carry it,
@@ -48,9 +48,12 @@ steps needing the user cannot happen inside a subagent):
    "audit", "full sweep", "complete", "before the SDD wave" resolve to
    `full` — examples, not a closed list. A resolved depth is stated in
    the preflight's display and in the mission block, never asked again.
-   Only when the arguments carry no depth signal, ask with
-   `AskUserQuestion`, `quick` first and marked recommended, and carry
-   the answer. A service-less discovery question (below) has no depth.
+   Only when the arguments carry no depth signal, ask the user — with
+   the host's structured-question tool when it has one (Claude Code:
+   `AskUserQuestion`) — `quick` first and marked recommended, and carry
+   the answer; when the service is missing too (the rule below), one
+   ask carries both questions, never two in a row. A service-less
+   discovery question (below) has no depth.
 
 Build the mission block from the arguments below, applying the agent's own
 defaults for every field not specified:

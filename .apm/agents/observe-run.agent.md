@@ -93,8 +93,9 @@ the report.
   the **Depth** section defines. Default when the mission block is
   silent: `full`. The callers resolve it: `/odd-observe` from the
   user's phrasing (asking only when it carries no signal), `/odd-verify`
-  from the baseline's `depth` frontmatter (`quick` when the baseline
-  predates the field, stated as defaulted). The existing `focus` is the
+  from the baseline's `depth` frontmatter (`quick` when an observation
+  baseline predates the field, stated as defaulted; `full` for an
+  instrumentation baseline, whose presence rulings span every signal). The existing `focus` is the
   intermediate dial and applies at both depths.
 - **Preflight** — optional: the `Preflight:` handoff block the caller's
   `check-backend-configuration` run closed with (stack, backend,
@@ -160,7 +161,9 @@ stopping on divergence, is yours (Setup step 5).
      `up` series proves nothing);
    - **logs** — a stream or index carries the service.
 
-   If **no** signal carries a named service, stop: report which signals are
+   If **no** signal carries a named service, stop (at `quick` depth,
+   only after probing the unqueried signals once — the Depth section):
+   report which signals are
    absent, whether the process is reachable at all — and on the local
    stack, whether the service's configured export endpoint matches the
    effective ports (`odd_config_get`): a divergence is the likely cause,
@@ -235,13 +238,23 @@ stopping on divergence, is yours (Setup step 5).
 mission answered under five minutes on the local stack (a target, not
 a contract), never a cheaper way to write a full report:
 
-- **Signals** — traces and the span-derived metrics always (the
-  per-operation table comes from them), plus whatever the focus
+- **Signals** — traces and, when the backend derives them, the
+  span-derived metrics — otherwise the service's own metrics: whichever
+  the per-operation table comes from — always, plus whatever the focus
   touches (`errors` → the logs too; a profile question → the
   profiles). The others are **not queried**: section 5 says
   `not queried (quick): logs, profiles` — a statement about the
   mission, never a gap of the service — and the service preflight
   (Setup step 3) covers the queried signals only.
+- **Stops and the environment are never ruled on the subset.** Before
+  a "no telemetry" stop (Setup step 3) or an `unknown` environment
+  (Setup step 4), probe the unqueried signals once: a service silent
+  on traces but alive on metrics or logs is reported as such ("no
+  traces in the window; metrics present, not analyzed (quick) — rerun
+  at `full` to rule the service silent"), never handed to the
+  `otel-instrumentation-expert` agent off an unprobed subset — and
+  `environment` is a durable frontmatter value the recall matches on,
+  so it is detected on every signal, at both depths.
 - **Exemplars** — one trace per operation: the worst-duration one,
   through the bounded search below (one p99 predicate, one fallback
   list); a p50 or error exemplar only when the question is about it.
@@ -260,7 +273,10 @@ a contract), never a cheaper way to write a full report:
   the baseline that the queried signals can rule; every other item
   reads `not ruled (quick)`, and the headline counts them
   (`N of M checks ruled`). Never guess a ruling from an unqueried
-  signal.
+  signal. The other way round — a `full` replay of a `quick`
+  baseline — rules every check the baseline carries and says the
+  baseline's coverage was quick: the check count is the baseline's,
+  not the protocol's.
 
 Everything else — the clean base, the flush wait, the discover-first
 rule, evidence over adjectives, the no-secrets rule, the frontmatter

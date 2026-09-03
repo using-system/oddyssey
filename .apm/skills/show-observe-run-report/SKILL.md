@@ -44,8 +44,9 @@ conversation's memory of the mission.
    carries it.
 3. **Run block** — compact `key: value` lines: services, stack, mode,
    depth (`full` when the frontmatter has none), window, detected
-   environment (all from the frontmatter), and the baseline report used — `verifies` when present, else section 1's
-   recalled baseline, or "none" when the report names none.
+   environment (all from the frontmatter), and the baseline report
+   used — `verifies` when present, else section 1's recalled
+   baseline, or "none" when the report names none.
 4. **The core, by kind** — tables, capped at ~10 rows with a
    `+N more in the report` marker:
    - observation / re-measure: the findings table (severity |
