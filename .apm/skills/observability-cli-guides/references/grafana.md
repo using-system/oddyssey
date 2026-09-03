@@ -150,10 +150,52 @@ identically), idiomatic scrape-era LogQL returns empty results:
   (`|= "<trace-id>"`) come back empty. Use pipeline filters instead:
   `| severity_text =~ "WARN.*|ERROR"` and `| trace_id = "<id>"`.
 - **Metric-style LogQL through `gcx logs query` needs an explicit
-  `--since`** (it returns `null` without one), has no instant mode, and
-  its matrix samples are `{line: "<value>", timestamp}` objects — not
-  the Prometheus `[ts, "value"]` pairs — so take the last/max over
-  `.values` yourself.
+  range** (`--since`, or `--from`/`--to`; it returns `null` without
+  one), has no instant mode, and its matrix samples are
+  `{line: "<value>", timestamp}` objects — not the Prometheus
+  `[ts, "value"]` pairs.
+- **Counting lines over a finished window: the exact total is the raw
+  line count, never a metric-style sample.**
+  `gcx logs query '<selector>' --from <start> --to <end> --limit <large>`
+  and count `.data.result[].values` (`--jq '[.data.result[].values[]] |
+  length'`; the default `--limit` is 50). The count is exact only below
+  the limit you pass: when it comes back equal to `--limit`, it is
+  truncated, not the total — raise the limit (Loki caps it server-side)
+  or split the window. A metric-style count is an estimate: its samples
+  sit on a grid aligned to the step, the first one **before** `--from`
+  and the last one **after** `--to` (a 6-minute window at `[6m]` came
+  back as 8 samples at 60 s, from 9 s before `start` to 51 s after
+  `end`), so every sample straddles the edges — a range vector
+  evaluated at the window start reaches back before it and pulls in
+  whatever preceded the window (a service's startup lines, an earlier
+  run). When a metric form must be used: query `--from`/`--to`, never
+  `--since`, for a finished window — `--since` ends at now, so its last
+  sample is a sliding partial that under-counts (32 against 35 true
+  lines) — bound the range to the step (`[1m]`, `--step 1m`) and sum
+  only the samples whose timestamp falls in `(start, end]`. A sample's
+  `timestamp` is in **nanoseconds** (19 digits), hence the `/1e9`;
+  `<start>` and `<end>` are the Unix seconds passed to `--from`/`--to`:
+
+  ```text
+  --jq '[.data.result[].values[]
+         | select((.timestamp|tonumber/1e9) > <start>
+                  and (.timestamp|tonumber/1e9) <= <end>)
+         | .line | tonumber] | add'
+  ```
+
+  (35, matching the raw count; the unfiltered sum read 47). The `max`
+  of a `[<window>]` matrix over-counted by one here (36) and its last
+  sample happened to match the raw count (35) — both straddle the
+  edges like every other sample, the error is whatever the edge
+  samples pull in, so neither is a total or a correction. Verified
+  2026-09-03, gcx 1.2.0, local stack, on a steady healthcheck stream;
+  the single-point `--since` result issue #256 reported was not
+  reproduced (8 samples here). A "correlated lines = lines" check
+  therefore compares two **raw** counts over the same window and
+  stream selector, one of them carrying the trace-id filter
+  (`'{...} | trace_id != ""'` against `'{...}'`), with the startup and
+  excluded-URL lines that legitimately carry no trace id excluded
+  explicitly, or enumerated with `-o raw` and classified.
 - **An un-aggregated range vector hits a misleading series-limit
   error**: `count_over_time({service_name="..."}[20m])` fails with
   `maximum number of series (500) reached for a single query` — read as
