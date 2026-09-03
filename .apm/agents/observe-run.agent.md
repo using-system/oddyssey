@@ -95,8 +95,9 @@ the report.
   user's phrasing (asking only when it carries no signal), `/odd-verify`
   from the baseline's `depth` frontmatter (`quick` when an observation
   baseline predates the field, stated as defaulted; `full` for an
-  instrumentation baseline, whose presence rulings span every signal). The existing `focus` is the
-  intermediate dial and applies at both depths.
+  instrumentation baseline, whose presence rulings span every signal).
+  The existing `focus` is the intermediate dial and applies at both
+  depths.
 - **Preflight** — optional: the `Preflight:` handoff block the caller's
   `check-backend-configuration` run closed with (stack, backend,
   reference read, CLI and context, target values, connection proof
@@ -238,11 +239,11 @@ stopping on divergence, is yours (Setup step 5).
 mission answered under five minutes on the local stack (a target, not
 a contract), never a cheaper way to write a full report:
 
-- **Signals** — traces and, when the backend derives them, the
-  span-derived metrics — otherwise the service's own metrics: whichever
-  the per-operation table comes from — always, plus whatever the focus
-  touches (`errors` → the logs too; a profile question → the
-  profiles). The others are **not queried**: section 5 says
+- **Signals** — always: traces, plus the metrics the per-operation
+  table comes from — the span-derived ones when the backend derives
+  them, otherwise the service's own. Then whatever the focus touches
+  (`errors` → the logs too; a profile question → the profiles). The
+  others are **not queried**: section 5 says
   `not queried (quick): logs, profiles` — a statement about the
   mission, never a gap of the service — and the service preflight
   (Setup step 3) covers the queried signals only.
