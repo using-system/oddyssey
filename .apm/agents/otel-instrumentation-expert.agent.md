@@ -145,12 +145,15 @@ with its stored path:
    scenario, and confirm each signal arrives. Every query the protocol
    states comes from the export stack's reference in the
    `observability-cli-guides` skill, never from memory — the local
-   reference routes to grafana.md's query sections — and validating one
-   against real data on the local stack goes through the
+   reference routes to grafana.md's query sections — and when you
+   check a query's **form** against data the stack already holds (an
+   adjacent service's series; the planned signals do not exist yet,
+   and you never start the stack for it), do it through the
    `setup-local-stack` skill's isolated gcx context (its `## Configure
-   an isolated context` and `## Datasources` sections), never through a
-   datasource's raw HTTP API: Pyroscope's endpoints answer 404 or
-   demand a time range gcx supplies for you. Compute every `--from`,
+   an isolated context`, `## Datasources` and `## This stack is
+   push-based` sections), never through a datasource's raw HTTP API:
+   Pyroscope's endpoints answer 404 or demand a time range gcx supplies
+   for you. Compute every `--from`,
    `--to` and report timestamp with `date -u`: a session crossing local
    midnight while UTC has not rejects the query ("start time is after
    end time") and misdates the report. State every check in a **replayable form** — one check per
