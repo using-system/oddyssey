@@ -117,6 +117,21 @@ from `.apm/` via `scripts/build-marketplace.sh`. Author every change in
 `.apm/` (agents, skills, prompts) and `apm.yml` only, and leave the
 generated trees alone.
 
+## Guides and the README are user documentation, not specs
+
+`README.md` and `docs/guide/*.md` explain how and why to use the
+package — never how it works inside. The contracts live in `.apm/`
+(prompts, agents, skills) and `docs/superpowers/specs/`; a guide links
+to them and never duplicates their rules. Keep a guide to what a user
+needs to run the loop: the invocation, what they must supply, what
+comes out and where, what the prompt will ask or refuse — one sentence
+each — and a pointer to the contract for the rest. The "keep in sync"
+sections below mean the guide's statements stay true and its examples
+keep matching the contracts, not that every contract clause earns a
+sentence in the guide. A guide paragraph that restates an internal
+mechanism — a build order, a matching rule, a validation step, a
+commit discipline — is a review finding, like a missing test.
+
 ## Keep the prompts guide in sync
 
 `docs/guide/prompts.md` catalogs the packaged prompts with example
@@ -126,6 +141,8 @@ field-mapping annotations must keep matching the `.apm/prompts/`
 contracts. Update the `README.md` too: the How to steps and the
 Miscellaneous prompts subsection both reference prompts — and the
 `Prompts` table of `docs/guide/dependencies.md` lists every prompt.
+The editorial rule above applies: keep the guide true, never
+exhaustive.
 
 ## Keep the dependency map in sync
 
@@ -138,6 +155,8 @@ and `Skills` tables list every component with its role and its edges —
 they are the package's component catalog, the README carries none.
 Update the `README.md` too: its MCP tools table lists the server's
 tool surface.
+The editorial rule above applies: keep the guide true, never
+exhaustive.
 
 ## Keep the reports guide in sync
 
@@ -148,6 +167,8 @@ the file contracts of `create-observe-run-report` or
 `create-otel-instrumentation-report`, or the report sections of the
 `observe-run` or `otel-instrumentation-expert` agents, change — the
 guide documents those contracts and must never lag them.
+The editorial rule above applies: keep the guide true, never
+exhaustive.
 
 ## Keep the backends guide in sync
 
@@ -176,6 +197,8 @@ mocked response. Verification means actually querying every signal
 that account has data for (metrics, logs, traces, profiles — whichever
 apply to that backend) and confirming what the CLI really returns. A
 change landed without this is unverified, whatever the diff claims.
+The editorial rule above applies: keep the guide true, never
+exhaustive.
 
 ## Keep the benchmarks guide in sync
 
@@ -187,6 +210,8 @@ expand its Run/Verify sections in the same change that implements
 `/odd-observe`'s `benchmark:` field or `/odd-verify`'s benchmark replay
 — the guide must never describe a contract that doesn't exist yet, or
 lag one that does.
+The editorial rule above applies: keep the guide true, never
+exhaustive.
 
 ## Title and label every issue
 
