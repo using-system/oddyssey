@@ -43,6 +43,16 @@ Start a clean run in this order — the reverse of what feels natural:
    seconds-old store) separable instead of merely suspected. The
    substitutes above stay the fallback for services that cannot opt in.
 
+**Reset once.** That clean-base reset is the only reset this skill takes
+on its own. Any further `odd_stack_reset` inside a mission is an
+explicit mission requirement — an operation the mission observes (a
+lifecycle test whose subject is the reset itself), an env change the
+mission dictates mid-run — never the agent's initiative: a reset
+costs ~6 s, wipes the store, and restarts the flush wait (step 5) from
+zero. Every reset the mission requires is its own `Commands:` line in
+the record (step 4), carrying the env it passed and the reason it
+exists.
+
 When restarting is not possible, say so in the record — and still record
 the identity **and the process start time**: the start time is what
 dates the pre-window history. Traces and logs stay trustworthy, but
@@ -164,14 +174,23 @@ Warmup:   5 requests per endpoint (discarded)
 Load:     30 requests per endpoint, sequential
 Started (UTC): 2026-08-17T10:04:12Z
 Ended   (UTC): 2026-08-17T10:05:03Z
+Query points: 1 (after Ended)   # more than one only with a reason - see step 5
 Commands:
   for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:8080/api/users; done
   for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:8080/api/orders/42; done
+  # a mission-required reset is a Commands line too (step 0), e.g.:
+  # odd_stack_reset env={"GF_LOG_LEVEL":"debug"}   # reason: the mission observes the reset itself
 Not reproducible: <auth token / seeded data / time-dependent input, or "none">
 ```
 
 Exact commands, exact counts, exact UTC start and end — the start/end pair
 is also the observation window for every query run against this scenario.
+The `Query points:` line is the default `1` — the whole scenario, then one
+flush wait, then every query (step 5); a mission that must read the store
+at several points lists them here with the reason each one exists. A
+reset the mission requires (step 0) is a `Commands:` line like any other
+driven call, with its env and its reason — in a benchmark record (step
+6) it keeps that slot next to the single `k6 run` command.
 The `Backend:` line records how the stack was (re)started, **including any
 `env`**: a replay must reproduce the backend and not only the requests. A
 bare `odd_stack_reset` reapplies the env persisted in `stack_config.local`,
@@ -179,16 +198,32 @@ so most of that configuration survives on its own; only credential-named
 variables — the ones the reset result lists under `env_not_persisted` — are
 never stored and must be passed again on the replay.
 
-## 5. Wait for the flush
+## 5. Wait for the flush — once per query point
 
-Telemetry lags the last request. Before querying:
+Telemetry lags the last request. On the local stack:
 
 - **~10 s** for metrics to be exported and written into Prometheus (the stack is push-based);
 - **~60 s** for traces to become searchable in Tempo (a full trace fetch by
   ID may work before search does — cross-check a suspicious search result
   against a fetch).
 
-Only then read the window recorded in step 4.
+**The wait is paid once per query point, after the last request that
+point reads — never once per query, never once per request batch.**
+The default mission has exactly one point, after `Ended`: drive the
+whole scenario to its end, wait once for the slowest signal the mission
+reads (60 s when it reads traces), then run every query against the
+window recorded in step 4. Never interleave requests, waits, and
+queries outside the query points the record declares: a wait after
+every request batch turns a 3-minute scenario into 4 minutes of sleep.
+
+A mission that must read the store at several points — each reset
+wipes it, so a lifecycle test whose subject is the reset has one store
+per reset — declares them on the record's `Query points:` line with the
+reason each one exists, and pays each point one wait sized to the
+slowest signal **that point** reads (10 s when it reads metrics only).
+A remote backend's wait is not this skill's to size — `observe-run`
+owns it (the backend's documented ingest latency, or a bounded proof
+query); this skill stays scoped to locally running services.
 
 ## 6. Replay a stored k6 benchmark
 
@@ -298,6 +333,7 @@ Instance:  orders-run-0902 (restarted before reset)
 Stages (UTC): ramp 10:04:12–10:05:12 (excluded), steady 10:05:12–10:10:12, ramp-down 10:10:12–10:10:42
 Started (UTC): 2026-09-02T10:04:12Z
 Ended   (UTC): 2026-09-02T10:10:42Z
+Query points: 1 (after Ended)
 Command:
   K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run .odd/benchmarks/orders-read-heavy/script.js -o opentelemetry --summary-export /tmp/k6-summary-orders-run-0902.json -e BASE_URL=http://localhost:8080   # -o opentelemetry and its env: local stack only
 k6:        exit 0, 1234 requests, checks 100%, dropped iterations 0, script errors 0 (summary file transient, numbers above are the record)

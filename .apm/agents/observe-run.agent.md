@@ -206,9 +206,19 @@ the run matters — restart the observed process, **then** call
 `odd_stack_reset` before the scenario (`run-scenario` step 0: a clean
 backend is not a clean run, and the order is load-bearing): everything
 the stack then contains IS the run, and the window becomes trivial.
+**That reset is the only one you take on your own initiative.** Any
+further reset is an explicit mission requirement — the reset is the
+operation under observation, or the mission dictates an env change
+mid-run — recorded with its reason, never a tidy-up between two
+request batches: each one costs ~6 s and restarts the flush wait.
 Reset wipes ALL stored telemetry for every service, so never use
 it on a stack whose history the caller still needs (and there is no reset
-on remote backends — scope with the window instead). When the caller has
+on remote backends — scope with the window instead). Drive the whole
+scenario first, **then wait once** for the slowest signal you will
+read (`run-scenario` step 5), then query: the mission has one query
+point by default, and every additional one — a lifecycle test reads
+one store per reset — is declared on the record's `Query points:` line
+with its reason. When the caller has
 explicitly authorized driving a **remote** service, only `run-scenario`'s
 scenario-record protocol applies: the endpoints, payloads, and counts come
 from the caller (never invented, never discovered by probing), the base URL
@@ -218,7 +228,12 @@ backend's documented ingest latency — check its official docs via the
 has landed with a bounded query — not the local stack's ~10 s / ~60 s.
 
 Every service emits its **own** metrics, spans, and logs — **discover
-first, then query what you found; never assume names**:
+first, then query what you found; never assume names**. The five
+discoveries below are independent of each other: **issue them as your
+own parallel tool calls in one turn, never delegated**, not one after
+the other — a round trip each is the serial cost of a phase that needs
+one. Then query per
+signal from what came back:
 
 - **Metrics** — discover what the service exports (metric names, labels or
   dimensions, metadata), then query the discovered series: rates, error
@@ -245,10 +260,24 @@ first, then query what you found; never assume names**:
 Then go from aggregates to explanations:
 
 - **Exemplars** — for each operation that matters, fetch three traces: one
-  p50-representative, the worst-duration one (duration filter tightened
-  until it holds only the tail), and an error one if errors exist. Diff
-  their span trees: where the extra time or the failure lives is the
-  finding. Aggregates locate, exemplars explain.
+  p50-representative, the worst-duration one, and an error one if errors
+  exist. The worst-duration search is **at most two searches per
+  operation**, never a filter tightened over successive searches: one
+  search scoped to the service and the operation with a single
+  span-duration predicate at the p99 already measured for that
+  operation — written in the backend's own syntax and units, from its
+  reference file (a histogram's p99 comes out in seconds; the query
+  language may want `340ms`); when it comes back empty (a histogram's
+  p99 estimate can exceed the longest real span), one further search
+  with the same scope and window, no duration predicate, at an
+  **explicit** result limit taken from the reference — never the CLI's
+  silent default page — take the longest span it returns and fetch its
+  trace, and record the limit so the verify run carves the same way. Run the
+  searches for all operations first, then **fetch every exemplar in one
+  batch of parallel tool calls** — each fetch returns KBs of OTLP JSON,
+  and one per turn is the slow shape. Diff their span trees: where the
+  extra time or the failure lives is the finding. Aggregates locate,
+  exemplars explain.
 - **Baseline** — with no caller expectations, compare against the
   recalled report (Setup step 5 — same services, same stack, same
   detected environment): the same operations' previous numbers,
@@ -375,14 +404,19 @@ with its stored path:
   flush and up to ~60 s for traces to become searchable (confirm a
   suspicious search against a full trace fetch); remote backends have
   their own ingest latency — prove data has landed with a bounded query
-  before concluding anything is absent.
+  before concluding anything is absent. The wait is paid **once per
+  query point, after the last request that point reads** (`run-scenario`
+  step 5) — never once per query, never once per request batch.
 - Before returning the report, self-check: every named service was
   preflighted; all four signals were queried or their absence recorded in
   section 5; every table row and every finding carries its query and
   result; every improvement carries a number and a verification query with
   a before-value; every verification check carries its validation status;
   every single-signal or unprobed claim is marked
-  `suspected`; the deployment environment was detected, is definite (no
+  `suspected`; in drive mode, the run record's `Query points:` line
+  carries a reason for every point beyond the first, and every reset
+  beyond the clean-base one names the mission requirement behind it;
+  the deployment environment was detected, is definite (no
   provisional value left unsettled), and appears in section 1 and in the
   frontmatter; the memory was recalled (section 1 names the previous
   report or says there was none) and the report was persisted per the

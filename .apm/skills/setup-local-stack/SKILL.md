@@ -125,6 +125,9 @@ used.
 
 Discover before you query: `gcx metrics labels` / `gcx metrics metadata`,
 `gcx traces labels`, `gcx logs labels`, `gcx profiles list-profile-types`.
+The four signals' discoveries are independent — **run them as your own
+parallel tool calls in one turn**, not serially; the same holds for the batch of
+`gcx traces get` fetches once a search has returned its trace IDs.
 `gcx metrics series` and `gcx logs series` are NOT discovery commands:
 bare, they error — both require at least one selector (e.g. `gcx metrics
 series 'target_info'`). Every service names its own telemetry — never
