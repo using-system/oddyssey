@@ -30,17 +30,29 @@ the stack's row in `builtin-stacks.md` and, from it, the stack's
 reference file: the rest of this skill is that file's
 `## Configuration display` section, applied in order.
 
+**Read by section, never the whole file.** A reference runs a few
+hundred lines, and this skill needs two sections of it: `## CLI
+binary` (step 2's Detect and Install) and `## Configuration display`
+(steps 2 and 3); `## Setup` only when step 4 has something to guide.
+When a section routes to another file or skill ("read that section",
+"the method is X's"), read the routed **section**, never the file
+around it. Every other section of the reference — the query surface,
+output reading, targeting and planning notes — is the agent's, read
+once, by the agent, after dispatch — never here.
+
 A reference may say that another skill owns the whole method for its
 stack (the default stack's does — the skill it names carries the CLI
 context, the ports, and the datasource identifiers, and this skill only
-routes to it). Follow that routing; the reference still says what to
-display and what proves the connection.
+routes to it). Follow that routing to the section the reference names;
+the reference still says what to display and what proves the
+connection.
 
 ## 2. Resolve the CLI and read its configuration
 
 The reference's `## CLI binary` section names the binary, the
 **Detect** command, and the **Install** steps (a reference may route
-that section to another reference's — follow it).
+that section to another reference's — read that section there, and
+only it).
 
 **Prove the binary exists before reading anything**: run the Detect
 command as written, in a shell **without `set -u`** (a Detect command
@@ -94,3 +106,30 @@ authentication (a remote stack whose CLI has no context configured may
 mean the user wanted the default stack, and the fix is then
 `odd_config_set {"stack": "<default>"}` — the row `builtin-stacks.md`
 marks as the default — not a login), offer it first.
+
+## 5. Hand off what you resolved
+
+Close with a **preflight handoff** block — emitted only once step 3's
+proof has succeeded; a block with a failed or absent `Proof:` line
+never exists. The caller copies it into the mission block verbatim,
+so the agent never re-reads the sections this skill just read nor
+re-proves the connection — it reads the reference's other sections
+only:
+
+```text
+Preflight: stack=<stack>, backend=<backend, or local>
+Reference: <repo-relative path of the reference file>; read: CLI binary, Configuration display
+CLI: <binary> <version>; context: <the isolated context's path, or the named context>
+Target: <the Display's values on one line - URLs, ports, tenant/workspace/site names; never a credential>
+Proof: <the probe command> -> <the real signal it returned>, at <UTC>
+```
+
+The `Target:` line carries what the Display showed — the real
+targeting values the agent's queries need — and nothing more: never a
+credential. The block is **conversation-scope**: a real tenant,
+workspace, subscription or site name, a GUID, a login, a path under a
+home directory all identify a real environment, and the agent's report
+is a committed file — section 1 restates the stack and backend, never
+this block, and any identifier a report must mention goes in as an
+obviously fake placeholder (AGENTS.md's no-secrets rule, which covers
+identifiers, not only credentials).

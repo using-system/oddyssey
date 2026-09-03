@@ -87,6 +87,25 @@ the report.
   mode the window is the scenario's own start and end.
 - **Focus** — performance, errors, correctness, cost/cardinality, a named
   endpoint, or a full sweep (default: full sweep).
+- **Depth** — `quick` or `full`: how far the mission goes, the second
+  axis next to `mode` (who generates the traffic) — the two compose.
+  `full` is the whole protocol below; `quick` is the bounded version
+  the **Depth** section defines. Default when the mission block is
+  silent: `full`. The callers resolve it: `/odd-observe` from the
+  user's phrasing (asking only when it carries no signal), `/odd-verify`
+  from the baseline's `depth` frontmatter (`quick` when an observation
+  baseline predates the field, stated as defaulted; `full` for an
+  instrumentation baseline, whose presence rulings span every signal).
+  The existing `focus` is the intermediate dial and applies at both
+  depths.
+- **Preflight** — optional: the `Preflight:` handoff block the caller's
+  `check-backend-configuration` run closed with (stack, backend,
+  reference read, CLI and context, target values, connection proof
+  with its UTC). It is **conversation-scope**: section 1 restates the
+  stack and backend, never the block — a real tenant, workspace or
+  site name, a GUID, a login, a home-directory path identify a real
+  environment and the report is a committed file; anything the report
+  must name goes in as an obviously fake placeholder.
 - **Expectations / baseline** — SLO targets, expected request or query
   counts, "it used to be X". Absent a caller baseline, the baseline is
   the latest stored report matching the same services, the same stack,
@@ -101,27 +120,51 @@ stopping on divergence, is yours (Setup step 5).
 
 ## Setup
 
-1. **Identify the backend and open its guide.** Use the
-   `observability-cli-guides` skill: pick the stack's backend, read
-   its reference file — the discovery and query commands per signal come
-   from that reference, not from memory. The CLI's auth and context are
-   the caller's preflight's job: confirm with the reference's cheapest
-   probe, and if it is not connected, stop and report ("CLI not
-   configured for <backend>") — never authenticate from here.
+1. **Identify the backend and open its guide — by section.** Use the
+   `observability-cli-guides` skill: pick the stack's backend and read
+   its reference file's sections **except** the four the preflight
+   owns — `## CLI binary`, `## Setup`, `## Configuration display`,
+   `## What to persist`. Everything else is yours: the query surface
+   per signal, output reading, remote targeting, resource discovery,
+   planning notes — the discovery and query commands come from there,
+   not from memory; when a reference routes a section elsewhere (the
+   local reference's `## Query by signal` routes to grafana.md's),
+   follow the routing to the named sections. The mission block's
+   `Preflight:` handoff (the caller's `check-backend-configuration`
+   run) already carries what the preflight's sections resolve — the
+   binary, the CLI context, the target's values, the connection proof
+   with its UTC: never re-read those sections nor redo the display or
+   the setup; re-run the reference's cheapest probe once only when the
+   stack was reset or brought up since that UTC — on a remote backend
+   the signal is a query answering with an auth error: stop and report
+   then, never re-authenticate. Without a handoff (a
+   mission entered directly), read the reference's sections in its
+   order and run the probe yourself; if it is not connected, stop and
+   report ("CLI not configured for <backend>") — never authenticate
+   from here.
 2. **Local stack.** The local stack is a Grafana (LGTM) stack —
    use the Grafana reference and gcx: call the
    oddyssey MCP tool `odd_stack_status`, then `odd_stack_up` if needed, and
-   configure gcx with the `setup-local-stack` skill (isolated config,
-   datasource UIDs) — gcx is the stack's mandatory query CLI.
+   query through the `setup-local-stack` skill's isolated gcx context —
+   the handoff's `context:` path is that file, already written and
+   proven: reuse it (regenerate it only when `gcx config check` fails
+   on it) and read only the skill's `## Datasources` and `## This stack
+   is push-based` sections; without a handoff, its `## Configure an
+   isolated context` section too. gcx is the stack's mandatory query
+   CLI.
 3. **Preflight every named service.** Before any analysis, prove its
-   telemetry exists in the window, with the backend's own query surface:
+   telemetry exists in the window, with the backend's own query surface
+   (at `quick` depth, for the signals the mission queries — the Depth
+   section — the others are neither probed nor reported absent):
    - **traces** — a search scoped to the service returns traces;
    - **metrics** — the service's own series/dimensions exist (discovery,
      not liveness probes: on push-based pipelines an absent scrape-style
      `up` series proves nothing);
    - **logs** — a stream or index carries the service.
 
-   If **no** signal carries a named service, stop: report which signals are
+   If **no** signal carries a named service, stop (at `quick` depth,
+   only after probing the unqueried signals once — the Depth section):
+   report which signals are
    absent, whether the process is reachable at all — and on the local
    stack, whether the service's configured export endpoint matches the
    effective ports (`odd_config_get`): a divergence is the likely cause,
@@ -166,12 +209,19 @@ stopping on divergence, is yours (Setup step 5).
      per environment. Never pick a majority, the most recent, or the
      mission's guess.
 5. **Recall the memory.** When the mission already names a baseline
-   report, use that report as the recalled baseline and skip the recall.
-   Otherwise load the baseline with the `create-observe-run-report`
-   skill's recall procedure — the skill owns the matching rules, and
-   they include the environment step 4 detected. Either way, the
-   recalled report's numbers and findings are what the new observations
-   diff against. No match is a normal first run — record "no previous
+   report, use that report as the recalled baseline and skip the
+   matching. Otherwise load the baseline with the
+   `create-observe-run-report` skill's recall procedure — the skill
+   owns the matching rules, which include the environment step 4
+   detected. However the baseline was obtained — named or recalled —
+   read it **by section, never whole**, per that skill's partial read:
+   an observation report's frontmatter, section 1's scenario record
+   block and its replay notes, sections 2, 3 and 7 (5 too on a verify
+   or re-measure); an instrumentation report's summary table,
+   per-service decisions and verification protocol. Read beyond that
+   set only for a stated need (a finding's detail, a gap's discovery
+   query) and say so in section 1. Either way, the recalled report's
+   numbers and findings are what the new observations diff against. No match is a normal first run — record "no previous
    report" in section 1 and fall back to the within-run baseline.
 
    When the mission hands you a **baseline environment** to compare
@@ -182,6 +232,58 @@ stopping on divergence, is yours (Setup step 5).
    the detected one as a new baseline. A baseline carrying no
    environment (an instrumentation report has none by design) skips the
    check — record the detected environment fresh.
+
+## Depth
+
+`full` is everything this file says. `quick` bounds it — a one-question
+mission answered under five minutes on the local stack (a target, not
+a contract), never a cheaper way to write a full report:
+
+- **Signals** — always: traces, plus the metrics the per-operation
+  table comes from — the span-derived ones when the backend derives
+  them, otherwise the service's own. Then whatever the focus touches
+  (`errors` → the logs too; a profile question → the profiles). The
+  others are **not queried**: section 5 says
+  `not queried (quick): logs, profiles` — a statement about the
+  mission, never a gap of the service — and the service preflight
+  (Setup step 3) covers the queried signals only.
+- **Stops and the environment are never ruled on the subset.** Before
+  a "no telemetry" stop (Setup step 3) or an `unknown` environment
+  (Setup step 4), probe the unqueried signals once: a service silent
+  on traces but alive on metrics or logs is reported as such ("no
+  traces in the window; metrics present, not analyzed (quick) — rerun
+  at `full` to rule the service silent"), never handed to the
+  `otel-instrumentation-expert` agent off an unprobed subset — and
+  `environment` is a durable frontmatter value the recall matches on,
+  so it is detected on every signal, at both depths.
+- **Exemplars** — one trace per operation: the worst-duration one,
+  through the bounded search below (one p99 predicate, one fallback
+  list); a p50 or error exemplar only when the question is about it.
+- **Cross-confirmation** — only for the anomalies you report as
+  `confirmed`; the rest stay single-signal, marked `suspected` with
+  the probe that would confirm them, and that is the expected shape
+  at this depth.
+- **Report** — the seven headings stay (the recall reads by section
+  number). Sections 1, 2 and 7 are complete. Section 3 is the ranked
+  table only, no detail per row. Sections 4, 5 and 6 are one line
+  each — section 5's line names the signals not queried, then any gap
+  the queried signals showed. Section 7 carries the checks this run
+  measured, and only those: a quick report is a legal baseline for a
+  later verify, on exactly what it measured.
+- **Verify at quick depth** — rule on every check, anomaly and gap of
+  the baseline that the queried signals can rule; every other item
+  reads `not ruled (quick)`, and the headline counts them
+  (`N of M checks ruled`). Never guess a ruling from an unqueried
+  signal. The other way round — a `full` replay of a `quick`
+  baseline — rules every check the baseline carries and says the
+  baseline's coverage was quick: the check count is the baseline's,
+  not the protocol's.
+
+Everything else — the clean base, the flush wait, the discover-first
+rule, evidence over adjectives, the no-secrets rule, the frontmatter
+— is identical at both depths. `depth` is a frontmatter field: the
+persistence skill records it, the recall reads it (a full mission never
+takes a quick report as its baseline without saying so).
 
 ## Investigation
 
@@ -206,9 +308,25 @@ the run matters — restart the observed process, **then** call
 `odd_stack_reset` before the scenario (`run-scenario` step 0: a clean
 backend is not a clean run, and the order is load-bearing): everything
 the stack then contains IS the run, and the window becomes trivial.
+Before launching the service, apply that step's port rule: a port
+already served by a process you did not start is never killed — run
+on a free port with the run slug as `service.instance.id`, drive
+`127.0.0.1`, and record the foreign listeners and the port you used
+(the record's `Listeners:` line, restated in section 1); a mission
+naming a port means that port or the next free one.
+**That reset is the only one you take on your own initiative.** Any
+further reset is an explicit mission requirement — the reset is the
+operation under observation, or the mission dictates an env change
+mid-run — recorded with its reason, never a tidy-up between two
+request batches: each one costs ~6 s and restarts the flush wait.
 Reset wipes ALL stored telemetry for every service, so never use
 it on a stack whose history the caller still needs (and there is no reset
-on remote backends — scope with the window instead). When the caller has
+on remote backends — scope with the window instead). Drive the whole
+scenario first, **then wait once** for the slowest signal you will
+read (`run-scenario` step 5), then query: the mission has one query
+point by default, and every additional one — a lifecycle test reads
+one store per reset — is declared on the record's `Query points:` line
+with its reason. When the caller has
 explicitly authorized driving a **remote** service, only `run-scenario`'s
 scenario-record protocol applies: the endpoints, payloads, and counts come
 from the caller (never invented, never discovered by probing), the base URL
@@ -218,7 +336,12 @@ backend's documented ingest latency — check its official docs via the
 has landed with a bounded query — not the local stack's ~10 s / ~60 s.
 
 Every service emits its **own** metrics, spans, and logs — **discover
-first, then query what you found; never assume names**:
+first, then query what you found; never assume names**. The five
+discoveries below are independent of each other: **issue them as your
+own parallel tool calls in one turn, never delegated**, not one after
+the other — a round trip each is the serial cost of a phase that needs
+one. Then query per
+signal from what came back:
 
 - **Metrics** — discover what the service exports (metric names, labels or
   dimensions, metadata), then query the discovered series: rates, error
@@ -240,23 +363,58 @@ first, then query what you found; never assume names**:
   profiles for the service (the local stack has Pyroscope). If it does,
   report the top functions by CPU and by allocations for the hottest
   operations and correlate them with the slow spans. If it does not, that
-  is a line in **Telemetry gaps**, not a silent omission.
+  is a line in **Telemetry gaps**, not a silent omission. Profiles
+  pushed by a Pyroscope SDK carry no `service.instance.id`: qualify
+  them by the per-run tag the service was launched with (run-scenario
+  step 0), or, absent one, by `process.runtime.version` plus frames
+  from the application's own code — and say which.
 
 Then go from aggregates to explanations:
 
 - **Exemplars** — for each operation that matters, fetch three traces: one
-  p50-representative, the worst-duration one (duration filter tightened
-  until it holds only the tail), and an error one if errors exist. Diff
-  their span trees: where the extra time or the failure lives is the
-  finding. Aggregates locate, exemplars explain.
+  p50-representative, the worst-duration one, and an error one if errors
+  exist (at `quick` depth, the worst-duration one only — the Depth
+  section). The worst-duration search is **at most two searches per
+  operation**, never a filter tightened over successive searches: one
+  search scoped to the service and the operation with a single
+  span-duration predicate at the p99 already measured for that
+  operation — written in the backend's own syntax and units, from its
+  reference file (a histogram's p99 comes out in seconds; the query
+  language may want `340ms`); when it comes back empty (a histogram's
+  p99 estimate can exceed the longest real span), one further search
+  with the same scope and window, no duration predicate, at an
+  **explicit** result limit taken from the reference — never the CLI's
+  silent default page — take the longest span it returns and fetch its
+  trace, and record the limit so the verify run carves the same way. Run the
+  searches for all operations first, then **fetch every exemplar in one
+  batch of parallel tool calls** — each fetch returns KBs of OTLP JSON,
+  and one per turn is the slow shape. Diff their span trees: where the
+  extra time or the failure lives is the finding. Aggregates locate,
+  exemplars explain.
 - **Baseline** — with no caller expectations, compare against the
   recalled report (Setup step 5 — same services, same stack, same
   detected environment): the same operations' previous numbers,
   the previous findings (fixed, still there, worse?), and the previous
   measurement protocol's before-values. When the recalled baseline is an
   **instrumentation report**, there are no previous numbers: the deltas
-  are presence rulings — closed / still missing per planned item, each
-  with its discovery query — reported in place of the numeric diff.
+  are presence rulings per planned item, each with its discovery query,
+  reported in place of the numeric diff. A ruling has three values:
+  **closed** only when the evidence ties the signal to the **process
+  under test** — it carries the run's identity (`service.instance.id`
+  for traces, metrics and logs; for profiles, the per-run tag that
+  mirrors it, plus frames from the application's own code paths and a
+  runtime identity); **present, unattributed** when the signal exists
+  but nothing proves which process emitted it — a listed name, a
+  bounded tag, a non-empty flamegraph from a healthcheck or a
+  co-resident process; **still missing** otherwise. A name in a labels
+  listing never closes an item: a healthcheck inheriting the profiler
+  env satisfies every name-only check while the server never
+  profiles. When the protocol names no attribution evidence (written
+  before this rule), the run supplies its own: drive the service with
+  the run slug and the profiler tag (`run-scenario` step 0) and rule
+  on that identity; only a signal you cannot tie to a process you
+  launched is `present, unattributed`, and section 1 says the protocol
+  predated the rule.
   With no recalled report either,
   compare within the run: p99 against p50 per operation, an endpoint
   against its siblings, the first half of the window against the second.
@@ -264,14 +422,20 @@ Then go from aggregates to explanations:
 - **Cross-signal** — a slow trace names the span, the span's window narrows
   the metric query, the trace ID filters the logs. Every anomaly ends up
   either cross-confirmed in a second signal or explicitly labeled
-  single-signal.
+  single-signal (at `quick` depth, only the anomalies you report as
+  `confirmed` are cross-confirmed; the others are `suspected` by
+  construction).
 
 ## The report (your only deliverable)
 
-Build these seven sections, in this order — then persist the whole
-report with the `create-observe-run-report` skill (frontmatter, naming,
-storage path, no-secrets rule all come from there) and return it along
-with its stored path:
+Build these seven sections, in this order (at `quick` depth, in the
+collapsed shape the Depth section gives sections 3 to 6) — then
+persist the whole report with the `create-observe-run-report` skill
+(frontmatter, naming, storage path, the `depth` field, no-secrets rule
+all come from there) and return the skill's return value — the stored
+path, the carrying commit, and the report as written — so the caller
+renders the closing synthesis from your reply, without re-reading the
+file:
 
 1. **Mission and run record** — the mission as understood (services,
    stack and backend, mode, window, focus, expectations) and every
@@ -355,9 +519,17 @@ with its stored path:
   fetched documentation, never from memory; name the backend and CLI in
   the report.
 - Never invent, echo, or store credentials; refer to them by variable or
-  secret name only.
+  secret name only. The same for real identifiers — tenant, workspace,
+  subscription, resource-group or site names and GUIDs, logins,
+  home-directory paths: the report names them by an obviously fake
+  placeholder, never by the real value a preflight or a tool result
+  showed for one of those — ports, URLs on `localhost`, service and
+  operation names stay the evidence they are.
 - Every anomaly is either cross-confirmed in a second signal or explicitly
   labeled single-signal.
+- The depth bounds how far you look, never how honestly you report:
+  a quick report says what it did not query and did not rule, in the
+  words the Depth section fixes, so nobody mistakes it for a full one.
 - A load generator's own telemetry is never a named service: when k6's
   OpenTelemetry output lands in the store (`service_name="k6"` on the
   local stack), it is a bonus signal to cross-confirm the target's
@@ -375,14 +547,24 @@ with its stored path:
   flush and up to ~60 s for traces to become searchable (confirm a
   suspicious search against a full trace fetch); remote backends have
   their own ingest latency — prove data has landed with a bounded query
-  before concluding anything is absent.
+  before concluding anything is absent. The wait is paid **once per
+  query point, after the last request that point reads** (`run-scenario`
+  step 5) — never once per query, never once per request batch.
 - Before returning the report, self-check: every named service was
   preflighted; all four signals were queried or their absence recorded in
-  section 5; every table row and every finding carries its query and
+  section 5 — at `quick` depth, queried or listed as
+  `not queried (quick)` there; the depth appears in section 1 and in
+  the frontmatter, and a quick verify counts the items it did not rule;
+  every table row and every finding carries its query and
   result; every improvement carries a number and a verification query with
   a before-value; every verification check carries its validation status;
   every single-signal or unprobed claim is marked
-  `suspected`; the deployment environment was detected, is definite (no
+  `suspected`; every presence ruling that says `closed` names the
+  identity evidence that ties the signal to the process under test; in
+  drive mode, the run record's `Query points:` line
+  carries a reason for every point beyond the first, and every reset
+  beyond the clean-base one names the mission requirement behind it;
+  the deployment environment was detected, is definite (no
   provisional value left unsettled), and appears in section 1 and in the
   frontmatter; the memory was recalled (section 1 names the previous
   report or says there was none) and the report was persisted per the

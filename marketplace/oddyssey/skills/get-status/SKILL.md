@@ -46,10 +46,16 @@ as tables — never a committed artifact.
 2. **Per-service loop state.** One row per service (`services` for
    observation reports; an instrumentation report contributes to the
    services its plan covers, `project` names its scope): last
-   observation (date, `stack`, `environment`, mode, `workload` when
-   present), last verification (`mode: verify` reports — their
-   `verifies` value names what they replayed) with its verdict from the
-   report body, and the chain as the files tell it:
+   observation (date, `stack`, `environment`, mode, `depth` — `full`
+   when the frontmatter has none — `workload` when present), last
+   verification (`mode: verify` reports — their `verifies` value names
+   what they replayed) with its verdict from the report body — a
+   `depth: quick` verification renders its coverage
+   (`PASS (quick, 3 of 5 ruled)`) and satisfies "verified" only for
+   the items it ruled, never for the service as a whole; a
+   verification's presence rulings satisfy "verified" only for the
+   items ruled `closed`, `present, unattributed` closes nothing — and
+   the chain as the files tell it:
    observed -> fixed -> verified. A `mode: re-measure` report is an
    observation event, never a verification: it replayed the protocol of
    the report its `verifies` names without ruling on a fix — count it as
@@ -98,7 +104,8 @@ as tables — never a committed artifact.
    verification's rulings, and the decisions ledger: open,
    fixed-and-verified, regressed, or declined, with severity — the
    burn-down of the loop's backlog. A finding no verification ever ruled
-   on stays open, whatever a commit message claims — unless the
+   on stays open, whatever a commit message claims — `not ruled (quick)`
+   in a quick verification is not a ruling — unless the
    decisions ledger declines it.
    Cross-reference every finding against `.odd/decisions.md` on the key
    that ledger uses: `<exact report filename> / <finding ID as the
@@ -117,7 +124,10 @@ as tables — never a committed artifact.
 4. **Trends.** For operations appearing in the per-operation summary
    table of two or more reports of the same service, stack, environment
    and `workload`: p50/p95/p99 and error rate across runs — improved /
-   regressed / stable, with the stored numbers. Comparability is
+   regressed / stable, with the stored numbers. Depth does not break
+   comparability: section 2's numbers come from the same source at
+   both depths, so a quick and a full run of the same scenario compare
+   on the operations both carry. Comparability is
    stricter than the frontmatter: reports whose `workload` differs are
    incomparable, and for drive-mode reports (and verifications or
    re-measures replaying one) so are runs whose recorded scenario or
@@ -131,9 +141,14 @@ as tables — never a committed artifact.
    is listed apart. List incomparable runs apart, never diff them.
    Stored numbers only — no live queries.
 5. **Open telemetry gaps.** Gaps recorded in report bodies and not
-   closed by a later verification ruling or instrumentation report. When
-   gaps dominate a service's picture, the recommendation below should
-   say instrument, not observe.
+   closed by a later verification ruling or instrumentation report —
+   `closed` is the only closing ruling; a planned item ruled
+   `present, unattributed` stays open. A
+   quick report's `not queried (quick): ...` list is a statement about
+   that mission, never a gap — do not count it; and a gap a quick
+   verification lists as `not ruled (quick)` stays open, not closed.
+   When gaps dominate a service's picture, the recommendation below
+   should say instrument, not observe.
 6. **Next recommended action** — the maturity principle operationalized,
    per service: a **verification is due** (service-relevant commits —
    step 2's rule — landed after the last report's `revision` and no

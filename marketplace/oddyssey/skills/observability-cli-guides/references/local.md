@@ -63,17 +63,35 @@ visible.
 
 `gcx config check` against the isolated gcx context of the
 `setup-local-stack` skill (`GCX_CONFIG` pointed at its per-session
-file). That skill owns the method — configure through it, never against
-the user's own gcx contexts. The local stack is self-serve: a missing
-gcx setup is a step to run, not a "CLI not configured" error. Check the
-container is up first (`odd_stack_status`) — a down stack fails the
-probe for a reason no authentication guidance would fix.
+file). That skill owns the method — write the context from its
+`## Configure an isolated context` section (read that section only,
+not the skill), never against the user's own gcx contexts. The local
+stack is self-serve: a missing gcx setup is a step to run, not a "CLI
+not configured" error. Check the container is up first
+(`odd_stack_status`) — a down stack fails the probe for a reason no
+authentication guidance would fix.
+
+The preflight handoff's `context:` is the `GCX_CONFIG` path this proof
+ran against, and its `Target:` line is the Display's four URLs; the
+agent reuses that file as-is and reads `setup-local-stack` for its
+`## Datasources` and `## This stack is push-based` sections only.
 
 ### Change-request phrasing
 
 - "set the local Grafana port to 3001"
 - "change otlp_http_port to 4319"
 - "clear the persisted GF_LOG_LEVEL container env"
+
+## Query by signal
+
+The query surface is [grafana.md](grafana.md)'s — read its
+`## Query by signal` with **all** its subsections (output reading,
+Loki over OTLP, profile output — whatever the file carries) and
+`## Planning notes`; the datasource UIDs and
+the push-model caveats are the `setup-local-stack` skill's
+`## Datasources` and `## This stack is push-based` sections. Nothing
+about querying is specific to `local` beyond those two skills'
+sections: this file carries none.
 
 ## What to persist
 

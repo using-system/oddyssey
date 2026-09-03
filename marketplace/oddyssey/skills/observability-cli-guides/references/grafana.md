@@ -94,8 +94,8 @@ and set it as the matching `datasources.<kind>` default
 | Logs | `gcx logs series` | [gcx_logs_series.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_series.md) | List log streams; requires at least one `-M/--match` LogQL stream selector (repeatable, OR logic). |
 | Logs | `gcx logs query [LOGQL]` | [gcx_logs_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_query.md) | Default `-o table`; use `-o raw` for bare line bodies or `-o json` for the full response. `--limit` defaults to 50 (0 = documented unlimited — unverified; after the traces `--limit 0` finding, prefer an explicit large limit). |
 | Profiles | `gcx profiles list-profile-types` | [gcx_profiles_list-profile-types.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_list-profile-types.md) | Lists available profile type IDs (e.g. `process_cpu:cpu:nanoseconds:cpu:nanoseconds`) — required input to `profiles query`. |
-| Profiles | `gcx profiles labels` | [gcx_profiles_labels.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_labels.md) | List all labels, or values for one (`-l`, e.g. `service_name`). Pyroscope's underlying `querier.v1.QuerierService/LabelValues` endpoint **requires a time range in epoch milliseconds** — without start/end it fails with "missing time range in the query", a message that names neither the parameter nor the unit. Through gcx, the range is optional: `--since 1h`, or `--from`/`--to` (RFC3339, **Unix seconds**, or relative like `now-1h`), or nothing at all — gcx answers without one (verified 2026-09-02, gcx 1.2.0: no flags and `--since 1h` both answer), but the window it then covers is documented neither in `--help` nor in the CLI reference, so pass an explicit range whenever the window matters. gcx's "Unix timestamp" is seconds, not the raw endpoint's milliseconds: a millisecond value is read as seconds, a one-hour window becomes ~1000h, and the query fails with `the query time range exceeds the limit (max_query_length, actual: 1000h0m0s, limit: 1d)`. Supply `start`/`end` in ms yourself only when replaying the raw endpoint. |
-| Profiles | `gcx profiles query [SELECTOR]` | [gcx_profiles_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_query.md) | Requires `--profile-type`; can drill into specific `--profile-id`s (from `profiles exemplars`), restrict by `--span-id`/`--trace-id`, or filter the flamegraph with repeatable `--stacktrace-selector`. `-o pprof` writes a pprof binary. |
+| Profiles | `gcx profiles labels` | [gcx_profiles_labels.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_labels.md) | List all labels, or values for one (`-l`, e.g. `service_name`). Pyroscope's underlying `querier.v1.QuerierService/LabelValues` endpoint **requires a time range in epoch milliseconds** — without start/end it fails with "missing time range in the query", a message that names neither the parameter nor the unit. Through gcx, the range is optional: `--since 1h`, or `--from`/`--to` (RFC3339, **Unix seconds**, or relative like `now-1h`), or nothing at all — gcx answers without one (verified 2026-09-02, gcx 1.2.0: no flags and `--since 1h` both answer), but the window it then covers is documented neither in `--help` nor in the CLI reference, so pass an explicit range whenever the window matters. gcx's "Unix timestamp" is seconds, not the raw endpoint's milliseconds: a millisecond value is read as seconds, a one-hour window becomes ~1000h, and the query fails with `the query time range exceeds the limit (max_query_length, actual: 1000h0m0s, limit: 1d)`. Supply `start`/`end` in ms yourself only when replaying the raw endpoint. SDK-pushed profiles carry no `service.instance.id`: a pyroscope-io profile's labels are `service_name`, `deployment_environment`, `otel.scope.*`, `process.runtime.*` (verified 2026-09-03, gcx 1.2.0, local stack). Qualify a run's profiles by a per-run tag the service pushes (`service_instance_id=<run slug>`, mirroring the OTel resource attribute); without one, two emitters sharing a `service_name` (a server and its healthcheck, two instances) are separable only by `process.runtime.version` and by the frames themselves. **Scope**: without `-l` the listing is store-wide — the label *names* present across every service, Pyroscope's own self-profile included (`hostname`, `pyroscope_spy`, `service_git_ref`, `service_repository`, `target`) — and there is no selector flag (`-q` is rejected), so never attribute that list to one service; a service's real label set is one exemplar's: `gcx profiles exemplars profile '{service_name="<svc>"}' --profile-type <type> --since 24h --jq '.exemplars[0].labels'`. `-l <name>` on an unknown or misspelled label name answers `{"names":null}` with exit 0 — the twin to validate a suspect selector against (verified 2026-09-03, gcx 1.2.0, local stack). |
+| Profiles | `gcx profiles query [SELECTOR]` | [gcx_profiles_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_query.md) | Requires `--profile-type`; can drill into specific `--profile-id`s (from `profiles exemplars`), restrict by `--span-id`/`--trace-id`, or filter the flamegraph with repeatable `--stacktrace-selector`. **Selector**: SDK-pushed profiles carry dotted label names (`process.runtime.version`, `otel.scope.name`) that must be **quoted** inside the braces — `'{service_name="orders-api", "process.runtime.version"="3.12.14"}'`; unquoted, the selector fails to parse (`unexpected character inside braces: '.'`). An unknown or misspelled label **name** (`process_runtime_version`) or a wrong **value** matches nothing and answers a zero flamegraph (`.flamegraph.total` `"0"`) with exit 0 — indistinguishable from "no data in the window", so validate any zero against a known-positive twin (drop the suspect label, or list its values with `profiles labels -l <name>` first) before ruling anything absent. The JSON envelope, the per-frame computation and the frame-naming rule are in `### Reading profile output` below. |
 
 Every query command resolves its datasource from `-d/--datasource <UID>` or
 falls back to `datasources.<kind>` in the active context (`prometheus`,
@@ -150,10 +150,52 @@ identically), idiomatic scrape-era LogQL returns empty results:
   (`|= "<trace-id>"`) come back empty. Use pipeline filters instead:
   `| severity_text =~ "WARN.*|ERROR"` and `| trace_id = "<id>"`.
 - **Metric-style LogQL through `gcx logs query` needs an explicit
-  `--since`** (it returns `null` without one), has no instant mode, and
-  its matrix samples are `{line: "<value>", timestamp}` objects — not
-  the Prometheus `[ts, "value"]` pairs — so take the last/max over
-  `.values` yourself.
+  range** (`--since`, or `--from`/`--to`; it returns `null` without
+  one), has no instant mode, and its matrix samples are
+  `{line: "<value>", timestamp}` objects — not the Prometheus
+  `[ts, "value"]` pairs.
+- **Counting lines over a finished window: the exact total is the raw
+  line count, never a metric-style sample.**
+  `gcx logs query '<selector>' --from <start> --to <end> --limit <large>`
+  and count `.data.result[].values` (`--jq '[.data.result[].values[]] |
+  length'`; the default `--limit` is 50). The count is exact only below
+  the limit you pass: when it comes back equal to `--limit`, it is
+  truncated, not the total — raise the limit (Loki caps it server-side)
+  or split the window. A metric-style count is an estimate: its samples
+  sit on a grid aligned to the step, the first one **before** `--from`
+  and the last one **after** `--to` (a 6-minute window at `[6m]` came
+  back as 8 samples at 60 s, from 9 s before `start` to 51 s after
+  `end`), so every sample straddles the edges — a range vector
+  evaluated at the window start reaches back before it and pulls in
+  whatever preceded the window (a service's startup lines, an earlier
+  run). When a metric form must be used: query `--from`/`--to`, never
+  `--since`, for a finished window — `--since` ends at now, so its last
+  sample is a sliding partial that under-counts (32 against 35 true
+  lines) — bound the range to the step (`[1m]`, `--step 1m`) and sum
+  only the samples whose timestamp falls in `(start, end]`. A sample's
+  `timestamp` is in **nanoseconds** (19 digits), hence the `/1e9`;
+  `<start>` and `<end>` are the Unix seconds passed to `--from`/`--to`:
+
+  ```text
+  --jq '[.data.result[].values[]
+         | select((.timestamp|tonumber/1e9) > <start>
+                  and (.timestamp|tonumber/1e9) <= <end>)
+         | .line | tonumber] | add'
+  ```
+
+  (35, matching the raw count; the unfiltered sum read 47). The `max`
+  of a `[<window>]` matrix over-counted by one here (36) and its last
+  sample happened to match the raw count (35) — both straddle the
+  edges like every other sample, the error is whatever the edge
+  samples pull in, so neither is a total or a correction. Verified
+  2026-09-03, gcx 1.2.0, local stack, on a steady healthcheck stream;
+  the single-point `--since` result issue #256 reported was not
+  reproduced (8 samples here). A "correlated lines = lines" check
+  therefore compares two **raw** counts over the same window and
+  stream selector, one of them carrying the trace-id filter
+  (`'{...} | trace_id != ""'` against `'{...}'`), with the startup and
+  excluded-URL lines that legitimately carry no trace id excluded
+  explicitly, or enumerated with `-o raw` and classified.
 - **An un-aggregated range vector hits a misleading series-limit
   error**: `count_over_time({service_name="..."}[20m])` fails with
   `maximum number of series (500) reached for a single query` — read as
@@ -161,6 +203,36 @@ identically), idiomatic scrape-era LogQL returns empty results:
   series per label combination), not actually near a real cardinality
   limit. Wrap it in `sum()` (or another aggregator) —
   `sum(count_over_time(...))` — to fix it.
+
+### Reading profile output
+
+`gcx profiles query -o json` returns one top-level key, `flamegraph`,
+holding `names` (frame names, index 0 = `total`), `levels` (one entry
+per depth, each `values` a flat list of quadruples
+`[offset, total, self, nameIndex]` — **all strings**, so the index
+needs `tonumber`: `$names[(.[$i+3]|tonumber)]`), `total` and `maxSelf`
+(strings, in the profile type's unit); there is no top-level `total`,
+and `--json list` exposes only those five fields. Per-frame self or
+total is computed from the quadruples — sum `self` per `nameIndex`
+across levels for a top-N by CPU — the JSON carries no ready-made
+per-frame arrays. `-o pprof --pprof-path <file>` writes a gzip pprof
+for `go tool pprof` and the like (default path
+`profile-<timestamp>.pb.gz` in the working directory). Verified
+2026-09-03, gcx 1.2.0, local stack, on a pyroscope-io service.
+
+**Frame names** are the profiler's own. pyroscope-io emits
+`Class.method` or a bare function name — observed:
+`OpenerDirector.add_handler`, `HTTPConnection.request`, `urlopen`,
+`getaddrinfo`, `_verbose_message`, and the module-level frame
+`<module>` — never a module path. A stored check that greps
+`.flamegraph.names` therefore uses **anchored** names read off the
+emitting process's own flamegraph, never a module-path regex: on a
+FastAPI/uvicorn service, `uvicorn|app\.main` matched nothing while
+`^(Server\.serve|RequestResponseCycle\.run_asgi)$` did, and an
+unanchored `urlopen` false-positived on a healthy server because
+urllib3's `HTTPConnectionPool.urlopen`, called by the OTLP HTTP
+exporter, shares the name with the standard library's function
+(observed in issue #265's mission, not re-verified here).
 
 ## Planning notes
 

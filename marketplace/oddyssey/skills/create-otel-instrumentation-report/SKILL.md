@@ -20,7 +20,9 @@ last investigation already established.
 
 - `YYYY-MM-DD-HHmm` is the investigation's **UTC** start time — to the
   minute so two same-day runs never collide, and a plain directory
-  listing sorts chronologically.
+  listing sorts chronologically. Compute it, and the `date:` field,
+  with `date -u`, never from the local clock: a session that crosses
+  local midnight while UTC has not names the wrong day.
 - `<run_name>` is a short kebab-case slug naming what was investigated
   (e.g. `mcp-server-python`, `checkout-monorepo-full`). Name the
   content, not the date.
