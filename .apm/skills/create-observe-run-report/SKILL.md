@@ -305,7 +305,8 @@ or by a caller naming a stored report.
   carries `not validated`, which tells the verify run to suspect the
   query before the fix. An equality check on log line counts ("every
   line carries a trace id") is stated as two raw line counts over the
-  recorded window with the same filter — never as a range vector
+  recorded window and stream selector, one of them carrying the
+  trace-id filter — never as a range vector
   evaluated at the window's edge, whose samples reach outside it — and
   names the lines it excludes (startup lines, excluded URLs), so the
   replay rules on the same residue.
