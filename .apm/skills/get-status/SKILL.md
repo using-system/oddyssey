@@ -139,7 +139,9 @@ as tables — never a committed artifact.
    is listed apart. List incomparable runs apart, never diff them.
    Stored numbers only — no live queries.
 5. **Open telemetry gaps.** Gaps recorded in report bodies and not
-   closed by a later verification ruling or instrumentation report. A
+   closed by a later verification ruling or instrumentation report —
+   `closed` is the only closing ruling; a planned item ruled
+   `present, unattributed` stays open. A
    quick report's `not queried (quick): ...` list is a statement about
    that mission, never a gap — do not count it; and a gap a quick
    verification lists as `not ruled (quick)` stays open, not closed.

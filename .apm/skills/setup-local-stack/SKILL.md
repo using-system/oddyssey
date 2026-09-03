@@ -130,6 +130,19 @@ gcx; record a proof query in whichever form the verify run can replay
 exactly — both are contract-conform, and the report says which was
 used.
 
+Profiles carry no instance identity: a pyroscope-io profile's labels
+are `service_name`, `deployment_environment`, `otel.scope.name`,
+`otel.scope.version`, `process.runtime.name`, `process.runtime.version`
+— no `service.instance.id` equivalent (verified 2026-09-03, gcx 1.2.0,
+`profiles exemplars profile '{service_name="<svc>"}' --jq
+'.exemplars[0].labels'`), and the store-wide `profiles labels` list
+mixes in Pyroscope's own self-profile labels (`hostname`,
+`pyroscope_spy`, `service_git_ref`, `target`). Launch a driven service
+with a per-run profiler tag mirroring the OTel attribute
+(`service_instance_id=<run slug>`, the SDK's `tags`), and qualify
+profile selectors by it; absent one, `process.runtime.version` plus
+application frames are the substitute, stated as such.
+
 Discover before you query: `gcx metrics labels` / `gcx metrics metadata`,
 `gcx traces labels`, `gcx logs labels`, `gcx profiles list-profile-types`.
 The four signals' discoveries are independent — **run them as your own

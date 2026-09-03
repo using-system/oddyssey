@@ -141,7 +141,9 @@ plan, and an investigation reads code, not telemetry.
 4. **Decisions the spec must settle** — sampling, Collector topology,
    migration, propagation, naming.
 5. **Verification protocol** — one replayable check per planned
-   signal, so `/odd-verify` can rule closed or still missing.
+   signal, with the identity that ties it to the process under test,
+   so `/odd-verify` can rule closed, present but unattributed, or
+   still missing.
 
 ## How the reports chain
 
