@@ -403,7 +403,12 @@ Then go from aggregates to explanations:
   co-resident process; **still missing** otherwise. A name in a labels
   listing never closes an item: a healthcheck inheriting the profiler
   env satisfies every name-only check while the server never
-  profiles.
+  profiles. When the protocol names no attribution evidence (written
+  before this rule), the run supplies its own: drive the service with
+  the run slug and the profiler tag (`run-scenario` step 0) and rule
+  on that identity; only a signal you cannot tie to a process you
+  launched is `present, unattributed`, and section 1 says the protocol
+  predated the rule.
   With no recalled report either,
   compare within the run: p99 against p50 per operation, an endpoint
   against its siblings, the first half of the window against the second.
@@ -547,10 +552,10 @@ file:
   every table row and every finding carries its query and
   result; every improvement carries a number and a verification query with
   a before-value; every verification check carries its validation status;
-    every single-signal or unprobed claim is marked
-  `suspected`; every presence ruling that says `closed` names the
-  identity evidence that ties the signal to the process under test;
-  in drive mode, the run record's `Query points:` line
+  every single-signal or unprobed claim is marked
+    `suspected`; every presence ruling that says `closed` names the
+  identity evidence that ties the signal to the process under test; in
+  drive mode, the run record's `Query points:` line
   carries a reason for every point beyond the first, and every reset
   beyond the clean-base one names the mission requirement behind it;
   the deployment environment was detected, is definite (no

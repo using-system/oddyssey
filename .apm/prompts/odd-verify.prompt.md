@@ -218,12 +218,16 @@ Then build the mission block from that report:
 - focus, **instrumentation baseline**: not before/after measurements
   but **presence rulings**. For every item the report's verification
   protocol and per-service plan recorded - planned spans searchable per
-    service, each planned metric present, logs carrying trace IDs,
+  service, each planned metric present, logs carrying trace IDs,
   resource attributes set - prove it now exists with the discovery
-  query and rule **closed / present, unattributed / still missing**,
+    query and rule **closed / present, unattributed / still missing**,
   with the query as evidence: `closed` only when the signal carries
   the run's identity (the agent's attribution rule) - a signal from an
-  unidentified process is present, unattributed, never closed. An empty result follows the same query-suspect rule as
+  unidentified process is present, unattributed, never closed. A
+  protocol written before that rule names no attribution evidence:
+  the run supplies its own (the service driven with the run slug and
+  the profiler tag) and the report says the protocol predated the
+  rule. An empty result follows the same query-suspect rule as
   below: prove the query sound before ruling "still missing";
 - focus, **observation baseline** (today's behavior, unchanged): verify
   everything the report recorded - replay its recorded scenario
