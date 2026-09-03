@@ -153,10 +153,10 @@ with its stored path:
    an isolated context`, `## Datasources` and `## This stack is
    push-based` sections), never through a datasource's raw HTTP API:
    Pyroscope's endpoints answer 404 or demand a time range gcx supplies
-   for you. Compute every `--from`,
-   `--to` and report timestamp with `date -u`: a session crossing local
-   midnight while UTC has not rejects the query ("start time is after
-   end time") and misdates the report. State every check in a **replayable form** — one check per
+   for you. Compute every `--from`, `--to` and report timestamp with
+   `date -u`: a session crossing local midnight while UTC has not
+   rejects the query ("start time is after end time") and misdates the
+   report. State every check in a **replayable form** — one check per
    planned item (spans searchable per service, each planned metric
    present, logs carrying trace IDs, resource attributes set), each
    carrying the discovery query to run, its expected outcome, **and
