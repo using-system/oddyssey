@@ -36,8 +36,9 @@ binary` (step 2's Detect and Install) and `## Configuration display`
 (steps 2 and 3); `## Setup` only when step 4 has something to guide.
 When a section routes to another file or skill ("read that section",
 "the method is X's"), read the routed **section**, never the file
-around it. The query sections are the agent's, read once, by the
-agent, after dispatch — never here.
+around it. Every other section of the reference — the query surface,
+output reading, targeting and planning notes — is the agent's, read
+once, by the agent, after dispatch — never here.
 
 A reference may say that another skill owns the whole method for its
 stack (the default stack's does — the skill it names carries the CLI
@@ -108,10 +109,12 @@ marks as the default — not a login), offer it first.
 
 ## 5. Hand off what you resolved
 
-Close with a **preflight handoff** block. The caller copies it into
-the mission block verbatim, so the agent never re-reads the sections
-this skill just read nor re-proves the connection — it reads the
-reference's query sections only:
+Close with a **preflight handoff** block — emitted only once step 3's
+proof has succeeded; a block with a failed or absent `Proof:` line
+never exists. The caller copies it into the mission block verbatim,
+so the agent never re-reads the sections this skill just read nor
+re-proves the connection — it reads the reference's other sections
+only:
 
 ```text
 Preflight: stack=<stack>, backend=<backend, or local>
@@ -121,5 +124,12 @@ Target: <the Display's values on one line - URLs, ports, tenant/workspace/site n
 Proof: <the probe command> -> <the real signal it returned>, at <UTC>
 ```
 
-The `Target:` line carries what the Display showed, nothing more —
-the same no-secrets rule as the display itself.
+The `Target:` line carries what the Display showed — the real
+targeting values the agent's queries need — and nothing more: never a
+credential. The block is **conversation-scope**: a real tenant,
+workspace, subscription or site name, a GUID, a login, a path under a
+home directory all identify a real environment, and the agent's report
+is a committed file — section 1 restates the stack and backend, never
+this block, and any identifier a report must mention goes in as an
+obviously fake placeholder (AGENTS.md's no-secrets rule, which covers
+identifiers, not only credentials).

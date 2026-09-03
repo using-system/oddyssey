@@ -27,8 +27,9 @@ steps needing the user cannot happen inside a subagent):
    still needs (instance URL, tenant, access material by name) before
    dispatching. Carry the skill's closing `Preflight:` handoff block
    into the mission block verbatim: the agent then reads the
-   reference's query sections only and never re-proves what the
-   preflight proved.
+   reference's other sections only (never the preflight's four: CLI
+   binary, Setup, Configuration display, What to persist) and never
+   re-proves what the preflight proved.
 3. When the arguments name a stored benchmark, read its manifest under
    `.odd/benchmarks/<name>/` for the target service (the service the
    mission uses unless the arguments name one), and - unless the

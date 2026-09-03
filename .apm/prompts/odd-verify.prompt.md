@@ -83,8 +83,9 @@ this order:
    report's stack: show the CLI's configuration, fail fast when it is
    not connected, and ask for what is missing before dispatching.
    Carry its closing `Preflight:` handoff block into the mission block
-   verbatim — the agent reads the reference's query sections only and
-   never re-proves what the preflight proved.
+   verbatim — the agent reads the reference's other sections only (never
+   the preflight's four: CLI binary, Setup, Configuration display,
+   What to persist) and never re-proves what the preflight proved.
 4. **k6.** When the replay will be `drive` with a stored benchmark (the
    report's record names one), ensure the `k6` binary is present, per
    the `k6-guides` skill's `install.md` auto-install step:
@@ -175,7 +176,9 @@ Then build the mission block from that report:
   git log --since=<that date> -- <path>               # is the boundary
   ```
 
-  With no anchor and no `revision` either, that commit date is the
+    With no anchor, compare trees, not ancestry — a `git log` walk is
+  misled by the rebased or squash-merged clone the anchor exists to
+  survive — and with no `revision` either, that commit date is the
   substitute boundary — the same rule `/odd-status` applies. A
   differing entry you cannot classify makes the check undecidable,
   never a silent "code changed". When it is undecidable, or its

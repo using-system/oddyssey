@@ -203,16 +203,24 @@ Before a new run, load the baseline:
    numbers were shaped by a different input, and diffing across
    workloads violates the one-changed-variable rule.
 3. The first match is the baseline. Read it **by section, never
-   whole**: the frontmatter; section 1's scenario record block
-   (`Scenario:` through `Not reproducible:` — the replay's commands,
-   not the prose around them); section 2 (the per-operation numbers
-   and their deltas); section 3 (the findings the new run rules on);
-   and section 7 (the protocol's checks and before-values). A
-   **verification** or **re-measure** run also reads section 5 (every
-   gap it must rule filled or still missing). Sections 4 and 6, and
-   the rest of section 1, are never part of the recall: a stored
-   report runs 300 to 500 lines, and the new run re-derives those from
-   live telemetry. Reading beyond that set is the exception — for a
+   whole** — the same partial read applies when the mission names the
+   baseline itself: the frontmatter; section 1's scenario record block
+   (`Scenario:` through `Not reproducible:`) together with the replay
+   notes around it — deviations, false starts, anything the report
+   flags as mattering for a replay — but not section 1's mission
+   restatement or its recalled-baseline line; section 2 (the
+   per-operation numbers and their deltas); section 3 (the findings
+   the new run rules on); and section 7 (the protocol's checks and
+   before-values). A **verification** or **re-measure** run also reads
+   section 5 (every gap it must rule filled or still missing).
+   Sections 4 and 6 are never part of the recall: a stored report runs
+   300 to 500 lines, and the new run re-derives those from live
+   telemetry. An **instrumentation report** baseline
+   (`.odd/otel-instrumentation-reports/`, the
+   `create-otel-instrumentation-report` contract) is read the same
+   way: its frontmatter, its summary table, its per-service decisions,
+   and its verification protocol — never its stack inventory or its
+   open decisions. Reading beyond that set is the exception — for a
    stated need (a finding's detail, a gap's discovery query) — and the
    calling agent's run record says so. What the comparison must report
    belongs to the calling agent's contract, not to this skill.
@@ -257,6 +265,14 @@ or by a caller naming a stored report.
 - **Never write secrets into a report**: no tokens, credentials, cookies,
   or connection strings — these files are made to be committed and
   shared. Refer to access material by variable or secret name only.
+  The same for **real identifiers** that carry no access on their own:
+  tenant, workspace, subscription, resource-group or site names and
+  GUIDs, account or login names, home-directory paths — anything that
+  identifies a real customer, tenant or environment. The mission
+  block's `Preflight:` handoff and a live `odd_config_get` or CLI
+  excerpt are the likeliest sources: never restate them; replace every
+  such value with an obviously fake placeholder before it lands in the
+  file.
 - **A recorded query is a contract only once shown to work**: a check is
   authored against *broken* data, so "returns NaN/empty" and "the query
   is wrong" are indistinguishable at authoring time (measured: `rate()`

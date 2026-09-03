@@ -87,6 +87,14 @@ the report.
   mode the window is the scenario's own start and end.
 - **Focus** — performance, errors, correctness, cost/cardinality, a named
   endpoint, or a full sweep (default: full sweep).
+- **Preflight** — optional: the `Preflight:` handoff block the caller's
+  `check-backend-configuration` run closed with (stack, backend,
+  reference read, CLI and context, target values, connection proof
+  with its UTC). It is **conversation-scope**: section 1 restates the
+  stack and backend, never the block — a real tenant, workspace or
+  site name, a GUID, a login, a home-directory path identify a real
+  environment and the report is a committed file; anything the report
+  must name goes in as an obviously fake placeholder.
 - **Expectations / baseline** — SLO targets, expected request or query
   counts, "it used to be X". Absent a caller baseline, the baseline is
   the latest stored report matching the same services, the same stack,
@@ -103,15 +111,20 @@ stopping on divergence, is yours (Setup step 5).
 
 1. **Identify the backend and open its guide — by section.** Use the
    `observability-cli-guides` skill: pick the stack's backend and read
-   its reference file's **query sections** — `## Query by signal` with
-   its subsections, and `## Planning notes` — the discovery and query
-   commands per signal come from there, not from memory. The mission
-   block's `Preflight:` handoff (the caller's
-   `check-backend-configuration` run) already carries what the
-   reference's `## CLI binary` and `## Configuration display` sections
-   resolve — the binary, the CLI context, the target's URLs and ports,
-   the connection proof: never re-read those sections, and never
-   re-prove beyond the reference's cheapest probe. Without a handoff (a
+   its reference file's sections **except** the four the preflight
+   owns — `## CLI binary`, `## Setup`, `## Configuration display`,
+   `## What to persist`. Everything else is yours: the query surface
+   per signal, output reading, remote targeting, resource discovery,
+   planning notes — the discovery and query commands come from there,
+   not from memory; when a reference routes a section elsewhere (the
+   local reference's `## Query by signal` routes to grafana.md's),
+   follow the routing to the named sections. The mission block's
+   `Preflight:` handoff (the caller's `check-backend-configuration`
+   run) already carries what the preflight's sections resolve — the
+   binary, the CLI context, the target's values, the connection proof
+   with its UTC: never re-read those sections nor redo the display or
+   the setup; re-run the reference's cheapest probe once only when the
+   stack was reset or brought up since that UTC. Without a handoff (a
    mission entered directly), read the reference's sections in its
    order and run the probe yourself; if it is not connected, stop and
    report ("CLI not configured for <backend>") — never authenticate
@@ -179,15 +192,19 @@ stopping on divergence, is yours (Setup step 5).
      per environment. Never pick a majority, the most recent, or the
      mission's guess.
 5. **Recall the memory.** When the mission already names a baseline
-   report, use that report as the recalled baseline and skip the recall.
-   Otherwise load the baseline with the `create-observe-run-report`
-   skill's recall procedure — the skill owns the matching rules, which
-   include the environment step 4 detected, and the **partial read**:
-   frontmatter, section 1's scenario record, sections 2, 3 and 7 (5 too
-   on a verify), never the whole file. Read beyond that set only for a
-   stated need (a finding's detail, a gap's discovery query) and say so
-   in section 1. Either way, the recalled report's numbers and
-   findings are what the new observations diff against. No match is a normal first run — record "no previous
+   report, use that report as the recalled baseline and skip the
+   matching. Otherwise load the baseline with the
+   `create-observe-run-report` skill's recall procedure — the skill
+   owns the matching rules, which include the environment step 4
+   detected. However the baseline was obtained — named or recalled —
+   read it **by section, never whole**, per that skill's partial read:
+   an observation report's frontmatter, section 1's scenario record
+   block and its replay notes, sections 2, 3 and 7 (5 too on a verify
+   or re-measure); an instrumentation report's summary table,
+   per-service decisions and verification protocol. Read beyond that
+   set only for a stated need (a finding's detail, a gap's discovery
+   query) and say so in section 1. Either way, the recalled report's
+   numbers and findings are what the new observations diff against. No match is a normal first run — record "no previous
    report" in section 1 and fall back to the within-run baseline.
 
    When the mission hands you a **baseline environment** to compare
@@ -315,10 +332,10 @@ Then go from aggregates to explanations:
 
 Build these seven sections, in this order — then persist the whole
 report with the `create-observe-run-report` skill (frontmatter, naming,
-storage path, no-secrets rule all come from there) and return it along
-with the skill's return value — the stored path and the carrying
-commit — so the caller renders the closing synthesis from your reply,
-without re-reading the file:
+storage path, no-secrets rule all come from there) and return the
+skill's return value — the stored path, the carrying commit, and the
+report as written — so the caller renders the closing synthesis from
+your reply, without re-reading the file:
 
 1. **Mission and run record** — the mission as understood (services,
    stack and backend, mode, window, focus, expectations) and every
@@ -402,7 +419,11 @@ without re-reading the file:
   fetched documentation, never from memory; name the backend and CLI in
   the report.
 - Never invent, echo, or store credentials; refer to them by variable or
-  secret name only.
+  secret name only. The same for real identifiers — tenant, workspace,
+  subscription, resource-group or site names and GUIDs, logins,
+  home-directory paths: the report names them by an obviously fake
+  placeholder, never by the value the preflight or a tool result
+  showed.
 - Every anomaly is either cross-confirmed in a second signal or explicitly
   labeled single-signal.
 - A load generator's own telemetry is never a named service: when k6's
