@@ -62,10 +62,12 @@ decisions or open questions.
 "src/assistant" is the investigated path; the GenAI framework and the
 semantic conventions to apply are context the investigation verifies.
 
-Whatever is not a path or a stack - existing telemetry, a library to
-migrate from, a Collector shape, a framework - is context: the
-investigation verifies it and turns it into decisions or open
-questions.
+Across all of them:
+
+- whatever is not a path or a stack - existing telemetry, a library
+  to migrate from, a Collector shape, a framework - is context: the
+  investigation verifies it and turns it into decisions or open
+  questions.
 
 ## /odd-instrument-bench
 
@@ -108,8 +110,8 @@ and duration.
 ```
 
 "update the checkout-read-heavy benchmark" names an existing benchmark
-to update rather than a new one; "the cart endpoints moved" is the
-reason, context for the authoring agent.
+to update rather than a new one; the rest is context passed on to the
+authoring agent.
 
 ```text
 /odd-instrument-bench soak test api for 2 hours at 50 VUs, p99 under 800ms
@@ -149,9 +151,8 @@ agent detects it from the telemetry.
 /odd-observe check that checkout starts and answers requests on the /user endpoint
 ```
 
-"checkout" is the service, "check that ... starts and answers" a
-`drive` mission on the configured stack, "the /user endpoint" the
-focus; no depth word, so the prompt asks, `quick` recommended.
+"checkout" is the service, "the /user endpoint" the focus; no stack
+named, so the configured one.
 
 ```text
 /odd-observe drive a 50-request scenario against payment on the local stack, focus on latency
@@ -256,8 +257,7 @@ material** by name.
 /odd-verify
 ```
 
-No arguments: the newest stored report is the baseline, at that
-report's depth.
+No arguments: the newest stored report is the baseline.
 
 ```text
 /odd-verify check that report checkout-latency-sweep has been fixed
@@ -300,9 +300,9 @@ missing - and replays at `full`, its rulings spanning every signal.
 /odd-verify re-measure my last checkout report - nothing changed, is it stable?
 ```
 
-"my last checkout report" is the baseline; "nothing changed" frames
-the run as a re-measure: stored as `remeasure-<run_name>.md`, never
-as a verification.
+"my last checkout report" is the baseline; "nothing changed" is how
+you framed it: the prompt checks the code state and, when it agrees,
+stores the run as `remeasure-<run_name>.md`, never as a verification.
 
 ```text
 /odd-verify full verify of my last orders report
