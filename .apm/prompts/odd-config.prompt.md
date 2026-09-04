@@ -102,7 +102,10 @@ rest:
   the whole site; a moved page is followed to where it resolves;
 - a **local path**: read the documentation under it;
 - the **web**, official documentation first, for everything the
-  sources above did not settle.
+  sources above did not settle. A host that cannot fetch fills the
+  file from the user's sources alone, marks every point they left open
+  as unverified with the date, and lists them in the reply - never
+  from memory.
 
 Every command in the file **links to the page it comes from** (the
 contract's rule) - the page that answered, at the address it resolved
