@@ -146,8 +146,8 @@ whole, 19 K by section). List a file's headings first (one `grep -n
   `## Rules` — never `## Recall: reading the memory` again, never
   `## Show` (the caller's);
 - `odd-memory`'s `SKILL.md`, the contract that reference points at:
-  `## Recall: reading the memory` at step 5; at report time the rest
-  of the file (`## Where the memory lives`, `## The frontmatter and
+  `## Recall: reading the memory` at step 5; at report time its six
+  other sections (`## Where the memory lives`, `## The frontmatter and
   the body`, `## Append-only, with one exception`, `## No secrets, no
   real identifiers`, `## The work branch and the lone commit`, `## The
   reply and the synthesis`);

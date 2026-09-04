@@ -1,7 +1,8 @@
 # Instrumentation reports
 
 An instrumentation investigation that vanishes with the conversation must
-be redone from scratch the next time the stack changes. This reference defines
+be redone from scratch the next time the stack changes. This reference
+defines
 the file contract that persists it: reports live **in the investigated
 repository**, so git versions them, PRs review them, and every user of the
 repo shares them — the next SDD instrumentation wave starts from what the

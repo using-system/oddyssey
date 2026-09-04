@@ -8,17 +8,23 @@ whole point; the rest of the contract (where the memory lives, no
 secrets, the work branch and the lone commit, the reply) applies as
 written there.
 
-## Persisting a benchmark
+## Where benchmarks live
 
-- **Persisting** the k6 script and manifest `k6-benchmark-expert` hands
-  it, into `.odd/benchmarks/<name>/` - the directory name is the
-  benchmark's identity.
-- **Recall, two-step**: the target **service** returns the set of
-  benchmarks that already exist for it (so the agent cannot duplicate
-  one it never saw); the benchmark **name** identifies the single
-  artifact an update rewrites. List every benchmark under
-  `.odd/benchmarks/` and check each manifest's declared target service
-  before the agent authors anything new.
+The persistence stores the k6 script and manifest `k6-benchmark-expert`
+hands it, into `.odd/benchmarks/<name>/` - the directory name is the
+benchmark's identity.
+
+## Recall
+
+Two-step: the target **service** returns the set of benchmarks that
+already exist for it (so the agent cannot duplicate one it never saw);
+the benchmark **name** identifies the single artifact an update
+rewrites. List every benchmark under `.odd/benchmarks/` and check each
+manifest's declared target service before the agent authors anything
+new.
+
+## Rules
+
 - **Reviewed diffs, never silent overwrites.** When the agent proposes
   updating an existing benchmark, the change is presented as a diff
   against the stored version - the maintainer reviews it exactly like

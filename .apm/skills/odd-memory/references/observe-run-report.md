@@ -4,7 +4,8 @@ An observation run that cannot see the previous ones starts blind every
 time. This skill defines the file contract that gives the ODD loop its
 memory: reports live **in the observed repository**, so git versions
 them, PRs review them, and every user of the repo shares them — no
-side-channel storage, nothing opaque. What every kind of memory shares is the contract in
+side-channel storage, nothing opaque. What every kind of memory shares
+is the contract in
 `SKILL.md`; this reference states what is specific to observation
 reports: how to persist one, how to recall the baseline, and how to
 show a stored one (`## Show`).
@@ -346,7 +347,8 @@ The report to render, in one of two forms:
   recalled-baseline line, section 2's delta lines, check rulings or
   presence rulings, section 3's ranked table with the baseline
   anomalies' fates, the telemetry gaps with the baseline gaps' fates,
-  and the open decisions, quoted from the file (`## Return value` above owns the list). Render from it; never
+  and the open decisions, quoted from the file (`## Return value` above
+  owns the list). Render from it; never
   re-read the file it just wrote — the block carries every input the
   synthesis below reads, and a value it lacks is absent from the
   synthesis (the way a benchmark's synthesis renders from its
