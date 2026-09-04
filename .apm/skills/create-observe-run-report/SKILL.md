@@ -277,8 +277,35 @@ caller closing the mission:
 - the carrying commit (`git rev-parse --short HEAD` right after the
   commit), or `not committed` with the reason (default branch and no
   work branch possible, not a repository, the caller said not to);
-- the report as written — frontmatter and body, verbatim: the file's
-  content, never a summary of it.
+- the **synthesis block** — the inputs `show-observe-run-report`
+  renders from, quoted verbatim from the file just written (never
+  rephrased, never re-derived), and nothing else of the body:
+  - the frontmatter block, whole;
+  - section 1's recalled-baseline line — the previous report's path,
+    or "no previous report" — with the line that names a dropped
+    baseline or a provisional environment when the report carries one;
+  - from section 2, when a baseline was recalled, the delta lines —
+    one per operation (improved, regressed, unchanged, new), never
+    the per-operation or threshold tables; for a verify or
+    re-measure, every check's ruling instead — its name, before-value,
+    after-value and pass/fail cells, not the row's narrative — and
+    every check that reads `not ruled (quick)`; for an instrumentation
+    baseline, the presence rulings section 2 carries in place of the
+    numeric deltas: planned item and ruling (closed / present,
+    unattributed / still missing);
+  - section 3's ranked table — the identifier, finding, severity and
+    confidence cells the table carries, never the evidence or the
+    detail per row; in a verify or re-measure, each baseline anomaly's
+    fate with it (fixed, still present, worse);
+  - section 5's telemetry gaps, one line each (at quick depth, its
+    single line); in a verify or re-measure, each baseline gap's fate
+    with it (filled, still missing);
+  - section 6's open decisions, one line each, or that there are none.
+
+Never the report body: a full report runs 300 to 500 lines, the reply
+travels back into the caller's context, and the synthesis is its only
+reader — the block is what it needs, at a fraction of the size. What
+the next wave needs is in the file, at the stored path.
 
 `show-observe-run-report` renders the closing synthesis from this
 value; the file on disk is read again only by a later mission's recall

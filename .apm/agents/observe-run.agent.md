@@ -433,9 +433,9 @@ collapsed shape the Depth section gives sections 3 to 6) — then
 persist the whole report with the `create-observe-run-report` skill
 (frontmatter, naming, storage path, the `depth` field, no-secrets rule
 all come from there) and return the skill's return value — the stored
-path, the carrying commit, and the report as written — so the caller
-renders the closing synthesis from your reply, without re-reading the
-file:
+path, the carrying commit, and the synthesis block the skill defines,
+never the report body — so the caller renders the closing synthesis
+from your reply, without re-reading the file:
 
 1. **Mission and run record** — the mission as understood (services,
    stack and backend, mode, window, focus, expectations) and every

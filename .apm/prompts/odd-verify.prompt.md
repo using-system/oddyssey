@@ -253,7 +253,7 @@ Then build the mission block from that report:
 
 Close the mission with the `show-observe-run-report` skill: render its
 synthesis from the persistence return value the agent's reply carries
-(stored path, carrying commit, the report as written) as the final
+(stored path, carrying commit, the synthesis block) as the final
 answer - the verdict-first headline leads, stating the stored path; no
 re-read of the file just written. The report file, stored in
 `.odd/observe-run-reports/`, remains the versioned record that the
