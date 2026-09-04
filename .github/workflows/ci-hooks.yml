@@ -24,6 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          cache-suffix: ci-hooks-lint
       - name: Ruff lint
         run: uvx ruff@"$RUFF_VERSION" check .apm/hooks/scripts tests/hooks
       - name: Ruff format check
@@ -40,6 +42,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          cache-suffix: ci-hooks-unit-tests
       - name: Run the hook tests
         env:
           PYTHON_VERSION: ${{ matrix.python }}
@@ -53,6 +57,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          cache-suffix: ci-hooks-deploy
       - name: Deploy for Claude Code and assert the hook landed
         run: |
           uvx --from apm-cli=="$APM_CLI_VERSION" apm install --target claude
@@ -117,6 +123,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          cache-suffix: ci-hooks-marketplace
       - name: Build the marketplace and assert the plugin carries the hooks
         run: |
           bash scripts/build-marketplace.sh
