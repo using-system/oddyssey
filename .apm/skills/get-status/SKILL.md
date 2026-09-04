@@ -25,6 +25,9 @@ itself.
   missing file means no decision has been recorded yet, which is a
   fact, not an error.
 
+All three are read under the memory contract (`odd-memory`): frontmatter
+first, then sections, never a whole file without a stated need.
+
 The caller may restrict the status to service name(s), a stack (`local`,
 `grafana`, ...) and/or a deployment environment (`prod`, `uat`, ...).
 When no filter is named, every stored report qualifies — no arguments is
