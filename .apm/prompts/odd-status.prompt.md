@@ -27,9 +27,10 @@ degradation; this prompt adds no rendering rule of its own. The status
 renders in the conversation, as tables - never a committed artifact.
 
 **Record.** When, and only when, the user asks for a decision on a
-finding, invoke the `record-finding-decision` skill with the request as
-the user phrased it: the finding reference, the verdict, the rationale.
-It owns resolving the reference to a report and a finding ID, the
+finding, record it per `odd-memory`'s `decisions` reference with the
+request as the user phrased it: the finding reference, the verdict,
+the rationale. The reference owns resolving it to a report and a
+finding ID, the
 ledger's format, and the commit - including asking back when the
 reference is ambiguous or the rationale is missing. Never record a
 decision that was not asked for. Once it has recorded, re-render the
@@ -39,6 +40,6 @@ status was rendered yet, under whatever else those arguments named - so
 the user sees the state change the decision produced.
 
 Reports are read-only here: this prompt never writes or edits a report,
-and its only write surface is the decisions ledger, through
-`record-finding-decision`. Never query a backend, never start the
+and its only write surface is the decisions ledger, per `odd-memory`'s
+`decisions` reference. Never query a backend, never start the
 stack.

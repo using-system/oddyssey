@@ -1,19 +1,14 @@
----
-name: create-observe-run-report
-description: Persist an observation report into the observed repository at .odd/observe-run-reports/ with a structured frontmatter, and recall previous reports for the same service - the file contract that turns single observation runs into the ODD loop's memory. Use when storing the report an observation run produced, or when loading past reports to establish a baseline before a new run.
----
-
-# Create an Observe-Run Report
+# Observation reports
 
 An observation run that cannot see the previous ones starts blind every
 time. This skill defines the file contract that gives the ODD loop its
 memory: reports live **in the observed repository**, so git versions
 them, PRs review them, and every user of the repo shares them — no
 side-channel storage, nothing opaque. What every kind of memory shares
-— where it lives, the frontmatter, append-only, recall, no secrets,
-the work branch and the lone commit, the reply — is the `odd-memory`
-skill's contract; this skill states what is specific to observation
-reports.
+is the contract in
+`SKILL.md`; this reference states what is specific to observation
+reports: how to persist one, how to recall the baseline, and how to
+show a stored one (`## Show`).
 
 The report is also the loop's **only durable artifact**: the raw
 telemetry behind it lives in a volume-less container that any
@@ -198,7 +193,7 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
 
 Before a new run, load the baseline, per the memory contract's recall
 (newest first, frontmatter only at this stage, the baseline by
-section) — the matching rules are this skill's:
+section) — the matching rules are this reference's:
 
 1. List `.odd/observe-run-reports/` in the observed repo.
 2. A report matches when its `services` intersect the mission's,
@@ -233,13 +228,13 @@ section) — the matching rules are this skill's:
    300 to 500 lines, and the new run re-derives those from live
    telemetry. An **instrumentation report** baseline
    (`.odd/otel-instrumentation-reports/`, the
-   `create-otel-instrumentation-report` contract) is read the same
+   `otel-instrumentation-report` reference) is read the same
    way: its frontmatter, its summary table, its per-service decisions,
    and its verification protocol — never its stack inventory or its
    open decisions. Reading beyond that set is the exception — for a
    stated need (a finding's detail, a gap's discovery query) — and the
    calling agent's run record says so. What the comparison must report
-   belongs to the calling agent's contract, not to this skill.
+   belongs to the calling agent's contract, not to this reference.
 4. Older matches are history: only when a trend matters (a number
    degrading run after run), read at most the few most recent matches,
    and only the numbers in question — never the full files.
@@ -269,7 +264,7 @@ caller closing the mission:
 - the carrying commit (`git rev-parse --short HEAD` right after the
   commit), or `not committed` with the reason (default branch and no
   work branch possible, not a repository, the caller said not to);
-- the **synthesis block** — the inputs `show-observe-run-report`
+- the **synthesis block** — the inputs `## Show` below
   renders from, quoted verbatim from the file just written (never
   rephrased, never re-derived), and nothing else of the body:
   - the frontmatter block, whole;
@@ -295,7 +290,7 @@ caller closing the mission:
   - section 6's open decisions, one line each, or that there are none.
 
 Never the report body (the memory contract says why);
-`show-observe-run-report` renders the closing synthesis from this
+`## Show` below renders the closing synthesis from this
 value, and the file on disk is read again only by a later mission's
 recall or by a caller naming a stored report.
 
@@ -331,3 +326,81 @@ recall or by a caller naming a stored report.
   <run_name>` — `docs(odd): verification report <run_name>` for a
   verification, `docs(odd): re-measure report <run_name>` for a
   re-measure.
+
+## Show
+
+The stored report is the ODD loop's memory and the fix plan's input —
+the right artifact for the next wave, the wrong one for the human
+closing the mission: several screens deep, the takeaways drown. This
+section renders the closing synthesis. The report file stays the
+deliverable; only what the human sees at the end of the mission
+changes.
+
+### Input
+
+The report to render, in one of two forms:
+
+- **The persistence return value** — what the persistence step above
+  just returned for the mission being closed, carried in the agent's
+  reply: the stored path, the carrying commit (or `not committed`),
+  and the synthesis block — the frontmatter, section 1's
+  recalled-baseline line, section 2's delta lines, check rulings or
+  presence rulings, section 3's ranked table with the baseline
+  anomalies' fates, the telemetry gaps with the baseline gaps' fates,
+  and the open decisions, quoted from the file (`## Return value` above
+  owns the list). Render from it; never
+  re-read the file it just wrote — the block carries every input the
+  synthesis below reads, and a value it lacks is absent from the
+  synthesis (the way a benchmark's synthesis renders from its
+  persistence return).
+- **A stored report the caller names** — no return value in hand:
+  read from disk the same set — that file's frontmatter, section 1's
+  recalled-baseline line, section 2's delta lines, check rulings or
+  presence rulings, section 3's table, sections 5 and 6 — never the
+  whole file — and its carrying commit from git
+  (`git log -1 --format=%h -- <path>`).
+
+Either way the synthesis renders the stored content, never the
+conversation's memory of the mission.
+
+### The synthesis, in order
+
+1. **Headline** — one bold line answering "how did it go", shaped by
+   the report's `mode`: an observation leads with counts and the
+   baseline delta (`3 anomalies (1 high, confirmed), 2 telemetry
+   gaps, p95 stable vs baseline`); a verification leads with the
+   ruling (`FAIL — 2/5 checks red`); a re-measure leads with drift
+   (`no drift — 5/5 measurements within range`). A `quick` report says
+   so in the headline (`quick — 1 anomaly (suspected), logs and
+   profiles not queried`), and a quick verify counts what it did not
+   rule (`PASS — 3/3 checks ruled, 2 not ruled (quick)`).
+2. **Where it lives** — one line: the stored path and the commit that
+   carries it.
+3. **Run block** — compact `key: value` lines: services, stack, mode,
+   depth (`full` when the frontmatter has none), window, detected
+   environment (all from the frontmatter), and the baseline report
+   used — `verifies` when present, else section 1's recalled
+   baseline, or "none" when the report names none.
+4. **The core, by kind** — tables, capped at ~10 rows with a
+   `+N more in the report` marker:
+   - observation / re-measure: the findings table (severity |
+     confidence | one-line anomaly), then the telemetry gaps, one
+     line each;
+   - verification: the verdict table first (check | before | after |
+     pass/fail), then the anomalies ruled fixed / still present /
+     worse and the gaps ruled filled / still missing, one line each —
+     for an instrumentation baseline, the presence rulings instead
+     (planned item | closed / present, unattributed / still missing),
+     and nothing else to rule.
+5. **Decisions the spec must settle** — the count, then one line per
+   open question.
+6. **Next action** — one line naming the loop's next step: build the
+   fix plan from the report, replay the protocol with `/odd-verify`,
+   or settle the open decisions first.
+
+### Rules
+
+The contract's synthesis rules (`SKILL.md`): everything from
+the stored report, the carrying commit the one value outside it; one
+screen with `+N more`; the conversation's language; never a
+replacement for the file.

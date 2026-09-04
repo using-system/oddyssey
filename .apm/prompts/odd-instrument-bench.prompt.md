@@ -18,7 +18,7 @@ principle `/odd-observe`'s own preflight states outright. Specifically:
 
 - **New benchmark, or an update to a named existing one** - if
   ambiguous, list what already exists for the named service (via
-  `create-update-benchmark`'s recall) and ask.
+  the recall of `odd-memory`'s `benchmark` reference) and ask.
 - **Test type** - smoke / load / stress / soak / spike / breakpoint
   (`k6-guides`' `test-types.md` names what each answers).
 - **Thresholds** - the pass/fail targets that matter.
@@ -63,7 +63,8 @@ Build the mission from the arguments and the Q&A above:
   optionally a **load shape/duration** the caller already has in mind
   (otherwise propose one during the Q&A above).
 
-Close the mission with the `show-benchmark` skill: render its synthesis
+Close the mission with the `## Show` of `odd-memory`'s `benchmark`
+reference: render its synthesis
 of the stored benchmark as the final answer, stating the stored path.
 The script and manifest - not the synthesis - are the input any future
 run of this benchmark will use: never re-dump them in the conversation,

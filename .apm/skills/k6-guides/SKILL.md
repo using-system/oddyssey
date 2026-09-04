@@ -50,4 +50,5 @@ concluding they don't exist.
   guidance produces scripts that fail to start.
 - These references cover k6 **itself** - never this project's
   `.odd/benchmarks/` format, never the manifest schema. That knowledge
-  lives with `create-update-benchmark` and `k6-benchmark-expert`.
+  lives with `odd-memory`'s `benchmark` reference and
+  `k6-benchmark-expert`.

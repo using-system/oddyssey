@@ -1,18 +1,15 @@
----
-name: create-otel-instrumentation-report
-description: Persist an OpenTelemetry instrumentation investigation report into the investigated repository at .odd/otel-instrumentation-reports/ with a structured frontmatter, commit it, and recall previous investigations of the same project - the file contract that keeps instrumentation expertise feeding later SDD waves. Use when storing the report an instrumentation investigation produced, or when loading past investigations before a new one.
----
-
-# Create an OTel Instrumentation Report
+# Instrumentation reports
 
 An instrumentation investigation that vanishes with the conversation must
-be redone from scratch the next time the stack changes. This skill defines
+be redone from scratch the next time the stack changes. This reference
+defines
 the file contract that persists it: reports live **in the investigated
 repository**, so git versions them, PRs review them, and every user of the
 repo shares them — the next SDD instrumentation wave starts from what the
 last investigation already established. What every kind of memory
-shares is the `odd-memory` skill's contract; this skill states what is
-specific to instrumentation reports.
+shares is the contract in `SKILL.md`; this reference states what is
+specific to instrumentation reports: how to persist one, how to recall
+the baseline, and how to show a stored one (`## Show`).
 
 ## Where reports live
 
@@ -56,7 +53,7 @@ tree_anchor: {src: "5ea231f…", tests: "8e29aac…"}  # optional: FULL top-leve
 
 Before a new investigation, load what is already known, per the
 memory contract's recall (newest first, frontmatter only at this
-stage, the baseline by section) — the matching rules are this skill's:
+stage, the baseline by section) — the matching rules are this reference's:
 
 1. List `.odd/otel-instrumentation-reports/` in the investigated repo.
 2. A report matches when its `project` covers the mission's scope and
@@ -65,7 +62,7 @@ stage, the baseline by section) — the matching rules are this skill's:
    decisions and pinned versions are the sections the new
    investigation diffs against (new services, changed frameworks,
    moved pins). What the comparison must report belongs to the calling
-   agent's contract, not to this skill.
+   agent's contract, not to this reference.
 
 ## Rules
 
@@ -83,3 +80,47 @@ stage, the baseline by section) — the matching rules are this skill's:
   `docs/odd-instrumentation-report-<run_name>`; **the commit** carries
   the report file alone, subject
   `docs(odd): instrumentation investigation <run_name>`.
+
+## Show
+
+The stored report is the input the spec-driven instrumentation plan is
+built from — the right artifact for the next wave, the wrong one for
+the human closing the mission: several screens of tables, env blocks,
+and doc links bury the takeaways. This section renders the closing
+synthesis. The report file stays the deliverable; only what the human
+sees at the end of the mission changes.
+
+### Input
+
+The persisted report to render: the file the
+persistence step above just stored, or any stored
+report the caller names — read from disk by section (its summary
+table, its open decisions, its verification protocol), per the
+contract (`SKILL.md`), never from the conversation's memory of it.
+
+### The synthesis, in order
+
+1. **Headline** — one bold line answering "what will happen": services
+   covered, dominant approach, package count, open decisions
+   (`2 services, zero-code approach, 7 pinned packages, 3 decisions
+   open`).
+2. **Where it lives** — one line: the stored path and the commit that
+   carries it.
+3. **Plan at a glance** — the report's own summary table (its
+   section 2), reused as-is: it already carries one row per service
+   with approach, pinned key packages, effort, and risk flags — the
+   pinned packages ARE what the implementation wave will add. Follow
+   it with the recommended implementation order, one line.
+4. **Decisions the spec must settle** — the count, then one line per
+   open question (the report's section 4).
+5. **Next action** — one line naming the loop's next step: build the
+   spec-driven plan from the report, or settle the open decisions
+   first — and a one-line pointer to the verification protocol (the
+   report's section 5 carries the replayable checks a later
+   `/odd-verify` run rules on).
+
+### Rules
+
+The contract's synthesis rules apply; the one specific: trim the
+summary table's widest columns (endpoint, signals) before dropping
+rows behind the `+N more in the report` marker.

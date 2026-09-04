@@ -4,8 +4,8 @@ A k6 load-test benchmark, written once as reviewed code and replayed
 identically for as long as it stays useful. The contracts belong to
 the [`/odd-instrument-bench`](../../.apm/prompts/odd-instrument-bench.prompt.md)
 prompt, the [`k6-benchmark-expert`](../../.apm/agents/k6-benchmark-expert.agent.md)
-agent, and the [`create-update-benchmark`](../../.apm/skills/create-update-benchmark/SKILL.md)
-skill.
+agent, and the [`benchmark`](../../.apm/skills/odd-memory/references/benchmark.md)
+reference of the `odd-memory` skill.
 
 ## Install k6
 

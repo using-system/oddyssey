@@ -1,17 +1,12 @@
----
-name: record-finding-decision
-description: Record a maintainer decision (wontfix, ...) on a finding of a stored observation report into the committed ledger at .odd/decisions.md - the write that lets /odd-status stop rendering a declined finding as open. Use when the user declines a finding, marks it wontfix, or reverses such a decision. Never edits a report.
----
-
-# Record a Finding Decision
+# Finding decisions
 
 A finding no verification ever ruled on stays open forever — the status
 has no other verdict for it, however deliberately the maintainer decided
 to live with it. The decision is real, it is just homeless: it was taken
 between runs, and the only artifacts that could carry it are past
-evidence that must never be rewritten. This skill gives it a committed
+evidence that must never be rewritten. This reference gives it a committed
 home of its own, next to the reports and never inside them. What every
-kind of memory shares is the `odd-memory` skill's contract; this skill
+kind of memory shares is the contract in `SKILL.md`; this reference
 states what is specific to the ledger.
 
 ## The ledger
@@ -80,7 +75,7 @@ One row per decision:
 
 ## Rules
 
-- **This skill writes `decisions.md` and nothing else.** A decision
+- **Recording a decision writes `decisions.md` and nothing else.** A decision
   that "should be in the report" is still a ledger row: reports are
   append-only evidence (the memory contract).
 - **No secrets** in a rationale (the memory contract).

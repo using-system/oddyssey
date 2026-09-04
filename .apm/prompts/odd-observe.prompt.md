@@ -90,7 +90,8 @@ defaults for every field not specified:
   backend's query quoted as evidence, no dispatch and no report -
   offering the full mission as the follow-up.
 
-Close the mission with the `show-observe-run-report` skill: render its
+Close the mission with the `## Show` of `odd-memory`'s
+`observe-run-report` reference: render its
 synthesis from the persistence return value the agent's reply carries
 (stored path, carrying commit, the synthesis block) as the final
 answer, stating the stored path — no re-read of the file just
