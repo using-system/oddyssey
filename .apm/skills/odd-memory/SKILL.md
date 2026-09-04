@@ -66,6 +66,9 @@ this table and a new skill, never a fourth copy of these rules.
 
 ## Recall: reading the memory
 
+For the two report stores — a benchmark is recalled by service and by
+name, the ledger is one file; their skills own that:
+
 - List the store newest first (the filenames sort chronologically). A
   missing or empty store is a first run — say so, never fail.
 - At that stage read **frontmatter blocks only**, never whole files;
@@ -119,11 +122,12 @@ lifecycle hooks, a hook flags what slipped through, after the write.
 
 - The persistence skill's return value carries the stored path, the
   carrying commit, and the **synthesis inputs** its show skill renders
-  from — quoted from the file, never rephrased — and never the
+  from — quoted from the artifact where the artifact carries the
+  value, never rephrased; the kind's skill lists them — and never the
   artifact's body: an observation report runs 300 to 500 lines, the
   reply travels back into the caller's context, and the synthesis is
   its only reader. What the next wave needs is in the file, at the
-  stored path. The kind's skill lists the inputs.
+  stored path.
 - The show skill renders from that return value, or reads a stored
   artifact the caller names from disk, by section, with its carrying
   commit from git (`git log -1 --format=%h -- <path>`) — never from the

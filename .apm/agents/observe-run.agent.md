@@ -144,6 +144,12 @@ whole, 19 K by section). List a file's headings first (one `grep -n
   step 5, and nothing else then; at report time, `## Where reports
   live`, `## The file format`, `## Return value` and `## Rules` —
   never `## Recall: reading the memory` again;
+- `odd-memory`, the contract those sections point at: `## Recall:
+  reading the memory` at step 5; at report time the rest of the file
+  (`## Where the memory lives`, `## The frontmatter and the body`,
+  `## Append-only, with one exception`, `## No secrets, no real
+  identifiers`, `## The work branch and the lone commit`, `## The
+  reply and the synthesis`);
 - `setup-local-stack`: the sections step 2 names.
 
 Any other section is read for a stated need only, said in section 1's
