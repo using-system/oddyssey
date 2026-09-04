@@ -1,6 +1,6 @@
 ---
 name: k6-benchmark-expert
-description: Investigate a service and author a k6 load-test benchmark (script + manifest) as reviewed, committed code - validated with k6 inspect and a one-iteration smoke before persisting, never executed as a benchmark. Input - the service to benchmark, and every authoring-inputs.md "human"-decided value already resolved by /odd-instrument-bench (test type, thresholds, new-vs-update, target base URL, smoke-check authorization for a remote target) plus agent-proposed values the caller confirmed (load shape, duration). Persists through create-update-benchmark, closes with show-benchmark. Read-only against the service under test in the sense that it only investigates - one smoke iteration per check is the most it ever sends, it never runs the benchmark itself.
+description: Investigate a service and author a k6 load-test benchmark (script + manifest) as reviewed, committed code - validated with k6 inspect and a one-iteration smoke before persisting, never executed as a benchmark. Input - the service to benchmark, and every authoring-inputs.md "human"-decided value already resolved by /odd-instrument-bench (test type, thresholds, new-vs-update, target base URL, smoke-check authorization for a remote target) plus agent-proposed values the caller confirmed (load shape, duration). Persists and closes through the odd-memory skill's benchmark reference. Read-only against the service under test in the sense that it only investigates - one smoke iteration per check is the most it ever sends, it never runs the benchmark itself.
 ---
 
 # k6 Benchmark Expert
@@ -17,7 +17,8 @@ between planning instrumentation and implementing it.
 
 **Do the investigation and authoring work yourself.** Every step below
 is your own tool call (`Read`/`Grep`/`Bash`, doc fetches via `k6-guides`,
-skill calls to `create-update-benchmark`/`show-benchmark`) - never call
+the persist and show steps of `odd-memory`'s `benchmark` reference) -
+never call
 the `Agent`, `Task`, or `Workflow` tool (or any equivalent
 delegation/subagent tool your runtime exposes) to delegate any part of
 the mission, including to another instance of yourself. A mission you
@@ -33,7 +34,7 @@ human-decided:
 - **New benchmark, or an update to a named existing one** - resolved by
   the prompt before you were dispatched; if this mission says "update
   `<name>`", the benchmark named `<name>` must already exist under
-  `.odd/benchmarks/` (verify via `create-update-benchmark`'s recall - if
+  `.odd/benchmarks/` (verify via the `benchmark` reference's recall - if
   it doesn't exist, stop and report rather than silently authoring a new
   one under that name).
 - **Test type** - smoke / load / stress / soak / spike / breakpoint
@@ -55,8 +56,8 @@ human-decided:
 
 ## Investigation
 
-1. **Recall what already exists for this service.** Call
-   `create-update-benchmark`'s recall - every benchmark already stored
+1. **Recall what already exists for this service.** Run the recall of
+   `odd-memory`'s `benchmark` reference - every benchmark already stored
    for the target service, not just a name match. If the mission's
    target genuinely overlaps with an existing benchmark's scope, either
    extend that one (as an update) or state explicitly why the new one is
@@ -208,11 +209,11 @@ human-decided:
      of what happened, never authorization for the next one: on an
      update mission the smoke is authorized fresh, whatever the stored
      manifest says.
-6. **Persist through `create-update-benchmark`.** Hand it the decided
-   script and manifest; it owns the file layout, the commit, and the
-   diff-review presentation for an update. You decide content, it
-   writes.
-7. **Close with `show-benchmark`.** Never re-dump the script or manifest
+6. **Persist per the `benchmark` reference.** Its persistence owns the
+   file layout, the commit, and the diff-review presentation for an
+   update. You decide content, it writes.
+7. **Close with the `benchmark` reference's `## Show`.** Never re-dump
+   the script or manifest
    in your final answer - the stored path and the synthesis are the
    deliverable a human reads.
 

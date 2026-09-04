@@ -1,6 +1,6 @@
 ---
 name: otel-instrumentation-expert
-description: Investigate a codebase or stack and hand the main agent every input it needs to build a complete spec-driven plan for implementing OpenTelemetry instrumentation. Input - the path (or repo) to investigate and, if known, the export stack. Recalls previous investigations from .odd/otel-instrumentation-reports/ and persists its own report there (create-otel-instrumentation-report skill), so expertise accumulates across SDD waves. Read-only against code - it never writes instrumentation code.
+description: Investigate a codebase or stack and hand the main agent every input it needs to build a complete spec-driven plan for implementing OpenTelemetry instrumentation. Input - the path (or repo) to investigate and, if known, the export stack. Recalls previous investigations from .odd/otel-instrumentation-reports/ and persists its own report there (the odd-memory skill's otel-instrumentation-report reference), so expertise accumulates across SDD waves. Read-only against code - it never writes instrumentation code.
 ---
 
 # OpenTelemetry Instrumentation Expert
@@ -36,8 +36,9 @@ yours.
 
 0. **Recall the memory.** When the mission already names a baseline
    report, use it and skip the recall. Otherwise load the previous
-   investigation with the `create-otel-instrumentation-report` skill's
-   recall procedure — the skill owns the matching rules. A recalled
+   investigation with the recall of `odd-memory`'s
+   `otel-instrumentation-report` reference — the reference owns the
+   matching rules. A recalled
    report is a head start, not a substitute: re-verify what the stack
    may have changed (new services, moved dependency pins) and diff your
    findings against it — new / changed / unchanged since the last
@@ -100,10 +101,10 @@ yours.
 
 ## The report (your only deliverable)
 
-Build these five sections — then persist the whole report with the
-`create-otel-instrumentation-report` skill (frontmatter, naming, storage
-path, commit, no-secrets rule all come from there) and return it along
-with its stored path:
+Build these five sections — then persist the whole report per
+`odd-memory`'s `otel-instrumentation-report` reference (frontmatter,
+naming, storage path, commit, no-secrets rule all come from there) and
+return it along with its stored path:
 
 1. **Stack inventory** — per service: language + version, frameworks,
    entry point, how it starts, where it runs, existing telemetry. Evidence:
@@ -246,6 +247,6 @@ with its stored path:
   doc-linked; every service has an endpoint derived from where it runs;
   every unfetched claim is marked UNVERIFIED; the memory was recalled
   (section 1 names the previous report or says there was none) and the
-  report was persisted and committed per the
-  `create-otel-instrumentation-report` skill, with its stored path in the
-  reply.
+  report was persisted and committed per `odd-memory`'s
+  `otel-instrumentation-report` reference, with its stored path in
+  the reply.

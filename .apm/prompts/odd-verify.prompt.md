@@ -151,7 +151,7 @@ Then build the mission block from that report:
   says its coverage was quick (the agent's Depth section);
 - persistence: state that the run is a **verification** of that report,
   naming its exact filename, so the agent persists per the
-  `create-observe-run-report` skill's verification rules —
+  `observe-run-report` reference's verification rules (`odd-memory`) —
   `YYYY-MM-DD-HHmm-verify-<run_name>.md` (own timestamp, the baseline's
   run_name) with `mode: verify` and `verifies: <that exact filename>`
   (its repo-relative `.odd/otel-instrumentation-reports/<filename>`
@@ -254,7 +254,8 @@ Then build the mission block from that report:
   - every telemetry gap it listed: now filled or still missing, with the
     discovery query.
 
-Close the mission with the `show-observe-run-report` skill: render its
+Close the mission with the `## Show` of `odd-memory`'s
+`observe-run-report` reference: render its
 synthesis from the persistence return value the agent's reply carries
 (stored path, carrying commit, the synthesis block) as the final
 answer - the verdict-first headline leads, stating the stored path; no

@@ -1,6 +1,6 @@
 ---
 name: observe-run
-description: Observe a running service through its telemetry (metrics, traces, logs, profiles) on any stack - the local oddyssey stack or a remote backend (Grafana, Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...) - and hand the main agent every input it needs to build a spec-driven plan of fixes and improvements. Input - one or more service names, the stack, the mode (drive a scenario / observe a driven run / analyze post-hoc), an optional stored k6 benchmark from .odd/benchmarks/ to drive or watch, the window, the focus, and any baseline expectations; the deployment environment is never asked - the agent detects it from the telemetry. Recalls previous reports from .odd/observe-run-reports/ as the baseline and persists its own report there (create-observe-run-report skill), so runs accumulate into the ODD loop's memory. Uses the observability-cli-guides skill for the stack's CLI. Read-only against code - it may drive requests at the service but never changes it.
+description: Observe a running service through its telemetry (metrics, traces, logs, profiles) on any stack - the local oddyssey stack or a remote backend (Grafana, Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...) - and hand the main agent every input it needs to build a spec-driven plan of fixes and improvements. Input - one or more service names, the stack, the mode (drive a scenario / observe a driven run / analyze post-hoc), an optional stored k6 benchmark from .odd/benchmarks/ to drive or watch, the window, the focus, and any baseline expectations; the deployment environment is never asked - the agent detects it from the telemetry. Recalls previous reports from .odd/observe-run-reports/ as the baseline and persists its own report there (the odd-memory skill's observe-run-report reference), so runs accumulate into the ODD loop's memory. Uses the observability-cli-guides skill for the stack's CLI. Read-only against code - it may drive requests at the service but never changes it.
 ---
 
 # Observe a Run
@@ -140,15 +140,16 @@ whole, 19 K by section). List a file's headings first (one `grep -n
   and `## 6. Replay a stored k6 benchmark` only when the mission
   carries a benchmark; in the other modes, `## 0.`'s identity and port
   rules, `## 4. Record verbatim` and `## 5.` only;
-- `create-observe-run-report`: `## Recall: reading the memory` at
-  step 5, and nothing else then; at report time, `## Where reports
-  live`, `## The file format`, `## Return value` and `## Rules` —
-  never `## Recall: reading the memory` again;
-- `odd-memory`, the contract those sections point at: `## Recall:
-  reading the memory` at step 5; at report time the rest of the file
-  (`## Where the memory lives`, `## The frontmatter and the body`,
-  `## Append-only, with one exception`, `## No secrets, no real
-  identifiers`, `## The work branch and the lone commit`, `## The
+- `odd-memory`'s `observe-run-report` reference: `## Recall: reading
+  the memory` at step 5, and nothing else then; at report time,
+  `## Where reports live`, `## The file format`, `## Return value` and
+  `## Rules` — never `## Recall: reading the memory` again, never
+  `## Show` (the caller's);
+- `odd-memory`'s `SKILL.md`, the contract that reference points at:
+  `## Recall: reading the memory` at step 5; at report time the rest
+  of the file (`## Where the memory lives`, `## The frontmatter and
+  the body`, `## Append-only, with one exception`, `## No secrets, no
+  real identifiers`, `## The work branch and the lone commit`, `## The
   reply and the synthesis`);
 - `setup-local-stack`: the sections step 2 names.
 
@@ -252,8 +253,8 @@ run record.
      mission's guess.
 5. **Recall the memory.** When the mission already names a baseline
    report, use that report as the recalled baseline and skip the
-   matching. Otherwise load the baseline with the
-   `create-observe-run-report` skill's recall procedure — the skill
+   matching. Otherwise load the baseline with the recall of
+   `odd-memory`'s `observe-run-report` reference — the reference
    owns the matching rules, which include the environment step 4
    detected. However the baseline was obtained — named or recalled —
    read it **by section, never whole**, per that skill's partial read:
@@ -483,10 +484,10 @@ Then go from aggregates to explanations:
 
 Build these seven sections, in this order (at `quick` depth, in the
 collapsed shape the Depth section gives sections 3 to 6) — then
-persist the whole report with the `create-observe-run-report` skill
-(frontmatter, naming, storage path, the `depth` field, no-secrets rule
-all come from there) and return the skill's return value — the stored
-path, the carrying commit, and the synthesis block the skill defines,
+persist the whole report per `odd-memory`'s `observe-run-report`
+reference (frontmatter, naming, storage path, the `depth` field,
+no-secrets rule all come from there) and return its return value — the
+stored path, the carrying commit, and the synthesis block it defines,
 never the report body — so the caller renders the closing synthesis
 from your reply, without re-reading the file:
 
@@ -626,5 +627,6 @@ from your reply, without re-reading the file:
   the deployment environment was detected, is definite (no
   provisional value left unsettled), and appears in section 1 and in the
   frontmatter; the memory was recalled (section 1 names the previous
-  report or says there was none) and the report was persisted per the
-  `create-observe-run-report` skill, with its stored path in the reply.
+  report or says there was none) and the report was persisted per
+  `odd-memory`'s `observe-run-report` reference, with its stored path
+  in the reply.

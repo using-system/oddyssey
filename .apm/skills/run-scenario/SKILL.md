@@ -258,7 +258,8 @@ query); this skill stays scoped to locally running services.
 ## 6. Replay a stored k6 benchmark
 
 When the mission names a benchmark under `.odd/benchmarks/<name>/`
-(`k6-benchmark-expert` authored it, `create-update-benchmark` stored it),
+(`k6-benchmark-expert` authored it, `odd-memory`'s `benchmark`
+reference stored it),
 the load comes from its script instead of a curl loop. Steps 0, 3 and
 5 apply unchanged — the clean-base order, the sample-count rules, the
 flush wait — and step 4 applies with the record shape below. What
@@ -278,7 +279,7 @@ differs is how the load is generated and how the record cites it:
   output surface, and the exit codes cited below.
 - **Read the manifest, then run the script unmodified.** The benchmark
   directory holds one k6 script and one manifest
-  (`create-update-benchmark`'s layout): the script is `script.js`
+  (the `benchmark` reference's layout): the script is `script.js`
   unless the manifest names another file. Run it from the repository
   root, as one blocking foreground command (or the detached poller
   below when the run outlasts a tool call), with k6's end-of-test

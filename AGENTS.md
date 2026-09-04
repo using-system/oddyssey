@@ -127,7 +127,7 @@ as a fix. The formats and the rules a reviewer can enforce are in
 The rule governs the report stores — `.odd/observe-run-reports/`,
 `.odd/otel-instrumentation-reports/`, and `.odd/decisions.md`. It does
 not reach `.odd/benchmarks/`: a benchmark is living source, not a run
-record, and `create-update-benchmark` updates it in place through
+record, and its `odd-memory` reference updates it in place through
 reviewed diffs like any other committed code.
 
 ## Marketplace is generated — never edit it by hand
@@ -184,9 +184,8 @@ exhaustive.
 `docs/guide/reports.md` documents the `.odd/` report formats:
 filename conventions, frontmatter fields and values, and body
 structure for both report kinds. Update it in the same change whenever
-the file contracts of `create-observe-run-report`,
-`create-otel-instrumentation-report` or the shared `odd-memory`
-contract, or the report sections of the
+the file contracts of `odd-memory` (its `SKILL.md` or its two report
+references), or the report sections of the
 `observe-run` or `otel-instrumentation-expert` agents, change — the
 guide documents what a reader needs of those contracts and must never
 lag them.
@@ -227,8 +226,8 @@ exhaustive.
 
 `docs/guide/benchmarks.md` documents the benchmark lifecycle —
 authoring today, running and verifying once those land. Update it in
-the same change whenever `/odd-instrument-bench`, `k6-benchmark-expert`,
-`create-update-benchmark`, or `show-benchmark`'s contract changes, and
+the same change whenever `/odd-instrument-bench`, `k6-benchmark-expert`
+or `odd-memory`'s `benchmark` reference's contract changes, and
 expand its Run/Verify sections in the same change that implements
 `/odd-observe`'s `benchmark:` field or `/odd-verify`'s benchmark replay
 — the guide must never describe a contract that doesn't exist yet, or

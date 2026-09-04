@@ -1,6 +1,6 @@
 ---
 name: odd-memory
-description: The file contract of the .odd/ memory, shared by every skill that writes or reads it - where the memory lives, the frontmatter and the whole body, append-only reports versus living-source benchmarks, recall by frontmatter then by section, the no-secrets rule, the work branch and the lone commit, and the reply that carries a synthesis and never the artifact. Read by the create and show skills of the three memory kinds (observation reports, instrumentation reports, benchmarks), by the decision ledger's skill, and by get-status; never invoked on its own.
+description: The .odd/ memory - its contract and one reference per kind. The contract states what every kind shares (where the memory lives, the frontmatter and the whole body, append-only reports versus living-source benchmarks, recall by frontmatter then by section, the no-secrets rule, the work branch and the lone commit, the reply that carries a synthesis and never the artifact); each reference says how to persist, recall and show its kind - observation reports, instrumentation reports, benchmarks, the finding-decision ledger. Read when a report, a benchmark or a decision is persisted, recalled, shown or inventoried; never invoked on its own.
 ---
 
 # The `.odd/` memory contract
@@ -8,20 +8,32 @@ description: The file contract of the .odd/ memory, shared by every skill that w
 The ODD loop's memory is a set of committed files in the observed
 repository, under `.odd/`: git versions them, pull requests review them,
 every user of the repository shares them — no side-channel storage,
-nothing opaque. It has four kinds, each with the skill that owns its
-specifics (its paths, its frontmatter fields, its recall matching, its
-branch name, its commit subject, what its reply carries):
+nothing opaque. It has four kinds, each with the reference that owns
+its specifics (its paths, its frontmatter fields, its recall matching,
+its branch name, its commit subject, what its reply carries, and how a
+stored one is shown):
 
-| Kind | Store | Owning skill |
+| Kind | Store | Reference |
 | --- | --- | --- |
-| Observation reports | `.odd/observe-run-reports/` | `create-observe-run-report` |
-| Instrumentation reports | `.odd/otel-instrumentation-reports/` | `create-otel-instrumentation-report` |
-| Finding decisions | `.odd/decisions.md` | `record-finding-decision` |
-| Benchmarks | `.odd/benchmarks/<name>/` | `create-update-benchmark` |
+| Observation reports | `.odd/observe-run-reports/` | [references/observe-run-report.md](references/observe-run-report.md) |
+| Instrumentation reports | `.odd/otel-instrumentation-reports/` | [references/otel-instrumentation-report.md](references/otel-instrumentation-report.md) |
+| Finding decisions | `.odd/decisions.md` | [references/decisions.md](references/decisions.md) |
+| Benchmarks | `.odd/benchmarks/<name>/` | [references/benchmark.md](references/benchmark.md) |
 
-This skill owns what they share. A kind's skill states only its
-specifics and points here for the rest; a fourth kind is a new row in
-this table and a new skill, never a fourth copy of these rules.
+This file owns what they share; a reference states only its
+specifics. A fifth kind is a new row in this table and a new
+reference, never a fifth copy of these rules.
+
+## Reading a reference by section
+
+A reference is read like a stack reference — by the section a step
+needs, never whole. To **persist** an artifact, read its naming and
+format sections and its `## Rules`; to **recall** the baseline before
+a run, its `## Recall`; to **show** a stored artifact at the end of a
+mission, its `## Show` and nothing else; to **record** a decision, the
+ledger reference's `## Recording a decision` and `## Rules`. The
+`## Return value` of a report reference is what the persistence hands
+the caller, and what `## Show` renders from.
 
 ## Where the memory lives
 

@@ -4,9 +4,9 @@ Every mission ends in a committed report — the ODD loop's memory, and
 its only durable artifact: the telemetry behind an observation dies
 with the next `odd_stack_reset`, the report survives in the repository.
 This page tells you what you are looking at when you open one. The
-contracts themselves belong to the skills that persist the reports
-([create-observe-run-report](../../.apm/skills/create-observe-run-report/SKILL.md),
-[create-otel-instrumentation-report](../../.apm/skills/create-otel-instrumentation-report/SKILL.md))
+contracts themselves belong to the `odd-memory` skill's references
+([observe-run-report.md](../../.apm/skills/odd-memory/references/observe-run-report.md),
+[otel-instrumentation-report.md](../../.apm/skills/odd-memory/references/otel-instrumentation-report.md))
 and the agents that write their bodies
 ([observe-run](../../.apm/agents/observe-run.agent.md),
 [otel-instrumentation-expert](../../.apm/agents/otel-instrumentation-expert.agent.md));

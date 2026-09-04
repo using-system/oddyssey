@@ -20,8 +20,9 @@ itself.
   dates, and each report's `revision` and `tree_anchor` fields against
   the commits that came after it;
 - `.odd/decisions.md`, the findings decision ledger — read through the
-  ledger contract the `record-finding-decision` skill owns: that skill
-  is the format's authority, this one only reads what it wrote. A
+  ledger contract `odd-memory`'s `decisions` reference owns: that
+  reference is the format's authority, this skill only reads what was
+  written under it. A
   missing file means no decision has been recorded yet, which is a
   fact, not an error.
 
@@ -35,8 +36,9 @@ the whole picture, not an empty scope.
 
 Never query a backend, never start the stack, never write or edit a
 report, a ledger, or any other file — this skill reads the loop, it does
-not advance it. The one write in the status surface belongs to the
-`record-finding-decision` skill. The status renders in the conversation,
+not advance it. The one write in the status surface is the decision
+`odd-memory`'s `decisions` reference records. The status renders in
+the conversation,
 as tables — never a committed artifact.
 
 ## Render first, then judge
