@@ -112,7 +112,7 @@ def odd_config_set(config: dict) -> dict:
     {"stack_config": {"azure-monitor": {"workspace": "<guid>"}}}.
     stack is one of: local (the local stack - the default), grafana (a
     REMOTE Grafana - the CLI context says which instance), azure-monitor,
-    cloudwatch, datadog, dynatrace, splunk - or a custom stack (a backend
+    cloudwatch, datadog, dynatrace - or a custom stack (a backend
     the package does not ship, described by a stack file in the observed
     repository) declared under custom in the same call or an earlier one:
     {"stack": "seq", "custom": {"seq": {"stack_config_fields":
@@ -150,7 +150,7 @@ def odd_config_set(config: dict) -> dict:
     scalars - credentials stay in the CLI's own auth store, referenced by
     name only. Each stack accepts only its own documented field set (e.g.
     azure-monitor: subscription, resource_group, workspace,
-    app_insights_app; grafana/datadog/dynatrace/splunk: none, their CLI
+    app_insights_app; grafana/datadog/dynatrace: none, their CLI
     context carries targeting; a custom stack: its declared list) - an
     undocumented key is rejected, writing nothing, EXCEPT as a null deletion, which is always accepted so a
     stray key can still be cleaned up. local is the one exception: its

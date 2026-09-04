@@ -84,7 +84,7 @@ Everything is built on OpenTelemetry. For **local** observation, the MCP
 server pilots a complete Grafana stack (UI, traces, metrics, logs,
 profiles) that agents use to observe and fix. For **remote** stacks,
 observation works against Grafana or any other OpenTelemetry backend
-(Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...).
+(Datadog, Dynatrace, Azure Monitor, CloudWatch, your own, ...).
 
 oddyssey provides:
 
@@ -233,8 +233,8 @@ More invocation examples for every prompt live in
 
 The missions query the backend your telemetry lands in, through its
 own CLI: the local stack (gcx), a remote Grafana (gcx), Azure Monitor
-(az), AWS CloudWatch and X-Ray (aws), Datadog (Pup), Dynatrace (dtctl)
-and Splunk (splunk). Per backend — the CLI and how to install it, how
+(az), AWS CloudWatch and X-Ray (aws), Datadog (Pup) and Dynatrace
+(dtctl). Per backend — the CLI and how to install it, how
 to connect, what must already exist before there is anything to
 query, the switch prompt and what gets persisted — see
 [docs/guide/backends.md](docs/guide/backends.md).
@@ -304,7 +304,7 @@ repository already carries. How, in
   [`observability-cli-guides`](.apm/skills/observability-cli-guides/SKILL.md)
   skill: Datadog ([Pup](https://github.com/DataDog/pup)), Dynatrace
   ([dtctl](https://github.com/dynatrace-oss/dtctl)), Azure Monitor
-  (`az`), AWS CloudWatch/X-Ray (`aws`), Splunk (`splunk`).
+  (`az`), AWS CloudWatch/X-Ray (`aws`).
 - **`python3`** — the package's skills run their scripts with it.
 - **[k6](https://grafana.com/docs/k6/latest/set-up/install-k6/)** —
   needed to author a benchmark and to run one: `/odd-instrument-bench`
