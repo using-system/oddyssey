@@ -72,6 +72,54 @@ file or the code — neither kill the listener nor drive it: stop and
 report what holds the port, with the probe's fields. A run that cannot
 prove which process it measured is not a measurement.
 
+**The run launches nothing.** A remote target the run cannot start — a
+deployed service with public ingress, driven by someone else's traffic
+too — offers no process to launch with a slug and no
+`OTEL_RESOURCE_ATTRIBUTES` to set: the identity travels **in the
+requests** instead. Carry it in two headers on every driven request,
+and never in only one of them:
+
+- `User-Agent: odd-<prompt>/<run slug>` (`odd-verify/<slug>`,
+  `odd-observe/<slug>`; `-warmup` appended on warmup requests). The
+  server's HTTP instrumentation records it as `user_agent.original`,
+  selectable on the request rows of every backend
+  (`customDimensions['user_agent.original']` in KQL,
+  `span.user_agent.original` in TraceQL) — this is the identity a
+  latency question reads, and it survives a service that ignores
+  `traceparent`.
+- `traceparent: 00-<trace id>-<span id>-01`, the trace id being
+  **32 hex in three parts**: a fixed 8-hex prefix shared by every run
+  of the protocol (`0ddc0ffe` unless the protocol records another),
+  8 hex derived from the run slug (the first 8 of
+  `sha256(<slug>)`), and the zero-padded 16-hex request sequence
+  number; the span id is the sequence number on 16 hex. The sequence
+  numbers every driven request of the run, warmup included, from
+  **1** — one counter for the whole run: a span id of all zeros is
+  invalid under W3C trace context, the instrumentation then starts a
+  fresh trace and that request drops out of every prefix selector,
+  and a counter restarted per phase gives two requests one id. The prefix is
+  what a selector matches — `operation_Id startswith '<prefix>'`
+  (KQL), `{ trace:id =~ "<prefix>.*" }` (TraceQL), `trace_id =~
+  "<prefix>.*"` (LogQL) — and pulls every request, dependency, log and
+  exception row of the run with no process identity at all; the slug
+  part is what keeps two runs apart: a trace id made of the prefix and
+  the sequence alone is the **same set of ids on every replay**, and
+  the backend merges the runs under them (observed: one trace id, two
+  instances, two User-Agents). Two runs may share a prefix, never an
+  id.
+
+Then **read the instance from the run's own rows** —
+`service.instance.id` (or the backend's equivalent) on the requests
+the identity selects — and record it; it is never asserted up front,
+and a run whose rows name two instances says so (a deploy in the
+window, a scaled service). One caveat travels with the scheme: a
+synthetic `traceparent` makes every run trace **rootless** — the
+parent span id never existed — which is fine for presence and count
+rulings and wrong for a latency investigation, whose numbers come
+from the User-Agent identity alone. The `Identity:` line of the
+record (step 4) carries both headers' forms with the slug, the prefix
+and the instance read from the rows.
+
 **Reset once.** That clean-base reset is the only reset this skill takes
 on its own. Any further `odd_stack_reset` inside a mission is an
 explicit mission requirement — an operation the mission observes (a
@@ -200,6 +248,7 @@ Base URL: http://127.0.0.1:<port>   # not localhost: a dual-stack host may resol
 Listeners: none   # or: :8000 served by 41234 uvicorn (127.0.0.1) and 51022 com.docker (*), ran on :8001
 Backend:  odd_stack_reset, env: {"PROMETHEUS_EXTRA_ARGS": "..."}   # or "defaults"
 Instance: af6070... (restarted before reset)   # or equivalent identity; add the start time when not restarted
+Identity: launched with service.instance.id=<slug>   # or, when the run launched nothing: User-Agent "odd-verify/<slug>" (+ "-warmup"); traceparent "00-<prefix><run8><seq:016x>-<seq:016x>-01", run8 = sha256(<slug>)[:8]; instance read from the rows: <id>
 Warmup:   5 requests per endpoint (discarded)
 Load:     30 requests per endpoint, sequential
 Started (UTC): 2026-08-17T10:04:12Z

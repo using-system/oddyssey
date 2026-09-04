@@ -232,7 +232,14 @@ Then build the mission block from that report:
   protocol written before that rule names no attribution evidence:
   the run supplies its own (the service driven with the run slug and
   the profiler tag) and the report says the protocol predated the
-  rule. An empty result follows the same query-suspect rule as
+  rule. On a remote drive, the identity is header-borne
+  (`run-scenario` step 0: the run's User-Agent and a `traceparent`
+  whose trace id carries the protocol's prefix, a part derived from
+  **this run's slug**, and the sequence) - a new slug every replay,
+  and when the baseline's ids carried no run part, the replay adopts
+  the run-unique form and says so: the prefix selectors still match,
+  the requests do not change, only the ids do. An empty result
+  follows the same query-suspect rule as
   below: prove the query sound before ruling "still missing". A
   protocol query that projects a credential-bearing field is replayed
   without that field and ruled on what remains, and the ruling says
