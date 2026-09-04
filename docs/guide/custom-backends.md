@@ -91,8 +91,9 @@ you cannot.
 
 ## Try it
 
-This repository carries a throwaway Seq and a custom stack file for
-it, written from Seq's documentation and verified with `seqcli`:
+This repository carries a throwaway [Seq](https://datalust.co/seq) and
+a custom stack file for it, written from Seq's documentation and
+verified with `seqcli`:
 
 ```text
 docker compose -f docker-compose/seq/docker-compose.yml up -d
