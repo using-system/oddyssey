@@ -180,7 +180,18 @@ return it along with its stored path:
    missing** on each item without interpreting prose (the `observe-run`
    agent does the confirmation). A check satisfiable by any process
    sharing the service name — a healthcheck inheriting the profiler
-   env, a co-resident instance — is not replayable evidence. Plan the
+   env, a co-resident instance — is not replayable evidence. Nor is a
+   check that can never match: a Collector health check on a component
+   the plan introduces (an exporter, a processor, a receiver) names the
+   component by its **configured component id** — `<type>/<name>` as it
+   will stand in the Collector configuration the plan changes,
+   `azure_monitor/app-insights`, never a package or type name the
+   implementation may not use (`azuremonitorexporter` is a Go package;
+   a literal grep for it matches nothing on a broken exporter too) —
+   and says the replay reads that id from the configuration file at
+   replay time and proves the grep can match (the component's startup
+   line, a known error line) before "zero error lines" closes anything.
+   Plan the
    per-run tag in section 3's configuration block so the verify can
    set it. **A check never projects a credential.** Its query and its
    expected outcome name no connection string, instrumentation or API

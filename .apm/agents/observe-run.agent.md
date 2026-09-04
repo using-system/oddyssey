@@ -473,7 +473,18 @@ Then go from aggregates to explanations:
   co-resident process; **still missing** otherwise. A name in a labels
   listing never closes an item: a healthcheck inheriting the profiler
   env satisfies every name-only check while the server never
-  profiles. When the protocol names no attribution evidence (written
+  profiles. Nor does a **health check whose positive-match set is
+  empty**: a check that reads "zero error lines mentioning
+  `<component>`" is query-suspect, not `closed`, until the grep is
+  proven able to match — the component's startup line or a known
+  error line found first, under the component id **as configured**
+  (read the Collector configuration the plan changed, `<type>/<name>`,
+  at replay time; a package or type name the baseline hard-coded may
+  match nothing, healthy or broken — observed: `azuremonitor` matched
+  nothing where the exporter ran as `azure_monitor/app-insights`).
+  Widening the grep to the configured id is part of the ruling, and
+  section 1 says the baseline named the component by another name.
+  When the protocol names no attribution evidence (written
   before this rule), the run supplies its own: drive the service with
   the run slug and the profiler tag (`run-scenario`'s `run-identity.md`) and rule
   on that identity; only a signal you cannot tie to a process you

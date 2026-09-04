@@ -240,7 +240,12 @@ Then build the mission block from that report:
   the run-unique form and says so: the prefix selectors still match,
   the requests do not change, only the ids do. An empty result
   follows the same query-suspect rule as
-  below: prove the query sound before ruling "still missing". A
+  below: prove the query sound before ruling "still missing" - and a
+  health check on a Collector component ("zero error lines mentioning
+  it") is ruled under the component id as configured, read from the
+  configuration the plan changed, once the grep is proven able to
+  match (the agent's rule): a name that matches nothing on the whole
+  history closes nothing. A
   protocol query that projects a credential-bearing field is replayed
   without that field and ruled on what remains, and the ruling says
   so (the agent's rule) - the value never reaches the report;
