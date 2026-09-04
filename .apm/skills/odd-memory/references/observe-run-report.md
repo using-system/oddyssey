@@ -154,7 +154,9 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   always names a sibling observation report. The deliverable stays an
   observation report in this directory either way.
 - `revision` (`git rev-parse --short HEAD` in the observed repo) is what
-  makes a before/after honest: a report is a before-value for a fix
+  makes a before/after honest — omitted, with `tree_anchor`, when the
+  observed service lives outside the repository the report is stored
+  in, and section 1 says so: a report is a before-value for a fix
   wave, and the fix is a diff against some revision. In a squash-merge
   repository that commit never joins the merged history — a fresh
   clone cannot even resolve it — so record `tree_anchor` alongside it:
@@ -264,6 +266,10 @@ caller closing the mission:
 - the carrying commit (`git rev-parse --short HEAD` right after the
   commit), or `not committed` with the reason (default branch and no
   work branch possible, not a repository, the caller said not to);
+- on a custom stack, the stack file's fate: `unchanged`, or its path
+  with the commit of the run's diff (or `not committed` with the
+  reason) and the one-line reason the run record gives (the
+  `observability-stack` reference's learning rule);
 - the **synthesis block** — the inputs `## Show` below
   renders from, quoted verbatim from the file just written (never
   rephrased, never re-derived), and nothing else of the body:
@@ -375,7 +381,8 @@ conversation's memory of the mission.
    profiles not queried`), and a quick verify counts what it did not
    rule (`PASS — 3/3 checks ruled, 2 not ruled (quick)`).
 2. **Where it lives** — one line: the stored path and the commit that
-   carries it.
+   carries it; on a custom stack whose file the run changed, a second
+   line: the stack file's path, its commit and the one-line reason.
 3. **Run block** — compact `key: value` lines: services, stack, mode,
    depth (`full` when the frontmatter has none), window, detected
    environment (all from the frontmatter), and the baseline report

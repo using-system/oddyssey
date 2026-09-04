@@ -72,7 +72,9 @@ rather than guessing.
 ### Body — seven sections
 
 1. **Mission and run record** — the mission as understood and, in
-   drive mode, the scenario record that replays it verbatim.
+   drive mode, the scenario record that replays it verbatim; on a
+   custom stack, whether the run changed the stack file, with the
+   commit that carries the change.
 2. **Observed behavior** — the per-operation table (requests, rate,
    p50/p95/p99, errors), every number with the query that produced it;
    the deltas against the previous report; the service graph.
