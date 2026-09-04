@@ -3,7 +3,9 @@
 Every stack file in this directory — one per backend, `builtin-stacks.md`
 and this file excepted — carries the sections below, under these exact
 headings. The consumers find a section by its heading and read nothing
-else: the preflight skill reads its four, the switch skill its two, the
+else: the preflight reads three (`## CLI binary`, `## Setup`,
+`## Configuration display`), the switch two (`## CLI binary`,
+`## What to persist`) — the four the agents never open — and the
 agents the rest. A section under another name is a section nobody
 reads. `scripts/check-reference-contract.py` enforces the list in CI
 from the block below; the block is the list.

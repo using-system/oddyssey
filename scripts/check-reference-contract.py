@@ -23,7 +23,7 @@ REFERENCES = (
 )
 CONTRACT = REFERENCES / "CONTRACT.md"
 NOT_A_STACK = {"CONTRACT.md", "builtin-stacks.md"}
-HEADING_RE = re.compile(r"^(#{2,3}) (.+?)\s*$", re.MULTILINE)
+HEADING_RE = re.compile(r"^(#{2,3}) (.+?)\s*$")
 
 
 def required_headings(contract: str) -> dict[str, list[str]]:
@@ -43,10 +43,20 @@ def required_headings(contract: str) -> dict[str, list[str]]:
 
 
 def sections_of(text: str) -> dict[str, list[str]]:
-    """The file's ``##`` headings with the ``###`` headings under each."""
+    """The file's ``##`` headings with the ``###`` under each, fences skipped."""
     found: dict[str, list[str]] = {}
     section = None
-    for level, title in HEADING_RE.findall(text):
+    in_fence = False
+    for line in text.splitlines():
+        if line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        match = HEADING_RE.match(line)
+        if not match:
+            continue
+        level, title = match.groups()
         if level == "##":
             section = title
             found.setdefault(section, [])

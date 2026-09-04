@@ -31,9 +31,9 @@ accepts, with its reference, CLI, and aliases — is
 | AWS CloudWatch + X-Ray | `aws` | [references/cloudwatch.md](references/cloudwatch.md) |
 | Splunk (Enterprise / Cloud Platform, Observability Cloud) | `splunk` (SPL) | [references/splunk.md](references/splunk.md) |
 
-Every reference follows [references/CONTRACT.md](references/CONTRACT.md):
-the sections it must carry, what each answers, and who reads it — the
-preflight, the switch, or the agents. CI checks the list.
+Authoring a reference, or a custom stack file: every reference follows
+[references/CONTRACT.md](references/CONTRACT.md) — the sections it must
+carry, what each answers, and who reads it. A mission never opens it.
 
 For the **local oddyssey stack** (the Grafana case), the `setup-local-stack`
 skill carries the ready-made gcx context — isolated config and datasource
