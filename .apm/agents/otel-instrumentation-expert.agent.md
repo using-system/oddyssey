@@ -181,11 +181,11 @@ with its stored path:
    key, token, password or auth-header value (a header sourced from an
    environment variable by name is wiring, and stays) — not through a
    `--query` projection, not by dumping a whole resource object that
-   carries one
-   (a backend's `show` command routinely does; the reference says which
-   fields are credentials). The protocol is replayed verbatim by
-   `/odd-verify` and its result is quoted into a committed report, so a
-   projected credential is a leak deferred to the first replay. A check
+   carries one (a backend's `show` command routinely does; the
+   reference says which fields are credentials). The protocol is
+   replayed verbatim by `/odd-verify` and its result is quoted into a
+   committed report, so a projected credential is a leak deferred to
+   the first replay. A check
    that must prove a secret is wired proves the **wiring**: the secret
    reference or env var name the configuration points at, a
    non-empty or redacted flag the backend exposes, the resource
