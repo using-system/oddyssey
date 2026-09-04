@@ -372,10 +372,16 @@ has landed with a bounded query — not the local stack's ~10 s / ~60 s.
 
 Every service emits its **own** metrics, spans, and logs — **discover
 first, then query what you found; never assume names**. The five
-discoveries below are independent of each other: **issue them as your
-own parallel tool calls in one turn, never delegated**, not one after
-the other — a round trip each is the serial cost of a phase that needs
-one. Then query per
+discoveries below are independent of each other: **run them
+concurrently inside one shell tool call, never delegated** — each
+command backgrounded with `&`, its output redirected to its own file
+under the scratchpad, one `wait` per job (so every exit code is
+yours), then one `cat` per file — never one after the other, and
+never one tool call each: a round trip each is the serial cost of a
+phase that needs one, and whether a host runs several tool calls of
+one turn together is the host's choice, while one shell call is one
+round trip on every host. The per-file capture is what lets the
+report quote each query and its result verbatim. Then query per
 signal from what came back:
 
 - **Metrics** — discover what the service exports (metric names, labels or
@@ -422,10 +428,11 @@ Then go from aggregates to explanations:
   silent default page — take the longest span it returns and fetch its
   trace, and record the limit so the verify run carves the same way. Run the
   searches for all operations first, then **fetch every exemplar in one
-  batch of parallel tool calls** — each fetch returns KBs of OTLP JSON,
-  and one per turn is the slow shape. Diff their span trees: where the
-  extra time or the failure lives is the finding. Aggregates locate,
-  exemplars explain.
+  shell tool call** — one backgrounded fetch per trace ID, each into
+  its own file, then `wait` — the same shape as the discoveries: each
+  fetch returns KBs of OTLP JSON, and one per turn is the slow shape.
+  Diff their span trees: where the extra time or the failure lives is
+  the finding. Aggregates locate, exemplars explain.
 - **Baseline** — with no caller expectations, compare against the
   recalled report (Setup step 5 — same services, same stack, same
   detected environment): the same operations' previous numbers,
