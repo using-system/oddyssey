@@ -458,6 +458,16 @@ each other.
 | [`get-status`](../../.apm/skills/get-status/SKILL.md) | Render the state of the ODD loop from the committed `.odd/` history and git alone, read-only | Reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`, and `.odd/decisions.md` (under `record-finding-decision`'s ledger contract, without calling it); recommends `/odd-instrument-otel` or `/odd-observe` |
 | [`record-finding-decision`](../../.apm/skills/record-finding-decision/SKILL.md) | Record a maintainer decision on a finding into the committed ledger, never editing a report | Owns `.odd/decisions.md` - the row format, the commit of that file alone; reads `.odd/observe-run-reports/` to resolve the finding reference |
 
+## Hooks
+
+| Hook | Role | Invoked by |
+| --- | --- | --- |
+| [`odd-guards`](../../.apm/hooks/odd-guards.json) | Refuse a `git commit` on the default branch, or a `git push` to it, before it runs - the persistence skills' rule made deterministic | The host's pre-tool event, on every target with hooks; never a prompt, agent, or skill |
+
+A hook deploys with the package; a host can be told not to run it
+(`apm deny using-system/oddyssey` before installing, or the host's own
+hooks setting).
+
 ## MCP tools
 
 `odd_config_get` / `odd_config_set` read and write the global

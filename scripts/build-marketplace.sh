@@ -61,6 +61,31 @@ cat > marketplace/oddyssey/.mcp.json <<EOF
 }
 EOF
 
+# apm pack writes the hooks as a root-level hooks.json with the commands
+# unrewritten (./scripts/...) and copies no script; a Claude Code or Codex
+# plugin reads hooks/hooks.json and reaches bundled files through
+# ${CLAUDE_PLUGIN_ROOT}. Move the file, carry the scripts, rewrite the
+# paths, and refuse a bundle that names a script it does not carry.
+if [ -f marketplace/oddyssey/hooks.json ]; then
+  mkdir -p marketplace/oddyssey/hooks
+  sed 's#\("command":[[:space:]]*"[^"]*\)\./scripts/#\1\\"${CLAUDE_PLUGIN_ROOT}\\"/hooks/scripts/#g' \
+    marketplace/oddyssey/hooks.json > marketplace/oddyssey/hooks/hooks.json
+  rm marketplace/oddyssey/hooks.json
+  if grep -q '\./scripts/' marketplace/oddyssey/hooks/hooks.json; then
+    echo "hooks/hooks.json still names a relative script path" >&2
+    exit 1
+  fi
+  if [ -d .apm/hooks/scripts ]; then
+    cp -R .apm/hooks/scripts marketplace/oddyssey/hooks/scripts
+  fi
+  for script in $(grep -o '/hooks/scripts/[^" ]*' marketplace/oddyssey/hooks/hooks.json | sort -u); do
+    if [ ! -f "marketplace/oddyssey${script}" ]; then
+      echo "hooks/hooks.json names a script the bundle does not carry: ${script}" >&2
+      exit 1
+    fi
+  done
+fi
+
 cat > marketplace/README.md <<'EOF'
 # GENERATED - do not edit
 

@@ -50,6 +50,13 @@ uvx ruff@0.16.4 check .apm/skills/*/scripts tests/skills
 uvx ruff@0.16.4 format --check .apm/skills/*/scripts tests/skills
 uv run --no-project --with pytest pytest tests/skills -v
 
+# Hook scripts (.apm/hooks/scripts): lint + tests, then the apm deploy
+# and the marketplace build CI runs (revert the generated trees after)
+uvx ruff@0.16.4 check .apm/hooks/scripts tests/hooks
+uvx ruff@0.16.4 format --check .apm/hooks/scripts tests/hooks
+uv run --no-project --with pytest pytest tests/hooks -v
+bash scripts/build-marketplace.sh
+
 # Validate the APM package like CI does (keep the apm-cli pin -
 # older releases corrupt the install; see the README's install note)
 uvx --from apm-cli==0.28.0 apm install --target claude && uvx --from apm-cli==0.28.0 apm audit
