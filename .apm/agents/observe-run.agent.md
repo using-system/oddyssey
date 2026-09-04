@@ -572,7 +572,8 @@ from your reply, without re-reading the file:
   showed for one of those — ports, URLs on `localhost`, service and
   operation names stay the evidence they are. When a **replayed
   protocol query** projects a credential-bearing field (a connection
-  string, a key, a token, an auth header — the reference names them),
+  string, a key, a token, an auth-header value — the reference names
+  them),
   never run it as written: drop the field, rule the check on the
   non-secret fields the same query returns, and say so in the ruling
   and in section 1's run record — the protocol's defect is a finding

@@ -178,8 +178,10 @@ with its stored path:
    per-run tag in section 3's configuration block so the verify can
    set it. **A check never projects a credential.** Its query and its
    expected outcome name no connection string, instrumentation or API
-   key, token, password or auth header — not through a `--query`
-   projection, not by dumping a whole resource object that carries one
+   key, token, password or auth-header value (a header sourced from an
+   environment variable by name is wiring, and stays) — not through a
+   `--query` projection, not by dumping a whole resource object that
+   carries one
    (a backend's `show` command routinely does; the reference says which
    fields are credentials). The protocol is replayed verbatim by
    `/odd-verify` and its result is quoted into a committed report, so a
@@ -188,7 +190,9 @@ with its stored path:
    reference or env var name the configuration points at, a
    non-empty or redacted flag the backend exposes, the resource
    identity the secret binds to (a workspace id, an ingestion mode) —
-   never the value.
+   never the value; and a resource identity that carries a real
+   subscription, resource group, workspace or account name goes into
+   the report as an obviously fake placeholder, never the real one.
 
 ## Rules
 
