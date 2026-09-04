@@ -112,7 +112,17 @@ def odd_config_set(config: dict) -> dict:
     {"stack_config": {"azure-monitor": {"workspace": "<guid>"}}}.
     stack is one of: local (the local stack - the default), grafana (a
     REMOTE Grafana - the CLI context says which instance), azure-monitor,
-    cloudwatch, datadog, dynatrace, splunk. Switching to the local stack
+    cloudwatch, datadog, dynatrace, splunk - or a custom stack (a backend
+    the package does not ship, described by a stack file in the observed
+    repository) declared under custom in the same call or an earlier one:
+    {"stack": "seq", "custom": {"seq": {"stack_config_fields":
+    ["base_url"]}}}. A custom name is kebab-case, never a built-in one; its
+    declaration lists the stack_config fields the stack file names (an
+    empty list when it persists nothing), and a re-declaration replaces
+    the list. The server never reads the stack file - the caller derives
+    the declaration from it. Custom declarations survive a switch to a
+    built-in stack; {"custom": {"seq": null}} removes one (refused while
+    seq is the configured stack). Switching to the local stack
     is {"stack": "local"}. Changing a port while a stack container exists
     RESETS the stack immediately so the configuration is always applied:
     this WIPES all stored telemetry machine-wide (the result embeds the
@@ -137,8 +147,8 @@ def odd_config_set(config: dict) -> dict:
     name only. Each stack accepts only its own documented field set (e.g.
     azure-monitor: subscription, resource_group, workspace,
     app_insights_app; grafana/datadog/dynatrace/splunk: none, their CLI
-    context carries targeting) - an undocumented key is rejected, writing
-    nothing, EXCEPT as a null deletion, which is always accepted so a
+    context carries targeting; a custom stack: its declared list) - an
+    undocumented key is rejected, writing nothing, EXCEPT as a null deletion, which is always accepted so a
     stray key can still be cleaned up. local is the one exception: its
     keys are otel-lgtm container env var names, an open set. null deletes:
     {"stack_config": {"azure-monitor": {"workspace":

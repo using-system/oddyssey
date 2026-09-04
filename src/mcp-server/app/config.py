@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -51,6 +52,19 @@ STACK_CONFIG_FIELDS: dict[str, frozenset[str] | None] = {
     "splunk": frozenset(),
 }
 
+# A custom stack (issue #228) is a backend the package does not ship,
+# described by a stack file in the observed repository. The server never
+# reads that file: the caller passes its declaration - the stack name and
+# the stack_config fields the file names - and the server stores it under
+# "custom", keyed by stack, next to the built-in whitelist above. A name
+# outside STACKS is accepted only with a declaration; its stack_config is
+# validated against the declared list exactly like a built-in's. Names and
+# fields are kebab-case / snake_case identifiers - the shape a stack file's
+# frontmatter and a stack_config key already have.
+CUSTOM_NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+CUSTOM_FIELD_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+DECLARATION_KEYS = frozenset({"stack_config_fields"})
+
 DEFAULTS = {
     "stack": "local",
     "local": {
@@ -60,6 +74,7 @@ DEFAULTS = {
         "pyroscope_port": 4040,
     },
     "stack_config": {},
+    "custom": {},
 }
 
 
@@ -75,9 +90,33 @@ def _valid_config_value(value: object) -> bool:
     return isinstance(value, (str, int, float, bool))
 
 
-def _stack_config_key_allowed(stack_key: str, key: str) -> bool:
-    fields = STACK_CONFIG_FIELDS.get(stack_key)
-    return fields is None or key in fields
+def _valid_declaration(declaration: object) -> bool:
+    """A declaration is exactly {"stack_config_fields": [unique field names]}."""
+    if not isinstance(declaration, dict) or set(declaration) != DECLARATION_KEYS:
+        return False
+    fields = declaration["stack_config_fields"]
+    return (
+        isinstance(fields, list)
+        and all(isinstance(f, str) and CUSTOM_FIELD_RE.match(f) for f in fields)
+        and len(set(fields)) == len(fields)
+    )
+
+
+def _allowed_fields(
+    stack_key: str, custom: dict[str, dict]
+) -> frozenset[str] | None | bool:
+    """The field whitelist of a stack: None for an open set, False when
+    the stack is neither built-in nor declared."""
+    if stack_key in STACKS:
+        return STACK_CONFIG_FIELDS[stack_key]
+    if stack_key in custom:
+        return frozenset(custom[stack_key]["stack_config_fields"])
+    return False
+
+
+def _stack_config_key_allowed(stack_key: str, key: str, custom: dict) -> bool:
+    fields = _allowed_fields(stack_key, custom)
+    return fields is None or (fields is not False and key in fields)
 
 
 def load(path: Path | None = None) -> dict:
@@ -93,6 +132,7 @@ def load(path: Path | None = None) -> dict:
         "stack": DEFAULTS["stack"],
         "local": dict(DEFAULTS["local"]),
         "stack_config": {},
+        "custom": {},
     }
     invalid: list[str] = []
     try:
@@ -106,8 +146,29 @@ def load(path: Path | None = None) -> dict:
         effective["invalid_ignored"] = ["<file>"]
         return effective
 
+    # Declarations first: the stack and the stack_config entries below are
+    # read against them, so a broken declaration takes its stack down with
+    # it - flagged twice, once per dropped field, never silently.
+    raw_custom = stored.get("custom", {})
+    if isinstance(raw_custom, dict):
+        for name, declaration in raw_custom.items():
+            if (
+                isinstance(name, str)
+                and CUSTOM_NAME_RE.match(name)
+                and name not in STACKS
+                and _valid_declaration(declaration)
+            ):
+                effective["custom"][name] = {
+                    "stack_config_fields": list(declaration["stack_config_fields"])
+                }
+            else:
+                invalid.append(f"custom.{name}")
+    elif "custom" in stored:
+        invalid.append("custom")
+    custom = effective["custom"]
+
     stack = stored.get("stack", DEFAULTS["stack"])
-    if stack in STACKS:
+    if stack in STACKS or stack in custom:
         effective["stack"] = stack
     else:
         invalid.append("stack")
@@ -127,13 +188,15 @@ def load(path: Path | None = None) -> dict:
     raw_sc = stored.get("stack_config", {})
     if isinstance(raw_sc, dict):
         for stack_key, payload in raw_sc.items():
-            if stack_key not in STACKS or not isinstance(payload, dict):
+            if _allowed_fields(stack_key, custom) is False or not isinstance(
+                payload, dict
+            ):
                 invalid.append(f"stack_config.{stack_key}")
                 continue
             clean = {}
             for key, value in payload.items():
                 if _valid_config_value(value) and _stack_config_key_allowed(
-                    stack_key, key
+                    stack_key, key, custom
                 ):
                     clean[key] = value
                 else:
@@ -147,25 +210,74 @@ def load(path: Path | None = None) -> dict:
     return effective
 
 
+def _validate_custom(partial: dict, stored_custom: dict) -> dict:
+    """The declarations after this partial: stored ones, replaced by the
+    partial's, minus the null-deleted ones. Raises on a malformed partial."""
+    custom_partial = partial.get("custom", {})
+    if not isinstance(custom_partial, dict):
+        raise ValueError("custom must be an object keyed by stack name")  # noqa: TRY004
+    effective = {name: dict(decl) for name, decl in stored_custom.items()}
+    for name, declaration in custom_partial.items():
+        if not isinstance(name, str) or not CUSTOM_NAME_RE.match(name):
+            raise ValueError(
+                f"custom stack names are kebab-case identifiers"
+                f" (^[a-z][a-z0-9-]*$), got {name!r}"
+            )
+        if name in STACKS:
+            raise ValueError(
+                f"custom.{name}: {name!r} is a built-in stack and cannot be redeclared"
+            )
+        if declaration is None:
+            # The deletion marker, as everywhere else in this file.
+            effective.pop(name, None)
+            continue
+        if not _valid_declaration(declaration):
+            raise ValueError(
+                f'custom.{name} must be {{"stack_config_fields": [...]}} - a list'
+                f" of unique snake_case field names, got {declaration!r}"
+            )
+        effective[name] = {
+            "stack_config_fields": list(declaration["stack_config_fields"])
+        }
+    return effective
+
+
 def save(partial: dict, path: Path | None = None) -> dict:
     """Validated deep-merge into the stored file; a rejected partial writes nothing.
 
     Strict where load is tolerant: the caller is a tool, not a hand
     edit, so a clear error beats a silent fallback. The merged EFFECTIVE
     ports are validated together, so a partial cannot collide with a
-    stored or default port. Inside stack_config, None is the deletion
-    marker (issue #112): a null stack entry removes that entry, a null
-    key value removes that key - the only non-scalar the strict gate
+    stored or default port. Inside stack_config and custom, None is the
+    deletion marker (issue #112): a null stack entry removes that entry, a
+    null key value removes that key - the only non-scalar the strict gate
     accepts. Atomic write (temp + os.replace) so a concurrent MCP server
     never reads a half-written file.
     """
     target = CONFIG_PATH if path is None else path
-    unknown = set(partial) - {"stack", "local", "stack_config"}
+    unknown = set(partial) - {"stack", "local", "stack_config", "custom"}
     if unknown:
         raise ValueError(f"unknown configuration keys: {sorted(unknown)}")
-    if "stack" in partial and partial["stack"] not in STACKS:
+
+    before = load(target)
+    custom = _validate_custom(partial, before["custom"])
+    effective_stack = partial.get("stack", before["stack"])
+    removed = {name for name, decl in partial.get("custom", {}).items() if decl is None}
+    if effective_stack in removed:
         raise ValueError(
-            f"stack must be one of {list(STACKS)}, got {partial['stack']!r}"
+            f"custom.{effective_stack} cannot be removed while it is the"
+            " configured stack - switch to another stack first, or in the"
+            " same call"
+        )
+    if (
+        "stack" in partial
+        and effective_stack not in STACKS
+        and effective_stack not in custom
+    ):
+        raise ValueError(
+            f"stack must be one of {list(STACKS)} or a declared custom stack"
+            f' (pass custom: {{"<name>": {{"stack_config_fields": [...]}}}}),'
+            f" got {partial['stack']!r}"
         )
     local_partial = partial.get("local", {})
     if not isinstance(local_partial, dict):
@@ -183,14 +295,18 @@ def save(partial: dict, path: Path | None = None) -> dict:
     if not isinstance(sc_partial, dict):
         raise ValueError("stack_config must be an object keyed by stack")  # noqa: TRY004
     for stack_key, payload in sc_partial.items():
-        if stack_key not in STACKS:
-            raise ValueError(
-                f"stack_config keys must be one of {list(STACKS)}, got {stack_key!r}"
-            )
         # None is the deletion marker (issue #112): a null entry removes
-        # the stack's whole entry, a null key value removes that key.
+        # the stack's whole entry, a null key value removes that key. The
+        # entry deletion is accepted for any name - it is how the values
+        # of a removed custom declaration get cleaned up (#228).
         if payload is None:
             continue
+        allowed = _allowed_fields(stack_key, custom)
+        if allowed is False:
+            raise ValueError(
+                f"stack_config keys must be one of {list(STACKS)} or a declared"
+                f" custom stack, got {stack_key!r}"
+            )
         if not isinstance(payload, dict):
             raise ValueError(  # noqa: TRY004
                 f"stack_config.{stack_key} must be an object of scalar values"
@@ -207,8 +323,7 @@ def save(partial: dict, path: Path | None = None) -> dict:
                     f"stack_config.{stack_key}.{key} must be a string, number,"
                     f" boolean, or null to delete the key, got {value!r}"
                 )
-            if not _stack_config_key_allowed(stack_key, key):
-                allowed = STACK_CONFIG_FIELDS[stack_key]
+            if not _stack_config_key_allowed(stack_key, key, custom):
                 if allowed:
                     raise ValueError(
                         f"stack_config.{stack_key} accepts only "
@@ -219,7 +334,7 @@ def save(partial: dict, path: Path | None = None) -> dict:
                     f" got unknown key {key!r}"
                 )
 
-    effective_local = {**load(target)["local"], **local_partial}
+    effective_local = {**before["local"], **local_partial}
     if len(set(effective_local.values())) != len(effective_local):
         raise ValueError(f"ports must be pairwise distinct, got {effective_local}")
 
@@ -237,6 +352,17 @@ def save(partial: dict, path: Path | None = None) -> dict:
             **(stored_local if isinstance(stored_local, dict) else {}),
             **local_partial,
         }
+    custom_partial = partial.get("custom", {})
+    if custom_partial:
+        stored_custom = stored.get("custom")
+        stored_custom = stored_custom if isinstance(stored_custom, dict) else {}
+        for name, declaration in custom_partial.items():
+            if declaration is None:
+                stored_custom.pop(name, None)
+            else:
+                # A re-declaration replaces the list: the file changed.
+                stored_custom[name] = custom[name]
+        stored["custom"] = stored_custom
     if sc_partial:
         stored_sc = stored.get("stack_config")
         stored_sc = stored_sc if isinstance(stored_sc, dict) else {}

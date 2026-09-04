@@ -18,6 +18,7 @@ def test_load_returns_defaults_when_file_is_missing(tmp_path):
             "pyroscope_port": 4040,
         },
         "stack_config": {},
+        "custom": {},
     }
 
 
@@ -439,3 +440,261 @@ def test_load_allows_arbitrary_keys_for_the_local_stack(tmp_path):
     result = config.load(path)
     assert result["stack_config"] == {"local": {"ENABLE_LOGS_GRAFANA": "true"}}
     assert "invalid_ignored" not in result
+
+
+# --- Custom stacks (issue #228): a stack declared by the caller ---------
+
+
+def _declare(name="seq", fields=("base_url",)):
+    return {"custom": {name: {"stack_config_fields": list(fields)}}}
+
+
+def test_load_returns_empty_custom_by_default(tmp_path):
+    assert config.load(tmp_path / "config.json")["custom"] == {}
+
+
+def test_save_accepts_a_custom_stack_declared_in_the_same_call(tmp_path):
+    path = tmp_path / "config.json"
+    result = config.save({"stack": "seq", **_declare()}, path)
+    assert result["stack"] == "seq"
+    assert result["custom"] == {"seq": {"stack_config_fields": ["base_url"]}}
+    assert "invalid_ignored" not in result
+    assert json.loads(path.read_text())["stack"] == "seq"
+
+
+def test_save_accepts_a_custom_stack_declared_earlier(tmp_path):
+    path = tmp_path / "config.json"
+    config.save(_declare(), path)
+    result = config.save({"stack": "seq"}, path)
+    assert result["stack"] == "seq"
+
+
+def test_save_rejects_an_undeclared_custom_stack_and_writes_nothing(tmp_path):
+    # Without a declaration the door stays closed exactly as before: the
+    # error names the built-in list, and now says how a custom stack gets in.
+    path = tmp_path / "config.json"
+    with pytest.raises(ValueError, match="must be one of .* or a declared custom"):
+        config.save({"stack": "seq"}, path)
+    assert not path.exists()
+
+
+@pytest.mark.parametrize("name", ["local", "grafana", "azure-monitor"])
+def test_save_rejects_redeclaring_a_builtin_stack(tmp_path, name):
+    path = tmp_path / "config.json"
+    with pytest.raises(ValueError, match="built-in"):
+        config.save(_declare(name), path)
+    assert not path.exists()
+
+
+@pytest.mark.parametrize("name", ["Seq", "seq_prod", "-seq", "1seq", "seq.md", ""])
+def test_save_rejects_a_badly_shaped_custom_name(tmp_path, name):
+    path = tmp_path / "config.json"
+    with pytest.raises(ValueError, match="kebab-case"):
+        config.save(_declare(name), path)
+    assert not path.exists()
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        "base_url",
+        [],
+        {"fields": ["base_url"]},
+        {"stack_config_fields": "base_url"},
+        {"stack_config_fields": ["base_url", 3]},
+        {"stack_config_fields": ["Base-URL"]},
+        {"stack_config_fields": ["base_url", "base_url"]},
+        {"stack_config_fields": ["base_url"], "extra": True},
+    ],
+)
+def test_save_rejects_a_malformed_declaration(tmp_path, declaration):
+    path = tmp_path / "config.json"
+    with pytest.raises(ValueError, match="custom.seq"):
+        config.save({"custom": {"seq": declaration}}, path)
+    assert not path.exists()
+
+
+def test_save_accepts_an_empty_field_list(tmp_path):
+    # A custom stack whose query surface carries its own targeting (a CLI
+    # context) persists nothing, like the context-bearing built-ins.
+    path = tmp_path / "config.json"
+    result = config.save(_declare(fields=()), path)
+    assert result["custom"] == {"seq": {"stack_config_fields": []}}
+    with pytest.raises(ValueError, match="does not persist any fields"):
+        config.save({"stack_config": {"seq": {"base_url": "x"}}}, path)
+
+
+def test_save_validates_custom_stack_config_against_the_declaration(tmp_path):
+    path = tmp_path / "config.json"
+    config.save(_declare(fields=("base_url", "workspace")), path)
+    result = config.save(
+        {"stack_config": {"seq": {"base_url": "http://seq.example.test:5341"}}},
+        path,
+    )
+    assert result["stack_config"] == {
+        "seq": {"base_url": "http://seq.example.test:5341"}
+    }
+    with pytest.raises(ValueError, match=r"accepts only \['base_url', 'workspace'\]"):
+        config.save({"stack_config": {"seq": {"api_key": "not-a-secret"}}}, path)
+    assert "api_key" not in path.read_text()
+
+
+def test_save_rejects_stack_config_for_an_undeclared_custom_stack(tmp_path):
+    path = tmp_path / "config.json"
+    with pytest.raises(ValueError, match="stack_config keys must be one of"):
+        config.save({"stack_config": {"seq": {"base_url": "x"}}}, path)
+    assert not path.exists()
+
+
+def test_save_declaration_and_stack_config_land_in_one_call(tmp_path):
+    # The switch's write: declaration, switch and targeting values together.
+    path = tmp_path / "config.json"
+    result = config.save(
+        {
+            "stack": "seq",
+            **_declare(),
+            "stack_config": {"seq": {"base_url": "http://seq.example.test:5341"}},
+        },
+        path,
+    )
+    assert result["stack"] == "seq"
+    assert result["stack_config"]["seq"] == {"base_url": "http://seq.example.test:5341"}
+
+
+def test_custom_stack_survives_a_switch_to_a_builtin_and_back(tmp_path):
+    path = tmp_path / "config.json"
+    config.save(
+        {"stack": "seq", **_declare(), "stack_config": {"seq": {"base_url": "u"}}},
+        path,
+    )
+    config.save({"stack": "local"}, path)
+    after = config.load(path)
+    assert after["stack"] == "local"
+    assert after["custom"] == {"seq": {"stack_config_fields": ["base_url"]}}
+    assert after["stack_config"]["seq"] == {"base_url": "u"}
+    assert config.save({"stack": "seq"}, path)["stack"] == "seq"
+
+
+def test_save_redeclaring_replaces_the_field_list(tmp_path):
+    # The file changed its declaration; the switch passes the new list and
+    # the old one is gone - a value under a dropped field is now ignored.
+    path = tmp_path / "config.json"
+    config.save({**_declare(), "stack_config": {"seq": {"base_url": "u"}}}, path)
+    result = config.save(_declare(fields=("workspace",)), path)
+    assert result["custom"] == {"seq": {"stack_config_fields": ["workspace"]}}
+    assert result["stack_config"]["seq"] == {}
+    assert result["invalid_ignored"] == ["stack_config.seq.base_url"]
+
+
+def test_save_null_removes_a_declaration_and_keeps_its_values(tmp_path):
+    path = tmp_path / "config.json"
+    config.save({**_declare(), "stack_config": {"seq": {"base_url": "u"}}}, path)
+    result = config.save({"custom": {"seq": None}}, path)
+    assert result["custom"] == {}
+    # The values stay in the file for a later re-declaration; without one
+    # they read as an unknown stack's entry, flagged, never surfaced.
+    assert json.loads(path.read_text())["stack_config"]["seq"] == {"base_url": "u"}
+    assert result["invalid_ignored"] == ["stack_config.seq"]
+    assert result["custom"] == {}
+
+
+def test_save_null_entry_cleans_up_the_values_of_an_undeclared_stack(tmp_path):
+    # The declaration is gone (or never existed on this machine) and the
+    # values linger, flagged: the null entry is the tool-surface cleanup,
+    # accepted for any name, in the same call as the removal or later.
+    path = tmp_path / "config.json"
+    config.save({**_declare(), "stack_config": {"seq": {"base_url": "u"}}}, path)
+    result = config.save({"custom": {"seq": None}, "stack_config": {"seq": None}}, path)
+    assert result["custom"] == {}
+    assert result["stack_config"] == {}
+    assert "invalid_ignored" not in result
+    assert "seq" not in path.read_text()
+
+
+def test_save_refuses_removing_the_declaration_of_the_configured_stack(tmp_path):
+    path = tmp_path / "config.json"
+    config.save({"stack": "seq", **_declare()}, path)
+    with pytest.raises(ValueError, match="configured stack"):
+        config.save({"custom": {"seq": None}}, path)
+    assert config.load(path)["custom"] == {"seq": {"stack_config_fields": ["base_url"]}}
+    # Switching away in the same call is the one way to remove it at once.
+    result = config.save({"stack": "local", "custom": {"seq": None}}, path)
+    assert result["stack"] == "local"
+    assert result["custom"] == {}
+
+
+def test_save_rejects_switching_to_a_stack_removed_in_the_same_call(tmp_path):
+    path = tmp_path / "config.json"
+    config.save(_declare(), path)
+    with pytest.raises(ValueError, match="configured stack"):
+        config.save({"stack": "seq", "custom": {"seq": None}}, path)
+
+
+def test_save_removing_an_absent_declaration_is_harmless(tmp_path):
+    path = tmp_path / "config.json"
+    result = config.save({"custom": {"seq": None}}, path)
+    assert result["custom"] == {}
+    assert "invalid_ignored" not in result
+
+
+def test_save_rejects_a_non_dict_custom(tmp_path):
+    path = tmp_path / "config.json"
+    with pytest.raises(ValueError, match="custom must be an object"):
+        config.save({"custom": ["seq"]}, path)
+    assert not path.exists()
+
+
+def test_load_tolerates_a_malformed_stored_declaration(tmp_path):
+    # A hand edit broke the declaration: the stack it declared falls back
+    # to the default like any invalid stored stack, its stack_config entry
+    # is dropped like an unknown stack's, and every drop is listed.
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps(
+            {
+                "stack": "seq",
+                "custom": {
+                    "seq": {"stack_config_fields": "base_url"},
+                    "local": {"stack_config_fields": []},
+                    "uptrace": {"stack_config_fields": ["dsn_name"]},
+                },
+                "stack_config": {
+                    "seq": {"base_url": "u"},
+                    "uptrace": {"dsn_name": "d"},
+                },
+            }
+        )
+    )
+    result = config.load(path)
+    assert result["stack"] == "local"
+    assert result["custom"] == {"uptrace": {"stack_config_fields": ["dsn_name"]}}
+    assert result["stack_config"] == {"uptrace": {"dsn_name": "d"}}
+    assert result["invalid_ignored"] == [
+        "custom.seq",
+        "custom.local",
+        "stack",
+        "stack_config.seq",
+    ]
+
+
+def test_load_tolerates_a_non_dict_custom(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"custom": ["seq"]}))
+    result = config.load(path)
+    assert result["custom"] == {}
+    assert result["invalid_ignored"] == ["custom"]
+
+
+def test_load_flags_an_undeclared_key_of_a_custom_stack(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps(
+            {
+                "custom": {"seq": {"stack_config_fields": ["base_url"]}},
+                "stack_config": {"seq": {"base_url": "u", "api_key": "k"}},
+            }
+        )
+    )
+    result = config.load(path)
+    assert result["stack_config"] == {"seq": {"base_url": "u"}}
+    assert result["invalid_ignored"] == ["stack_config.seq.api_key"]
