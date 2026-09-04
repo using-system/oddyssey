@@ -164,7 +164,8 @@ frontmatters alone.
   re-measure, and instrumentation variants).
 - **No secrets, ever.** No tokens, credentials, connection strings, or
   real tenant, workspace, or account identifiers — placeholders and
-  variable names only.
+  variable names only. A verification check whose query would return
+  one on replay counts as a secret in the report.
 
 These rules cover the report stores and `.odd/decisions.md`.
 `.odd/benchmarks/` is living source, updated through reviewed diffs —

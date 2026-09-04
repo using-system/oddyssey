@@ -176,7 +176,19 @@ with its stored path:
    sharing the service name — a healthcheck inheriting the profiler
    env, a co-resident instance — is not replayable evidence. Plan the
    per-run tag in section 3's configuration block so the verify can
-   set it.
+   set it. **A check never projects a credential.** Its query and its
+   expected outcome name no connection string, instrumentation or API
+   key, token, password or auth header — not through a `--query`
+   projection, not by dumping a whole resource object that carries one
+   (a backend's `show` command routinely does; the reference says which
+   fields are credentials). The protocol is replayed verbatim by
+   `/odd-verify` and its result is quoted into a committed report, so a
+   projected credential is a leak deferred to the first replay. A check
+   that must prove a secret is wired proves the **wiring**: the secret
+   reference or env var name the configuration points at, a
+   non-empty or redacted flag the backend exposes, the resource
+   identity the secret binds to (a workspace id, an ingestion mode) —
+   never the value.
 
 ## Rules
 
@@ -206,7 +218,9 @@ with its stored path:
   `OTEL_EXPORTER_OTLP_HEADERS`, sourced from the environment's secret
   mechanism (Kubernetes Secret, CI variable, a `.env` kept out of version
   control). The report shows the variable name, never a value, and flags
-  any credential found committed in the repository.
+  any credential found committed in the repository. The verification
+  protocol follows the same rule for its checks (section 5): a query
+  that would return a credential is not a replayable check.
 - Recommend OTLP export only (vendor-neutral): switching backends — local
   Grafana stack, Datadog, Dynatrace, Azure Monitor, ... — must be a
   configuration change, never a code change.
