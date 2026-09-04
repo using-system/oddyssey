@@ -285,6 +285,7 @@ More invocation examples for every prompt live in
   skill: Datadog ([Pup](https://github.com/DataDog/pup)), Dynatrace
   ([dtctl](https://github.com/dynatrace-oss/dtctl)), Azure Monitor
   (`az`), AWS CloudWatch/X-Ray (`aws`), Splunk (`splunk`).
+- **`python3`** — the package's skills run their scripts with it.
 - **[k6](https://grafana.com/docs/k6/latest/set-up/install-k6/)** —
   needed to author a benchmark and to run one: `/odd-instrument-bench`
   validates the script it writes with `k6 inspect` and one smoke

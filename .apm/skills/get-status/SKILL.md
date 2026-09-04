@@ -36,6 +36,93 @@ not advance it. The one write in the status surface belongs to the
 `record-finding-decision` skill. The status renders in the conversation,
 as tables — never a committed artifact.
 
+## Compute the facts first, then reason
+
+Every deterministic input of the build order below — the frontmatters,
+each report's commit boundary, the tree-anchor comparison, the commits
+that landed since, the lifted tables, the ledger cross-reference — is
+computed by the script bundled with this skill, in **one shell call**,
+before any reasoning starts:
+
+```bash
+python3 <this skill's directory>/scripts/odd_status.py \
+  [--service <name>]... [--stack <stack>] [--env <environment>]
+```
+
+Pass the caller's scope as flags — the service name(s) exactly as
+named, the stack, the environment; nothing when the caller named
+nothing. The script prints one JSON fact sheet on stdout:
+
+- `loop_started`, `inventory` (the distinct services, stacks, and
+  environments across every stored report) and `matched` — enough to
+  answer with step 1's stop, or with the filter-matches-nothing
+  statement, without opening a file;
+- one entry per matched report: its frontmatter and
+  `frontmatter_errors`; its `commit` (the commit that added the file)
+  and whether its `revision` resolves in this clone; its
+  `tree_anchor_diff` against HEAD — `unchanged` (a count),
+  `non_runtime` (documentation files and editor/CI configuration only,
+  plus what `--non-runtime` names; `--runtime` keeps an entry out of
+  it whatever its name), `unclassified`, `only_in_anchor`,
+  `only_at_candidate`, `.odd` ignored, and `changed_paths`, the files
+  behind each differing entry when the revision resolves (a complete
+  `count`, a capped list of `paths`); its
+  `commits_since` — `boundary` is `revision` when it resolves,
+  `commit-date` otherwise (the report's own commit then left out), or
+  `none` for an uncommitted report (then `count` is null and means
+  nothing) — with memory-only commits excluded, the scope narrowed to
+  an instrumentation report's
+  `project` path when that path exists, a complete `count`, and a
+  capped list where each commit names the top-level `entries` it
+  touched, so a documentation-only commit is told from a fix without
+  another git call; the `benchmarks` its body names, each with the
+  section naming it and the commits that touched it (the one the
+  scenario record names is the run's; a mention elsewhere is not);
+  its opening paragraph as `headline`, its `**Verdict` paragraphs, the
+  `scenario_record` lifted from section 1 (its own, shorter cap), its
+  `finding_ids` (section 3's first column — on a verification that
+  column names checks, so read it as what the table lists, not as the
+  report's findings), and its numbered sections with their tables
+  (sections 2, 3, and 5 by default, plus 7 on a `verify` or
+  `re-measure` report, whose rulings may sit in its protocol table)
+  and prose (3 and 5 by default);
+- a `detail` level per report. The newest three reports of each
+  lineage — one service set on one stack and environment, or one
+  instrumentation `project` on one stack — are `full`; the older ones
+  are `compact`: no sections, no scenario record, `commits` null (the
+  `count` stays), headline and verdict paragraphs cut at 300
+  characters. Every report, whatever its detail, keeps its
+  `findings` — id, title, severity, ruling, and the `section` the row
+  came from: section 3's rows always, and on a `verify` or
+  `re-measure` report every row of a table carrying a ruling column,
+  wherever it sits — so the ledger and the burn-down read from the
+  compact entries too. `--recent <n>` widens the window, `--recent
+  all` lifts everything, and a scope (`--service`, `--stack`, `--env`)
+  shrinks the set the window applies to;
+- the `ledger`: every row with its `status` (`ok`, or `skipped` with
+  the reason — wrong column count, malformed reference, unknown report,
+  unknown finding, the finding checked against the report's uncapped
+  section 3), and `effective`, the latest `ok` row per finding key.
+
+The script computes facts and rules on nothing: the chain, the
+comparability of runs, what an `unclassified` tree entry means, and
+the recommendation stay with the steps below. Read the sheet as the
+inventory and as the material of every step; open a report body only
+when the sheet flags a truncation (`text_truncated`, `truncated_cells`,
+`scenario_record_truncated`, `truncated` commits, a `…` ending a
+compact paragraph) on something a step needs, or when a step needs a
+section the sheet did not lift — for a `compact` report, re-run the
+script scoped to its lineage with a wider `--recent` before opening
+its body — and run a git command of your own only when the sheet
+leaves a boundary uncertain. `--help` lists the caps and the lift
+options and how to
+change them.
+
+When `python3` is missing, the script is not next to this file (an
+install that dropped `scripts/`), or it exits non-zero, say so in one
+line and build the status by hand, exactly as the steps below describe
+— the script is a shortcut to the same facts, never a different status.
+
 ## Build the status in this order
 
 1. **Inventory — frontmatters only.** List both directories and read

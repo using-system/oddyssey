@@ -56,6 +56,10 @@ the paths touched (commands and pins are owned by
   (`uvx ruff@0.16.4 check` / `format --check` on `src/mcp-server tests/mcp-server`),
   and the integration tests too when Docker is available
   (`bash integration-tests/mcp-server/run.sh`).
+- `.apm/skills/*/scripts/` or `tests/skills/` changed → CI lints and
+  tests the skill scripts: `uvx ruff@0.16.4 check` / `format --check`
+  on `.apm/skills/*/scripts tests/skills`, and
+  `uv run --no-project --with pytest pytest tests/skills -v`.
 - `.apm/` or `apm.yml` changed → validate the package like CI does:
   `uvx --from apm-cli==0.28.0 apm install --target claude && uvx --from apm-cli==0.28.0 apm audit`.
   The install deploys the package into the working tree and edits
@@ -80,6 +84,9 @@ existing suites (above) is not enough:
 - A server change shipping without a matching test change states why
   in the PR (legitimate cases exist: a pure refactor, error-message
   wording — a wire-surface change is never one).
+- A script bundled with a skill (`.apm/skills/*/scripts/`) follows the
+  same rule: its tests live in `tests/skills/`, test-first, and CI
+  runs them (see above).
 
 ## The MCP server's three hard constraints
 
