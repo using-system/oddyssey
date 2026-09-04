@@ -97,7 +97,7 @@ def _valid_declaration(declaration: object) -> bool:
     fields = declaration["stack_config_fields"]
     return (
         isinstance(fields, list)
-        and all(isinstance(f, str) and CUSTOM_FIELD_RE.match(f) for f in fields)
+        and all(isinstance(f, str) and CUSTOM_FIELD_RE.fullmatch(f) for f in fields)
         and len(set(fields)) == len(fields)
     )
 
@@ -154,7 +154,7 @@ def load(path: Path | None = None) -> dict:
         for name, declaration in raw_custom.items():
             if (
                 isinstance(name, str)
-                and CUSTOM_NAME_RE.match(name)
+                and CUSTOM_NAME_RE.fullmatch(name)
                 and name not in STACKS
                 and _valid_declaration(declaration)
             ):
@@ -218,7 +218,7 @@ def _validate_custom(partial: dict, stored_custom: dict) -> dict:
         raise ValueError("custom must be an object keyed by stack name")  # noqa: TRY004
     effective = {name: dict(decl) for name, decl in stored_custom.items()}
     for name, declaration in custom_partial.items():
-        if not isinstance(name, str) or not CUSTOM_NAME_RE.match(name):
+        if not isinstance(name, str) or not CUSTOM_NAME_RE.fullmatch(name):
             raise ValueError(
                 f"custom stack names are kebab-case identifiers"
                 f" (^[a-z][a-z0-9-]*$), got {name!r}"

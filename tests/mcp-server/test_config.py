@@ -486,7 +486,9 @@ def test_save_rejects_redeclaring_a_builtin_stack(tmp_path, name):
     assert not path.exists()
 
 
-@pytest.mark.parametrize("name", ["Seq", "seq_prod", "-seq", "1seq", "seq.md", ""])
+@pytest.mark.parametrize(
+    "name", ["Seq", "seq_prod", "-seq", "1seq", "seq.md", "", "seq\n"]
+)
 def test_save_rejects_a_badly_shaped_custom_name(tmp_path, name):
     path = tmp_path / "config.json"
     with pytest.raises(ValueError, match="kebab-case"):
@@ -503,6 +505,7 @@ def test_save_rejects_a_badly_shaped_custom_name(tmp_path, name):
         {"stack_config_fields": "base_url"},
         {"stack_config_fields": ["base_url", 3]},
         {"stack_config_fields": ["Base-URL"]},
+        {"stack_config_fields": ["base_url\n"]},
         {"stack_config_fields": ["base_url", "base_url"]},
         {"stack_config_fields": ["base_url"], "extra": True},
     ],

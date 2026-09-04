@@ -122,7 +122,11 @@ def odd_config_set(config: dict) -> dict:
     the list. The server never reads the stack file - the caller derives
     the declaration from it. Custom declarations survive a switch to a
     built-in stack; {"custom": {"seq": null}} removes one (refused while
-    seq is the configured stack). Switching to the local stack
+    seq is the configured stack, unless the same call switches away).
+    Removing a declaration keeps its stack_config values - a later
+    re-declaration finds them again - and until then odd_config_get lists
+    them as invalid_ignored; {"stack_config": {"seq": null}} clears them.
+    Switching to the local stack
     is {"stack": "local"}. Changing a port while a stack container exists
     RESETS the stack immediately so the configuration is always applied:
     this WIPES all stored telemetry machine-wide (the result embeds the
