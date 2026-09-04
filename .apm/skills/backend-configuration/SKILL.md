@@ -32,15 +32,16 @@ is the content.
 
 **Read by section, never the whole file.** A reference runs a few
 hundred lines, and this skill needs the four sections the reference
-contract reserves for it: `## CLI binary` (Detect and Install),
+contract reserves for it — `## CLI binary` (Detect and Install) and
 `## Configuration display` (what to show, the connection proof, the
-change-request phrasings), `## What to persist` (the `stack_config`
-write), and `## Setup` only when there is something to guide. When a
-section routes to another file or skill ("read that section", "the
-method is X's"), read the routed **section**, never the file around it.
-Every other section of the reference — the query surface, output
-reading, targeting and planning notes — is the agent's, read once, by
-the agent, after dispatch — never here.
+change-request phrasings) in both halves, `## What to persist` (the
+`stack_config` write) only in `## Switch`, and `## Setup` only when
+there is something to guide. When a section routes to another file or
+skill ("read that section", "the method is X's"), read the routed
+**section**, never the file around it. Every other section of the
+reference — the query surface, output reading, targeting and planning
+notes — is the agent's, read once, by the agent, after dispatch — never
+here.
 
 A reference may say that another skill owns the whole method for its
 stack (the default stack's does — the skill it names carries the CLI

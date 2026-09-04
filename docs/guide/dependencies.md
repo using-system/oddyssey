@@ -193,7 +193,6 @@ flowchart LR
   bc -.-> sls
   bc --> ocg
   bc --> cfgget
-  bc --> stack
   ocg -.-> sls
   sls --> cfgget
   sls --> stack
@@ -278,7 +277,6 @@ flowchart LR
   bc -.-> sls
   bc --> ocg
   bc --> cfgget
-  bc --> stack
   ocg -.-> sls
   sls --> cfgget
   sls --> stack
@@ -383,7 +381,6 @@ flowchart LR
 
   bc -.-> sls
   bc --> cfgget
-  bc --> stack
   ocg -.-> sls
   sls --> cfgget
   sls --> stack
@@ -436,7 +433,7 @@ each other.
 | [`odd-memory`](../../.apm/skills/odd-memory/SKILL.md) | The `.odd/` memory: the contract every kind shares, and one reference per kind - observation reports, instrumentation reports, the finding-decision ledger, benchmarks - saying how to persist, recall and show it; owns the four stores | Nothing - read by the three agents at persist and recall time, by the prompts at show time, by `get-status`; never invoked on its own |
 | [`observability-cli-guides`](../../.apm/skills/observability-cli-guides/SKILL.md) | One reference per stack - query surface, configuration display, what to persist - plus the built-in stack list: the local stack, Grafana (gcx), Datadog (Pup), Dynatrace (dtctl), Azure Monitor (az), CloudWatch (aws), Splunk | Routes the local-stack case to `setup-local-stack` |
 | [`setup-local-stack`](../../.apm/skills/setup-local-stack/SKILL.md) | Configure gcx against the local stack without touching the user's contexts, with the datasource UIDs and the push-model caveats | `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset` |
-| [`backend-configuration`](../../.apm/skills/backend-configuration/SKILL.md) | The configured backend, in two sections: `## Check` displays the configured stack's CLI context, proves it connected, guides the setup and hands the preflight over to the mission; `## Switch` owns the change - CLI presence with a guided install offer, the switch and the per-stack `stack_config` values persisted, then `## Check` for the proof | `observability-cli-guides` (`builtin-stacks.md`, the stack's four preflight sections); `odd_config_get`, `odd_config_set`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset`; routes to `setup-local-stack` for the local stack |
+| [`backend-configuration`](../../.apm/skills/backend-configuration/SKILL.md) | The configured backend, in two sections: `## Check` displays the configured stack's CLI context, proves it connected, guides the setup and hands the preflight over to the mission; `## Switch` owns the change - CLI presence with a guided install offer, the switch and the per-stack `stack_config` values persisted, then `## Check` for the proof | `observability-cli-guides` (`builtin-stacks.md`, the stack's four preflight sections); `odd_config_get`, `odd_config_set`; routes to `setup-local-stack` for the local stack |
 | [`run-scenario`](../../.apm/skills/run-scenario/SKILL.md) | Drive a reproducible request scenario - ad-hoc requests or a stored benchmark - and record it verbatim for the replay | `k6-guides` (`running-tests.md`, `install.md`); reads `.odd/benchmarks/<name>/` (never writes there); orders the clean-base sequence around `odd_stack_reset` and follows `setup-local-stack` |
 | [`get-status`](../../.apm/skills/get-status/SKILL.md) | Render the state of the ODD loop from the committed `.odd/` history and git alone, read-only | `odd-memory`; reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`, and `.odd/decisions.md` (under `odd-memory`'s `decisions` reference); recommends `/odd-instrument-otel` or `/odd-observe` |
 
