@@ -570,7 +570,13 @@ from your reply, without re-reading the file:
   home-directory paths: the report names them by an obviously fake
   placeholder, never by the real value a preflight or a tool result
   showed for one of those — ports, URLs on `localhost`, service and
-  operation names stay the evidence they are.
+  operation names stay the evidence they are. When a **replayed
+  protocol query** projects a credential-bearing field (a connection
+  string, a key, a token, an auth-header value — the reference names
+  them), never run it as written: drop the field, rule the check on
+  the non-secret fields the same query returns, and say so in the
+  ruling and in section 1's run record — the protocol's defect is a
+  finding against the baseline, never a value in your report.
 - Every anomaly is either cross-confirmed in a second signal or explicitly
   labeled single-signal.
 - The depth bounds how far you look, never how honestly you report:

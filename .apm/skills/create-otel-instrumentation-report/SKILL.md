@@ -83,7 +83,21 @@ Before a new investigation, load what is already known:
 
 - **Never write secrets into a report**: no tokens, credentials, or
   connection strings — these files are made to be committed and shared.
-  Refer to access material by variable or secret name only.
+  Refer to access material by variable or secret name only. The same
+  for **real identifiers** that carry no access on their own: tenant,
+  workspace, subscription, resource-group or site names and GUIDs,
+  account or login names, home-directory paths — anything that
+  identifies a real customer, tenant or environment; a live CLI
+  excerpt (a component's `show` output, a resource id) is the likeliest
+  source, and every such value lands in the file as an obviously fake
+  placeholder. The rule reaches the **verification protocol's
+  checks**: a check whose query projects a credential-bearing field (a
+  connection string, a key, a token, an auth-header value) or whose
+  expected outcome is one is a leak deferred, not avoided —
+  `/odd-verify` replays the query verbatim and quotes its result into
+  a committed report. A check proves a secret is wired by naming the
+  wiring (a secret reference, an env var name, a redacted flag, the
+  resource identity it binds to), never the value.
 - One investigation, one file: never edit a previous report to "update"
   it — a new investigation writes a new file.
 - Write the file exactly where the contract says: the report belongs to

@@ -233,7 +233,10 @@ Then build the mission block from that report:
   the run supplies its own (the service driven with the run slug and
   the profiler tag) and the report says the protocol predated the
   rule. An empty result follows the same query-suspect rule as
-  below: prove the query sound before ruling "still missing";
+  below: prove the query sound before ruling "still missing". A
+  protocol query that projects a credential-bearing field is replayed
+  without that field and ruled on what remains, and the ruling says
+  so (the agent's rule) - the value never reaches the report;
 - focus, **observation baseline** (today's behavior, unchanged): verify
   everything the report recorded - replay its recorded scenario
   verbatim when it has one (otherwise observe a comparable window in
