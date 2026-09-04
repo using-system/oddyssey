@@ -476,7 +476,18 @@ Then go from aggregates to explanations:
   the run slug and the profiler tag (`run-scenario` step 0) and rule
   on that identity; only a signal you cannot tie to a process you
   launched is `present, unattributed`, and section 1 says the protocol
-  predated the rule.
+  predated the rule. When the run launched nothing (a remote target),
+  the **header-borne identity** `run-scenario` step 0 prescribes — the
+  run's User-Agent on the rows, the trace-id prefix with its run part —
+  is identity evidence in its own right: a row carrying it was driven
+  by this run, and the instance is the one those rows name. Two
+  cautions come with it: a trace id shared by two instances or two
+  User-Agents is a **colliding replay identity** (a baseline whose
+  ids carried no run part), a query-suspect signal to state in
+  section 1 and rule around by User-Agent and window — never a finding
+  about the service; and the synthetic traces are rootless, so a
+  latency number reads from the User-Agent identity, never from a
+  trace's root span.
   With no recalled report either,
   compare within the run: p99 against p50 per operation, an endpoint
   against its siblings, the first half of the window against the second.
