@@ -72,7 +72,7 @@ the report.
   generates the traffic, the benchmark says which stored plan is
   running:
   - **drive** + benchmark: you run it yourself, through `run-scenario`'s
-    stored-benchmark step (its section 6) instead of inventing ad-hoc
+    stored-benchmark reference (`benchmark-replay.md`) instead of inventing ad-hoc
     requests;
   - **observe** + benchmark: someone else runs it elsewhere; you only
     watch the telemetry, and the report cites the benchmark's name and
@@ -134,14 +134,16 @@ that reads by section (measured: the setup phase grew 43 K reading
 whole, 19 K by section). List a file's headings first (one `grep -n
 '^#'` per file), then read the named ranges only:
 
-- `run-scenario`: in **drive** mode, `## 0. A clean backend is not a
-  clean run` through `## 5. Wait for the flush — once per query
-  point`, with step 3's three `###` subsections (the
-  expensive-scenario carve-out, `### Waiting out the scenario — inside
-  the turn, never past it`, `### Scenarios longer than a tool call`),
-  and `## 6. Replay a stored k6 benchmark` only when the mission
-  carries a benchmark; in the other modes, `## 0.`'s identity and port
-  rules, `## 4. Record verbatim` and `## 5.` only;
+- `run-scenario`: in **drive** mode, its `SKILL.md` (the `## Read by
+  situation` router, then the method, steps 1 to 5),
+  `references/run-identity.md` by the block that
+  applies (the clean run always; the port already served, the run that
+  launches nothing, the forbidden reset when they do),
+  `references/long-scenarios.md` when an iteration is expensive or the
+  scenario outlasts a tool call, and `references/benchmark-replay.md`
+  only when the mission carries a benchmark; in the other modes,
+  `run-identity.md`'s clean-run and port blocks, `## 4. Record
+  verbatim` and `## 5.` of `SKILL.md` only;
 - `odd-memory`'s `observe-run-report` reference: `## Recall: reading
   the memory` at step 5, and nothing else then; at report time,
   `## Where reports live`, `## The file format`, `## Return value` and
@@ -356,7 +358,7 @@ turn while the scenario is running — ending the turn terminates the
 mission and returns an unfinished result, with no later wake-up. On
 the local stack, when the mission asks for a clean base — or isolating
 the run matters — restart the observed process, **then** call
-`odd_stack_reset` before the scenario (`run-scenario` step 0: a clean
+`odd_stack_reset` before the scenario (`run-scenario`'s `run-identity.md`: a clean
 backend is not a clean run, and the order is load-bearing): everything
 the stack then contains IS the run, and the window becomes trivial.
 Before launching the service, apply that step's port rule: a port
@@ -425,8 +427,8 @@ Then query per signal from what came back:
   operations and correlate them with the slow spans. If it does not, that
   is a line in **Telemetry gaps**, not a silent omission. Profiles
   pushed by a Pyroscope SDK carry no `service.instance.id`: qualify
-  them by the per-run tag the service was launched with (run-scenario
-  step 0), or, absent one, by `process.runtime.version` plus frames
+  them by the per-run tag the service was launched with (run-scenario's
+  `run-identity.md`), or, absent one, by `process.runtime.version` plus frames
   from the application's own code — and say which.
 
 Then go from aggregates to explanations:
@@ -473,11 +475,11 @@ Then go from aggregates to explanations:
   env satisfies every name-only check while the server never
   profiles. When the protocol names no attribution evidence (written
   before this rule), the run supplies its own: drive the service with
-  the run slug and the profiler tag (`run-scenario` step 0) and rule
+  the run slug and the profiler tag (`run-scenario`'s `run-identity.md`) and rule
   on that identity; only a signal you cannot tie to a process you
   launched is `present, unattributed`, and section 1 says the protocol
   predated the rule. When the run launched nothing (a remote target),
-  the **header-borne identity** `run-scenario` step 0 prescribes — the
+  the **header-borne identity** `run-scenario`'s `run-identity.md` prescribes — the
   run's User-Agent on the rows, the trace-id prefix with its run part —
   is identity evidence in its own right: a row carrying it was driven
   by this run, and the instance is the one those rows name. Two
@@ -582,7 +584,7 @@ from your reply, without re-reading the file:
 
    When the scenario record's `k6:` line carries script errors above
    zero, no threshold is ruled: every row reads `void`, and the defect
-   is section 3's first finding (`run-scenario` section 6 — the
+   is section 3's first finding (`run-scenario`'s `benchmark-replay.md` — the
    benchmark did not exercise what it measures).
 
    Then the narrative: what the service actually does, in its own
@@ -643,7 +645,7 @@ from your reply, without re-reading the file:
    defines the markers); a replay treats a check validated on the
    before-shape only as a query suspect the moment its after-value
    comes back empty, zero-free or NaN. For an
-   expensive or non-deterministic scenario (`run-scenario`'s carve-out),
+   expensive or non-deterministic scenario (`run-scenario`'s `long-scenarios.md`),
    every before-value carries its sample count and pass criteria are
    structural or magnitude-bounded — never a value from one or two
    samples.
