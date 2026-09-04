@@ -69,7 +69,7 @@ Phase B — failure case (authorized)
   22:28:09  odd_stack_status   ->  running:false            (17.6 ms)
   22:28:09  odd_stack_up       ->  isError:true             (239.0 ms)
             "Error executing tool odd_stack_up: docker run failed: docker:
-             failed to connect to the docker API at unix:///Users/usingsystem/
+             failed to connect to the docker API at unix://<home>/
              .docker/run/docker.sock ..."  (same failure text as baseline)
   22:28:09  odd_stack_status   ->  running:false            (22.4 ms)
   22:28:09  open -a Docker;  engine stable 22:28:16 (2 consecutive docker info OKs)
