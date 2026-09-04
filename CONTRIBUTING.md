@@ -45,6 +45,11 @@ uvx ruff@0.16.4 format --check src/mcp-server tests/mcp-server
 # Integration tests (needs Docker; drives the real stack)
 bash integration-tests/mcp-server/run.sh
 
+# Skill scripts (.apm/skills/*/scripts): lint + tests, no Docker
+uvx ruff@0.16.4 check .apm/skills/*/scripts tests/skills
+uvx ruff@0.16.4 format --check .apm/skills/*/scripts tests/skills
+uv run --no-project --with pytest pytest tests/skills -v
+
 # Validate the APM package like CI does (keep the apm-cli pin -
 # older releases corrupt the install; see the README's install note)
 uvx --from apm-cli==0.28.0 apm install --target claude && uvx --from apm-cli==0.28.0 apm audit

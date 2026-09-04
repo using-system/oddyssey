@@ -1,0 +1,44 @@
+name: ci-skills
+
+on:
+  pull_request:
+    paths:
+      - ".apm/skills/**/scripts/**"
+      - "tests/skills/**"
+      - ".github/workflows/ci-skills.yml"
+
+# This workflow executes pull-request-controlled code (the skill scripts
+# under test): state least privilege here instead of relying on the
+# repository default.
+permissions:
+  contents: read
+
+env:
+  RUFF_VERSION: "0.16.4"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Ruff lint
+        run: uvx ruff@"$RUFF_VERSION" check .apm/skills/*/scripts tests/skills
+      - name: Ruff format check
+        run: uvx ruff@"$RUFF_VERSION" format --check .apm/skills/*/scripts tests/skills
+
+  unit-tests:
+    # A skill script runs on whatever python3 the user has: test the
+    # supported floor (3.10) and a current version.
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.13"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Run the skill script tests
+        env:
+          PYTHON_VERSION: ${{ matrix.python }}
+        run: uv run --no-project --python "$PYTHON_VERSION" --with pytest pytest tests/skills -v
