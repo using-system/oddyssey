@@ -483,7 +483,7 @@ access goes through the tools.
 ```mermaid
 flowchart LR
   P[6 prompts] --> A[3 agents]
-  P --> S[15 skills]
+  P --> S[8 skills]
   A --> S
   P --> M[MCP tools]
   A --> M
