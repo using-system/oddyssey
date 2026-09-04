@@ -284,17 +284,21 @@ caller closing the mission:
   - section 1's recalled-baseline line — the previous report's path,
     or "no previous report" — with the line that names a dropped
     baseline or a provisional environment when the report carries one;
-  - section 2's per-operation summary table (with a benchmark, its
-    threshold table too) and, when a baseline was recalled, the delta
-    lines — one per operation; for a verify or re-measure, the rulings
-    instead: every check with its before-value, after-value and
-    pass/fail, every baseline anomaly's fate (fixed, still present,
-    worse), every baseline gap's fate (filled, still missing) — for an
-    instrumentation baseline, every presence ruling — and every item
-    that reads `not ruled (quick)`, one line each;
-  - section 3's ranked table — header and rows, no detail per row;
+  - from section 2, when a baseline was recalled, the delta lines —
+    one per operation (improved, regressed, unchanged, new), never
+    the per-operation or threshold tables; for a verify or
+    re-measure, every check's ruling instead — its name, before-value,
+    after-value and pass/fail cells, not the row's narrative — and
+    every check that reads `not ruled (quick)`;
+  - section 3's ranked table — the `#`, `Finding`, `Severity` and
+    `Confidence` cells of every row, never the evidence or the detail
+    per row; in a verify or re-measure, each baseline anomaly's fate
+    with it (fixed, still present, worse);
   - section 5's telemetry gaps, one line each (at quick depth, its
-    single line);
+    single line); in a verify or re-measure, each baseline gap's fate
+    with it (filled, still missing) — for an instrumentation baseline,
+    every presence ruling (closed, present unattributed, still
+    missing);
   - section 6's open decisions, one line each, or that there are none.
 
 Never the report body: a full report runs 300 to 500 lines, the reply
