@@ -1,0 +1,96 @@
+name: ci-hooks
+
+on:
+  pull_request:
+    paths:
+      - ".apm/hooks/**"
+      - "tests/hooks/**"
+      - "scripts/build-marketplace.sh"
+      - ".github/workflows/ci-hooks.yml"
+
+# This workflow executes pull-request-controlled code (the hook scripts
+# under test, and the apm install that deploys them): state least
+# privilege here instead of relying on the repository default.
+permissions:
+  contents: read
+
+env:
+  RUFF_VERSION: "0.16.4"
+  APM_CLI_VERSION: "0.28.0"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Ruff lint
+        run: uvx ruff@"$RUFF_VERSION" check .apm/hooks/scripts tests/hooks
+      - name: Ruff format check
+        run: uvx ruff@"$RUFF_VERSION" format --check .apm/hooks/scripts tests/hooks
+
+  unit-tests:
+    # A hook runs on whatever python3 the host machine has: test the
+    # supported floor (3.10) and a current version.
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.13"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Run the hook tests
+        env:
+          PYTHON_VERSION: ${{ matrix.python }}
+        run: uv run --no-project --python "$PYTHON_VERSION" --with pytest pytest tests/hooks -v
+
+  deploy:
+    # apm must deploy the hook entry and its script on the two targets
+    # the marketplaces serve; the other hooked targets are covered by
+    # ci-apm's install matrix.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Deploy for Claude Code and assert the hook landed
+        run: |
+          uvx --from apm-cli=="$APM_CLI_VERSION" apm install --target claude
+          test -f .claude/hooks/oddyssey/scripts/guard_default_branch.py
+          grep -q 'guard_default_branch.py PreToolUse' .claude/settings.json
+      - name: Run the deployed guard against a repository on its default branch
+        # The checkout is a detached merge ref, so the probe repository is
+        # built on the side: on main the guard must block, on a work
+        # branch it must pass.
+        run: |
+          probe="$(mktemp -d)"
+          git -C "$probe" init -q -b main
+          git -C "$probe" -c user.name=ci -c user.email=ci@example.com commit -q --allow-empty -m init
+          payload='{"tool_input":{"command":"git commit -m x"},"cwd":"'"$probe"'"}'
+          if echo "$payload" | python3 .claude/hooks/oddyssey/scripts/guard_default_branch.py PreToolUse; then
+            echo "the guard let a commit on the default branch through" >&2; exit 1
+          fi
+          git -C "$probe" checkout -q -b docs/probe
+          echo "$payload" | python3 .claude/hooks/oddyssey/scripts/guard_default_branch.py PreToolUse
+          echo "the guard blocks on main and passes on a work branch"
+      - name: Deploy for Codex and assert the hook landed
+        run: |
+          uvx --from apm-cli=="$APM_CLI_VERSION" apm install --target codex
+          test -f .codex/hooks/oddyssey/scripts/guard_default_branch.py
+          grep -q 'guard_default_branch.py PreToolUse' .codex/hooks.json
+
+  marketplace:
+    # The plugin bundle must carry hooks/hooks.json with plugin-root
+    # paths and the scripts they name: apm pack does neither, the build
+    # script does.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Build the marketplace and assert the plugin carries the hooks
+        run: |
+          bash scripts/build-marketplace.sh
+          test -f marketplace/oddyssey/hooks/hooks.json
+          test ! -e marketplace/oddyssey/hooks.json
+          grep -qF '\"${CLAUDE_PLUGIN_ROOT}\"/hooks/scripts/guard_default_branch.py' marketplace/oddyssey/hooks/hooks.json
+          test -f marketplace/oddyssey/hooks/scripts/guard_default_branch.py

@@ -34,7 +34,8 @@ exception to some other rule.
   never overwrites a stored benchmark without that diff being visible.
 - **Commit discipline**, inherited from the report-writing skills:
   - never commit on the default branch - create or switch to a work
-    branch first;
+    branch first (on a host that runs the package's lifecycle hooks,
+    a hook refuses the commit itself);
   - stage and commit the benchmark's files **alone** (never bundled with
     unrelated changes);
   - commit subject: `docs(odd): benchmark <name>` for a new benchmark,

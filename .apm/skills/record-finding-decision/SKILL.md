@@ -98,7 +98,9 @@ One row per decision:
   `wontfix` → `docs/odd-finding-decision-a5-2026-08-22-2227-wontfix`);
   the ledger row keeps the finding ID exactly as the report names it.
   If switching is impossible, do not commit: state the path and leave
-  the commit to the caller.
+  the commit to the caller. On a host that runs the package's
+  lifecycle hooks, a hook refuses the commit itself; this rule stays
+  the enforcement everywhere else.
 - **After writing, commit the ledger file on its own**:
   `git add .odd/decisions.md` then
   `git commit -m "docs(odd): finding decision <finding ID> <verdict>"` —

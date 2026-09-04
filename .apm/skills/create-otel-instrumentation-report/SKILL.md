@@ -112,7 +112,9 @@ Before a new investigation, load what is already known:
   `docs/odd-instrumentation-report-<run_name>`
   (switching to it if it already exists) and commit there — and say so
   in the reply. If switching is impossible, do not commit: state the
-  path and leave the commit to the caller.
+  path and leave the commit to the caller. On a host that runs the
+  package's lifecycle hooks, a hook refuses the commit itself; this
+  rule stays the enforcement everywhere else.
 - **After writing, commit the report file on its own**:
   `git add <report file>` then
   `git commit -m "docs(odd): instrumentation investigation <run_name>"` —

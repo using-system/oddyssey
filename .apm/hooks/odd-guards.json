@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ./scripts/guard_default_branch.py PreToolUse"
+          }
+        ]
+      }
+    ]
+  }
+}

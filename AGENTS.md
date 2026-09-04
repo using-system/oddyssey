@@ -61,17 +61,23 @@ the paths touched (commands and pins are owned by
   (`uvx ruff@0.16.4 check` / `format --check` on `src/mcp-server tests/mcp-server`),
   and the integration tests too when Docker is available
   (`bash integration-tests/mcp-server/run.sh`).
-- `.apm/skills/*/scripts/` or `tests/skills/` changed → CI lints and
-  tests the skill scripts: `uvx ruff@0.16.4 check` / `format --check`
-  on `.apm/skills/*/scripts tests/skills`, and
-  `uv run --no-project --with pytest pytest tests/skills -v`.
+- `.apm/skills/*/scripts/`, `.apm/hooks/`, `tests/skills/` or
+  `tests/hooks/` changed → CI lints and tests the scripts:
+  `uvx ruff@0.16.4 check` / `format --check` and
+  `uv run --no-project --with pytest pytest -v` on the matching
+  `.apm/.../scripts` and `tests/...` directories; for hooks CI also
+  deploys them with apm and builds the marketplace
+  (`bash scripts/build-marketplace.sh`, then revert the generated
+  trees).
 - `.apm/` or `apm.yml` changed → validate the package like CI does:
   `uvx --from apm-cli==0.28.0 apm install --target claude && uvx --from apm-cli==0.28.0 apm audit`.
   The install deploys the package into the working tree and edits
   tracked files. Record `git status --porcelain` and `git diff` before
   running; once the check completes, delete the untracked files the
   command created and revert its edits to tracked files — leave
-  anything that existed before untouched.
+  anything that existed before untouched. The deployed hook loads into
+  the running session: remove `.claude/settings.json` and
+  `.claude/hooks/` together, never the script alone.
 
 A PR pushed red costs a review round-trip; run the checks first.
 
@@ -89,9 +95,10 @@ existing suites (above) is not enough:
 - A server change shipping without a matching test change states why
   in the PR (legitimate cases exist: a pure refactor, error-message
   wording — a wire-surface change is never one).
-- A script bundled with a skill (`.apm/skills/*/scripts/`) follows the
-  same rule: its tests live in `tests/skills/`, test-first, and CI
-  runs them (see above).
+- A script bundled with a skill (`.apm/skills/*/scripts/`) or a hook
+  (`.apm/hooks/scripts/`) follows the same rule: its tests live in
+  `tests/skills/` or `tests/hooks/`, test-first, and CI runs them
+  (see above).
 
 ## The MCP server's three hard constraints
 
