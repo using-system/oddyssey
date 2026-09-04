@@ -86,7 +86,8 @@ rather than guessing.
 6. **Decisions the spec must settle** — what telemetry cannot answer.
 7. **Measurement protocol for the fix** — the scenario to replay and
    every check with its before-value, its pass criterion, and how its
-   query was validated, or `not validated`.
+   query was validated — on today's data only, or on the shape the
+   pass criterion expects too — or `not validated`.
 
 A `quick` report keeps the seven headings with sections 1, 2 and 7
 complete and 3 to 6 reduced to their essentials; section 5 names the

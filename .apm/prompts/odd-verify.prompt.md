@@ -253,9 +253,14 @@ Then build the mission block from that report:
     after-value is a **query-suspect** outcome, not a failure: first
     doubt the recorded query (evaluate at several times, read the raw
     series behind it, try an equivalent form), especially when the
-    check is marked `not validated`, and only rule "fix did not land"
+    check is marked `not validated` or `validated: before-shape` only
+    - a "reaches zero" check authored on populated data may drop the
+    zero rows it measures (a join aggregated without `coalesce`, a
+    ratio over an absent series) - and only rule "fix did not land"
     once the query itself is proven sound. When the query was the
-    problem, reporting its corrected form is part of the verdict;
+    problem, reporting its corrected form is part of the verdict, and
+    the report's protocol carries the corrected form for the next
+    replay;
   - every anomaly it found: fixed, still present, or worse, with the
     query that proves it;
   - every telemetry gap it listed: now filled or still missing, with the
