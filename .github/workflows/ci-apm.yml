@@ -13,6 +13,15 @@ env:
   APM_CLI_VERSION: "0.28.0"
 
 jobs:
+  reference-contract:
+    # Every stack reference carries the sections the preflight, the switch
+    # and the agents read by heading (references/CONTRACT.md).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check the references against the contract
+        run: python3 scripts/check-reference-contract.py
+
   validate:
     # grok-build is excluded from the matrix: it has no MCP client, and
     # this package declares an MCP server, which apm rightly refuses.

@@ -70,7 +70,9 @@ the paths touched (commands and pins are owned by
   (`bash scripts/build-marketplace.sh`, then revert the generated
   trees).
 - `.apm/` or `apm.yml` changed → validate the package like CI does:
-  `uvx --from apm-cli==0.28.0 apm install --target claude && uvx --from apm-cli==0.28.0 apm audit`.
+  `uvx --from apm-cli==0.28.0 apm install --target claude && uvx --from apm-cli==0.28.0 apm audit`,
+  and `python3 scripts/check-reference-contract.py` when a stack
+  reference changed.
   The install deploys the package into the working tree and edits
   tracked files. Record `git status --porcelain` and `git diff` before
   running; once the check completes, delete the untracked files the
