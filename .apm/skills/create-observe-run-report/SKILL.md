@@ -277,8 +277,30 @@ caller closing the mission:
 - the carrying commit (`git rev-parse --short HEAD` right after the
   commit), or `not committed` with the reason (default branch and no
   work branch possible, not a repository, the caller said not to);
-- the report as written — frontmatter and body, verbatim: the file's
-  content, never a summary of it.
+- the **synthesis block** — the inputs `show-observe-run-report`
+  renders from, quoted verbatim from the file just written (never
+  rephrased, never re-derived), and nothing else of the body:
+  - the frontmatter block, whole;
+  - section 1's recalled-baseline line — the previous report's path,
+    or "no previous report" — with the line that names a dropped
+    baseline or a provisional environment when the report carries one;
+  - section 2's per-operation summary table (with a benchmark, its
+    threshold table too) and, when a baseline was recalled, the delta
+    lines — one per operation; for a verify or re-measure, the rulings
+    instead: every check with its before-value, after-value and
+    pass/fail, every baseline anomaly's fate (fixed, still present,
+    worse), every baseline gap's fate (filled, still missing) — for an
+    instrumentation baseline, every presence ruling — and every item
+    that reads `not ruled (quick)`, one line each;
+  - section 3's ranked table — header and rows, no detail per row;
+  - section 5's telemetry gaps, one line each (at quick depth, its
+    single line);
+  - section 6's open decisions, one line each, or that there are none.
+
+Never the report body: a full report runs 300 to 500 lines, the reply
+travels back into the caller's context, and the synthesis is its only
+reader — the block is what it needs, at a fraction of the size. What
+the next wave needs is in the file, at the stored path.
 
 `show-observe-run-report` renders the closing synthesis from this
 value; the file on disk is read again only by a later mission's recall

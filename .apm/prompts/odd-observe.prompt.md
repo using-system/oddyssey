@@ -92,7 +92,7 @@ defaults for every field not specified:
 
 Close the mission with the `show-observe-run-report` skill: render its
 synthesis from the persistence return value the agent's reply carries
-(stored path, carrying commit, the report as written) as the final
+(stored path, carrying commit, the synthesis block) as the final
 answer, stating the stored path — no re-read of the file just
 written. The report file - not the synthesis - is the deliverable the
 next spec-driven wave consumes: never re-dump the raw report in the
