@@ -972,7 +972,9 @@ def invariant_section(facts: dict) -> list[str]:
             )
             + (
                 f"; {len(legacy)} predate the `depth` field and read as full"
-                f" ({', '.join(Path(p).name for p in legacy)})"
+                f" ({', '.join(Path(p).name for p in legacy[:3])}"
+                + (f", +{len(legacy) - 3} more" if len(legacy) > 3 else "")
+                + ")"
                 if legacy
                 else ""
             )

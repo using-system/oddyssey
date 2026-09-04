@@ -1295,3 +1295,19 @@ def test_memory_invariant_section_lists_violations_and_skipped_ledger_rows(
     assert "2026-08-11-1000-b.md | depth absent" not in section
     assert "line 7" in section and "carries no finding F9" in section
     assert "append-only" in section
+
+
+def test_memory_invariant_note_caps_the_legacy_names(repo, odd_status, odd_render):
+    for day in range(10, 15):
+        repo.write(
+            f".odd/observe-run-reports/2026-08-{day}-1000-r{day}.md",
+            observation(run_name=f"r{day}", date=f"2026-08-{day}").replace(
+                "depth: full\n", ""
+            ),
+        )
+    repo.commit("docs(odd): reports")
+    text = rendered(repo, odd_status, odd_render)
+    section = text.split("## Memory invariant")[1].split("## ")[0]
+    assert "5 predate the `depth` field" in section
+    assert "2026-08-12-1000-r12.md, +2 more)" in section
+    assert "r13.md" not in section
