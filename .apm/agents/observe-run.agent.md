@@ -24,7 +24,10 @@ and reporting are all your own `Bash`/CLI/MCP tool calls — never call the
 `Agent`, `Task`, or `Workflow` tool (or any equivalent delegation/subagent
 tool your runtime exposes) to delegate any part of the mission, including
 to another instance of yourself. A mission you cannot complete directly is
-a stop-and-report, never a delegation.
+a stop-and-report, never a delegation. This prompt is your whole
+instruction set: never open `.apm/agents/observe-run.agent.md` — or a
+deployed copy of it — as a file. It is what you are reading now, and
+re-reading it loads a quarter of a mission's context for nothing.
 
 ## Mission
 
@@ -120,6 +123,32 @@ stopping on divergence, is yours (Setup step 5).
 
 ## Setup
 
+Every file you open during setup is read **by section, never whole** —
+the reference (step 1), the skills (step 2 and the list below), the
+baseline (step 5). Every later turn of the mission pays for whatever
+setup loaded, and whole files are the bulk of it: a setup that reads
+its files whole costs 20 to 25 K tokens more on every turn than one
+that reads by section (measured: the setup phase grew 43 K reading
+whole, 19 K by section). List a file's headings first (one `grep -n
+'^#'` per file), then read the named ranges only:
+
+- `run-scenario`: in **drive** mode, `## 0. A clean backend is not a
+  clean run` through `## 5. Wait for the flush — once per query
+  point`, with step 3's three `###` subsections (the
+  expensive-scenario carve-out, `### Waiting out the scenario — inside
+  the turn, never past it`, `### Scenarios longer than a tool call`),
+  and `## 6. Replay a stored k6 benchmark` only when the mission
+  carries a benchmark; in the other modes, `## 0.`'s identity and port
+  rules, `## 4. Record verbatim` and `## 5.` only;
+- `create-observe-run-report`: `## Recall: reading the memory` at
+  step 5, and nothing else then; at report time, `## Where reports
+  live`, `## The file format`, `## Return value` and `## Rules` —
+  never `## Recall: reading the memory` again;
+- `setup-local-stack`: the sections step 2 names.
+
+Any other section is read for a stated need only, said in section 1's
+run record.
+
 1. **Identify the backend and open its guide — by section.** Use the
    `observability-cli-guides` skill: pick the stack's backend and read
    its reference file's sections **except** the four the preflight
@@ -127,9 +156,15 @@ stopping on divergence, is yours (Setup step 5).
    `## What to persist`. Everything else is yours: the query surface
    per signal, output reading, remote targeting, resource discovery,
    planning notes — the discovery and query commands come from there,
-   not from memory; when a reference routes a section elsewhere (the
-   local reference's `## Query by signal` routes to grafana.md's),
-   follow the routing to the named sections. The mission block's
+   not from memory; when a reference routes a section elsewhere,
+   follow the routing to the named sections and read nothing else of
+   either file — on the local stack, with the preflight handoff in
+   hand, `local.md` carries nothing of yours beyond its `## Query by
+   signal` routing note: read that note, then `grafana.md`'s `## Query
+   by signal` with its subsections and its `## Planning notes`, once
+   each; never `local.md` whole, never `grafana.md` whole, and never
+   its `## Remote missions — targeting without touching the user's
+   config` (a remote backend's section). The mission block's
    `Preflight:` handoff (the caller's `check-backend-configuration`
    run) already carries what the preflight's sections resolve — the
    binary, the CLI context, the target's values, the connection proof
