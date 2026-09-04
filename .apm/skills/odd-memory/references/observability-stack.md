@@ -66,7 +66,9 @@ is how a prompt offers the custom stacks the repository carries.
   change. The persistence never rewrites a stored file without that
   diff being visible.
 - **Commit discipline** (the memory contract): the work branch is
-  `docs/odd-stack-<name>`; the commit carries the file alone, subject
+  `docs/odd-stack-<name>` when the change is the user's (a creation,
+  an instruction) — a run's learning rides the mission's branch
+  instead (next bullet); the commit carries the file alone, subject
   `docs(odd): stack <name>` for a new file, `docs(odd): stack <name> -
   <what changed>` for an update; the reply states the stored path.
 - **Learned from runs.** A mission that queried the stack may propose
