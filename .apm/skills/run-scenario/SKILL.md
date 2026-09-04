@@ -92,7 +92,12 @@ and never in only one of them:
   of the protocol (`0ddc0ffe` unless the protocol records another),
   8 hex derived from the run slug (the first 8 of
   `sha256(<slug>)`), and the zero-padded 16-hex request sequence
-  number; the span id is the sequence number on 16 hex. The prefix is
+  number; the span id is the sequence number on 16 hex. The sequence
+  numbers every driven request of the run, warmup included, from
+  **1** — one counter for the whole run: a span id of all zeros is
+  invalid under W3C trace context, the instrumentation then starts a
+  fresh trace and that request drops out of every prefix selector,
+  and a counter restarted per phase gives two requests one id. The prefix is
   what a selector matches — `operation_Id startswith '<prefix>'`
   (KQL), `{ trace:id =~ "<prefix>.*" }` (TraceQL), `trace_id =~
   "<prefix>.*"` (LogQL) — and pulls every request, dependency, log and
