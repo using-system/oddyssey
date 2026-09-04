@@ -127,20 +127,23 @@ Every file you open during setup is read **by section, never whole** —
 the reference (step 1), the skills (step 2 and the list below), the
 baseline (step 5). Every later turn of the mission pays for whatever
 setup loaded, and whole files are the bulk of it: a setup that reads
-its files whole costs 40 to 50 K tokens more on every turn than one
-that reads by section. List a file's headings first (one `grep -n
+its files whole costs 20 to 25 K tokens more on every turn than one
+that reads by section (measured: the setup phase grew 43 K reading
+whole, 19 K by section). List a file's headings first (one `grep -n
 '^#'` per file), then read the named ranges only:
 
-- `run-scenario`: `## 0. A clean backend is not a clean run`, step 3's
-  two `###` subsections on waiting (the wait method the Investigation
-  section relies on), `## 4. Record verbatim` (the scenario-record
-  format), `## 5. Wait for the flush — once per query point`, and
-  `## 6. Replay a stored k6 benchmark` only when the mission carries a
-  benchmark;
+- `run-scenario`: in **drive** mode, `## 0. A clean backend is not a
+  clean run` through `## 5. Wait for the flush — once per query
+  point`, with step 3's three `###` subsections (the
+  expensive-scenario carve-out, `### Waiting out the scenario — inside
+  the turn, never past it`, `### Scenarios longer than a tool call`),
+  and `## 6. Replay a stored k6 benchmark` only when the mission
+  carries a benchmark; in the other modes, `## 0.`'s identity and port
+  rules, `## 4. Record verbatim` and `## 5.` only;
 - `create-observe-run-report`: `## Recall: reading the memory` at
   step 5, and nothing else then; at report time, `## Where reports
   live`, `## The file format`, `## Return value` and `## Rules` —
-  never `## Recall` again;
+  never `## Recall: reading the memory` again;
 - `setup-local-stack`: the sections step 2 names.
 
 Any other section is read for a stated need only, said in section 1's
@@ -155,12 +158,13 @@ run record.
    planning notes — the discovery and query commands come from there,
    not from memory; when a reference routes a section elsewhere,
    follow the routing to the named sections and read nothing else of
-   either file — on the local stack, `local.md` carries nothing of
-   yours beyond its `## Query by signal` routing note: read that note,
-   then `grafana.md`'s `## Query by signal` with its subsections and
-   its `## Planning notes`, once each; never `local.md` whole, never
-   `grafana.md` whole, and never its `## Remote missions` (a remote
-   backend's section). The mission block's
+   either file — on the local stack, with the preflight handoff in
+   hand, `local.md` carries nothing of yours beyond its `## Query by
+   signal` routing note: read that note, then `grafana.md`'s `## Query
+   by signal` with its subsections and its `## Planning notes`, once
+   each; never `local.md` whole, never `grafana.md` whole, and never
+   its `## Remote missions — targeting without touching the user's
+   config` (a remote backend's section). The mission block's
    `Preflight:` handoff (the caller's `check-backend-configuration`
    run) already carries what the preflight's sections resolve — the
    binary, the CLI context, the target's values, the connection proof
