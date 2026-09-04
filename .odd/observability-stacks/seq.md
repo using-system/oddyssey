@@ -74,8 +74,15 @@ stream.
   `seqcli search -f "App = 'checkout'" -c 50 --start=<iso> --end=<iso> --json`.
   The default `-c` is 1 — always pass a count.
 - Aggregates ([SQL queries](https://datalust.co/docs/sql-queries)):
-  `seqcli query -q "select count(*) from stream where @Level = 'Error' group by time(5m)" --start=<iso> --end=<iso> --json`
+  `seqcli query -q "select count(*) from stream where @Level = 'Error'" --start=<iso> --end=<iso> --json`
   returns `{"Columns": [...], "Rows": [[...]], "Statistics": {...}}`.
+  A **`group by time(...)`** query returns a different shape (verified
+  2026-09-04): `{"Columns": [...], "TimeColumnMetadata": {...},
+  "Slices": [{"Time": "<iso>", "Rows": [[...]]}, ...], "Statistics":
+  {...}}` — one slice per interval, empty intervals included with a
+  zero row, and no top-level `Rows` at all. Read `Slices`, never
+  `Rows`, whenever the query groups by time; it is also the cheapest
+  way to find where a sparse window's data actually sits.
 - Follow the stream live, server-side filter:
   `seqcli tail -f "@Level = 'Error'" --json` (runs
   until interrupted — always run it with a timeout in a mission).
@@ -94,6 +101,18 @@ In filters the long names apply: `@SpanId`, `@TraceId`, `has(@Start)`.
 - Span counts by service:
   `seqcli query -q "select count(*) from stream where has(@Start) group by @Resource.service.name" --start=<iso> --json`
   (the sample data carries no resource, the column is then `null`).
+- Span duration is the built-in `@Elapsed` (`@Timestamp - @Start`), in
+  Seq's native **100 ns ticks**
+  ([built-in properties](https://datalust.co/docs/built-in-properties-and-functions)) —
+  divide by 10 000 for milliseconds. It filters and aggregates
+  (verified 2026-09-04):
+  `seqcli query -q "select count(*), percentile(@Elapsed, 50), percentile(@Elapsed, 99), max(@Elapsed) from stream where has(@Start) group by RequestMethod" --start=<iso> --end=<iso> --json`
+  for the per-operation quantiles, and
+  `seqcli search -f "has(@Start) and @Elapsed > 500ms" -c 20 --start=<iso> --end=<iso> --json`
+  for the exemplar above a threshold. Duration literals (`500ms`,
+  `1s`) work in both `search -f` and `query -q`; a raw number is ticks,
+  so a p99 read from `percentile(@Elapsed, 99)` can be pasted straight
+  back into a filter.
 
 Ingestion: an OpenTelemetry SDK exports to Seq with
 `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf` and the traces endpoint
@@ -118,9 +137,11 @@ profiles says so and moves on.
 
 ### Concurrency
 
-Not verified as a measurement: `seqcli` is a plain HTTP client, several
-invocations from one shell ran side by side without an error on
-2026-09-04, no limit is documented.
+`seqcli` is a plain HTTP client and takes concurrency well: an
+observation run issued up to 14 `search` and `query` invocations
+side by side from one shell, all exiting 0 with complete output
+(2026-09-04). No limit is documented — run the discovery and the
+exemplar fetches concurrently.
 
 ### Output traps
 
@@ -144,6 +165,14 @@ invocations from one shell ran side by side without an error on
 - The built-in sample data (`seqcli sample ingest`) is the baseline
   used to verify this file; a real service's events differ in shape —
   discover before asserting.
+- No span-derived RED metrics exist here: Seq stores events, it derives
+  nothing from spans. A per-operation table is built from the root
+  spans themselves — `@Elapsed` percentiles grouped by the operation's
+  own properties — and the child spans give the downstream call count
+  per request. Traces are one flat parent/child tree per request
+  (`@ps` is the parent span id); plan the operation grouping on the
+  properties the service emits, since `@SpanKind` may be `Internal`
+  throughout (verified 2026-09-04).
 
 ## Configuration display
 

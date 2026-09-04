@@ -36,7 +36,9 @@ leaves out, and restate the mission — defaults included — in section 1 of
 the report.
 
 - **Service(s)** — one or more service names (their `service.name` /
-  `OTEL_SERVICE_NAME`). Downstream services discovered in the traces are in
+  `OTEL_SERVICE_NAME`)
+  — or, on a backend whose events carry no resource attributes, the
+  property that names the service there, said in section 1. Downstream services discovered in the traces are in
   scope for correlation even when they are not named in the mission.
 - **Stack** —
   - **local**: the oddyssey stack — Grafana and OTLP on the configured
@@ -160,7 +162,11 @@ run record.
    `observability-cli-guides` skill: pick the stack's backend and read
    its reference file's sections **except** the four the preflight
    owns — `## CLI binary`, `## Setup`, `## Configuration display`,
-   `## What to persist`. Everything else is yours: the query surface
+   `## What to persist`. A **custom stack** (the handoff says
+   `backend=<name> (custom)`) has its reference file in the observed
+   repository, `.odd/observability-stacks/<name>.md`, read by the same
+   sections — and what the run teaches it goes back into it, the
+   section before the report says how. Everything else is yours: the query surface
    per signal, output reading, remote targeting, resource discovery,
    planning notes — the discovery and query commands come from there,
    not from memory; when a reference routes a section elsewhere,
@@ -284,12 +290,14 @@ a contract), never a cheaper way to write a full report:
 
 - **Signals** — always: traces, plus the metrics the per-operation
   table comes from — the span-derived ones when the backend derives
-  them, otherwise the service's own. Then whatever the focus touches
+  them, otherwise the service's own, and from the spans themselves when
+  neither exists, said in section 1. Then whatever the focus touches
   (`errors` → the logs too; a profile question → the profiles). The
   others are **not queried**: section 5 says
   `not queried (quick): logs, profiles` — a statement about the
-  mission, never a gap of the service — and the service preflight
-  (Setup step 3) covers the queried signals only.
+  mission, never a gap of the service — and, on a backend that cannot
+  serve a signal, `not served: profiles` next to it; the service
+  preflight (Setup step 3) covers the queried signals only.
 - **Stops and the environment are never ruled on the subset.** Before
   a "no telemetry" stop (Setup step 3) or an `unknown` environment
   (Setup step 4), probe the unqueried signals once: a service silent
@@ -480,6 +488,41 @@ Then go from aggregates to explanations:
   `confirmed` are cross-confirmed; the others are `suspected` by
   construction).
 
+## What the run teaches a custom stack file
+
+A custom stack's file starts from documentation and the user's word;
+your run is what verifies it. When a command the file documents fails
+as written, returns a shape its section did not describe, or needs a
+flag the section does not carry, and you find what works, the
+correction is a **proposed diff** to that section, persisted through
+`odd-memory`'s `observability-stack` reference (its `## Rules`): the
+corrected command, the output shape you observed, today's UTC date,
+and the documentation page when one settles it. A note the file marks
+unverified that your run exercised successfully gets its date and
+loses the mark; a note the run could not exercise stays as it is —
+never upgraded without a measurement.
+
+Three bounds. **Sections**: only the ones you read — `## Query by
+signal`, `## Planning notes` and the file's own optional sections;
+`## CLI binary`, `## Setup`, `## Configuration display` and `## What
+to persist` are the preflight's and the switch's — a learning about
+those (a connection proof that reads the wrong signal, a field the
+switch should persist) is stated in section 1's run record for the
+user to apply through `/odd-config for stack <name>: ...`, never
+edited from here. **Never a built-in**: a learning about a stack the
+package ships is a finding for the package (state it in section 1,
+name the reference and the command), never an edit — its reference
+changes through a package PR with live verification. **Never
+silent**: the diff is a commit of its own on the mission's work
+branch, after the report's, subject `docs(odd): stack <name> - <what
+the run learned>`; section 1's run record names the file and that
+commit next to the report's, the persistence's return value carries
+it, and the closing synthesis says "the stack file changed" with the
+one-line reason, so the maintainer reviews it like any other committed
+change. When the file cannot be committed (the caller said not to, no
+work branch possible), the diff is still applied to the file and the
+run record says `not committed` with the reason.
+
 ## The report (your only deliverable)
 
 Build these seven sections, in this order (at `quick` depth, in the
@@ -503,7 +546,10 @@ from your reply, without re-reading the file:
    name and revision, the `k6 run` command, k6's exit status and
    summary, and the stage boundaries — so the run replays verbatim. In
    observe mode with a benchmark, its name and revision stand in for
-   the commands you did not run.
+   the commands you did not run. On a custom stack, close the run
+   record with the stack file's fate: unchanged, or changed with its
+   commit and the one-line reason (the section before this one), and
+   any learning left for the user to apply.
 2. **Observed behavior** — start with the per-operation summary table:
 
    | Operation | Requests | Rate | p50 | p95 | p99 | Error % | DB/downstream calls per req | Notable |
@@ -571,14 +617,17 @@ from your reply, without re-reading the file:
   change it — the report feeds the plan.
 - Every query you run comes from the backend's reference file or its
   fetched documentation, never from memory; name the backend and CLI in
-  the report.
+  the report. On a custom stack, what the run taught the file is
+  applied as a diff or stated for the user — never lost in the report's
+  prose, never edited into a built-in reference.
 - Never invent, echo, or store credentials; refer to them by variable or
   secret name only. The same for real identifiers — tenant, workspace,
   subscription, resource-group or site names and GUIDs, logins,
   home-directory paths: the report names them by an obviously fake
   placeholder, never by the real value a preflight or a tool result
   showed for one of those — ports, URLs on `localhost`, service and
-  operation names stay the evidence they are. When a **replayed
+  operation names, the CLI's version and the proof's UTC stay the
+  evidence they are, restated in section 1's run record. When a **replayed
   protocol query** projects a credential-bearing field (a connection
   string, a key, a token, an auth-header value — the reference names
   them), never run it as written: drop the field, rule the check on
@@ -629,4 +678,5 @@ from your reply, without re-reading the file:
   frontmatter; the memory was recalled (section 1 names the previous
   report or says there was none) and the report was persisted per
   `odd-memory`'s `observe-run-report` reference, with its stored path
-  in the reply.
+  in the reply; on a custom stack, section 1 states the stack file's
+  fate and the reply carries its commit when it changed.

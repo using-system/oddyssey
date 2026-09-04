@@ -22,7 +22,9 @@ how it lives. The switch checks the file against the contract before
 persisting anything, and `stack_config` then holds exactly the fields
 the file declares. `/odd-config` writes the file for you — from the
 documentation you point at, your own instructions, or its own web
-research — then offers the switch:
+research — then offers the switch; a run against the stack then
+corrects the file's query commands as a commit you review, and tells
+you what it could not fix itself:
 
 ```text
 /odd-config create a stack <name> from <docs URL or path>

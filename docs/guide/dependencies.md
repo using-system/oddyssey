@@ -170,6 +170,7 @@ flowchart LR
   subgraph Stores[".odd/ stores"]
     obsdir[observe-run-reports/]
     benchdir[benchmarks/]
+    stackdir[observability-stacks/]
   end
 
   observe --> runner
@@ -182,6 +183,7 @@ flowchart LR
   observe --> ocg
   observe --> benchdir
   mem --> obsdir
+  mem --> stackdir
 
   runner --> ocg
   runner --> sls
@@ -213,7 +215,7 @@ flowchart LR
   class runner,expert agent
   class bc,ocg,sls,rs,kg,mem skill
   class cfgget,cfgset,stack mcp
-  class obsdir,benchdir store
+  class obsdir,benchdir,stackdir store
 ```
 
 ## /odd-verify
@@ -432,8 +434,8 @@ the code, and persist through the create skills that own the stores.
 
 | Agent | Role | Invokes |
 | --- | --- | --- |
-| [`otel-instrumentation-expert`](../../.apm/agents/otel-instrumentation-expert.agent.md) | Investigate a codebase and hand back every input for a spec-driven plan to implement OpenTelemetry | `otel-guides`; `observability-cli-guides` (the export stack's query surface, for the protocol's queries); routes to `setup-local-stack` to validate a query on the local stack; `odd-memory` (the `otel-instrumentation-report` reference); `odd_config_get`; hands the confirmation of landed signals off to `observe-run` |
-| [`observe-run`](../../.apm/agents/observe-run.agent.md) | Observe a running service through its telemetry, on the local stack or a remote backend, and hand back every input for a plan of fixes | `observability-cli-guides`; `setup-local-stack`; `run-scenario` (ad-hoc requests, or a stored benchmark run unmodified); `odd-memory` (the `observe-run-report` reference); `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset`; recommends `otel-instrumentation-expert` when a named service emits no telemetry at all |
+| [`otel-instrumentation-expert`](../../.apm/agents/otel-instrumentation-expert.agent.md) | Investigate a codebase and hand back every input for a spec-driven plan to implement OpenTelemetry | `otel-guides`; `observability-cli-guides` (the export stack's query surface, for the protocol's queries); routes to `setup-local-stack` to validate a query on the local stack; `odd-memory` (the `otel-instrumentation-report` reference; the `observability-stack` reference when a form check corrects a custom stack file); `odd_config_get`; hands the confirmation of landed signals off to `observe-run` |
+| [`observe-run`](../../.apm/agents/observe-run.agent.md) | Observe a running service through its telemetry, on the local stack, a remote backend or a custom stack, and hand back every input for a plan of fixes | `observability-cli-guides`; `setup-local-stack`; `run-scenario` (ad-hoc requests, or a stored benchmark run unmodified); `odd-memory` (the `observe-run-report` reference; the `observability-stack` reference when a run corrects a custom stack file); `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset`; recommends `otel-instrumentation-expert` when a named service emits no telemetry at all |
 | [`k6-benchmark-expert`](../../.apm/agents/k6-benchmark-expert.agent.md) | Investigate a service and author its k6 benchmark as reviewed code, validated but never run as a benchmark | `k6-guides` (`scripting.md`, `running-tests.md`); `odd-memory` (the `benchmark` reference); reads `.odd/observe-run-reports/` for the service's hot operations |
 
 ## Skills

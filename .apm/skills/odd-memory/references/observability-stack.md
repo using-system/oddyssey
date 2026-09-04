@@ -66,9 +66,26 @@ is how a prompt offers the custom stacks the repository carries.
   change. The persistence never rewrites a stored file without that
   diff being visible.
 - **Commit discipline** (the memory contract): the work branch is
-  `docs/odd-stack-<name>`; the commit carries the file alone, subject
+  `docs/odd-stack-<name>` when the change is the user's (a creation,
+  an instruction) — a run's learning rides the mission's branch
+  instead (next bullet); the commit carries the file alone, subject
   `docs(odd): stack <name>` for a new file, `docs(odd): stack <name> -
   <what changed>` for an update; the reply states the stored path.
+- **Learned from runs.** A mission that queried the stack may propose
+  a diff to the sections the agents read — `## Query by signal`,
+  `## Planning notes`, the file's own optional sections — and only
+  those: a command that failed as written, an output shape the section
+  did not describe, a flag it lacked, each corrected with the observed
+  form, the UTC date, and the page that settles it when one does; an
+  unverified note the run exercised gets its date and loses the mark,
+  one it could not exercise stays as it is. The diff rides the
+  mission's work branch as a commit of its own, after the report's,
+  subject `docs(odd): stack <name> - <what the run learned>`; the
+  mission's report names the file and that commit, and its synthesis
+  says the stack file changed, with the reason. The preflight's and
+  the switch's sections are never edited by a mission — a learning
+  about them is stated in the report for the user to apply through
+  `/odd-config for stack <name>: ...`.
 - **Never a built-in.** A file whose name is a `STACKS` value is
   refused at the check (the script reads `builtin-stacks.md`, and the
   server refuses the name again): a learning about a stack the package
@@ -112,7 +129,8 @@ conversation's memory of the mission. A switch to one ends in
 - **Verification state** — the `verified` note, or "unverified" when
   the frontmatter carries none.
 - **For an update**: a short headline of what changed — the diff lives
-  in the commit.
+  in the commit; when a run made it, the mission's synthesis carries
+  that headline instead, next to the report's commit.
 
 ### What the synthesis reads
 
