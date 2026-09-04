@@ -79,7 +79,7 @@ this order:
    standing permission. A refusal ends the mission before anything is
    installed or checked: never downgrade the replay to `observe` on
    your own - that changes the protocol.
-3. **The CLI.** Run the `check-backend-configuration` skill against the
+3. **The CLI.** Run the `backend-configuration` skill's `## Check` against the
    report's stack: show the CLI's configuration, stop where the skill
    stops, in its own words — the binary **not installed**: it offers
    the guided install and resumes once the binary exists, stopping only
@@ -151,7 +151,7 @@ Then build the mission block from that report:
   says its coverage was quick (the agent's Depth section);
 - persistence: state that the run is a **verification** of that report,
   naming its exact filename, so the agent persists per the
-  `create-observe-run-report` skill's verification rules —
+  `observe-run-report` reference's verification rules (`odd-memory`) —
   `YYYY-MM-DD-HHmm-verify-<run_name>.md` (own timestamp, the baseline's
   run_name) with `mode: verify` and `verifies: <that exact filename>`
   (its repo-relative `.odd/otel-instrumentation-reports/<filename>`
@@ -232,8 +232,23 @@ Then build the mission block from that report:
   protocol written before that rule names no attribution evidence:
   the run supplies its own (the service driven with the run slug and
   the profiler tag) and the report says the protocol predated the
-  rule. An empty result follows the same query-suspect rule as
-  below: prove the query sound before ruling "still missing";
+  rule. On a remote drive, the identity is header-borne
+  (`run-scenario`'s `run-identity.md`: the run's User-Agent and a `traceparent`
+  whose trace id carries the protocol's prefix, a part derived from
+  **this run's slug**, and the sequence) - a new slug every replay,
+  and when the baseline's ids carried no run part, the replay adopts
+  the run-unique form and says so: the prefix selectors still match,
+  the requests do not change, only the ids do. An empty result
+  follows the same query-suspect rule as
+  below: prove the query sound before ruling "still missing" - and a
+  health check on a Collector component ("zero error lines mentioning
+  it") is ruled under the component id as configured, read from the
+  configuration the plan changed, once the grep is proven able to
+  match (the agent's rule): a name that matches nothing on the whole
+  history closes nothing. A
+  protocol query that projects a credential-bearing field is replayed
+  without that field and ruled on what remains, and the ruling says
+  so (the agent's rule) - the value never reaches the report;
 - focus, **observation baseline** (today's behavior, unchanged): verify
   everything the report recorded - replay its recorded scenario
   verbatim when it has one (otherwise observe a comparable window in
@@ -243,17 +258,24 @@ Then build the mission block from that report:
     after-value is a **query-suspect** outcome, not a failure: first
     doubt the recorded query (evaluate at several times, read the raw
     series behind it, try an equivalent form), especially when the
-    check is marked `not validated`, and only rule "fix did not land"
+    check is marked `not validated` or `validated: before-shape` only
+    (a validation note naming no shape reads as before-shape) - a
+    "reaches zero" check authored on populated data may drop the
+    zero rows it measures (a join aggregated without `coalesce`, a
+    ratio over an absent series) - and only rule "fix did not land"
     once the query itself is proven sound. When the query was the
-    problem, reporting its corrected form is part of the verdict;
+    problem, reporting its corrected form is part of the verdict, and
+    the report's protocol carries the corrected form for the next
+    replay;
   - every anomaly it found: fixed, still present, or worse, with the
     query that proves it;
   - every telemetry gap it listed: now filled or still missing, with the
     discovery query.
 
-Close the mission with the `show-observe-run-report` skill: render its
+Close the mission with the `## Show` of `odd-memory`'s
+`observe-run-report` reference: render its
 synthesis from the persistence return value the agent's reply carries
-(stored path, carrying commit, the report as written) as the final
+(stored path, carrying commit, the synthesis block) as the final
 answer - the verdict-first headline leads, stating the stored path; no
 re-read of the file just written. The report file, stored in
 `.odd/observe-run-reports/`, remains the versioned record that the

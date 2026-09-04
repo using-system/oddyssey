@@ -1,6 +1,6 @@
 ---
 name: observability-cli-guides
-description: The package's knowledge of every observability stack it supports, one reference file per stack - the terminal query surface (how to authenticate and query metrics, traces, logs, and profiles from the CLI), how the stack's configuration is displayed and proven, and what its stack_config persists - plus the list of built-in stacks. Use when observing a run, local or remote, and when check-backend-configuration or update-backend-configuration need anything about a stack - Grafana (gcx), Datadog (Pup CLI), Dynatrace (dtctl and DQL), Azure Monitor (az), AWS CloudWatch and X-Ray (aws), Splunk (splunk CLI and SPL), and the local stack.
+description: The package's knowledge of every observability stack it supports, one reference file per stack - the terminal query surface (how to authenticate and query metrics, traces, logs, and profiles from the CLI), how the stack's configuration is displayed and proven, and what its stack_config persists - plus the list of built-in stacks. Use when observing a run, local or remote, and when backend-configuration's Check or Switch need anything about a stack - Grafana (gcx), Datadog (Pup CLI), Dynatrace (dtctl and DQL), Azure Monitor (az), AWS CloudWatch and X-Ray (aws), and the local stack.
 ---
 
 # Observability CLI Guides
@@ -18,7 +18,7 @@ what the service emits, then **query** what you discovered.
 The list of built-in stacks — every value the MCP server's `STACKS`
 accepts, with its reference, CLI, and aliases — is
 [references/builtin-stacks.md](references/builtin-stacks.md); it is what
-`check-backend-configuration`, `update-backend-configuration`, and
+`backend-configuration` (its `## Check` and `## Switch`) and
 `/odd-config` read. The query surface per backend:
 
 | Backend | CLI | Reference |
@@ -29,15 +29,10 @@ accepts, with its reference, CLI, and aliases — is
 | Dynatrace | `dtctl` (DQL) | [references/dynatrace.md](references/dynatrace.md) |
 | Azure Monitor (App Insights, Log Analytics) | `az` (KQL) | [references/azure-monitor.md](references/azure-monitor.md) |
 | AWS CloudWatch + X-Ray | `aws` | [references/cloudwatch.md](references/cloudwatch.md) |
-| Splunk (Enterprise / Cloud Platform, Observability Cloud) | `splunk` (SPL) | [references/splunk.md](references/splunk.md) |
 
-Each reference covers: `## CLI binary` (detect and install), setup and
-authentication, the discovery-then-query commands per signal (metrics,
-traces, logs, profiles where the backend has them), Planning notes with
-the backend's coverage gaps and quirks — and, for the configuration
-skills, `## Configuration display` (what to show, the connection proof,
-the change-request phrasings) and `## What to persist` (what
-`stack_config` holds, where each value comes from, what to ask).
+Authoring a reference, or a custom stack file: every reference follows
+[references/CONTRACT.md](references/CONTRACT.md) — the sections it must
+carry, what each answers, and who reads it. A mission never opens it.
 
 For the **local oddyssey stack** (the Grafana case), the `setup-local-stack`
 skill carries the ready-made gcx context — isolated config and datasource

@@ -16,7 +16,6 @@ edits both in the same change.
 | `cloudwatch` | [cloudwatch.md](cloudwatch.md) | `aws` | remote | "AWS", "CloudWatch", "X-Ray" |
 | `datadog` | [datadog.md](datadog.md) | Pup CLI (`pup`) | remote | "Datadog" |
 | `dynatrace` | [dynatrace.md](dynatrace.md) | `dtctl` (DQL) | remote | "Dynatrace" |
-| `splunk` | [splunk.md](splunk.md) | `splunk` (SPL) | remote | "Splunk", "Splunk Cloud", "Observability Cloud" |
 
 Mapping a user's phrasing onto a value goes through the **Also called**
 column; anything that maps onto no row is an error naming the valid

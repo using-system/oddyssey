@@ -1,3 +1,49 @@
+## [1.11.0] - 2026-09-04
+
+### 🚀 Features
+
+- *(hooks)* Refuse git commit on the default branch with a PreToolUse hook (#310)
+- *(hooks)* Flag real identifiers and home paths in a file written under .odd/ with a PostToolUse hook (#312)
+- *(skill)* Odd-memory - one contract for the .odd/ memory, each create and show skill keeps only its specifics (#315)
+- *(skill)* Fold the create and show skills into odd-memory references - one memory skill, one reference per kind (#316)
+- *(skill)* Backend-configuration - one skill for the check and the switch of the configured backend (#318)
+- *(mcp)* Odd_config_set accepts a custom observability stack declared by the caller (#322)
+- *(skill)* A custom observability stack as the fifth memory kind, checked against the reference contract at switch time (#325)
+- *(prompts)* /odd-config creates or completes a custom stack file from the user's sources, their instructions, or web research (#326)
+- *(agent)* Observe-run proposes a reviewed diff to a custom stack file after a run that exercised its commands (#327)
+- *(skill)* A custom stack file may link an external guide - fetched and checked at switch time, amended where it lives (#328)
+- *(mcp)* Remove the splunk built-in stack (#330)
+- *(agent)* Observe-run - a check that passes on zero is validated on the zero branch, and the marker says which shapes were exercised (#332)
+- *(skill)* Get-status - verify the memory invariant, every stored report carries the contract's frontmatter and every decision names an existing report (#335)
+- *(agent)* Collector health checks name the component id as configured, and a grep that matches nothing on the whole history closes nothing (#339)
+
+### 🐛 Bug Fixes
+
+- *(agent)* Otel-instrumentation-expert - a verification check never projects a credential field (#308)
+- *(skill)* Record-finding-decision - never commit the ledger on the default branch (#309)
+- *(skill)* Run-scenario - a header-borne run identity for a target the run cannot launch, with run-unique trace ids (#331)
+- *(odd)* Two stored reports quote a home-directory path from a Docker log - replaced by a placeholder, a recorded exception to the append-only rule (#336)
+- *(skill)* Cloudwatch - the edge-diff recipe probes the resource fields first, the percentile sources are named, and three X-Ray and Logs Insights traps documented (#337)
+
+### 🚜 Refactor
+
+- *(skill)* Run-scenario - a light SKILL.md carrying the shared method, the run identity, the benchmark replay and the long-scenario carve-outs as references read by block (#334)
+
+### 📚 Documentation
+
+- *(guide)* Prompts - pair each example invocation with its field mapping (#289)
+- *(agents)* Record the choices that deviate from the issue's spec as comments on that issue (#297)
+- *(skill)* Observability-cli-guides - write the reference contract every stack file must carry, and check it in ci-apm (#313)
+- *(guide)* Custom backends - create, edit, amend and link a custom stack, with a README section listing every backend (#329)
+- *(skill)* Azure-monitor - ingest latency and the bounded poll, reserved KQL aliases, --offset over an explicit window, customMetrics temporality detected before trusted (#338)
+
+### ⚡ Performance
+
+- *(skill)* Get-status - deterministic status script, the model reasons on a fact sheet instead of parsing every report and running git turn by turn (#292)
+- *(skill)* Get-status - render the status deterministically, the model adds judgment only (#294)
+- *(skill)* Create-observe-run-report - return the synthesis block, never the report body (#298)
+- *(agent)* Observe-run - bound the setup reads by section, never the agent file (#299)
+- *(agent)* Observe-run - discoveries and exemplar fetches as shell-level concurrency in one call (#300)
 ## [1.10.3] - 2026-09-03
 
 ### 🚀 Features

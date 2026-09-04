@@ -20,7 +20,7 @@ steps needing the user cannot happen inside a subagent):
    stack value names a remote backend (for `grafana`, the gcx context
    says which instance).
 
-2. Run the `check-backend-configuration` skill: show the CLI's effective
+2. Run the `backend-configuration` skill's `## Check`: show the CLI's effective
    configuration to the user (no confirmation needed), and stop where
    the skill stops, in its own words — the binary is **not installed**:
    it offers the guided install and resumes once the binary exists,
@@ -90,9 +90,10 @@ defaults for every field not specified:
   backend's query quoted as evidence, no dispatch and no report -
   offering the full mission as the follow-up.
 
-Close the mission with the `show-observe-run-report` skill: render its
+Close the mission with the `## Show` of `odd-memory`'s
+`observe-run-report` reference: render its
 synthesis from the persistence return value the agent's reply carries
-(stored path, carrying commit, the report as written) as the final
+(stored path, carrying commit, the synthesis block) as the final
 answer, stating the stored path — no re-read of the file just
 written. The report file - not the synthesis - is the deliverable the
 next spec-driven wave consumes: never re-dump the raw report in the

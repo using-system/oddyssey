@@ -93,6 +93,11 @@ the push-model caveats are the `setup-local-stack` skill's
 about querying is specific to `local` beyond those two skills'
 sections: this file carries none.
 
+## Planning notes
+
+[grafana.md](grafana.md)'s, reached through the routing above; nothing
+about planning is specific to `local`.
+
 ## What to persist
 
 ### What stack_config holds

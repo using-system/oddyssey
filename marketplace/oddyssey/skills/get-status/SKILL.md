@@ -20,10 +20,14 @@ itself.
   dates, and each report's `revision` and `tree_anchor` fields against
   the commits that came after it;
 - `.odd/decisions.md`, the findings decision ledger — read through the
-  ledger contract the `record-finding-decision` skill owns: that skill
-  is the format's authority, this one only reads what it wrote. A
+  ledger contract `odd-memory`'s `decisions` reference owns: that
+  reference is the format's authority, this skill only reads what was
+  written under it. A
   missing file means no decision has been recorded yet, which is a
   fact, not an error.
+
+All three are read under the memory contract (`odd-memory`): frontmatter
+first, then sections, never a whole file without a stated need.
 
 The caller may restrict the status to service name(s), a stack (`local`,
 `grafana`, ...) and/or a deployment environment (`prod`, `uat`, ...).
@@ -32,14 +36,82 @@ the whole picture, not an empty scope.
 
 Never query a backend, never start the stack, never write or edit a
 report, a ledger, or any other file — this skill reads the loop, it does
-not advance it. The one write in the status surface belongs to the
-`record-finding-decision` skill. The status renders in the conversation,
+not advance it. The one write in the status surface is the decision
+`odd-memory`'s `decisions` reference records. The status renders in
+the conversation,
 as tables — never a committed artifact.
+
+## Render first, then judge
+
+The build order below is applied by the script bundled with this
+skill, in **one shell call** before any reasoning starts — and one
+more, with classification flags, when the first run defers tree
+entries you can classify:
+
+```bash
+python3 <this skill's directory>/scripts/odd_status.py --render \
+  [--service <name>]... [--stack <stack>] [--env <environment>]
+```
+
+Pass the caller's scope as flags — the service name(s) exactly as
+named, the stack, the environment; nothing when the caller named
+nothing. The script prints the status as markdown: the inventory (or
+step 1's stop, or the filter-matches-nothing statement), the loop
+state with one row per lineage (a service set on a stack and an
+environment, or a plan on a stack), the findings ledger with its
+burn-down, the trends over the pairs comparable by construction (a
+report and the one that `verifies` it), the open telemetry gaps as
+last recorded, the next recommended action — every row citing its
+inputs — and a closing **Judgment needed** list of everything the rules
+deferred: a ruling whose wording states no state or two, verifications
+that disagree, a verification stating no verdict, a quick verification
+that ruled only part of its items, a boundary the files cannot settle
+(tree entries the anchor cannot classify, an entry present on one side
+only, a commit-date boundary with commits since), a ruling on an id its
+chain does not define (the same finding, or a homonym), a quick
+report's gaps section opening with its not-queried list, a section not
+lifted or cut by a cap, an unreadable report, a malformed frontmatter
+value, a skipped ledger row. The action column uses step 6's three
+actions plus `fix pending` (observed, nothing landed, nothing to
+verify), `plan verified` / `plan awaits verification` for a plan's
+lineage, and `judgment needed` for a deferral.
+
+When you know which top-level entries can or cannot change the
+observed service's runtime in this repository, re-run with
+`--runtime <entry>` or `--non-runtime <entry>` so the rule decides
+instead of deferring — the flags hold for the whole repository, so
+when an entry is runtime for one lineage only, leave the deferral and
+say so. `--today YYYY-MM-DD` sets the date the cadence rule counts
+from; `--help` lists the rest.
+
+**Print the rendering in the conversation as the status, unchanged** —
+the last one you ran, and say which flags it ran with. The tables are
+the rules; never rewrite a rendered row: when the sources contradict
+one, flag the row in the paragraph below, with the evidence. Then rule
+on the Judgment needed items — those and nothing else — in one short
+paragraph after the rendering, from the fact sheet (`odd_status.py`
+without `--render` prints it as JSON; per report, `tree_anchor_diff`,
+`commits_since`, `benchmarks`, `findings` and `sections` are the keys
+a judgment reads) and from a report body only when an item names
+one. State each judgment as what it changes in the
+tables above ("F1 of <report> reads as fixed: 'still passing' is a pass
+row"; "the `.apm` entry is the package's prompts, non-runtime: the loop
+can rest"), and nothing when an item changes nothing; the list itself
+stays as printed. Runs listed apart in the trends are information, not
+a deferral: compare them only when the caller asks.
+
+When `python3` is missing, the script is not next to this file (an
+install that dropped `scripts/`), or it exits non-zero, say so in one
+line and build the status by hand, exactly as the steps below describe
+— the script is the same rules applied by code, never a different
+status.
 
 ## Build the status in this order
 
 1. **Inventory — frontmatters only.** List both directories and read
-   every frontmatter, no bodies yet. No `.odd/` directory or no reports
+   every frontmatter, no bodies yet; the memory invariant (below) is
+   checked here, over every stored report, and rendered right after
+   the inventory. No `.odd/` directory or no reports
    at all: say the loop has not started here, point at
    `/odd-instrument-otel` or `/odd-observe`, and stop — that IS the
    status, not a failure.
@@ -158,6 +230,31 @@ as tables — never a committed artifact.
    verdicts, no unverified change). Every recommendation cites its
    inputs — dates, verdicts, revisions — evidence over impressions
    applies to the meta-loop too.
+
+## The memory invariant
+
+"Model-visible means logged": everything a later mission consumes is
+in `.odd/`, in the shape the `odd-memory` contract fixes — and the
+script checks it after the fact, over **every** stored report and
+decision, filtered status or not. Per report: the filename convention,
+the frontmatter fields the kind requires (`services`, `stack`,
+`environment`, `mode`, `depth`, `window` as `start/end` UTC,
+`run_name` and `date` matching the filename; `project` for a plan),
+and a `verifies` that names a stored file when the mode is a replay.
+Per decision row: a report that exists and a finding it carries (the
+ledger's own skipped rows). The fact sheet carries the result under
+`invariant`, and the rendered status carries a `## Memory invariant`
+section: the counts, then one line per violation.
+
+A violation is **never a failure**: the store is append-only, so a
+report is never edited to repair it — a new run supersedes it — and a
+decision row is appended, never rewritten. The status is where a
+reader learns that a decision points at nothing; the remedy is the
+next run, or a new row. A report whose only gap is a field it
+predates (`depth`, read as `full` the way the loop state already
+renders it) is not a violation: the fact sheet lists it under
+`legacy`, and the section names it in a note next to the counts,
+since nothing can ever change it.
 
 ## A filter that matches nothing is still a status
 
