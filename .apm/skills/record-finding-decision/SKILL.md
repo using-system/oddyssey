@@ -90,15 +90,15 @@ One row per decision:
   `origin/` prefix; if unset, `main` — or `master` when that is the
   checked-out branch). Only when on the default branch, create and
   switch to a work branch named
-  `docs/odd-finding-decision-<finding ID>-<verdict>` — both values
-  normalized for the branch name only: lowercased, every run of
-  characters outside `[a-z0-9]` replaced by a single `-`, leading and
-  trailing `-` trimmed (`A5 (2026-08-22-2227)` + `wontfix` →
-  `docs/odd-finding-decision-a5-2026-08-22-2227-wontfix`), while the
-  ledger row keeps the finding ID exactly as the report names it —
-  (switching to it if it already exists) and commit there — and say so
-  in the reply. If switching is impossible, do not commit: state the
-  path and leave the commit to the caller.
+  `docs/odd-finding-decision-<finding ID>-<verdict>` (switching to it
+  if it already exists) and commit there — and say so in the reply.
+  Both values are normalized for the branch name only: lowercased,
+  every run of characters outside `[a-z0-9]` replaced by a single
+  `-`, leading and trailing `-` trimmed (`A5 (2026-08-22-2227)` +
+  `wontfix` → `docs/odd-finding-decision-a5-2026-08-22-2227-wontfix`);
+  the ledger row keeps the finding ID exactly as the report names it.
+  If switching is impossible, do not commit: state the path and leave
+  the commit to the caller.
 - **After writing, commit the ledger file on its own**:
   `git add .odd/decisions.md` then
   `git commit -m "docs(odd): finding decision <finding ID> <verdict>"` —
