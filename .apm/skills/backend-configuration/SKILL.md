@@ -215,19 +215,25 @@ effective configuration under `config` — report the new `stack` from
 there, not from the request, so what is displayed is what was stored.
 
 A **custom stack** is checked before it is written, and written with
-its declaration. Run the `observability-cli-guides` skill's
-`python3 scripts/check_stack_reference.py --declaration <file>` on the
-stack file (the script lives next to that skill's `references/`): a
-non-zero exit lists what the file lacks against the reference contract
-— stop there, naming the problems; the fix is an edit to the file,
-through the `odd-memory` reference, never a switch to an unchecked
-stack. A zero exit prints one JSON object: the `config` argument of
-the switch's `odd_config_set` call — pass it verbatim, never rebuilt
-by hand (step 4's `stack_config` values may ride in the same call when
-they are already known). The server stores the declaration it carries
-and validates step 4's values against it; it never reads the file, and
-a name it has no declaration for is the error the check exists to
-prevent.
+its declaration. Run
+
+```text
+python3 <the observability-cli-guides skill's directory>/scripts/check_stack_reference.py --declaration .odd/observability-stacks/<name>.md
+```
+
+from the observed repository's root. A non-zero exit lists what the
+file lacks against the reference contract — stop there, naming the
+problems; the fix is an edit to the file, through the `odd-memory`
+reference, never a switch to an unchecked stack. A zero exit prints one
+JSON object: the `config` argument of the switch's `odd_config_set`
+call — pass it verbatim, never rebuilt by hand (step 4's `stack_config`
+values may ride in the same call when they are already known). The
+server stores the declaration it carries and validates step 4's values
+against it; it never reads the file, and a name it has no declaration
+for is the error the check exists to prevent. When the check cannot
+run — `python3` missing, or an install that dropped the skill's
+`scripts/` — the switch stops there too, saying which of the two: an
+unchecked file is not persisted, and the fix is the user's.
 
 The switch alone touches nothing else: it does not boot, reset, or stop
 the local stack container. A `stack_reset` block appears in the result

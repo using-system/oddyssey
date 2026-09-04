@@ -95,8 +95,9 @@ stack_config_fields: []    # the stack_config fields the switch may persist; [] 
 ```
 
 The switch runs
-`python3 scripts/check_stack_reference.py --declaration <file>`: the
-headings are checked as for a built-in, and the declaration is printed
+`python3 <this skill's directory>/scripts/check_stack_reference.py --declaration <file>`:
+the headings are checked as for a built-in, the name is refused when
+`builtin-stacks.md` lists it, and the declaration is printed
 as the `odd_config_set` payload that switches to the stack — the
 tool's `config` argument, passed verbatim. Any other frontmatter key
 (a `verified` note, for instance) belongs to the file and is never

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -161,6 +162,36 @@ def test_declaration_reads_flow_and_block_lists(tmp_path, fields, expected):
     }
 
 
+def test_declaration_reads_the_contracts_own_example(tmp_path):
+    # CONTRACT.md shows the frontmatter with trailing YAML comments; a file
+    # copied from it must declare cleanly.
+    contract = (REFERENCES / "CONTRACT.md").read_text()
+    example = re.search(r"```yaml\n(.*?)```", contract, re.DOTALL).group(1)
+    frontmatter = example.replace("<name>", "seq")
+    assert "#" in frontmatter
+    path = custom_file(tmp_path, frontmatter=frontmatter)
+    result = _run("--declaration", str(path))
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {
+        "stack": "seq",
+        "custom": {"seq": {"stack_config_fields": []}},
+    }
+
+
+def test_declaration_refuses_a_builtin_name(tmp_path):
+    # A learning about a stack the package ships is a package issue, never
+    # a custom file: refused at the check, before the server ever sees it.
+    path = custom_file(
+        tmp_path,
+        name="grafana",
+        frontmatter="---\nstack: grafana\nstack_config_fields: []\n---\n",
+    )
+    result = _run("--declaration", str(path))
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert "is a built-in stack" in result.stderr
+
+
 def test_declaration_forwards_only_the_two_keys(tmp_path):
     # The server accepts exactly {"stack_config_fields": [...]} under the
     # stack's name (#228): a verified note or any other frontmatter key
@@ -190,6 +221,7 @@ def test_declaration_forwards_only_the_two_keys(tmp_path):
         ("---\nstack: uptrace\nstack_config_fields: []\n---\n", "does not match"),
         ("---\nstack: seq\n---\n", "missing `stack_config_fields"),
         ("---\nstack: seq\nstack_config_fields: base_url\n---\n", "must be a list"),
+        ("---\nstack: seq\nstack_config_fields:\n---\n", "must be a list"),
         ("---\nstack: seq\nstack_config_fields: [Base-URL]\n---\n", "snake_case"),
         ("---\nstack: seq\nstack_config_fields: [a, a]\n---\n", "duplicate"),
     ],

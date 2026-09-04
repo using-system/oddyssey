@@ -35,7 +35,9 @@ from pathlib import Path
 
 REFERENCES = Path(__file__).resolve().parent.parent / "references"
 CONTRACT = REFERENCES / "CONTRACT.md"
+BUILTIN_STACKS = REFERENCES / "builtin-stacks.md"
 NOT_A_STACK = {"CONTRACT.md", "builtin-stacks.md"}
+COMMENT_RE = re.compile(r"\s+#.*$")
 HEADING_RE = re.compile(r"^(#{2,3}) (.+?)\s*$")
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 FIELD_RE = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -55,6 +57,13 @@ def required_headings(contract: str) -> dict[str, list[str]]:
         elif line.startswith("### ") and section:
             required[section].append(line[4:].strip())
     return required
+
+
+def builtin_stacks() -> set[str]:
+    """The STACKS values builtin-stacks.md lists (a server test pins the two)."""
+    return set(
+        re.findall(r"^\| `([a-z-]+)` \| \[", BUILTIN_STACKS.read_text(), re.MULTILINE)
+    )
 
 
 def split_frontmatter(text: str) -> tuple[str | None, str]:
@@ -104,7 +113,11 @@ def check_headings(body: str, required: dict[str, list[str]]) -> list[str]:
 
 
 def _parse_fields(value: str, following: list[str]) -> list | None:
-    """A YAML list, flow (``[a, b]``) or block (``- a`` lines); None if neither."""
+    """A YAML list, flow (``[a, b]``) or block (``- a`` lines); None if neither.
+
+    An empty scalar with no block items is None too: "persists nothing"
+    is written ``[]``, a bare key is a file that forgot to fill it in.
+    """
     value = value.strip()
     if value.startswith("[") and value.endswith("]"):
         inner = value[1:-1].strip()
@@ -113,11 +126,11 @@ def _parse_fields(value: str, following: list[str]) -> list | None:
         return None
     items = []
     for line in following:
-        stripped = line.strip()
+        stripped = COMMENT_RE.sub("", line.strip())
         if not stripped.startswith("- "):
             break
         items.append(stripped[2:].strip().strip("'\""))
-    return items
+    return items or None
 
 
 def declaration_of(frontmatter: str | None, stem: str) -> tuple[dict | None, list[str]]:
@@ -134,7 +147,7 @@ def declaration_of(frontmatter: str | None, stem: str) -> tuple[dict | None, lis
         match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):(.*)$", line)
         if not match:
             continue
-        key, value = match.group(1), match.group(2)
+        key, value = match.group(1), COMMENT_RE.sub("", match.group(2))
         if key == "stack":
             stack = value.strip().strip("'\"")
         elif key == "stack_config_fields":
@@ -150,6 +163,10 @@ def declaration_of(frontmatter: str | None, stem: str) -> tuple[dict | None, lis
     elif stack != stem:
         problems.append(
             f"frontmatter: `stack: {stack}` does not match the file name `{stem}.md`"
+        )
+    elif stack in builtin_stacks():
+        problems.append(
+            f"frontmatter: `stack: {stack}` is a built-in stack, never a custom file"
         )
     if not seen_fields:
         problems.append(
@@ -170,7 +187,7 @@ def declaration_of(frontmatter: str | None, stem: str) -> tuple[dict | None, lis
     return {"stack": stack, "custom": {stack: {"stack_config_fields": fields}}}, []
 
 
-def report(path: Path, display: str, problems: list[str]) -> None:
+def report(display: str, problems: list[str]) -> None:
     print(f"{display}:", file=sys.stderr)
     for problem in problems:
         print(f"  {problem}", file=sys.stderr)
@@ -184,7 +201,7 @@ def check_builtin(required: dict[str, list[str]]) -> int:
         problems = check_headings(body, required)
         if problems:
             failures += 1
-            report(path, str(path.relative_to(REFERENCES.parent)), problems)
+            report(str(path.relative_to(REFERENCES.parent)), problems)
     if failures:
         print(
             f"{failures} of {len(files)} references break the contract", file=sys.stderr
@@ -198,7 +215,7 @@ def check_custom(path: Path, required: dict[str, list[str]], declare: bool) -> i
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as error:
-        report(path, str(path), [f"cannot read: {error.strerror}"])
+        report(str(path), [f"cannot read: {error.strerror}"])
         return 1
     frontmatter, body = split_frontmatter(text)
     problems = check_headings(body, required)
@@ -207,7 +224,7 @@ def check_custom(path: Path, required: dict[str, list[str]], declare: bool) -> i
         declaration, more = declaration_of(frontmatter, path.stem)
         problems.extend(more)
     if problems:
-        report(path, str(path), problems)
+        report(str(path), problems)
         return 1
     if declare:
         print(json.dumps(declaration))

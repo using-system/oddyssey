@@ -52,11 +52,11 @@ is how a prompt offers the custom stacks the repository carries.
 
 ## Rules
 
-- **Checked before it is trusted.** A switch to a custom stack runs the
-  `observability-cli-guides` skill's `python3
-  scripts/check_stack_reference.py --declaration <file>` first: a file
-  that breaks the contract does not get persisted — the fix is an edit
-  to the file, through this reference. What the check prints is the
+- **Checked before it is trusted.** A switch to a custom stack runs
+  `python3 <the observability-cli-guides skill's directory>/scripts/check_stack_reference.py --declaration .odd/observability-stacks/<name>.md`
+  first: a file that breaks the contract does not get persisted — the
+  fix is an edit to the file, through this reference — and neither
+  does one the check could not run on. What the check prints is the
   `odd_config_set` payload the switch passes verbatim, never rebuilt by
   hand.
 - **Reviewed diffs, never silent overwrites.** A change to a stored
@@ -69,9 +69,9 @@ is how a prompt offers the custom stacks the repository carries.
   `docs(odd): stack <name>` for a new file, `docs(odd): stack <name> -
   <what changed>` for an update; the reply states the stored path.
 - **Never a built-in.** A file whose name is a `STACKS` value is
-  refused at the check (`stack` must not be a built-in): a learning
-  about a stack the package ships is a package issue, never a file in
-  the observed repository.
+  refused at the check (the script reads `builtin-stacks.md`, and the
+  server refuses the name again): a learning about a stack the package
+  ships is a package issue, never a file in the observed repository.
 
 ## What the persistence does not own
 
