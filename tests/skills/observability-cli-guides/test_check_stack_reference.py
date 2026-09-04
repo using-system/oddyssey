@@ -325,6 +325,32 @@ def test_linked_guide_by_repo_is_cloned_and_checked(tmp_path):
     assert "## CLI binary" in (fetch_dir / "seq.md").read_text()
 
 
+def test_linked_guide_reports_where_the_copy_landed(tmp_path):
+    guide = tmp_path / "guide.md"
+    guide.write_text(conforming_body())
+    fetch_dir = tmp_path / "fetched"
+    path = linked_file(tmp_path, f"source_url: {guide.as_uri()}")
+    result = _run("--declaration", "--fetch-dir", str(fetch_dir), str(path))
+    assert result.returncode == 0, result.stderr
+    assert f"fetched {guide.as_uri()} to {fetch_dir / 'seq.md'}" in result.stderr
+    # Without --fetch-dir the copy lands in a temporary directory, still named.
+    result = _run("--declaration", str(path))
+    assert result.returncode == 0, result.stderr
+    assert "fetched " in result.stderr and "/seq.md" in result.stderr
+
+
+def test_a_link_to_a_pointer_is_refused(tmp_path):
+    pointer = tmp_path / "pointer.md"
+    pointer.write_text(
+        "---\nstack: seq\nstack_config_fields: []\nsource_url: file:///x\n---\n"
+    )
+    path = linked_file(tmp_path, f"source_url: {pointer.as_uri()}")
+    result = _run("--declaration", str(path))
+    assert result.returncode == 1
+    assert "itself a link" in result.stderr
+    assert "missing `##" not in result.stderr
+
+
 def test_linked_guide_with_a_local_body_is_refused(tmp_path):
     guide = tmp_path / "guide.md"
     guide.write_text(conforming_body())
@@ -375,6 +401,9 @@ def test_linked_guide_with_malformed_source_keys_is_refused(
     result = _run("--declaration", str(path))
     assert result.returncode == 1
     assert problem in result.stderr
+    # The real cause alone - no phantom missing-heading lines for a
+    # file that is a pointer by intent.
+    assert "missing `##" not in result.stderr
 
 
 def test_help_prints_usage():

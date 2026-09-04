@@ -291,7 +291,9 @@ def check_custom(
         report(str(path), [f"cannot read: {error.strerror}"])
         return 1
     frontmatter, body = split_frontmatter(text)
-    source, problems = source_of(frontmatter_values(frontmatter or ""))
+    values = frontmatter_values(frontmatter or "")
+    source, problems = source_of(values)
+    linked = any(key in values for key in SOURCE_KEYS)
     if source:
         # A linked guide: the body lives at the link, the local file is
         # the pointer - a body here would fork the guide silently.
@@ -307,10 +309,26 @@ def check_custom(
             if failure:
                 problems.append(failure)
             else:
-                _, body = split_frontmatter(target.read_text(encoding="utf-8"))
-                problems.extend(check_headings(body, required))
-    else:
+                origin = source.get("source_url") or (
+                    f"{source['source_repo']} {source['source_path']}"
+                )
+                print(f"fetched {origin} to {target}", file=sys.stderr)
+                guide_front, body = split_frontmatter(
+                    target.read_text(encoding="utf-8")
+                )
+                if any(
+                    key in frontmatter_values(guide_front or "") for key in SOURCE_KEYS
+                ):
+                    problems.append(
+                        "the linked guide is itself a link: link the guide, not a pointer"
+                    )
+                else:
+                    problems.extend(check_headings(body, required))
+    elif not linked:
         problems.extend(check_headings(body, required))
+    # A malformed link (source problems, no source): the body check is
+    # skipped - the file is a pointer by intent, and six missing-heading
+    # lines would bury the real cause.
     declaration = None
     if declare:
         declaration, more = declaration_of(frontmatter, path.stem)
