@@ -621,8 +621,28 @@ from your reply, without re-reading the file:
    benchmark, the manifest's thresholds, carried over from section 2's
    table), an error that must be gone, a gap that must be filled — so the
    improvement is verified with evidence, not impressions. Each check
-   states how its query was validated on healthy data, or carries
-   `not validated` (the persistence skill defines the marker). For an
+   states how its query was validated — on healthy data, and on the
+   **shape the pass criterion expects**: a check that passes when
+   something reaches zero, drops to N, or disappears (dependencies
+   per request, error lines, spans of a kind) is authored on data
+   where that branch never occurs, and a query that only ever saw the
+   populated branch silently loses the rows it exists to count — a
+   `leftouter` join whose aggregate skips the nulls of the unmatched
+   side, a ratio whose absent series makes the result empty rather
+   than zero. Validate the zero branch before marking it: run the
+   query with a selector known to match nothing on the joined side and
+   read a zero, or assert the row count equals the request count; in
+   KQL write `coalesce(<right column>, 0)` after a `leftouter` join
+   (or count on the request side), in PromQL `or vector(0)`, in LogQL
+   a count that yields zero rather than an empty result (the
+   persistence skill's two-raw-counts form is the same discipline for
+   an equality check). The validation marker then says which shapes were
+   exercised — `validated: before-shape` when only today's data
+   answered, `validated: before-shape, after-shape` when the zero
+   branch was too — or carries `not validated` (the persistence skill
+   defines the markers); a replay treats a check validated on the
+   before-shape only as a query suspect the moment its after-value
+   comes back empty, zero-free or NaN. For an
    expensive or non-deterministic scenario (`run-scenario`'s carve-out),
    every before-value carries its sample count and pass criteria are
    structural or magnitude-bounded — never a value from one or two

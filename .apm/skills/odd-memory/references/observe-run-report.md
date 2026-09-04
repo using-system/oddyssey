@@ -312,9 +312,19 @@ recall or by a caller naming a stored report.
   over a single burst makes every `histogram_quantile` NaN by
   construction on any window sampled after the burst, whatever the fix
   did). Each verification check states how its query was validated —
-  run against a healthy or adjacent series, or a synthetic one — or
-  carries `not validated`, which tells the verify run to suspect the
-  query before the fix. An equality check on log line counts ("every
+  run against a healthy or adjacent series, or a synthetic one — and on
+  which **shape**: `validated: before-shape` when only today's data
+  answered, `validated: before-shape, after-shape` when the shape the
+  pass criterion expects was exercised too (a "reaches zero" check run
+  with a selector matching nothing on its joined side, a row count
+  equal to the request count) — or carries `not validated`. A stored
+  check whose validation note names no shape (every report written
+  before these markers) reads as `before-shape`. Either of the two
+  weaker markers tells the verify run to suspect the query before the
+  fix: a check authored on the populated branch alone can
+  drop the very rows it measures once they go to zero (a `leftouter`
+  join aggregated without `coalesce`, a ratio over an absent series).
+  An equality check on log line counts ("every
   line carries a trace id") is stated as two raw line counts over the
   recorded window and stream selector, one of them carrying the
   trace-id filter — never as a range vector
