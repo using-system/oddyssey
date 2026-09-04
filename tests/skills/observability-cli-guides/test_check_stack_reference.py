@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import subprocess
 import sys
@@ -21,6 +22,16 @@ SCRIPT = (
     / ".apm/skills/observability-cli-guides/scripts/check_stack_reference.py"
 )
 REFERENCES = SCRIPT.parent.parent / "references"
+GIT_ENV = {
+    "PATH": os.environ["PATH"],
+    "HOME": os.environ.get("HOME", ""),
+    "GIT_AUTHOR_NAME": "example-user",
+    "GIT_AUTHOR_EMAIL": "example-user@example.test",
+    "GIT_COMMITTER_NAME": "example-user",
+    "GIT_COMMITTER_EMAIL": "example-user@example.test",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_NOSYSTEM": "1",
+}
 
 
 def _load():
@@ -260,3 +271,113 @@ def test_a_builtin_reference_carries_no_declaration():
     # asks them for one, and the check must not require it there.
     for path in REFERENCES.glob("*.md"):
         assert not path.read_text().startswith("---\n"), path.name
+
+
+# --- a linked guide (issue #323) ----------------------------------------
+
+
+def linked_file(tmp_path: Path, source_lines: str, name="seq", body="") -> Path:
+    path = tmp_path / f"{name}.md"
+    path.write_text(
+        f"---\nstack: {name}\nstack_config_fields: []\n{source_lines}\n---\n{body}"
+    )
+    return path
+
+
+def test_linked_guide_by_url_is_fetched_and_checked(tmp_path):
+    guide = tmp_path / "guides" / "seq-guide.md"
+    guide.parent.mkdir()
+    guide.write_text("# Seq\n\n" + conforming_body())
+    fetch_dir = tmp_path / "fetched"
+    path = linked_file(tmp_path, f"source_url: {guide.as_uri()}")
+    result = _run("--declaration", "--fetch-dir", str(fetch_dir), str(path))
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {
+        "stack": "seq",
+        "custom": {"seq": {"stack_config_fields": []}},
+    }
+    # The fetched copy lands at a deterministic path the skills read.
+    assert (fetch_dir / "seq.md").read_text() == guide.read_text()
+
+
+def test_linked_guide_by_repo_is_cloned_and_checked(tmp_path):
+    # The guide may itself be a full custom stack file in another
+    # repository (frontmatter included): its headings are what is checked.
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    (origin / "stacks").mkdir()
+    (origin / "stacks" / "seq.md").write_text(
+        "---\nstack: seq\nstack_config_fields: []\n---\n" + conforming_body()
+    )
+    for command in (
+        ["git", "init", "-q", "-b", "main"],
+        ["git", "add", "-A"],
+        ["git", "commit", "-q", "-m", "guide"],
+    ):
+        subprocess.run(command, cwd=origin, check=True, env=GIT_ENV)
+    fetch_dir = tmp_path / "fetched"
+    path = linked_file(
+        tmp_path, f"source_repo: {origin}\nsource_path: stacks/seq.md\nsource_ref: main"
+    )
+    result = _run("--declaration", "--fetch-dir", str(fetch_dir), str(path))
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["stack"] == "seq"
+    assert "## CLI binary" in (fetch_dir / "seq.md").read_text()
+
+
+def test_linked_guide_with_a_local_body_is_refused(tmp_path):
+    guide = tmp_path / "guide.md"
+    guide.write_text(conforming_body())
+    path = linked_file(tmp_path, f"source_url: {guide.as_uri()}", body="## Notes\n")
+    result = _run("--declaration", str(path))
+    assert result.returncode == 1
+    assert "carries no body" in result.stderr
+
+
+def test_linked_guide_that_breaks_the_contract_fails_naming_the_heading(tmp_path):
+    guide = tmp_path / "guide.md"
+    guide.write_text(conforming_body().replace("## Setup", "## Install"))
+    path = linked_file(tmp_path, f"source_url: {guide.as_uri()}")
+    result = _run("--declaration", str(path))
+    assert result.returncode == 1
+    assert "missing `## Setup`" in result.stderr
+
+
+def test_linked_guide_that_cannot_be_fetched_is_a_named_failure(tmp_path):
+    path = linked_file(tmp_path, f"source_url: {(tmp_path / 'absent.md').as_uri()}")
+    result = _run("--declaration", str(path))
+    assert result.returncode == 1
+    assert "cannot fetch" in result.stderr
+    missing = linked_file(
+        tmp_path, f"source_repo: {tmp_path / 'no-repo'}\nsource_path: x.md", name="b"
+    )
+    result = _run("--declaration", str(missing))
+    assert result.returncode == 1
+    assert "cannot clone" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("source_lines", "problem"),
+    [
+        ("source_repo: /somewhere", "needs `source_path`"),
+        ("source_path: stacks/seq.md", "needs `source_repo`"),
+        (
+            "source_url: file:///x\nsource_repo: /y\nsource_path: z",
+            "exclude each other",
+        ),
+        ("source_url:", "is empty"),
+    ],
+)
+def test_linked_guide_with_malformed_source_keys_is_refused(
+    tmp_path, source_lines, problem
+):
+    path = linked_file(tmp_path, source_lines)
+    result = _run("--declaration", str(path))
+    assert result.returncode == 1
+    assert problem in result.stderr
+
+
+def test_help_prints_usage():
+    result = _run("--help")
+    assert result.returncode == 0
+    assert result.stdout.startswith("usage:")

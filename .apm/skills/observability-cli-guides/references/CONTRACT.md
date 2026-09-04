@@ -102,3 +102,17 @@ as the `odd_config_set` payload that switches to the stack — the
 tool's `config` argument, passed verbatim. Any other frontmatter key
 (a `verified` note, for instance) belongs to the file and is never
 forwarded.
+
+A custom stack file may **link** its guide instead of carrying it, so
+one guide serves several repositories: the frontmatter names the
+guide — `source_url: <URL the guide is fetched from as-is>`, or
+`source_repo: <git repository the user can clone>` with
+`source_path: <the guide's path in it>` and an optional
+`source_ref: <branch or tag>` — and the body stays empty (a body next
+to a link is refused: it would fork the guide silently). The check
+then fetches the guide into `--fetch-dir <dir>` as `<dir>/<name>.md`,
+checks that copy's headings, and prints the same payload; the copy is
+what the skills read, never committed. The linked guide may itself be
+a full custom stack file of the other repository, frontmatter
+included. A guide reachable some other way is fetched by the agent
+into that directory and checked as a plain path.

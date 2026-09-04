@@ -68,9 +68,11 @@ the divergence and does not persist (the stored report is the contract
 it replays). Open the stack's row in `builtin-stacks.md` and, from it,
 the stack's reference file; a name on no row is a custom stack, its
 reference file `.odd/observability-stacks/<name>.md` in the observed
-repository (absent too: the error of `## Switch`'s step 1). The rest
-of this section is that file's `## Configuration display`, applied in
-order.
+repository (absent too: the error of `## Switch`'s step 1) — or, when
+that file links its guide, the fetched copy: run the switch's check
+command again here (it is cheap, and a copy left by an earlier run may
+lag the guide), and read the copy it writes. The rest of this section
+is that file's `## Configuration display`, applied in order.
 
 ### 2. Resolve the CLI and read its configuration
 
@@ -144,8 +146,8 @@ only:
 
 ```text
 Preflight: stack=<stack>, backend=<backend, local, or "<name> (custom)">
-Reference: <repo-relative path of the reference file>; read: CLI binary, Configuration display
-CLI: <binary> <version>; context: <the isolated context's path, the named context, or "none" when the CLI carries no context>
+Reference: <repo-relative path of the reference file - for a linked guide, the link and the fetched copy's path>; read: CLI binary, Configuration display
+CLI: <binary> <version>[, at <path> when not on PATH]; context: <the isolated context's path, the named context, or "none" when the CLI carries no context>
 Target: <the Display's values on one line - URLs, ports, tenant/workspace/site names; never a credential>
 Proof: <the probe command> -> <the real signal it returned>, at <UTC>
 ```
@@ -187,13 +189,18 @@ lets the user correct it in one turn.
 Open the target's reference and read its `## CLI binary` section — it
 names the binary, the **Detect** command, and the **Install** steps. A
 reference may route that section to another reference's when the same
-binary queries both stacks; follow it.
+binary queries both stacks; follow it. A custom file that **links** its
+guide has no body to read: run step 3's check first (it fetches the
+copy), then read the section from the copy.
 
 Run the Detect command as written, in a shell **without `set -u`** — a
 Detect command may reference an environment variable that is usually
 unset, and under `-u` the check would abort instead of answering. A
 non-zero exit is the **answer, not a failure**: it means "not
-installed", and the preflight continues into the offer below.
+installed", and the preflight continues into the offer below. A Detect
+that answers through a fallback path (the binary exists but is not on
+`PATH`) is "present, at <path>": say so, and carry it in the handoff's
+`CLI:` line — every later command needs that path.
 
 When the binary is missing, **offer** the reference's Install steps:
 name the binary, show the install command(s), and ask the user to run
@@ -219,13 +226,19 @@ A **custom stack** is checked before it is written, and written with
 its declaration. Run
 
 ```text
-python3 <the observability-cli-guides skill's directory>/scripts/check_stack_reference.py --declaration .odd/observability-stacks/<name>.md
+python3 <the observability-cli-guides skill's directory>/scripts/check_stack_reference.py --declaration --fetch-dir <a scratch directory outside the repository> .odd/observability-stacks/<name>.md
 ```
 
-from the observed repository's root. A non-zero exit lists what the
-file lacks against the reference contract — stop there, naming the
-problems; the fix is an edit to the file, through the `odd-memory`
-reference, never a switch to an unchecked stack. A zero exit prints one
+from the observed repository's root. When the file **links** its
+guide (the contract's `source_*` keys), the check fetches the guide
+into that directory as `<name>.md`: that copy is the stack's
+reference for every later read — this skill's `## Check`, the
+agents' — so carry its path in the handoff, and never commit it. A
+non-zero exit lists what the file lacks against the reference
+contract, or why the link could not be fetched — stop there, naming
+the problems; the fix is an edit to the file (or to the linked guide,
+where it lives), through the `odd-memory` reference, never a switch to
+an unchecked stack. A zero exit prints one
 JSON object: the `config` argument of the switch's `odd_config_set`
 call — pass it verbatim, never rebuilt by hand (step 4's `stack_config`
 values may ride in the same call when they are already known). The
@@ -281,9 +294,9 @@ entirely. A deletion never boots or resets the container either, and it
 is the tool-surface answer to "clear the <value> for <stack>" — never
 hand-edit the file.
 
-An entry that is present and empty (`{"<stack>": {}}`) means "not
-configured", which for the backends whose reference says `stack_config`
-holds **nothing** — the context-bearing CLIs, whose own context names
+An entry that is present and empty (`{"<stack>": {}}`), or absent
+altogether, means "not configured", which for the backends whose
+reference says `stack_config` holds **nothing** — the context-bearing CLIs, whose own context names
 the instance — is the **correct final state**: normal, not an error,
 and not something to fill in with invented values.
 

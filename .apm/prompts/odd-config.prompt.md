@@ -15,8 +15,10 @@ picks a change.
   change (`set the local Grafana port to 3001`), or a **custom stack
   to create or complete** (`create a stack seq`, with optional
   sources - a documentation URL, a local path to documentation, free
-  instructions - and `for stack seq: <instructions>` to complete an
-  existing file). No arguments = display first.
+  instructions - `create a stack seq linked to <URL, or repository and
+  path>` to point at a guide another repository carries, and `for
+  stack seq: <instructions>` to complete an existing file). No
+  arguments = display first.
 
 When the arguments already name a target backend or a persist or clear
 request, skip the display-first flow and route straight to the
@@ -152,8 +154,22 @@ naming an existing file) changes the sections the instructions
 touch, and only those: read the stored file by section, apply the
 instruction or the new source, and present the change as a **diff
 against the stored file** before persisting it - living source,
-reviewed, never silently rewritten. An instruction never upgrades an
-unverified note to verified: only a run does.
+reviewed, never silently rewritten - the frontmatter's `verified`
+note counts as touched when the change alters what it states.
+"Verify while filling" applies here too, and an instruction never
+upgrades an unverified note to verified: an instruction that claims a
+verification is written as the user's claim, dated, and the run's own
+result decides the mark. When the file **links**
+its guide, the local file is never edited: the `odd-memory` stack
+reference says where the change goes - a pull request on the linked
+repository when the user can push to it (opened with their go), the
+proposed diff displayed for them to apply otherwise.
+
+**Link instead of create.** `create a stack <name> linked to <URL, or
+repository and path>` writes the pointer only - the frontmatter with
+the declaration and the contract's `source_*` keys, no body - so a
+guide another repository already carries serves this one too; the
+check fetches it and the switch reads the copy.
 
 **Ask once.** What neither the sources nor the web settled - the
 instance's address, which signals the backend really carries, the
@@ -165,7 +181,9 @@ not know is written as unverified, not invented.
 
 **Check, then persist.** Run the check `## Switch` runs
 (`python3 <the observability-cli-guides skill's directory>/scripts/check_stack_reference.py --declaration .odd/observability-stacks/<name>.md`)
-on the draft and fix what it lists before anything is committed.
+on the draft - for a linked guide, on the amended copy in your own
+clone, as a plain path - and fix what it lists before anything is
+committed.
 Persist through the `odd-memory` stack reference - its branch, its
 lone commit, its `## Show` as the reply's synthesis, never the file
 body - then **offer the switch**: `backend-configuration`'s
