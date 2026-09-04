@@ -52,7 +52,7 @@ that, DQL is executed over the Grail Query REST API with `curl`.
 | Raw DQL (curl, no `dtctl`) | `curl -X POST 'https://<envid>.apps.dynatrace.com/platform/storage/query/v1/query:execute' -H 'Authorization: Bearer …' -H 'Content-Type: application/json' -d '{"query":"fetch logs \| limit 10"}'` then poll `GET .../query:poll?request-token=…` | [Grail service](https://developer.dynatrace.com/develop/platform-services/services/grail-service/), [Query Grail data](https://docs.dynatrace.com/docs/platform/grail/dynatrace-grail/query-data) | Execution is async: `query:execute` returns a `request-token`; poll `query:poll` with it until the query finishes. Final results are only guaranteed available for **one minute** after completion — poll faster than that. This is the documented API alternative for any signal when `dtctl` isn't installed. |
 
 Concurrency — **not verified**: read commands issued concurrently
-from one shell against one credential are the expected shape, and
+from one shell are the expected shape, and
 `dtctl query` submits independent DQL executions against Grail
 sharing one context, so nothing in its design objects to it — but no
 Dynatrace environment was available to prove it (2026-09-04). Until a

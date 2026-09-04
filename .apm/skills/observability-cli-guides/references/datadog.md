@@ -59,7 +59,7 @@ including from environments where Pup isn't installed.
 | Logs | REST API (what Pup wraps) | [Search logs (POST)](https://docs.datadoghq.com/api/latest/logs.md#search-logs-post) | `POST https://api.<site>/api/v2/logs/events/search`; same header auth. |
 
 Concurrency — **not verified**: read commands issued concurrently
-from one shell against one credential are the expected shape, and
+from one shell are the expected shape, and
 `pup` read commands are stateless API calls sharing one credential,
 so nothing in their design objects to it — but no Datadog account was
 available to prove it (2026-09-04). Until a live check lands here,

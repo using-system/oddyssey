@@ -380,13 +380,12 @@ a second one (a CLI's hints and warnings must never land in the
 captured output), then one `wait "$pid"` per job with each status
 collected into a variable — never a failed job aborting the call —
 so every exit code is yours, then one `cat` per file — never one
-after the other, and
-never one tool call each: a round trip each is the serial cost of a
-phase that needs one, and whether a host runs several tool calls of
-one turn together is the host's choice, while one shell call is one
-round trip on every host. The per-file capture is what lets the
-report quote each query and its result verbatim. Then query per
-signal from what came back:
+after the other, and never one tool call each: a round trip each is
+the serial cost of a phase that needs one, and whether a host runs
+several tool calls of one turn together is the host's choice, while
+one shell call is one round trip on every host. The per-file capture
+is what lets the report quote each query and its result verbatim.
+Then query per signal from what came back:
 
 - **Metrics** — discover what the service exports (metric names, labels or
   dimensions, metadata), then query the discovered series: rates, error
@@ -434,8 +433,8 @@ Then go from aggregates to explanations:
   searches for all operations first, then **fetch every exemplar in one
   shell tool call** — one backgrounded fetch per trace ID, its
   stdout into its own file, its stderr into another, one `wait` per
-  PID — the same shape as the discoveries: each
-  fetch returns KBs of OTLP JSON, and one per turn is the slow shape.
+  PID — the same shape as the discoveries: each fetch returns KBs of
+  OTLP JSON, and one per turn is the slow shape.
   Diff their span trees: where the extra time or the failure lives is
   the finding. Aggregates locate, exemplars explain.
 - **Baseline** — with no caller expectations, compare against the
