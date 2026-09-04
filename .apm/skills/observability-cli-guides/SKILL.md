@@ -1,6 +1,6 @@
 ---
 name: observability-cli-guides
-description: The package's knowledge of every observability stack it supports, one reference file per stack - the terminal query surface (how to authenticate and query metrics, traces, logs, and profiles from the CLI), how the stack's configuration is displayed and proven, and what its stack_config persists - plus the list of built-in stacks. Use when observing a run, local or remote, and when backend-configuration's Check or Switch need anything about a stack - Grafana (gcx), Datadog (Pup CLI), Dynatrace (dtctl and DQL), Azure Monitor (az), AWS CloudWatch and X-Ray (aws), Splunk (splunk CLI and SPL), and the local stack.
+description: The package's knowledge of every observability stack it supports, one reference file per stack - the terminal query surface (how to authenticate and query metrics, traces, logs, and profiles from the CLI), how the stack's configuration is displayed and proven, and what its stack_config persists - plus the list of built-in stacks. Use when observing a run, local or remote, and when backend-configuration's Check or Switch need anything about a stack - Grafana (gcx), Datadog (Pup CLI), Dynatrace (dtctl and DQL), Azure Monitor (az), AWS CloudWatch and X-Ray (aws), and the local stack.
 ---
 
 # Observability CLI Guides
@@ -29,7 +29,6 @@ accepts, with its reference, CLI, and aliases — is
 | Dynatrace | `dtctl` (DQL) | [references/dynatrace.md](references/dynatrace.md) |
 | Azure Monitor (App Insights, Log Analytics) | `az` (KQL) | [references/azure-monitor.md](references/azure-monitor.md) |
 | AWS CloudWatch + X-Ray | `aws` | [references/cloudwatch.md](references/cloudwatch.md) |
-| Splunk (Enterprise / Cloud Platform, Observability Cloud) | `splunk` (SPL) | [references/splunk.md](references/splunk.md) |
 
 Authoring a reference, or a custom stack file: every reference follows
 [references/CONTRACT.md](references/CONTRACT.md) — the sections it must

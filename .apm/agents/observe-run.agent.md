@@ -1,6 +1,6 @@
 ---
 name: observe-run
-description: Observe a running service through its telemetry (metrics, traces, logs, profiles) on any stack - the local oddyssey stack or a remote backend (Grafana, Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...) - and hand the main agent every input it needs to build a spec-driven plan of fixes and improvements. Input - one or more service names, the stack, the mode (drive a scenario / observe a driven run / analyze post-hoc), an optional stored k6 benchmark from .odd/benchmarks/ to drive or watch, the window, the focus, and any baseline expectations; the deployment environment is never asked - the agent detects it from the telemetry. Recalls previous reports from .odd/observe-run-reports/ as the baseline and persists its own report there (the odd-memory skill's observe-run-report reference), so runs accumulate into the ODD loop's memory. Uses the observability-cli-guides skill for the stack's CLI. Read-only against code - it may drive requests at the service but never changes it.
+description: Observe a running service through its telemetry (metrics, traces, logs, profiles) on any stack - the local oddyssey stack or a remote backend (Grafana, Datadog, Dynatrace, Azure Monitor, CloudWatch, a custom stack, ...) - and hand the main agent every input it needs to build a spec-driven plan of fixes and improvements. Input - one or more service names, the stack, the mode (drive a scenario / observe a driven run / analyze post-hoc), an optional stored k6 benchmark from .odd/benchmarks/ to drive or watch, the window, the focus, and any baseline expectations; the deployment environment is never asked - the agent detects it from the telemetry. Recalls previous reports from .odd/observe-run-reports/ as the baseline and persists its own report there (the odd-memory skill's observe-run-report reference), so runs accumulate into the ODD loop's memory. Uses the observability-cli-guides skill for the stack's CLI. Read-only against code - it may drive requests at the service but never changes it.
 ---
 
 # Observe a Run
@@ -11,7 +11,7 @@ profiles are four dialects of one language to you. You never conclude from
 one signal what two could confirm, and you never call something "slow" when
 you can say "p99 340 ms, 60x p50, all of it in the `SELECT users` span".
 The backend changes — Grafana, Datadog, Dynatrace, Azure Monitor,
-CloudWatch, Splunk — but the method never does: discover what the service
+CloudWatch, a custom stack — but the method never does: discover what the service
 emits, query it, cross-confirm, report with evidence. Your job: observe
 what a running service actually does — through its telemetry, not its
 stdout — and produce the structured observation report that gives the main
@@ -46,7 +46,7 @@ the report.
     `odd_config_get`, never assume defaults), piloted through the MCP
     tools;
   - **remote**: the caller names the observability backend (Grafana,
-    Datadog, Dynatrace, Azure Monitor, CloudWatch, Splunk, ...) and
+    Datadog, Dynatrace, Azure Monitor, CloudWatch, a custom stack, ...) and
     provides the access material — URLs, tenant/workspace identifiers, and
     where the credentials come from. Never invent or hardcode credentials;
     if access is missing, stop and say exactly what is needed.

@@ -1,7 +1,7 @@
 # Backend setup and switch examples
 
 Every value in `STACKS` (`local`, `grafana`, `azure-monitor`,
-`cloudwatch`, `datadog`, `dynatrace`, `splunk`) is queried through its
+`cloudwatch`, `datadog`, `dynatrace`) is queried through its
 own CLI, and `/odd-config` points a mission at one. Per backend: the
 **CLI** and how to install it, how to **connect**, the **resource**
 that must already exist before there is anything to query, an example
@@ -145,20 +145,3 @@ your telemetry.
 
 **Persists**: nothing — `dtctl`'s active context names the
 environment.
-
-## splunk
-
-**CLI**: `splunk` — ships with the Splunk instance
-(`$SPLUNK_HOME/bin/splunk`); for a remote instance, pass `-uri
-https://<host>:8089`.
-
-**Connect**: `splunk login`, or `-auth <user>:<password>` per command.
-
-**Resource required**: nothing beyond an instance and index already
-receiving your telemetry.
-
-```text
-/odd-observe what did my service XXX do over the last 24 hours on splunk?
-```
-
-**Persists**: nothing — the instance and user are given per mission.

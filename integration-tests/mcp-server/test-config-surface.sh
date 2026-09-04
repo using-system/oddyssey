@@ -49,9 +49,9 @@ assert_result_contains "$workdir/defaults.json" '"pyroscope_port": 4040'
 assert_result_contains "$workdir/defaults.json" '"stack_config": {}'
 
 step "the stack switch round-trips through every allowed value"
-# The seven values of config.STACKS, ending back on the default so the
+# The six values of config.STACKS, ending back on the default so the
 # later steps run against the state a fresh machine would have.
-for stack in grafana azure-monitor cloudwatch datadog dynatrace splunk local; do
+for stack in grafana azure-monitor cloudwatch datadog dynatrace local; do
   mcp_call odd_config_set "config={\"stack\":\"$stack\"}" > "$workdir/set-stack.json"
   assert_result_contains "$workdir/set-stack.json" "\"stack\": \"$stack\""
 done

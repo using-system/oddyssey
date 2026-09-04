@@ -28,7 +28,6 @@ STACKS = (
     "cloudwatch",
     "datadog",
     "dynatrace",
-    "splunk",
 )
 
 # Per-stack stack_config field whitelist, mirroring each backend's
@@ -49,7 +48,6 @@ STACK_CONFIG_FIELDS: dict[str, frozenset[str] | None] = {
     ),
     "datadog": frozenset(),
     "dynatrace": frozenset(),
-    "splunk": frozenset(),
 }
 
 # A custom stack (issue #228) is a backend the package does not ship,

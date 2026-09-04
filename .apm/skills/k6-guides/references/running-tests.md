@@ -117,8 +117,8 @@ run, and belongs to the execution side (`run-scenario`).
   **This is a local-stack reality, not a general one - never treat it as
   required.** It works with zero extra config against oddyssey's own
   local stack only because the endpoint default happens to match. Most
-  remote backends (`cloudwatch`, `azure-monitor`, `datadog`, `dynatrace`,
-  `splunk`) have no bare OTLP-push endpoint the machine running k6 can
+  remote backends (`cloudwatch`, `azure-monitor`, `datadog`, `dynatrace`)
+  have no bare OTLP-push endpoint the machine running k6 can
   reach at all - they take telemetry through their own SDK/agent, not a
   plain gRPC/HTTP OTLP target, and even where one exists the load
   generator's network path to it is frequently blocked (firewalls, VPNs,

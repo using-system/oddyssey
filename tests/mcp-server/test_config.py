@@ -122,8 +122,8 @@ def test_save_rejects_unknown_keys(tmp_path):
 
 def test_save_creates_parent_directory(tmp_path):
     path = tmp_path / "nested" / "config.json"
-    config.save({"stack": "splunk"}, path)
-    assert json.loads(path.read_text())["stack"] == "splunk"
+    config.save({"stack": "dynatrace"}, path)
+    assert json.loads(path.read_text())["stack"] == "dynatrace"
 
 
 def test_local_is_a_stack_value_and_the_default():
@@ -368,7 +368,7 @@ def test_save_rejects_undocumented_key_for_a_documented_stack(tmp_path):
 
 
 def test_save_rejects_any_key_for_a_stack_with_no_documented_fields(tmp_path):
-    # grafana/datadog/dynatrace/splunk persist nothing (their CLI context
+    # grafana/datadog/dynatrace persist nothing (their CLI context
     # carries targeting) - any key is unknown for them.
     path = tmp_path / "config.json"
     with pytest.raises(ValueError, match="stack_config"):
