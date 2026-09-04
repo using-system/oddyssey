@@ -160,7 +160,7 @@ def _command_write_targets(command: str) -> list[str]:
 
 
 def written_paths(payload: object) -> list[str]:
-    """Return the files the payload writes: a write tool's target, or the .odd/ paths a shell command writes to."""
+    """The files the payload writes: a write tool's target, or a shell line's targets."""
     paths = _strings(payload, FILE_PATHS) if _is_write_tool(payload) else []
     for command in _strings(payload, COMMAND_PATHS):
         paths.extend(_command_write_targets(command))

@@ -126,3 +126,4 @@ jobs:
             grep -qF "\\\"\${CLAUDE_PLUGIN_ROOT}\\\"/hooks/scripts/${script}.py" marketplace/oddyssey/hooks/hooks.json
             test -f "marketplace/oddyssey/hooks/scripts/${script}.py"
           done
+          test ! -d marketplace/oddyssey/hooks/scripts/__pycache__
