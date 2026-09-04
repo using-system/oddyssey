@@ -13,7 +13,12 @@ the squash commit and the release note, and drives the version
 major release. One logical change per PR. **Every PR references an
 existing issue** (`Closes #N` in the body) — no exceptions: the issue
 carries the problem and its discussion, the PR carries the change;
-open the issue first when none exists. The full contributor
+open the issue first when none exists. **When the implementation
+deviates from what the issue specified** — a rule dropped, a
+threshold changed, a scope narrowed, a design replaced — record each
+amended choice as a comment on that issue, what changed and why,
+before opening the PR: the issue is the decision record a later
+reader opens first. The full contributor
 workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md); where this file
 and CONTRIBUTING.md speak of the same thing, they say the same thing.
 
