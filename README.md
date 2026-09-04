@@ -247,6 +247,31 @@ and that your runs improve — or a pointer to a guide another
 repository already carries. How, in
 [docs/guide/custom-backends.md](docs/guide/custom-backends.md).
 
+## Multi-repo strategies
+
+When the system you observe spans several repositories — a
+microservice architecture, a product shipped as several deliverables —
+and you want the reports to accumulate in one place, drive oddyssey
+from a dedicated observability repository rather than from each
+service's own. Its `.odd/` becomes the loop's memory for the whole
+system — the memory lives with the system rather than with one
+service's code — and a single `/odd-status` renders the system rather
+than one service's slice.
+
+Give that repository an `AGENTS.md` that lists the repositories and
+their role — where each one lives, what it is, the service names its
+telemetry carries. That list is the context your coding agent starts
+every mission with, so it knows what the system is made of and where
+to fetch the code a mission needs to read.
+
+```text
+## Repositories
+
+- `github.com/example-org/checkout-api` — the checkout API (`checkout`)
+- `github.com/example-org/payment-worker` — the queue consumer (`payment`)
+- `github.com/example-org/shared-telemetry` — the shared OTel helpers
+```
+
 ## The ODD principles
 
 - **The system must be observable locally.** Prefer a docker-compose
