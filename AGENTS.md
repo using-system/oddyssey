@@ -71,8 +71,8 @@ the paths touched (commands and pins are owned by
   trees).
 - `.apm/` or `apm.yml` changed → validate the package like CI does:
   `uvx --from apm-cli==0.28.0 apm install --target claude && uvx --from apm-cli==0.28.0 apm audit`,
-  and `python3 scripts/check-reference-contract.py` when a stack
-  reference changed.
+  and `python3 .apm/skills/observability-cli-guides/scripts/check_stack_reference.py`
+  when a stack reference changed.
   The install deploys the package into the working tree and edits
   tracked files. Record `git status --porcelain` and `git diff` before
   running; once the check completes, delete the untracked files the
@@ -126,9 +126,10 @@ as a fix. The formats and the rules a reviewer can enforce are in
 
 The rule governs the report stores — `.odd/observe-run-reports/`,
 `.odd/otel-instrumentation-reports/`, and `.odd/decisions.md`. It does
-not reach `.odd/benchmarks/`: a benchmark is living source, not a run
-record, and its `odd-memory` reference updates it in place through
-reviewed diffs like any other committed code.
+not reach `.odd/benchmarks/` or `.odd/observability-stacks/`: a
+benchmark or a custom stack file is living source, not a run record,
+and its `odd-memory` reference updates it in place through reviewed
+diffs like any other committed code.
 
 ## Marketplace is generated — never edit it by hand
 
