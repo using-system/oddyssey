@@ -184,8 +184,9 @@ exhaustive.
 `docs/guide/reports.md` documents the `.odd/` report formats:
 filename conventions, frontmatter fields and values, and body
 structure for both report kinds. Update it in the same change whenever
-the file contracts of `create-observe-run-report` or
-`create-otel-instrumentation-report`, or the report sections of the
+the file contracts of `create-observe-run-report`,
+`create-otel-instrumentation-report` or the shared `odd-memory`
+contract, or the report sections of the
 `observe-run` or `otel-instrumentation-expert` agents, change — the
 guide documents what a reader needs of those contracts and must never
 lag them.

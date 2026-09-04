@@ -33,16 +33,11 @@ authoring a k6 benchmark is no exception.
   previous version - the full diff already lives in the commit, this is
   the human-readable one-liner, not a diff dump.
 
-## What never to render
-
-- The script or manifest's full content - the stored files are the
-  deliverable, this skill is a pointer to them, never a replacement.
-  Same separation `show-otel-instrumentation-report` keeps from the
-  report it summarizes.
-
 ## What this skill reads
 
-Only what `create-update-benchmark` just wrote and returned - no k6
-knowledge, no independent investigation of the service. If the stored
-path or benchmark name is missing from what it's handed, that is an
-upstream contract failure to surface, not something to guess at.
+Only what `create-update-benchmark` just wrote and returned, per the
+memory contract's synthesis rules (`odd-memory`) - never the script or
+manifest's full content, no k6 knowledge, no independent investigation
+of the service. If the stored path or benchmark name is missing from
+what it's handed, that is an upstream contract failure to surface, not
+something to guess at.

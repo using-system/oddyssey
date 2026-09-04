@@ -167,6 +167,7 @@ frontmatters alone.
   variable names only. A verification check whose query would return
   one on replay counts as a secret in the report.
 
-These rules cover the report stores and `.odd/decisions.md`.
-`.odd/benchmarks/` is living source, updated through reviewed diffs —
-see [benchmarks.md](benchmarks.md).
+These rules cover the report stores and `.odd/decisions.md`; the
+[`odd-memory`](../../.apm/skills/odd-memory/SKILL.md) skill is the
+contract they come from. `.odd/benchmarks/` is living source, updated
+through reviewed diffs — see [benchmarks.md](benchmarks.md).

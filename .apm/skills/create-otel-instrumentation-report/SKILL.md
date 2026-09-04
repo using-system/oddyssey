@@ -10,7 +10,9 @@ be redone from scratch the next time the stack changes. This skill defines
 the file contract that persists it: reports live **in the investigated
 repository**, so git versions them, PRs review them, and every user of the
 repo shares them — the next SDD instrumentation wave starts from what the
-last investigation already established.
+last investigation already established. What every kind of memory
+shares is the `odd-memory` skill's contract; this skill states what is
+specific to instrumentation reports.
 
 ## Where reports live
 
@@ -18,16 +20,9 @@ last investigation already established.
 <investigated-repo-root>/.odd/otel-instrumentation-reports/YYYY-MM-DD-HHmm-<run_name>.md
 ```
 
-- `YYYY-MM-DD-HHmm` is the investigation's **UTC** start time — to the
-  minute so two same-day runs never collide, and a plain directory
-  listing sorts chronologically. Compute it, and the `date:` field,
-  with `date -u`, never from the local clock: a session that crosses
-  local midnight while UTC has not names the wrong day.
-- `<run_name>` is a short kebab-case slug naming what was investigated
-  (e.g. `mcp-server-python`, `checkout-monorepo-full`). Name the
-  content, not the date.
-- Create the directory if it does not exist. The files are meant to be
-  **committed**: leave them tracked, never add them to `.gitignore`.
+- `YYYY-MM-DD-HHmm` and `<run_name>` follow the memory contract: UTC
+  via `date -u` (so does `date:`), and a slug naming what was
+  investigated (`mcp-server-python`, `checkout-monorepo-full`).
 
 ## The file format
 
@@ -56,71 +51,35 @@ tree_anchor: {src: "5ea231f…", tests: "8e29aac…"}  # optional: FULL top-leve
   top-level entry map of `git ls-tree <revision>`, one
   `name: object-hash` pair per entry — the squash-proof,
   clone-resolvable form of "which code the findings hold for".
-- The body is the producing agent's report **as-is** — the report
-  contract (sections, tables, evidence rules) belongs to the agent, not
-  to this skill. Store the whole thing.
 
 ## Recall: reading the memory
 
-Before a new investigation, load what is already known:
+Before a new investigation, load what is already known, per the
+memory contract's recall (newest first, frontmatter only at this
+stage, the baseline by section) — the matching rules are this skill's:
 
-1. List `.odd/otel-instrumentation-reports/` in the investigated repo
-   (missing or empty directory = first investigation, no baseline — say
-   so, do not fail).
-2. Walk the listing newest first (filenames sort chronologically),
-   reading **frontmatter blocks only** — never whole files at this
-   stage. A report matches when its `project` covers the mission's scope
-   and its `stack` is compatible.
-3. The first match is the baseline: read that one report in full — its
-   stack inventory, per-service decisions, and pinned versions are what
-   the new investigation diffs against (new services, changed
-   frameworks, moved pins). What the comparison must report belongs to
-   the calling agent's contract, not to this skill.
-4. Older matches are history: read them only when the evolution of a
-   specific decision matters, and only the sections in question.
+1. List `.odd/otel-instrumentation-reports/` in the investigated repo.
+2. A report matches when its `project` covers the mission's scope and
+   its `stack` is compatible.
+3. The first match is the baseline: its stack inventory, per-service
+   decisions and pinned versions are the sections the new
+   investigation diffs against (new services, changed frameworks,
+   moved pins). What the comparison must report belongs to the calling
+   agent's contract, not to this skill.
 
 ## Rules
 
-- **Never write secrets into a report**: no tokens, credentials, or
-  connection strings — these files are made to be committed and shared.
-  Refer to access material by variable or secret name only. The same
-  for **real identifiers** that carry no access on their own: tenant,
-  workspace, subscription, resource-group or site names and GUIDs,
-  account or login names, home-directory paths — anything that
-  identifies a real customer, tenant or environment; a live CLI
-  excerpt (a component's `show` output, a resource id) is the likeliest
-  source, and every such value lands in the file as an obviously fake
-  placeholder. On a host that runs the package's lifecycle hooks, a
-  hook flags what slipped through, after the write. The rule reaches
-  the **verification protocol's checks**: a check whose query projects
+- **No secrets, no real identifiers** (the memory contract) — a live
+  CLI excerpt (a component's `show` output, a resource id) is the
+  likeliest source. The rule reaches the **verification protocol's
+  checks**: a check whose query projects
   a credential-bearing field (a connection string, a key, a token, an
   auth-header value) or whose expected outcome is one is a leak
   deferred, not avoided — `/odd-verify` replays the query verbatim and
   quotes its result into a committed report. A check proves a secret
   is wired by naming the wiring (a secret reference, an env var name,
   a redacted flag, the resource identity it binds to), never the value.
-- One investigation, one file: never edit a previous report to "update"
-  it — a new investigation writes a new file.
-- Write the file exactly where the contract says: the report belongs to
-  the **investigated** repository, not to the oddyssey package, a home
-  directory, or a temp path.
-- **Never commit on the default branch**: before committing, compare
-  `git branch --show-current` with the repository's default branch
-  (`git symbolic-ref --short refs/remotes/origin/HEAD` stripped of its
-  `origin/` prefix; if unset, `main` — or `master` when that is the
-  checked-out branch). Only when on the default branch, create and
-  switch to a work branch named
-  `docs/odd-instrumentation-report-<run_name>`
-  (switching to it if it already exists) and commit there — and say so
-  in the reply. If switching is impossible, do not commit: state the
-  path and leave the commit to the caller. On a host that runs the
-  package's lifecycle hooks, a hook refuses the commit itself; this
-  rule stays the enforcement everywhere else.
-- **After writing, commit the report file on its own**:
-  `git add <report file>` then
-  `git commit -m "docs(odd): instrumentation investigation <run_name>"` —
-  never stage anything else; a dirty working tree stays untouched
-  otherwise. If committing is impossible (not a git repository, or the
-  caller said not to), state the path and leave the commit to the
-  caller.
-- Either way, state the stored path in the reply.
+- **The work branch** (the memory contract) is
+  `docs/odd-instrumentation-report-<run_name>`; **the commit** carries
+  the report file alone, subject
+  `docs(odd): instrumentation investigation <run_name>`.

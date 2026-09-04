@@ -76,14 +76,7 @@ conversation's memory of the mission.
 
 ## Rules
 
-- Everything comes from the stored report: no backend query, no
-  re-derivation, no invented number (the carrying commit — from the
-  return value, or from git for a named file — is the one value
-  outside the report) — a value the report does not carry is absent
-  from the synthesis too.
-- One screen, hard cap: prefer dropping rows (behind the `+N more`
-  marker) over growing sections.
-- Render in the conversation's language; the stored report itself
-  stays English.
-- The synthesis never replaces the report: the next wave consumes the
-  stored file — state its path, never re-inline the full body.
+The memory contract's synthesis rules (`odd-memory`): everything from
+the stored report, the carrying commit the one value outside it; one
+screen with `+N more`; the conversation's language; never a
+replacement for the file.

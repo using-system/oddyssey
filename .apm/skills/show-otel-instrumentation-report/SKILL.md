@@ -16,8 +16,9 @@ sees at the end of the mission changes.
 
 The persisted report to render: the file the
 `create-otel-instrumentation-report` skill just stored, or any stored
-report the caller names. Read it from disk — the synthesis renders
-the stored file, not the conversation's memory of it.
+report the caller names — read from disk by section (its summary
+table, its open decisions, its verification protocol), per the memory
+contract (`odd-memory`), never from the conversation's memory of it.
 
 ## The synthesis, in order
 
@@ -42,14 +43,6 @@ the stored file, not the conversation's memory of it.
 
 ## Rules
 
-- Everything comes from the stored report: no doc fetch, no
-  re-derivation, no invented package or version (the carrying commit,
-  read from git, is the one value outside the file) — a value the
-  report does not carry is absent from the synthesis too.
-- One screen, hard cap: trim the summary table's widest columns
-  (endpoint, signals) before dropping rows; a dropped row gets a
-  `+N more in the report` marker.
-- Render in the conversation's language; the stored report itself
-  stays English.
-- The synthesis never replaces the report: the plan is built from the
-  stored file — state its path, never re-inline the full body.
+The memory contract's synthesis rules apply; the one specific: trim the
+summary table's widest columns (endpoint, signals) before dropping
+rows behind the `+N more in the report` marker.

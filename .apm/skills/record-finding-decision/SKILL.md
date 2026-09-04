@@ -10,7 +10,9 @@ has no other verdict for it, however deliberately the maintainer decided
 to live with it. The decision is real, it is just homeless: it was taken
 between runs, and the only artifacts that could carry it are past
 evidence that must never be rewritten. This skill gives it a committed
-home of its own, next to the reports and never inside them.
+home of its own, next to the reports and never inside them. What every
+kind of memory shares is the `odd-memory` skill's contract; this skill
+states what is specific to the ledger.
 
 ## The ledger
 
@@ -78,40 +80,20 @@ One row per decision:
 
 ## Rules
 
-- **Never modify or delete a report.** `.odd/` reports are append-only
-  evidence; this skill writes `decisions.md` and nothing else. A
-  decision that "should be in the report" is still a ledger row.
-- **Never write secrets into a rationale** — no tokens, credentials,
-  cookies, or connection strings. The file is made to be committed and
-  shared; refer to access material by variable or secret name only.
-  On a host that runs the package's lifecycle hooks, a hook flags what
-  slipped through, after the write.
-- **Never commit on the default branch**: before committing, compare
-  `git branch --show-current` with the repository's default branch
-  (`git symbolic-ref --short refs/remotes/origin/HEAD` stripped of its
-  `origin/` prefix; if unset, `main` — or `master` when that is the
-  checked-out branch). Only when on the default branch, create and
-  switch to a work branch named
-  `docs/odd-finding-decision-<finding ID>-<verdict>` (switching to it
-  if it already exists) and commit there — and say so in the reply.
-  Both values are normalized for the branch name only: lowercased,
-  every run of characters outside `[a-z0-9]` replaced by a single
-  `-`, leading and trailing `-` trimmed (`A5 (2026-08-22-2227)` +
-  `wontfix` → `docs/odd-finding-decision-a5-2026-08-22-2227-wontfix`);
-  the ledger row keeps the finding ID exactly as the report names it.
-  If switching is impossible, do not commit: state the path and leave
-  the commit to the caller. On a host that runs the package's
-  lifecycle hooks, a hook refuses the commit itself; this rule stays
-  the enforcement everywhere else.
-- **After writing, commit the ledger file on its own**:
-  `git add .odd/decisions.md` then
-  `git commit -m "docs(odd): finding decision <finding ID> <verdict>"` —
-  never stage anything else; a dirty working tree stays untouched
-  otherwise. If committing is impossible (not a git repository, or the
-  caller said not to), state the path and leave the commit to the
-  caller.
-- Either way, state the ledger path, the appended row and the branch
-  that carries the commit (or `not committed` with the reason) in the
-  reply — and that a decision on a work branch reaches `/odd-status`
-  on the default branch only once that branch is merged, so it is not
+- **This skill writes `decisions.md` and nothing else.** A decision
+  that "should be in the report" is still a ledger row: reports are
+  append-only evidence (the memory contract).
+- **No secrets** in a rationale (the memory contract).
+- **The work branch** (the memory contract) is
+  `docs/odd-finding-decision-<finding ID>-<verdict>`, both values
+  normalized for the branch name only: lowercased, every run of
+  characters outside `[a-z0-9]` replaced by a single `-`, leading and
+  trailing `-` trimmed (`A5 (2026-08-22-2227)` + `wontfix` →
+  `docs/odd-finding-decision-a5-2026-08-22-2227-wontfix`); the ledger
+  row keeps the finding ID exactly as the report names it. **The
+  commit** carries `.odd/decisions.md` alone, subject
+  `docs(odd): finding decision <finding ID> <verdict>`.
+- The reply states the appended row with the path and the commit —
+  and that a decision on a work branch reaches `/odd-status` on the
+  default branch only once that branch is merged, so it is not
   recorded a second time from there.

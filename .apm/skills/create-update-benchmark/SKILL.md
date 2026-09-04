@@ -5,16 +5,13 @@ description: Persist a k6-benchmark-expert-authored benchmark (script + manifest
 
 # Create / Update a Benchmark
 
-`.odd/benchmarks/<name>/` is a **third kind** of `.odd/` content, and it
-does **not** inherit the report stores' immutability rule
-(`create-observe-run-report`, `create-otel-instrumentation-report`):
-`AGENTS.md`'s "the `.odd/` memory is append-only" and
-`docs/guide/reports.md`'s "a report is never edited after the fact"
-govern the **committed reports** specifically - `observe-run-reports/`,
-`otel-instrumentation-reports/`, and `decisions.md`. A benchmark is
-living source, not a run record: git history, not file accumulation, is
-its memory. Writing and updating is this skill's whole point, not an
-exception to some other rule.
+`.odd/benchmarks/<name>/` is the memory contract's one exception
+(`odd-memory`): a benchmark is living source, not a run record -
+updated in place through reviewed diffs, git history rather than file
+accumulation being its memory. Writing and updating is this skill's
+whole point; the rest of the contract (where the memory lives, no
+secrets, the work branch and the lone commit, the reply) applies as
+written there.
 
 ## What this skill owns
 
@@ -32,27 +29,21 @@ exception to some other rule.
   against the stored version - the maintainer reviews it exactly like
   any other committed change, through the normal PR flow. This skill
   never overwrites a stored benchmark without that diff being visible.
-- **Commit discipline**, inherited from the report-writing skills:
-  - never commit on the default branch - create or switch to a work
-    branch first (on a host that runs the package's lifecycle hooks,
-    a hook refuses the commit itself);
-  - stage and commit the benchmark's files **alone** (never bundled with
-    unrelated changes);
-  - commit subject: `docs(odd): benchmark <name>` for a new benchmark,
-    `docs(odd): update benchmark <name>` for a diff-reviewed update;
-  - state the stored path in the reply, so `show-benchmark` (a
-    different skill) can point at it.
+- **Commit discipline** (the memory contract): the work branch is
+  `docs/odd-benchmark-<name>`; the commit carries the benchmark's files
+  alone, subject `docs(odd): benchmark <name>` for a new benchmark,
+  `docs(odd): update benchmark <name>` for a diff-reviewed update; the
+  reply states the stored path, so `show-benchmark` can point at it.
 - **Refusing a literal credential.** Before persisting, scan the script
-  for anything that looks like an inlined secret (the same discipline
-  the report skills already apply to report bodies) - refuse and say why
-  rather than committing it. `k6-guides`' `scripting.md` documents the
-  correct alternative (`k6/secrets`, named environment variables) for
-  the agent to use instead.
+  for anything that looks like an inlined secret (the memory contract's
+  no-secrets rule, applied to source) - refuse and say why rather than
+  committing it. `k6-guides`' `scripting.md` documents the correct
+  alternative (`k6/secrets`, named environment variables) for the agent
+  to use instead. On a host that runs the package's lifecycle hooks, a
+  hook flags what slipped through, after the write.
 
 ## What this skill does not own
 
-  On a host that runs the package's lifecycle hooks, a hook flags what
-  slipped through, after the write.
 - Any k6 knowledge - it persists whatever content the agent decided,
   unopinionated about whether the script or manifest is any good. That
   judgment belongs to `k6-benchmark-expert`, informed by `k6-guides`.
@@ -68,12 +59,10 @@ exception to some other rule.
   two report directories and the decisions ledger; benchmarks are not
   loop state and never appear in its inventory (its commit test is a
   different matter - next bullet).
-- **Visible to the verify-vs-re-measure boundary.** `/odd-verify` and
-  `/odd-status` ignore commits that touch only the loop's memory - the
-  two report stores and the decisions ledger - but `.odd/benchmarks/`
-  is living source, not memory: a commit that updates a benchmark
-  counts as changed code, so a replay after it is a verification, never
-  a re-measure. Which of the baseline's findings that verification can
+- **Visible to the verify-vs-re-measure boundary** (the memory
+  contract): a commit that updates a benchmark counts as changed code,
+  so a replay after it is a verification, never a re-measure. Which of
+  the baseline's findings that verification can
   rule depends on what moved (the benchmark's own defects always; the
   service's before/after only when the load did not change) - the
   `/odd-verify` prompt owns that rule.

@@ -9,7 +9,11 @@ An observation run that cannot see the previous ones starts blind every
 time. This skill defines the file contract that gives the ODD loop its
 memory: reports live **in the observed repository**, so git versions
 them, PRs review them, and every user of the repo shares them — no
-side-channel storage, nothing opaque.
+side-channel storage, nothing opaque. What every kind of memory shares
+— where it lives, the frontmatter, append-only, recall, no secrets,
+the work branch and the lone commit, the reply — is the `odd-memory`
+skill's contract; this skill states what is specific to observation
+reports.
 
 The report is also the loop's **only durable artifact**: the raw
 telemetry behind it lives in a volume-less container that any
@@ -24,14 +28,9 @@ doubt, record the number.
 <observed-repo-root>/.odd/observe-run-reports/YYYY-MM-DD-HHmm-<run_name>.md
 ```
 
-- `YYYY-MM-DD-HHmm` is the run's **UTC** start time — timestamped to the
-  minute so two same-day runs never collide, and so a plain directory
-  listing sorts chronologically. Compute it, `date:` and `window` with
-  `date -u`, never from the local clock: a session that crosses local
-  midnight while UTC has not names the wrong day.
-- `<run_name>` is a short kebab-case slug derived from what the run
-  analyzed (e.g. `checkout-latency-sweep`, `orders-post-hoc-errors`).
-  Name the content, not the date — the date is already in front.
+- `YYYY-MM-DD-HHmm` and `<run_name>` follow the memory contract: UTC
+  via `date -u` (so do `date:` and `window`), and a slug naming what
+  the run analyzed (`checkout-latency-sweep`, `orders-post-hoc-errors`).
 - A **verification run** — a run that replays a stored report's
   protocol: an observation report's measurement protocol, or an
   instrumentation report's verification protocol (from
@@ -57,8 +56,6 @@ doubt, record the number.
   It never matches the `*-verify-*` glob: a re-measure is not a
   verification, and "has this run been verified?" must stay blind to
   it.
-- Create the directory if it does not exist. The files are meant to be
-  **committed**: leave them tracked, never add them to `.gitignore`.
 
 ## The file format
 
@@ -104,10 +101,9 @@ run_name: checkout-latency-sweep                     # the replayed report's, un
 verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the replayed report
 ```
 
-- The frontmatter exists so future runs can filter reports **without
-  parsing prose**: every field mirrors the run as it actually executed —
-  mission parameters and execution context alike (defaults applied,
-  not as requested). One exception: a verification or re-measure run
+- Every field mirrors the run as it executed (the memory contract) —
+  mission parameters and execution context alike, defaults applied,
+  not as requested. One exception: a verification or re-measure run
   records `mode: verify` / `mode: re-measure` even though it executes
   in the replayed report's mode — that execution mode stays reachable
   through `verifies`.
@@ -197,19 +193,15 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   that qualifies them is the per-run profiler tag, or, absent one,
   `process.runtime.version` plus application frames — `instance` says
   which holds for the profiles.
-- The body is the producing agent's report **as-is** — the report
-  contract (sections, tables, evidence rules) belongs to the agent, not
-  to this skill. Store the whole thing: a summary cannot feed a diff.
 
 ## Recall: reading the memory
 
-Before a new run, load the baseline:
+Before a new run, load the baseline, per the memory contract's recall
+(newest first, frontmatter only at this stage, the baseline by
+section) — the matching rules are this skill's:
 
-1. List `.odd/observe-run-reports/` in the observed repo (missing or
-   empty directory = first run, no baseline — say so, do not fail).
-2. Walk the listing newest first (filenames sort chronologically),
-   reading **frontmatter blocks only** — never whole files at this
-   stage. A report matches when its `services` intersect the mission's,
+1. List `.odd/observe-run-reports/` in the observed repo.
+2. A report matches when its `services` intersect the mission's,
    its `stack` is the mission's, and its `environment` is the one the
    run detects — an `unknown` environment matches only another
    `unknown`, and with a warning (the comparison may span environments
@@ -302,30 +294,17 @@ caller closing the mission:
     with it (filled, still missing);
   - section 6's open decisions, one line each, or that there are none.
 
-Never the report body: a full report runs 300 to 500 lines, the reply
-travels back into the caller's context, and the synthesis is its only
-reader — the block is what it needs, at a fraction of the size. What
-the next wave needs is in the file, at the stored path.
-
+Never the report body (the memory contract says why);
 `show-observe-run-report` renders the closing synthesis from this
-value; the file on disk is read again only by a later mission's recall
-or by a caller naming a stored report.
+value, and the file on disk is read again only by a later mission's
+recall or by a caller naming a stored report.
 
 ## Rules
 
-- **Never write secrets into a report**: no tokens, credentials, cookies,
-  or connection strings — these files are made to be committed and
-  shared. Refer to access material by variable or secret name only.
-  The same for **real identifiers** that carry no access on their own:
-  tenant, workspace, subscription, resource-group or site names and
-  GUIDs, account or login names, home-directory paths — anything that
-  identifies a real customer, tenant or environment. The mission
-  block's `Preflight:` handoff and a live `odd_config_get` or CLI
-  excerpt are the likeliest sources: never restate the identifiers
-  they carry; replace every such value with an obviously fake
-  placeholder before it lands in the file. On a host that runs the
-  package's lifecycle hooks, a hook flags what slipped through, after
-  the write.
+- **No secrets, no real identifiers** (the memory contract): the
+  mission block's `Preflight:` handoff and a live `odd_config_get` or
+  CLI excerpt are the likeliest sources — never restate the
+  identifiers they carry.
 - **A recorded query is a contract only once shown to work**: a check is
   authored against *broken* data, so "returns NaN/empty" and "the query
   is wrong" are indistinguishable at authoring time (measured: `rate()`
@@ -346,28 +325,9 @@ or by a caller naming a stored report.
   measurement protocol (key names and values — secrets by name only). A
   replayed reset recreates the container bare; only a recorded env lets
   the verify run pass the same one.
-- One run, one file: never edit a previous report to "update" it — a new
-  run writes a new file, the diff lives in the new report.
-- Write the file exactly where the contract says: the report belongs to
-  the **observed** repository, not to the oddyssey package, a home
-  directory, or a temp path.
-- **Never commit on the default branch**: before committing, compare
-  `git branch --show-current` with the repository's default branch
-  (`git symbolic-ref --short refs/remotes/origin/HEAD` stripped of its
-  `origin/` prefix; if unset, `main` — or `master` when that is the
-  checked-out branch). Only when on the default branch, create and
-  switch to a work branch named `docs/odd-observe-run-report-<run_name>`
-  (switching to it if it already exists) and commit there — and say so
-  in the reply. If switching is impossible, do not commit: state the
-  path and leave the commit to the caller. On a host that runs the
-  package's lifecycle hooks, a hook refuses the commit itself; this
-  rule stays the enforcement everywhere else.
-- **After writing, commit the report file on its own**:
-  `git add <report file>` then
-  `git commit -m "docs(odd): observation report <run_name>"` (for a
-  verification run, `docs(odd): verification report <run_name>`; for a
-  re-measure run, `docs(odd): re-measure report <run_name>`) — never
-  stage anything else; a dirty working tree stays untouched otherwise.
-  If committing is impossible (not a git repository, or the caller said
-  not to), state the path and leave the commit to the caller.
-- Either way, state the stored path in the reply.
+- **The work branch** (the memory contract) is
+  `docs/odd-observe-run-report-<run_name>`; **the commit** carries the
+  report file alone, subject `docs(odd): observation report
+  <run_name>` — `docs(odd): verification report <run_name>` for a
+  verification, `docs(odd): re-measure report <run_name>` for a
+  re-measure.

@@ -50,6 +50,7 @@ flowchart LR
     sls[setup-local-stack]
     coir[create-otel-instrumentation-report]
     soir[show-otel-instrumentation-report]
+    mem[odd-memory]
   end
 
   subgraph MCP["MCP tools"]
@@ -72,6 +73,9 @@ flowchart LR
   coir --> insdir
   soir --> insdir
 
+  coir --> mem
+  soir --> mem
+
   classDef prompt fill:#e8f0fe,stroke:#4285f4
   classDef agent fill:#fef7e0,stroke:#f9ab00
   classDef skill fill:#e6f4ea,stroke:#34a853
@@ -79,7 +83,7 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class instrument prompt
   class expert,runner agent
-  class og,ocg,sls,coir,soir skill
+  class og,ocg,sls,coir,soir,mem skill
   class cfgget mcp
   class insdir store
 ```
@@ -105,6 +109,7 @@ flowchart LR
     kg[k6-guides]
     cub[create-update-benchmark]
     sb[show-benchmark]
+    mem[odd-memory]
   end
 
   subgraph Stores[".odd/ stores"]
@@ -124,13 +129,16 @@ flowchart LR
 
   cub --> benchdir
 
+  cub --> mem
+  sb --> mem
+
   classDef prompt fill:#e8f0fe,stroke:#4285f4
   classDef agent fill:#fef7e0,stroke:#f9ab00
   classDef skill fill:#e6f4ea,stroke:#34a853
   classDef store fill:#f3e8fd,stroke:#a142f4
   class bench prompt
   class k6x agent
-  class kg,cub,sb skill
+  class kg,cub,sb,mem skill
   class benchdir,obsdir store
 ```
 
@@ -162,6 +170,7 @@ flowchart LR
     kg[k6-guides]
     corr[create-observe-run-report]
     sorr[show-observe-run-report]
+    mem[odd-memory]
     ubc[update-backend-configuration]
   end
 
@@ -210,6 +219,9 @@ flowchart LR
 
   corr --> obsdir
 
+  corr --> mem
+  sorr --> mem
+
   classDef prompt fill:#e8f0fe,stroke:#4285f4
   classDef agent fill:#fef7e0,stroke:#f9ab00
   classDef skill fill:#e6f4ea,stroke:#34a853
@@ -217,7 +229,7 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class observe prompt
   class runner,expert agent
-  class cbc,ocg,sls,rs,kg,corr,sorr,ubc skill
+  class cbc,ocg,sls,rs,kg,corr,sorr,ubc,mem skill
   class cfgget,cfgset,stack mcp
   class obsdir,benchdir store
 ```
@@ -250,6 +262,7 @@ flowchart LR
     kg[k6-guides]
     corr[create-observe-run-report]
     sorr[show-observe-run-report]
+    mem[odd-memory]
     ubc[update-backend-configuration]
   end
 
@@ -298,6 +311,9 @@ flowchart LR
 
   corr --> obsdir
 
+  corr --> mem
+  sorr --> mem
+
   classDef prompt fill:#e8f0fe,stroke:#4285f4
   classDef agent fill:#fef7e0,stroke:#f9ab00
   classDef skill fill:#e6f4ea,stroke:#34a853
@@ -305,7 +321,7 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class verify prompt
   class runner,expert agent
-  class cbc,ocg,sls,rs,kg,corr,sorr,ubc skill
+  class cbc,ocg,sls,rs,kg,corr,sorr,ubc,mem skill
   class cfgget,stack mcp
   class obsdir,insdir,benchdir store
 ```
@@ -328,6 +344,7 @@ flowchart LR
   subgraph Skills
     gs[get-status]
     rfd[record-finding-decision]
+    mem[odd-memory]
   end
 
   subgraph Stores[".odd/ stores"]
@@ -348,11 +365,14 @@ flowchart LR
   rfd --> obsdir
   rfd --> dec
 
+  gs --> mem
+  rfd --> mem
+
   classDef prompt fill:#e8f0fe,stroke:#4285f4
   classDef skill fill:#e6f4ea,stroke:#34a853
   classDef store fill:#f3e8fd,stroke:#a142f4
   class status,instrument,observe prompt
-  class gs,rfd skill
+  class gs,rfd,mem skill
   class obsdir,insdir,dec store
 ```
 
@@ -444,19 +464,20 @@ each other.
 | --- | --- | --- |
 | [`otel-guides`](../../.apm/skills/otel-guides/SKILL.md) | Curated map of the official OpenTelemetry docs: every supported language plus the cross-language guides (SDK configuration, semantic conventions, Collector deployment) | Nothing |
 | [`k6-guides`](../../.apm/skills/k6-guides/SKILL.md) | Curated map of the official k6 docs: install, running a script, scripting (checks, thresholds, scenarios), test types, protocols - and which of a benchmark's inputs a human must decide rather than an agent | Nothing |
+| [`odd-memory`](../../.apm/skills/odd-memory/SKILL.md) | The file contract of the `.odd/` memory, shared by its four kinds: where it lives, the frontmatter, append-only reports versus living-source benchmarks, recall by section, no secrets, the work branch and the lone commit, the reply that carries a synthesis | Nothing - read by the create and show skills, `record-finding-decision` and `get-status`; never invoked on its own |
 | [`observability-cli-guides`](../../.apm/skills/observability-cli-guides/SKILL.md) | One reference per stack - query surface, configuration display, what to persist - plus the built-in stack list: the local stack, Grafana (gcx), Datadog (Pup), Dynatrace (dtctl), Azure Monitor (az), CloudWatch (aws), Splunk | Routes the local-stack case to `setup-local-stack` |
 | [`setup-local-stack`](../../.apm/skills/setup-local-stack/SKILL.md) | Configure gcx against the local stack without touching the user's contexts, with the datasource UIDs and the push-model caveats | `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset` |
 | [`check-backend-configuration`](../../.apm/skills/check-backend-configuration/SKILL.md) | Before a run: display the configured stack's CLI context, prove it connected, guide the setup, and hand the preflight over to the mission | `observability-cli-guides` (`builtin-stacks.md`); `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset`; routes to `setup-local-stack` for the local stack, and to `update-backend-configuration` for a missing CLI binary or a persisted targeting value that fails to resolve |
 | [`update-backend-configuration`](../../.apm/skills/update-backend-configuration/SKILL.md) | Own the backend switch: CLI presence with a guided install offer, the switch and the per-stack `stack_config` values persisted | `observability-cli-guides` (`builtin-stacks.md`); `odd_config_set`; hands the verification back to `check-backend-configuration` |
 | [`run-scenario`](../../.apm/skills/run-scenario/SKILL.md) | Drive a reproducible request scenario - ad-hoc requests or a stored benchmark - and record it verbatim for the replay | `k6-guides` (`running-tests.md`, `install.md`); reads `.odd/benchmarks/<name>/` (never writes there); orders the clean-base sequence around `odd_stack_reset` and follows `setup-local-stack` |
-| [`create-observe-run-report`](../../.apm/skills/create-observe-run-report/SKILL.md) | The loop's memory: persist each observation report and recall the previous ones as the baseline | Owns `.odd/observe-run-reports/` - nothing else writes there |
-| [`create-otel-instrumentation-report`](../../.apm/skills/create-otel-instrumentation-report/SKILL.md) | Same memory for the instrumentation side: persist each investigation into the investigated repo and recall it before the next one | Owns `.odd/otel-instrumentation-reports/` - nothing else writes there |
-| [`create-update-benchmark`](../../.apm/skills/create-update-benchmark/SKILL.md) | Persist an authored benchmark (script + manifest) and recall the ones a service already has: living source, updated in place through reviewed diffs - not an append-only report | Owns `.odd/benchmarks/` - naming, recall by service and by name, the reviewed diff, the commit |
-| [`show-observe-run-report`](../../.apm/skills/show-observe-run-report/SKILL.md) | Close an observe or verify mission with a one-screen synthesis of the stored report | Renders `create-observe-run-report`'s return value (stored path, carrying commit, the synthesis block); reads `.odd/observe-run-reports/` only for a stored report the caller names; writes nothing |
-| [`show-otel-instrumentation-report`](../../.apm/skills/show-otel-instrumentation-report/SKILL.md) | Close an instrument mission with a one-screen synthesis of the stored report | Reads `.odd/otel-instrumentation-reports/` under `create-otel-instrumentation-report`'s file contract; writes nothing |
-| [`show-benchmark`](../../.apm/skills/show-benchmark/SKILL.md) | Close an authoring mission: render a short synthesis of the stored benchmark - stored path, what it exercises, next action - the script and manifest stay the deliverable | Nothing - it renders what `create-update-benchmark` just returned, and reads nothing else |
-| [`get-status`](../../.apm/skills/get-status/SKILL.md) | Render the state of the ODD loop from the committed `.odd/` history and git alone, read-only | Reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`, and `.odd/decisions.md` (under `record-finding-decision`'s ledger contract, without calling it); recommends `/odd-instrument-otel` or `/odd-observe` |
-| [`record-finding-decision`](../../.apm/skills/record-finding-decision/SKILL.md) | Record a maintainer decision on a finding into the committed ledger, never editing a report | Owns `.odd/decisions.md` - the row format, the commit of that file alone; reads `.odd/observe-run-reports/` to resolve the finding reference |
+| [`create-observe-run-report`](../../.apm/skills/create-observe-run-report/SKILL.md) | The loop's memory: persist each observation report and recall the previous ones as the baseline | `odd-memory` (the shared contract); owns `.odd/observe-run-reports/` - nothing else writes there |
+| [`create-otel-instrumentation-report`](../../.apm/skills/create-otel-instrumentation-report/SKILL.md) | Same memory for the instrumentation side: persist each investigation into the investigated repo and recall it before the next one | `odd-memory`; owns `.odd/otel-instrumentation-reports/` - nothing else writes there |
+| [`create-update-benchmark`](../../.apm/skills/create-update-benchmark/SKILL.md) | Persist an authored benchmark (script + manifest) and recall the ones a service already has: living source, updated in place through reviewed diffs - not an append-only report | `odd-memory`; owns `.odd/benchmarks/` - naming, recall by service and by name, the reviewed diff, the commit |
+| [`show-observe-run-report`](../../.apm/skills/show-observe-run-report/SKILL.md) | Close an observe or verify mission with a one-screen synthesis of the stored report | `odd-memory`; renders `create-observe-run-report`'s return value (stored path, carrying commit, the synthesis block); reads `.odd/observe-run-reports/` only for a stored report the caller names; writes nothing |
+| [`show-otel-instrumentation-report`](../../.apm/skills/show-otel-instrumentation-report/SKILL.md) | Close an instrument mission with a one-screen synthesis of the stored report | `odd-memory`; reads `.odd/otel-instrumentation-reports/` under `create-otel-instrumentation-report`'s file contract; writes nothing |
+| [`show-benchmark`](../../.apm/skills/show-benchmark/SKILL.md) | Close an authoring mission: render a short synthesis of the stored benchmark - stored path, what it exercises, next action - the script and manifest stay the deliverable | `odd-memory`; renders what `create-update-benchmark` just returned, and reads nothing else |
+| [`get-status`](../../.apm/skills/get-status/SKILL.md) | Render the state of the ODD loop from the committed `.odd/` history and git alone, read-only | `odd-memory`; reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`, and `.odd/decisions.md` (under `record-finding-decision`'s ledger contract, without calling it); recommends `/odd-instrument-otel` or `/odd-observe` |
+| [`record-finding-decision`](../../.apm/skills/record-finding-decision/SKILL.md) | Record a maintainer decision on a finding into the committed ledger, never editing a report | `odd-memory`; owns `.odd/decisions.md` - the row format, the commit of that file alone; reads `.odd/observe-run-reports/` to resolve the finding reference |
 
 ## Hooks
 
