@@ -77,6 +77,7 @@ if [ -f marketplace/oddyssey/hooks.json ]; then
   fi
   if [ -d .apm/hooks/scripts ]; then
     cp -R .apm/hooks/scripts marketplace/oddyssey/hooks/scripts
+    find marketplace/oddyssey/hooks/scripts -name __pycache__ -type d -prune -exec rm -rf {} +
   fi
   for script in $(grep -o '/hooks/scripts/[^" ]*' marketplace/oddyssey/hooks/hooks.json | sort -u); do
     if [ ! -f "marketplace/oddyssey${script}" ]; then

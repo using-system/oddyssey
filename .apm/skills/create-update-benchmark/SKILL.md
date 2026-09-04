@@ -51,6 +51,8 @@ exception to some other rule.
 
 ## What this skill does not own
 
+  On a host that runs the package's lifecycle hooks, a hook flags what
+  slipped through, after the write.
 - Any k6 knowledge - it persists whatever content the agent decided,
   unopinionated about whether the script or manifest is any good. That
   judgment belongs to `k6-benchmark-expert`, informed by `k6-guides`.
