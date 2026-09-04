@@ -175,6 +175,7 @@ flowchart LR
   observe --> runner
   observe --> bc
   observe --> mem
+  bc --> mem
   observe --> cfgget
   observe --> cfgset
   observe --> kg
@@ -260,6 +261,7 @@ flowchart LR
   verify --> runner
   verify --> bc
   verify --> mem
+  bc --> mem
   verify --> cfgget
   verify --> kg
   verify --> obsdir
@@ -353,7 +355,9 @@ flowchart LR
 Displays through `backend-configuration`'s `## Check` and routes a
 switch to its `## Switch`, which ends in `## Check` for the connection
 proof; a missing CLI binary or a targeting value that fails to resolve
-routes the other way, inside the same skill.
+routes the other way, inside the same skill. A custom stack's file
+(`odd-memory`'s `observability-stack` reference) is the target's
+reference, checked against the contract before the switch.
 
 ```mermaid
 flowchart LR
@@ -365,6 +369,11 @@ flowchart LR
     bc[backend-configuration]
     ocg[observability-cli-guides]
     sls[setup-local-stack]
+    mem[odd-memory]
+  end
+
+  subgraph Stores
+    stackdir[".odd/observability-stacks/"]
   end
 
   subgraph MCP["MCP tools"]
@@ -377,6 +386,8 @@ flowchart LR
   config --> ocg
 
   bc --> ocg
+  bc --> mem
+  mem --> stackdir
   bc --> cfgset
 
   bc -.-> sls
@@ -387,9 +398,11 @@ flowchart LR
 
   classDef prompt fill:#e8f0fe,stroke:#4285f4
   classDef skill fill:#e6f4ea,stroke:#34a853
+  classDef store fill:#f3e8fd,stroke:#a142f4
   classDef mcp fill:#fce8e6,stroke:#ea4335
   class config prompt
-  class bc,ocg,sls skill
+  class bc,ocg,sls,mem skill
+  class stackdir store
   class cfgget,cfgset,stack mcp
 ```
 
@@ -430,10 +443,10 @@ each other.
 | --- | --- | --- |
 | [`otel-guides`](../../.apm/skills/otel-guides/SKILL.md) | Curated map of the official OpenTelemetry docs: every supported language plus the cross-language guides (SDK configuration, semantic conventions, Collector deployment) | Nothing |
 | [`k6-guides`](../../.apm/skills/k6-guides/SKILL.md) | Curated map of the official k6 docs: install, running a script, scripting (checks, thresholds, scenarios), test types, protocols - and which of a benchmark's inputs a human must decide rather than an agent | Nothing |
-| [`odd-memory`](../../.apm/skills/odd-memory/SKILL.md) | The `.odd/` memory: the contract every kind shares, and one reference per kind - observation reports, instrumentation reports, the finding-decision ledger, benchmarks - saying how to persist, recall and show it; owns the four stores | Nothing - read by the three agents at persist and recall time, by the prompts at show time, by `get-status`; never invoked on its own |
-| [`observability-cli-guides`](../../.apm/skills/observability-cli-guides/SKILL.md) | One reference per stack - query surface, configuration display, what to persist - plus the built-in stack list: the local stack, Grafana (gcx), Datadog (Pup), Dynatrace (dtctl), Azure Monitor (az), CloudWatch (aws), Splunk | Routes the local-stack case to `setup-local-stack` |
+| [`odd-memory`](../../.apm/skills/odd-memory/SKILL.md) | The `.odd/` memory: the contract every kind shares, and one reference per kind - observation reports, instrumentation reports, the finding-decision ledger, benchmarks, custom stack files - saying how to persist, recall and show it; owns the five stores | Nothing - read by the three agents at persist and recall time, by the prompts at show time, by `get-status`, by `backend-configuration` for a custom stack; never invoked on its own |
+| [`observability-cli-guides`](../../.apm/skills/observability-cli-guides/SKILL.md) | One reference per stack - query surface, configuration display, what to persist - plus the built-in stack list: the local stack, Grafana (gcx), Datadog (Pup), Dynatrace (dtctl), Azure Monitor (az), CloudWatch (aws), Splunk; the reference contract every stack file follows, with the script that checks a file against it | Routes the local-stack case to `setup-local-stack` |
 | [`setup-local-stack`](../../.apm/skills/setup-local-stack/SKILL.md) | Configure gcx against the local stack without touching the user's contexts, with the datasource UIDs and the push-model caveats | `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset` |
-| [`backend-configuration`](../../.apm/skills/backend-configuration/SKILL.md) | The configured backend, in two sections: `## Check` displays the configured stack's CLI context, proves it connected, guides the setup and hands the preflight over to the mission; `## Switch` owns the change - CLI presence with a guided install offer, the switch and the per-stack `stack_config` values persisted, then `## Check` for the proof | `observability-cli-guides` (`builtin-stacks.md`, the stack's four preflight sections); `odd_config_get`, `odd_config_set`; routes to `setup-local-stack` for the local stack |
+| [`backend-configuration`](../../.apm/skills/backend-configuration/SKILL.md) | The configured backend, in two sections: `## Check` displays the configured stack's CLI context, proves it connected, guides the setup and hands the preflight over to the mission; `## Switch` owns the change - CLI presence with a guided install offer, the switch and the per-stack `stack_config` values persisted, then `## Check` for the proof; a custom stack's file is checked against the reference contract before the switch | `observability-cli-guides` (`builtin-stacks.md`, the stack's four preflight sections, the contract check script); `odd-memory` (the `observability-stack` reference, for a custom stack's file); `odd_config_get`, `odd_config_set`; routes to `setup-local-stack` for the local stack |
 | [`run-scenario`](../../.apm/skills/run-scenario/SKILL.md) | Drive a reproducible request scenario - ad-hoc requests or a stored benchmark - and record it verbatim for the replay | `k6-guides` (`running-tests.md`, `install.md`); reads `.odd/benchmarks/<name>/` (never writes there); orders the clean-base sequence around `odd_stack_reset` and follows `setup-local-stack` |
 | [`get-status`](../../.apm/skills/get-status/SKILL.md) | Render the state of the ODD loop from the committed `.odd/` history and git alone, read-only | `odd-memory`; reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`, and `.odd/decisions.md` (under `odd-memory`'s `decisions` reference); recommends `/odd-instrument-otel` or `/odd-observe` |
 
@@ -470,7 +483,7 @@ access goes through the tools.
 ```mermaid
 flowchart LR
   P[6 prompts] --> A[3 agents]
-  P --> S[15 skills]
+  P --> S[8 skills]
   A --> S
   P --> M[MCP tools]
   A --> M

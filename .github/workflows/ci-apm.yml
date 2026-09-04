@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check the references against the contract
-        run: python3 scripts/check-reference-contract.py
+        run: python3 .apm/skills/observability-cli-guides/scripts/check_stack_reference.py
 
   validate:
     # grok-build is excluded from the matrix: it has no MCP client, and

@@ -24,11 +24,15 @@ name only.
 
 This skill knows no stack by name. Everything about a stack — its CLI,
 what to display, how to prove the connection, what to say when it
-fails, what to persist — lives in that stack's reference file in the
-`observability-cli-guides` skill, `references/<stack>.md`; the list of
-stacks, their aliases and their CLIs is that skill's
-`references/builtin-stacks.md`. This file is the method; the reference
-is the content.
+fails, what to persist — lives in that stack's reference file: in the
+`observability-cli-guides` skill, `references/<stack>.md`, for a stack
+the package ships (the list of those, their aliases and their CLIs is
+that skill's `references/builtin-stacks.md`), or in the observed
+repository, `.odd/observability-stacks/<stack>.md`, for a **custom
+stack** the team wrote itself (the `odd-memory` skill's
+`observability-stack` reference owns that file's lifecycle). Both
+carry the same sections, and this skill reads them the same way. This
+file is the method; the reference is the content.
 
 **Read by section, never the whole file.** A reference runs a few
 hundred lines, and this skill needs the four sections the reference
@@ -54,15 +58,19 @@ connection.
 
 ### 1. Resolve the stack
 
-`odd_config_get` names the configured stack — one of the values
-`builtin-stacks.md` lists. When the mission or the instructions name a
-different one, they win — whether the switch persists is the
-**caller's call**: `odd-observe` persists it with `odd_config_set` so
-the next run starts from it; `odd-verify` states the divergence and
-does not persist (the stored report is the contract it replays). Open
-the stack's row in `builtin-stacks.md` and, from it, the stack's
-reference file: the rest of this section is that file's
-`## Configuration display`, applied in order.
+`odd_config_get` names the configured stack — a value
+`builtin-stacks.md` lists, or a custom stack whose declaration sits
+under `custom` in the same result. When the mission or the
+instructions name a different one, they win — whether the switch
+persists is the **caller's call**: `odd-observe` persists it with
+`odd_config_set` so the next run starts from it; `odd-verify` states
+the divergence and does not persist (the stored report is the contract
+it replays). Open the stack's row in `builtin-stacks.md` and, from it,
+the stack's reference file; a name on no row is a custom stack, its
+reference file `.odd/observability-stacks/<name>.md` in the observed
+repository (absent too: the error of `## Switch`'s step 1). The rest
+of this section is that file's `## Configuration display`, applied in
+order.
 
 ### 2. Resolve the CLI and read its configuration
 
@@ -134,9 +142,9 @@ re-proves the connection — it reads the reference's other sections
 only:
 
 ```text
-Preflight: stack=<stack>, backend=<backend, or local>
+Preflight: stack=<stack>, backend=<backend, local, or "<name> (custom)">
 Reference: <repo-relative path of the reference file>; read: CLI binary, Configuration display
-CLI: <binary> <version>; context: <the isolated context's path, or the named context>
+CLI: <binary> <version>; context: <the isolated context's path, the named context, or "none" when the CLI carries no context>
 Target: <the Display's values on one line - URLs, ports, tenant/workspace/site names; never a credential>
 Proof: <the probe command> -> <the real signal it returned>, at <UTC>
 ```
@@ -155,14 +163,21 @@ identifiers, not only credentials).
 
 ### 1. Resolve the target stack
 
-The target is one of the `STACKS` values `builtin-stacks.md` lists —
-`odd_config_set` accepts nothing else. Map the user's phrasing onto a
-row through that table's **Also called** column — a vendor name, a
-product name, or the words for the stack on this machine each name
-exactly one value there.
+The target is one of the `STACKS` values `builtin-stacks.md` lists, or
+a custom stack the observed repository carries. Map the user's phrasing
+onto a row through that table's **Also called** column — a vendor name,
+a product name, or the words for the stack on this machine each name
+exactly one value there. A phrasing on no row is a custom stack's name
+when `.odd/observability-stacks/<name>.md` exists in the observed
+repository — `<name>` is the file's stem, the phrasing lowercased and
+kebab-cased ("use Seq" → `seq`); that file is the target's reference
+for every step below. Read `odd_config_get` here too: the configured
+stack (a switch to it is a no-op worth saying) and, for a custom name,
+whether its declaration is already stored under `custom`.
 
-Anything that does not resolve is an **error naming the valid list**
-(the table's first column), not a guess and not a passthrough:
+Anything that resolves to neither is an **error naming the valid list**
+(the table's first column) **and the custom location** (the
+directory, with the files it holds), not a guess and not a passthrough:
 `odd_config_set` would reject it anyway, and a spelled-out list is what
 lets the user correct it in one turn.
 
@@ -199,6 +214,27 @@ Write it: `odd_config_set {"stack": "<target>"}`. The result carries the
 effective configuration under `config` — report the new `stack` from
 there, not from the request, so what is displayed is what was stored.
 
+A **custom stack** is checked before it is written, and written with
+its declaration. Run
+
+```text
+python3 <the observability-cli-guides skill's directory>/scripts/check_stack_reference.py --declaration .odd/observability-stacks/<name>.md
+```
+
+from the observed repository's root. A non-zero exit lists what the
+file lacks against the reference contract — stop there, naming the
+problems; the fix is an edit to the file, through the `odd-memory`
+reference, never a switch to an unchecked stack. A zero exit prints one
+JSON object: the `config` argument of the switch's `odd_config_set`
+call — pass it verbatim, never rebuilt by hand (step 4's `stack_config`
+values may ride in the same call when they are already known). The
+server stores the declaration it carries and validates step 4's values
+against it; it never reads the file, and a name it has no declaration
+for is the error the check exists to prevent. When the check cannot
+run — `python3` missing, or an install that dropped the skill's
+`scripts/` — the switch stops there too, saying which of the two: an
+unchecked file is not persisted, and the fix is the user's.
+
 The switch alone touches nothing else: it does not boot, reset, or stop
 the local stack container. A `stack_reset` block appears in the result
 **only** when the same call also changed a local host port, because a
@@ -219,7 +255,11 @@ not request.
 Follow the reference's `## What to persist` section. It says what
 `stack_config` holds for that backend, where each value comes from, and
 what to ask the user for — including the backends where the answer is
-**nothing**, so the skill knows not to ask.
+**nothing**, so the skill knows not to ask. For a custom stack the
+field list is the one its frontmatter declares (step 3 passed it to the
+server): a value under another name is rejected there, and the
+reference's `### What stack_config holds` is where the list is
+explained.
 
 Write with `odd_config_set {"stack_config": {"<stack>": {...}}}`. The
 payload is merged into that stack's entry and every other stack's entry
@@ -260,7 +300,8 @@ would be an unrequested switch.
 ### 5. Verify
 
 Run `## Check` against the new stack — or against the configured one,
-untouched, on a persist-only pass. Its display plus its connection
+untouched, on a persist-only pass; its step 2 Detect was just run by
+step 2 here and is not re-run. Its display plus its connection
 proof is the switch's **exit criterion** — a switch is done when the
 CLI answers for the new backend, not when the write returns. Failures
 come back as `## Check`'s guidance (setup steps, the inputs it needs by

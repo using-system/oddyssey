@@ -7,8 +7,9 @@ else: the preflight reads three (`## CLI binary`, `## Setup`,
 `## Configuration display`), the switch two (`## CLI binary`,
 `## What to persist`) — the four the agents never open — and the
 agents the rest. A section under another name is a section nobody
-reads. `scripts/check-reference-contract.py` enforces the list in CI
-from the block below; the block is the list.
+reads. This skill's `scripts/check_stack_reference.py` enforces the
+list from the block below — in CI on the built-in references, and at
+switch time on a custom stack file; the block is the list.
 
 ```text
 ## CLI binary
@@ -76,5 +77,28 @@ agents like any other, never by the preflight or the switch.
 - **Linked, not remembered**: every command traces to the backend's
   documentation, linked from the section that uses it.
 
-A custom stack file (a backend the package does not ship) follows the
-same contract, so the stack-agnostic skills need no special case for it.
+## A custom stack file
+
+A custom stack file (a backend the package does not ship, kept in the
+observed repository as `.odd/observability-stacks/<name>.md` — the
+`odd-memory` skill's `observability-stack` reference owns its
+lifecycle) follows the same contract, so the stack-agnostic skills need
+no special case for it. It differs from a built-in reference in one
+place: it opens with a frontmatter that declares what the server must
+know and never reads from the file —
+
+```yaml
+---
+stack: <name>              # kebab-case, the file's own stem, never a built-in value
+stack_config_fields: []    # the stack_config fields the switch may persist; [] when none
+---
+```
+
+The switch runs
+`python3 <this skill's directory>/scripts/check_stack_reference.py --declaration <file>`:
+the headings are checked as for a built-in, the name is refused when
+`builtin-stacks.md` lists it, and the declaration is printed
+as the `odd_config_set` payload that switches to the stack — the
+tool's `config` argument, passed verbatim. Any other frontmatter key
+(a `verified` note, for instance) belongs to the file and is never
+forwarded.

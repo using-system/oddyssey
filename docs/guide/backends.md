@@ -11,6 +11,21 @@ each backend's reference under the
 skill; this page restates it, never extends it. Naming a stack in an
 `/odd-observe` mission switches the configuration too.
 
+A backend outside that list is a **custom stack**: one file the team
+writes in the observed repository, `.odd/observability-stacks/<name>.md`,
+with the same sections as a built-in reference and a frontmatter that
+declares the `stack_config` fields it persists — the
+[reference contract](../../.apm/skills/observability-cli-guides/references/CONTRACT.md)
+says what the file carries, the `odd-memory` skill's
+[observability-stack.md](../../.apm/skills/odd-memory/references/observability-stack.md)
+how it lives. The switch checks the file against the contract before
+persisting anything, and `stack_config` then holds exactly the fields
+the file declares:
+
+```text
+/odd-config switch to <name>
+```
+
 ## local
 
 **CLI**: `gcx` — `brew install gcx`, or the official install script.

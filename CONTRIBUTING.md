@@ -60,7 +60,7 @@ bash scripts/build-marketplace.sh
 # Validate the APM package like CI does (keep the apm-cli pin -
 # older releases corrupt the install; see the README's install note)
 uvx --from apm-cli==0.28.0 apm install --target claude && uvx --from apm-cli==0.28.0 apm audit
-python3 scripts/check-reference-contract.py   # every stack reference follows references/CONTRACT.md
+python3 .apm/skills/observability-cli-guides/scripts/check_stack_reference.py   # every stack reference follows references/CONTRACT.md
 ```
 
 Three hard constraints on the MCP server (owned by the

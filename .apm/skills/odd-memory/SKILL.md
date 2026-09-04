@@ -1,6 +1,6 @@
 ---
 name: odd-memory
-description: The .odd/ memory - its contract and one reference per kind. The contract states what every kind shares (where the memory lives, the frontmatter and the whole body, append-only reports versus living-source benchmarks, recall by frontmatter then by section, the no-secrets rule, the work branch and the lone commit, the reply that carries a synthesis and never the artifact); each reference says how to persist, recall and show its kind - observation reports, instrumentation reports, benchmarks, the finding-decision ledger. Read when a report, a benchmark or a decision is persisted, recalled, shown or inventoried, or when a finding is declined (wontfix) or such a decision reversed; never invoked on its own.
+description: The .odd/ memory - its contract and one reference per kind. The contract states what every kind shares (where the memory lives, the frontmatter and the whole body, append-only reports versus living-source benchmarks, recall by frontmatter then by section, the no-secrets rule, the work branch and the lone commit, the reply that carries a synthesis and never the artifact); each reference says how to persist, recall and show its kind - observation reports, instrumentation reports, benchmarks, the finding-decision ledger, custom stack files. Read when a report, a benchmark, a custom stack file or a decision is persisted, recalled, shown or inventoried, or when a finding is declined (wontfix) or such a decision reversed; never invoked on its own.
 ---
 
 # The `.odd/` memory contract
@@ -8,7 +8,7 @@ description: The .odd/ memory - its contract and one reference per kind. The con
 The ODD loop's memory is a set of committed files in the observed
 repository, under `.odd/`: git versions them, pull requests review them,
 every user of the repository shares them — no side-channel storage,
-nothing opaque. It has four kinds, each with the reference that owns
+nothing opaque. It has five kinds, each with the reference that owns
 its specifics (its paths, its frontmatter fields, its recall matching,
 its branch name, its commit subject, what its reply carries, and how a
 stored one is shown):
@@ -19,10 +19,11 @@ stored one is shown):
 | Instrumentation reports | `.odd/otel-instrumentation-reports/` | [references/otel-instrumentation-report.md](references/otel-instrumentation-report.md) |
 | Finding decisions | `.odd/decisions.md` | [references/decisions.md](references/decisions.md) |
 | Benchmarks | `.odd/benchmarks/<name>/` | [references/benchmark.md](references/benchmark.md) |
+| Custom stacks | `.odd/observability-stacks/<name>.md` | [references/observability-stack.md](references/observability-stack.md) |
 
 This file owns what they share; a reference states only its
-specifics. A fifth kind is a new row in this table and a new
-reference, never a fifth copy of these rules.
+specifics. A sixth kind is a new row in this table and a new
+reference, never a sixth copy of these rules.
 
 ## Reading a reference by section
 
@@ -70,16 +71,18 @@ the caller, and what `## Show` renders from.
 - A **benchmark is living source**, not a run record: it is updated in
   place through reviewed diffs, and git history, not file accumulation,
   is its memory. It is never overwritten silently — an update is a diff
-  the maintainer reviews like any other committed change.
+  the maintainer reviews like any other committed change. A **custom
+  stack file** is living source the same way.
 - The consumers keep the two apart: `/odd-verify` and `/odd-status`
   treat a commit that touches only the report stores or the ledger as
-  memory, not code, while a commit that changes a benchmark is a code
-  change.
+  memory, not code, while a commit that changes a benchmark or a custom
+  stack file is a code change.
 
 ## Recall: reading the memory
 
 For the two report stores — a benchmark is recalled by service and by
-name, the ledger is one file; their references own that:
+name, a custom stack by name, the ledger is one file; their references
+own that:
 
 - List the store newest first (the filenames sort chronologically). A
   missing or empty store is a first run — say so, never fail.
