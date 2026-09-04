@@ -950,10 +950,15 @@ def inventory_lines(facts: dict) -> list[str]:
 
 def invariant_section(facts: dict) -> list[str]:
     """The memory invariant: never a failure - the store is append-only."""
-    invariant = facts.get("invariant") or {"checked": 0, "violations": []}
+    invariant = facts.get("invariant") or {
+        "checked": 0,
+        "violations": [],
+        "legacy": [],
+    }
     ledger = facts["ledger"]
     skipped = [r for r in ledger["rows"] if r["status"] == "skipped"]
     checked = invariant["checked"]
+    legacy = invariant.get("legacy", [])
     clean = checked - len(invariant["violations"])
     out = [
         "## Memory invariant",
@@ -964,6 +969,12 @@ def invariant_section(facts: dict) -> list[str]:
                 ""
                 if invariant["violations"]
                 else " - every stored report carries the contract's frontmatter"
+            )
+            + (
+                f"; {len(legacy)} predate the `depth` field and read as full"
+                f" ({', '.join(Path(p).name for p in legacy)})"
+                if legacy
+                else ""
             )
         ),
         (

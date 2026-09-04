@@ -1485,7 +1485,7 @@ def test_invariant_is_clean_for_a_conforming_store(repo):
     )
     repo.commit("docs(odd): report")
     result = facts(repo)
-    assert result["invariant"] == {"checked": 1, "violations": []}
+    assert result["invariant"] == {"checked": 1, "violations": [], "legacy": []}
 
 
 def test_invariant_flags_missing_and_malformed_frontmatter_fields(repo):
@@ -1505,6 +1505,42 @@ def test_invariant_flags_missing_and_malformed_frontmatter_fields(repo):
     assert any(p.startswith("window") for p in problems)
     assert any(p.startswith("mode") for p in problems)
     assert facts(repo)["invariant"]["checked"] == 1
+
+
+def test_invariant_lists_a_report_predating_depth_as_legacy_not_violation(repo):
+    # The contract reads a report without depth as full: nothing can ever
+    # change an append-only file, so it is a note, not a violation.
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-checkout-sweep.md",
+        observation().replace("depth: full\n", ""),
+    )
+    repo.commit("docs(odd): report")
+    result = facts(repo)["invariant"]
+    assert result["violations"] == []
+    assert result["legacy"] == [
+        ".odd/observe-run-reports/2026-08-10-1000-checkout-sweep.md"
+    ]
+
+
+def test_invariant_resolves_a_bare_verifies_against_observation_reports_only(repo):
+    # A bare filename names a sibling observation report; an instrumentation
+    # baseline is named by its repo-relative path (the report reference).
+    repo.write(
+        ".odd/otel-instrumentation-reports/2026-08-09-1000-app.md",
+        "---\nproject: app\nstack: local\nrun_name: app\ndate: 2026-08-09\n---\n\n# plan\n",
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-12-1000-verify-app.md",
+        observation(
+            mode="verify",
+            run_name="app",
+            date="2026-08-12",
+            extra_frontmatter="verifies: 2026-08-09-1000-app.md",
+        ),
+    )
+    repo.commit("docs(odd): reports")
+    problems = _violations(facts(repo))["2026-08-12-1000-verify-app.md"]
+    assert any("verifies names no stored report" in p for p in problems)
 
 
 def test_invariant_flags_a_window_whose_end_precedes_its_start(repo):
@@ -1635,7 +1671,7 @@ def test_invariant_checks_an_instrumentation_report_and_an_unreadable_file(repo)
 def test_invariant_covers_every_stored_report_even_when_the_status_is_filtered(repo):
     repo.write(
         ".odd/observe-run-reports/2026-08-10-1000-checkout-sweep.md",
-        observation().replace("depth: full\n", ""),
+        observation().replace("mode: drive", "mode: drove"),
     )
     repo.write(
         ".odd/observe-run-reports/2026-08-11-1000-cart-sweep.md",

@@ -249,9 +249,12 @@ section: the counts, then one line per violation.
 A violation is **never a failure**: the store is append-only, so a
 report is never edited to repair it — a new run supersedes it — and a
 decision row is appended, never rewritten. The status is where a
-reader learns that a report predates a field (`depth absent` reads as
-`full`, the way the loop state already renders it) or that a decision
-points at nothing; the remedy is the next run, or a new row.
+reader learns that a decision points at nothing; the remedy is the
+next run, or a new row. A report whose only gap is a field it
+predates (`depth`, read as `full` the way the loop state already
+renders it) is not a violation: the fact sheet lists it under
+`legacy`, and the section names it in a note next to the counts,
+since nothing can ever change it.
 
 ## A filter that matches nothing is still a status
 

@@ -971,9 +971,12 @@ def check_report(report: dict, stored_names: set[str], root: Path) -> list[str]:
         if mode in REPLAY_MODES and not verifies:
             problems.append(f"verifies absent on a {mode} report")
         elif verifies:
+            # A bare filename names a sibling observation report; an
+            # instrumentation baseline is named by its repo-relative path
+            # (the report reference: the value's shape says the directory).
             target = str(verifies)
-            exists = target in stored_names or (
-                "/" in target and (root / target).is_file()
+            exists = (
+                (root / target).is_file() if "/" in target else target in stored_names
             )
             if not exists:
                 problems.append(f"verifies names no stored report: {target}")
@@ -1001,16 +1004,27 @@ def check_report(report: dict, stored_names: set[str], root: Path) -> list[str]:
     return problems
 
 
+LEGACY_PREFIX = "depth absent (predates"
+
+
 def check_invariant(root: Path, reports: list[dict]) -> dict:
-    stored = {Path(r["path"]).name for r in reports}
+    """Every stored report checked; a report whose only problem is a field
+    it predates is listed as legacy, not as a violation - the contract reads
+    it as full, and nothing can ever change an append-only file."""
+    stored = {Path(r["path"]).name for r in reports if r["kind"] == "observation"}
     violations = []
+    legacy = []
     for report in reports:
         problems = check_report(report, stored, root)
-        if problems:
-            violations.append(
-                {"path": report["path"], "kind": report["kind"], "problems": problems}
-            )
-    return {"checked": len(reports), "violations": violations}
+        if not problems:
+            continue
+        if all(p.startswith(LEGACY_PREFIX) for p in problems):
+            legacy.append(report["path"])
+            continue
+        violations.append(
+            {"path": report["path"], "kind": report["kind"], "problems": problems}
+        )
+    return {"checked": len(reports), "violations": violations, "legacy": legacy}
 
 
 # --- the fact sheet -----------------------------------------------------------

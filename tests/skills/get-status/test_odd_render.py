@@ -1273,7 +1273,11 @@ def test_memory_invariant_section_lists_violations_and_skipped_ledger_rows(
 ):
     repo.write(
         ".odd/observe-run-reports/2026-08-10-1000-a.md",
-        observation(run_name="a").replace("depth: full\n", ""),
+        observation(run_name="a").replace("mode: drive", "mode: drove"),
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-11-1000-b.md",
+        observation(run_name="b", date="2026-08-11").replace("depth: full\n", ""),
     )
     repo.write(
         ".odd/decisions.md",
@@ -1283,7 +1287,11 @@ def test_memory_invariant_section_lists_violations_and_skipped_ledger_rows(
     repo.commit("docs(odd): report and decision")
     text = rendered(repo, odd_status, odd_render)
     section = text.split("## Memory invariant")[1].split("## ")[0]
-    assert "0 of 1" in section
-    assert "2026-08-10-1000-a.md" in section and "depth absent" in section
+    assert "1 of 2" in section
+    assert (
+        "1 predate the `depth` field and read as full (2026-08-11-1000-b.md)" in section
+    )
+    assert "2026-08-10-1000-a.md" in section and "mode 'drove'" in section
+    assert "2026-08-11-1000-b.md | depth absent" not in section
     assert "line 7" in section and "carries no finding F9" in section
     assert "append-only" in section
