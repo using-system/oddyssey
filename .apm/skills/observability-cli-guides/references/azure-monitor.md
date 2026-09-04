@@ -194,8 +194,8 @@ workspace and an Application Insights resource carrying real data).
   the count. When it does not, the rows are running totals per series
   — reported from a 2026-09-03 run on the same pipeline before its
   conversion, not re-observed since — and `sum(value)` multiplies the
-  total by the export count, the App Insights twin of the CloudWatch
-  EMF trap. Probe one series first:
+  total by the export count, the trap any cumulative pipeline sets.
+  Probe one series first:
   `customMetrics | where name == '<name>' | order by timestamp asc | serialize | extend prev = prev(value) | summarize pushes=count(), decreases=countif(value < prev), vmax=max(value) by inst=tostring(customDimensions['service.instance.id'])`
   — decreases near zero with a magnitude beyond any per-interval count
   means cumulative: read the window as an edge delta per series,
