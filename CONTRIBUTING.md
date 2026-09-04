@@ -71,6 +71,11 @@ spec wins if this summary ever drifts):
 - **Every PR references an existing issue** (`Closes #N` in the body)
   — no exceptions. The issue carries the problem and its discussion,
   the PR carries the change; open the issue first when none exists.
+- **The issue is the decision record.** When the implementation
+  deviates from what the issue specified — a rule dropped, a threshold
+  changed, a scope narrowed, a design replaced — record each amended
+  choice as a comment on that issue, what changed and why, before
+  opening the PR.
 - **The PR title IS the release note.** We squash-merge with the PR
   title as the commit message, and versions are computed from
   [Conventional Commits](https://www.conventionalcommits.org/):
