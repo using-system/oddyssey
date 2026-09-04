@@ -148,8 +148,9 @@ plus application frames are the substitute, stated as such.
 Discover before you query: `gcx metrics labels` / `gcx metrics metadata`,
 `gcx traces labels`, `gcx logs labels`, `gcx profiles list-profile-types`.
 The four signals' discoveries are independent — **run them
-concurrently inside one shell call** (each command backgrounded, its
-output to its own file, one `wait` per job), never serially and never
+concurrently inside one shell call** (each command backgrounded with
+its PID captured, its stdout to its own file and its stderr to
+another, one `wait "$pid"` per job), never serially and never
 one tool call each; the same holds for the batch of `gcx traces get`
 fetches once a search has returned its trace IDs. gcx is safe to run
 that way against one context (the Grafana reference's `## Query by

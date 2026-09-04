@@ -58,8 +58,8 @@ including from environments where Pup isn't installed.
 | Logs | `pup logs patterns --query=<q> --pattern-field=<field> [--from] [--to] [--group-by]` | same | Clusters similar log messages by a field (e.g. `message`) — useful for triage before a targeted search. |
 | Logs | REST API (what Pup wraps) | [Search logs (POST)](https://docs.datadoghq.com/api/latest/logs.md#search-logs-post) | `POST https://api.<site>/api/v2/logs/events/search`; same header auth. |
 
-Concurrency — **not verified**: the observe-run agent runs its
-discoveries and its trace fetches backgrounded in one shell call, and
+Concurrency — **not verified**: read commands issued concurrently
+from one shell against one credential are the expected shape, and
 `pup` read commands are stateless API calls sharing one credential,
 so nothing in their design objects to it — but no Datadog account was
 available to prove it (2026-09-04). Until a live check lands here,
