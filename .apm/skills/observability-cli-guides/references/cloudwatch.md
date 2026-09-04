@@ -88,25 +88,15 @@ Verified live (`aws-cli/2.36.34`, 2026-08; the next three against
   `ResponseTimeHistogram` per client→server edge (bucketed, enough for
   a distribution check). Neither needs the raw datapoints EMF does
   not carry.
-- **`describe-log-streams` `lastEventTimestamp` is not a freshness
-  signal** — it is eventually consistent (the AWS reference says so)
+- **[`describe-log-streams`](https://docs.aws.amazon.com/cli/latest/reference/logs/describe-log-streams.html)
+  `lastEventTimestamp` is not a freshness signal** — it is eventually
+  consistent (the command reference says so)
   and lags the newest record by minutes (verified 2026-09-04: 12
   minutes behind on a stream written every second), so read alone it
   says "the pipeline stopped" on a pipeline that is writing. For "is
   telemetry still arriving", run a Logs Insights `stats
   max(@timestamp)` over the group (or `filter-log-events` on the last
   minute), never the stream listing.
-- **Logs Insights regex literals are valid in `parse` and `filter …
-  like /…/` only** — `replace()` takes plain strings, and
-  `fields replace(path, /\/orders\/[0-9]+/, "/orders/{id}") as route`
-  fails with `MalformedQueryException: token recognition error at:
-  '\'`, an error that points at a byte, not at the rule (verified
-  2026-09-04). Route normalization — the query every per-route
-  analysis needs here, since `http.route` is not indexed in X-Ray
-  annotations and the access-log body carries the raw path — goes
-  through a chained `parse` with named groups, then `stats … by` the
-  groups: `parse path /^(?<route>\/[a-z]+)(\/[0-9]+)?(?<tail>\/[a-z]+)?$/
-  | stats count() as n by method, route, tail, status`.
 
 ## Query by signal
 
@@ -227,6 +217,17 @@ metrics and traces).
   never re-list a `parse`-created field in a downstream `fields`
   (renaming the alias doesn't help): `MalformedQueryException: Ephemeral
   field is already defined`.
+- **Logs Insights regex literals are valid in `parse` and `filter …
+  like /…/` only** — `replace()` takes plain strings, and
+  `fields replace(path, /\/orders\/[0-9]+/, "/orders/{id}") as route`
+  fails with `MalformedQueryException: token recognition error at:
+  '\'`, an error that points at a byte, not at the rule (verified
+  2026-09-04). Route normalization — the query every per-route
+  analysis needs here, since `http.route` is not indexed in X-Ray
+  annotations and the access-log body carries the raw path — goes
+  through a chained `parse` with named groups, then `stats … by` the
+  groups: `parse path /^(?<route>\/[a-z]+)(\/[0-9]+)?(?<tail>\/[a-z]+)?$/
+  | stats count() as n by method, route, tail, status`.
 - `batch-get-traces` explicitly does not work once Transaction Search is
   enabled on the account (traces stop being indexed in classic X-Ray) — a
   quirk worth checking for before assuming this path works in a given
