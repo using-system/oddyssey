@@ -229,6 +229,24 @@ lifecycle is in [docs/guide/benchmarks.md](docs/guide/benchmarks.md).
 More invocation examples for every prompt live in
 [docs/guide/prompts.md](docs/guide/prompts.md).
 
+## Every backend
+
+The missions query the backend your telemetry lands in, through its
+own CLI: the local stack (gcx), a remote Grafana (gcx), Azure Monitor
+(az), AWS CloudWatch and X-Ray (aws), Datadog (Pup), Dynatrace (dtctl)
+and Splunk (splunk). Per backend — the CLI and how to install it, how
+to connect, what must already exist before there is anything to
+query, the switch prompt and what gets persisted — see
+[docs/guide/backends.md](docs/guide/backends.md).
+
+You can add your own observability backend. A backend the package
+does not ship becomes one file in your repository, with the same
+sections as a built-in one, that `/odd-config` writes from the
+documentation you point at, your instructions, or its own research,
+and that your runs improve — or a pointer to a guide another
+repository already carries. How, in
+[docs/guide/custom-backends.md](docs/guide/custom-backends.md).
+
 ## The ODD principles
 
 - **The system must be observable locally.** Prefer a docker-compose
