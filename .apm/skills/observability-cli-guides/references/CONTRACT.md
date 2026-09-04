@@ -90,7 +90,7 @@ know and never reads from the file —
 ```yaml
 ---
 stack: <name>              # kebab-case, the file's own stem, never a built-in value
-stack_config_fields: []    # the stack_config fields the switch may persist; [] when none
+stack_config_fields: []    # the stack_config fields the switch may persist - [base_url], or [] when none
 ---
 ```
 

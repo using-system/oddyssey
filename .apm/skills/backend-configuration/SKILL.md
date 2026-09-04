@@ -93,7 +93,8 @@ below — display, probe, guidance — assumes a binary that runs.
 
 Then follow the reference's `### Display` — it says exactly what to
 display for that backend and where each value comes from, including
-the persisted `stack_config` values from `odd_config_get`. Show that
+the persisted `stack_config` values from `odd_config_get` — that
+stack's entry only, never the other stacks' values. Show that
 configuration to the user **as-is, no confirmation needed** — it is
 informative: which instance, tenant, or site the queries are about to
 hit is exactly what a user wants to see before a run, and what catches a

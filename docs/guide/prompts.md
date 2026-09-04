@@ -380,7 +380,9 @@ Across all of them:
 
 Displays the current backend configuration — stack, targeted
 instance, connection proof — then offers to change it. Arguments: a
-**target stack**, or a value to **persist** or **clear** for one.
+**target stack**, a value to **persist** or **clear** for one, or a
+**custom stack to create or complete** for a backend the package does
+not ship.
 
 ```text
 /odd-config
@@ -415,3 +417,32 @@ without switching.
 
 A local port change: it resets the local stack container, and the
 prompt says so first.
+
+```text
+/odd-config create a stack seq
+/odd-config create a stack seq from https://datalust.co/docs/command-line-client
+/odd-config create a stack seq from ./docs/seq/ : query it with seqcli, the connection is set with seqcli config, no profiling
+```
+
+"create a stack seq" is the custom stack to create — `seq` becomes
+`.odd/observability-stacks/seq.md`; "from <URL or path>" is the
+documentation to read first, and what follows the colon is your own
+instructions, written in as told; the web fills what those left open.
+The file is checked against the reference contract, committed, and the
+switch to it offered.
+
+```text
+/odd-config for stack seq: the traces endpoint is /api/traces, it takes a service query parameter
+```
+
+"for stack seq: ..." completes an existing custom stack file: the
+instruction becomes a diff to the section it touches, shown before it
+is committed. A built-in stack is refused here — it changes through
+the package.
+
+```text
+/odd-config switch to seq
+```
+
+"switch to seq" names a custom stack the repository carries: the same
+guided switch, with the file checked against the contract first.
