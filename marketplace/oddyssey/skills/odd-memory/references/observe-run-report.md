@@ -1,15 +1,14 @@
----
-name: create-observe-run-report
-description: Persist an observation report into the observed repository at .odd/observe-run-reports/ with a structured frontmatter, and recall previous reports for the same service - the file contract that turns single observation runs into the ODD loop's memory. Use when storing the report an observation run produced, or when loading past reports to establish a baseline before a new run.
----
-
-# Create an Observe-Run Report
+# Observation reports
 
 An observation run that cannot see the previous ones starts blind every
 time. This skill defines the file contract that gives the ODD loop its
 memory: reports live **in the observed repository**, so git versions
 them, PRs review them, and every user of the repo shares them — no
-side-channel storage, nothing opaque.
+side-channel storage, nothing opaque. What every kind of memory shares
+is the contract in
+`SKILL.md`; this reference states what is specific to observation
+reports: how to persist one, how to recall the baseline, and how to
+show a stored one (`## Show`).
 
 The report is also the loop's **only durable artifact**: the raw
 telemetry behind it lives in a volume-less container that any
@@ -24,14 +23,9 @@ doubt, record the number.
 <observed-repo-root>/.odd/observe-run-reports/YYYY-MM-DD-HHmm-<run_name>.md
 ```
 
-- `YYYY-MM-DD-HHmm` is the run's **UTC** start time — timestamped to the
-  minute so two same-day runs never collide, and so a plain directory
-  listing sorts chronologically. Compute it, `date:` and `window` with
-  `date -u`, never from the local clock: a session that crosses local
-  midnight while UTC has not names the wrong day.
-- `<run_name>` is a short kebab-case slug derived from what the run
-  analyzed (e.g. `checkout-latency-sweep`, `orders-post-hoc-errors`).
-  Name the content, not the date — the date is already in front.
+- `YYYY-MM-DD-HHmm` and `<run_name>` follow the memory contract: UTC
+  via `date -u` (so do `date:` and `window`), and a slug naming what
+  the run analyzed (`checkout-latency-sweep`, `orders-post-hoc-errors`).
 - A **verification run** — a run that replays a stored report's
   protocol: an observation report's measurement protocol, or an
   instrumentation report's verification protocol (from
@@ -57,8 +51,6 @@ doubt, record the number.
   It never matches the `*-verify-*` glob: a re-measure is not a
   verification, and "has this run been verified?" must stay blind to
   it.
-- Create the directory if it does not exist. The files are meant to be
-  **committed**: leave them tracked, never add them to `.gitignore`.
 
 ## The file format
 
@@ -104,10 +96,9 @@ run_name: checkout-latency-sweep                     # the replayed report's, un
 verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the replayed report
 ```
 
-- The frontmatter exists so future runs can filter reports **without
-  parsing prose**: every field mirrors the run as it actually executed —
-  mission parameters and execution context alike (defaults applied,
-  not as requested). One exception: a verification or re-measure run
+- Every field mirrors the run as it executed (the memory contract) —
+  mission parameters and execution context alike, defaults applied,
+  not as requested. One exception: a verification or re-measure run
   records `mode: verify` / `mode: re-measure` even though it executes
   in the replayed report's mode — that execution mode stays reachable
   through `verifies`.
@@ -163,7 +154,9 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   always names a sibling observation report. The deliverable stays an
   observation report in this directory either way.
 - `revision` (`git rev-parse --short HEAD` in the observed repo) is what
-  makes a before/after honest: a report is a before-value for a fix
+  makes a before/after honest — omitted, with `tree_anchor`, when the
+  observed service lives outside the repository the report is stored
+  in, and section 1 says so: a report is a before-value for a fix
   wave, and the fix is a diff against some revision. In a squash-merge
   repository that commit never joins the merged history — a fresh
   clone cannot even resolve it — so record `tree_anchor` alongside it:
@@ -185,7 +178,7 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   the profile — and if the workload changes mid-mission, that is a new
   run, not a note.
 - `instance` and `process_restarted` pin which process the numbers
-  belong to (run-scenario step 0). `instance` maps each observed service
+  belong to (`run-scenario`'s `run-identity.md`). `instance` maps each observed service
   to its identity: `service.instance.id` when the SDK emits one, or the
   backend equivalent when it is absent — the process start time, a
   `target_info` label, a container id. `process_restarted`
@@ -197,19 +190,15 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   that qualifies them is the per-run profiler tag, or, absent one,
   `process.runtime.version` plus application frames — `instance` says
   which holds for the profiles.
-- The body is the producing agent's report **as-is** — the report
-  contract (sections, tables, evidence rules) belongs to the agent, not
-  to this skill. Store the whole thing: a summary cannot feed a diff.
 
 ## Recall: reading the memory
 
-Before a new run, load the baseline:
+Before a new run, load the baseline, per the memory contract's recall
+(newest first, frontmatter only at this stage, the baseline by
+section) — the matching rules are this reference's:
 
-1. List `.odd/observe-run-reports/` in the observed repo (missing or
-   empty directory = first run, no baseline — say so, do not fail).
-2. Walk the listing newest first (filenames sort chronologically),
-   reading **frontmatter blocks only** — never whole files at this
-   stage. A report matches when its `services` intersect the mission's,
+1. List `.odd/observe-run-reports/` in the observed repo.
+2. A report matches when its `services` intersect the mission's,
    its `stack` is the mission's, and its `environment` is the one the
    run detects — an `unknown` environment matches only another
    `unknown`, and with a warning (the comparison may span environments
@@ -241,13 +230,13 @@ Before a new run, load the baseline:
    300 to 500 lines, and the new run re-derives those from live
    telemetry. An **instrumentation report** baseline
    (`.odd/otel-instrumentation-reports/`, the
-   `create-otel-instrumentation-report` contract) is read the same
+   `otel-instrumentation-report` reference) is read the same
    way: its frontmatter, its summary table, its per-service decisions,
    and its verification protocol — never its stack inventory or its
    open decisions. Reading beyond that set is the exception — for a
    stated need (a finding's detail, a gap's discovery query) — and the
    calling agent's run record says so. What the comparison must report
-   belongs to the calling agent's contract, not to this skill.
+   belongs to the calling agent's contract, not to this reference.
 4. Older matches are history: only when a trend matters (a number
    degrading run after run), read at most the few most recent matches,
    and only the numbers in question — never the full files.
@@ -277,35 +266,65 @@ caller closing the mission:
 - the carrying commit (`git rev-parse --short HEAD` right after the
   commit), or `not committed` with the reason (default branch and no
   work branch possible, not a repository, the caller said not to);
-- the report as written — frontmatter and body, verbatim: the file's
-  content, never a summary of it.
+- on a custom stack, the stack file's fate: `unchanged`, or its path
+  with the commit of the run's diff (or `not committed` with the
+  reason) and the one-line reason the run record gives (the
+  `observability-stack` reference's learning rule);
+- the **synthesis block** — the inputs `## Show` below
+  renders from, quoted verbatim from the file just written (never
+  rephrased, never re-derived), and nothing else of the body:
+  - the frontmatter block, whole;
+  - section 1's recalled-baseline line — the previous report's path,
+    or "no previous report" — with the line that names a dropped
+    baseline or a provisional environment when the report carries one;
+  - from section 2, when a baseline was recalled, the delta lines —
+    one per operation (improved, regressed, unchanged, new), never
+    the per-operation or threshold tables; for a verify or
+    re-measure, every check's ruling instead — its name, before-value,
+    after-value and pass/fail cells, not the row's narrative — and
+    every check that reads `not ruled (quick)`; for an instrumentation
+    baseline, the presence rulings section 2 carries in place of the
+    numeric deltas: planned item and ruling (closed / present,
+    unattributed / still missing);
+  - section 3's ranked table — the identifier, finding, severity and
+    confidence cells the table carries, never the evidence or the
+    detail per row; in a verify or re-measure, each baseline anomaly's
+    fate with it (fixed, still present, worse);
+  - section 5's telemetry gaps, one line each (at quick depth, its
+    single line); in a verify or re-measure, each baseline gap's fate
+    with it (filled, still missing);
+  - section 6's open decisions, one line each, or that there are none.
 
-`show-observe-run-report` renders the closing synthesis from this
-value; the file on disk is read again only by a later mission's recall
-or by a caller naming a stored report.
+Never the report body (the memory contract says why);
+`## Show` below renders the closing synthesis from this
+value, and the file on disk is read again only by a later mission's
+recall or by a caller naming a stored report.
 
 ## Rules
 
-- **Never write secrets into a report**: no tokens, credentials, cookies,
-  or connection strings — these files are made to be committed and
-  shared. Refer to access material by variable or secret name only.
-  The same for **real identifiers** that carry no access on their own:
-  tenant, workspace, subscription, resource-group or site names and
-  GUIDs, account or login names, home-directory paths — anything that
-  identifies a real customer, tenant or environment. The mission
-  block's `Preflight:` handoff and a live `odd_config_get` or CLI
-  excerpt are the likeliest sources: never restate the identifiers
-  they carry; replace every such value with an obviously fake
-  placeholder before it lands in the file.
+- **No secrets, no real identifiers** (the memory contract): the
+  mission block's `Preflight:` handoff and a live `odd_config_get` or
+  CLI excerpt are the likeliest sources — never restate the
+  identifiers they carry.
 - **A recorded query is a contract only once shown to work**: a check is
   authored against *broken* data, so "returns NaN/empty" and "the query
   is wrong" are indistinguishable at authoring time (measured: `rate()`
   over a single burst makes every `histogram_quantile` NaN by
   construction on any window sampled after the burst, whatever the fix
   did). Each verification check states how its query was validated —
-  run against a healthy or adjacent series, or a synthetic one — or
-  carries `not validated`, which tells the verify run to suspect the
-  query before the fix. An equality check on log line counts ("every
+  run against a healthy or adjacent series, or a synthetic one — and on
+  which **shape**: `validated: before-shape` when only today's data
+  answered, `validated: before-shape, after-shape` when the shape the
+  pass criterion expects was exercised too (a "reaches zero" check run
+  with a selector matching nothing on its joined side, a row count
+  equal to the request count) — or carries `not validated`. A stored
+  check whose validation note names no shape (every report written
+  before these markers) reads as `before-shape`. Either of the two
+  weaker markers tells the verify run to suspect the query before the
+  fix: a check authored on the populated branch alone can
+  drop the very rows it measures once they go to zero (a `leftouter`
+  join aggregated without `coalesce`, a ratio over an absent series).
+  An equality check on log line counts ("every
   line carries a trace id") is stated as two raw line counts over the
   recorded window and stream selector, one of them carrying the
   trace-id filter — never as a range vector
@@ -317,26 +336,88 @@ or by a caller naming a stored report.
   measurement protocol (key names and values — secrets by name only). A
   replayed reset recreates the container bare; only a recorded env lets
   the verify run pass the same one.
-- One run, one file: never edit a previous report to "update" it — a new
-  run writes a new file, the diff lives in the new report.
-- Write the file exactly where the contract says: the report belongs to
-  the **observed** repository, not to the oddyssey package, a home
-  directory, or a temp path.
-- **Never commit on the default branch**: before committing, compare
-  `git branch --show-current` with the repository's default branch
-  (`git symbolic-ref --short refs/remotes/origin/HEAD` stripped of its
-  `origin/` prefix; if unset, `main` — or `master` when that is the
-  checked-out branch). Only when on the default branch, create and
-  switch to a work branch named `docs/odd-observe-run-report-<run_name>`
-  (switching to it if it already exists) and commit there — and say so
-  in the reply. If switching is impossible, do not commit: state the
-  path and leave the commit to the caller.
-- **After writing, commit the report file on its own**:
-  `git add <report file>` then
-  `git commit -m "docs(odd): observation report <run_name>"` (for a
-  verification run, `docs(odd): verification report <run_name>`; for a
-  re-measure run, `docs(odd): re-measure report <run_name>`) — never
-  stage anything else; a dirty working tree stays untouched otherwise.
-  If committing is impossible (not a git repository, or the caller said
-  not to), state the path and leave the commit to the caller.
-- Either way, state the stored path in the reply.
+- **The work branch** (the memory contract) is
+  `docs/odd-observe-run-report-<run_name>`; **the commit** carries the
+  report file alone, subject `docs(odd): observation report
+  <run_name>` — `docs(odd): verification report <run_name>` for a
+  verification, `docs(odd): re-measure report <run_name>` for a
+  re-measure.
+
+## Show
+
+The stored report is the ODD loop's memory and the fix plan's input —
+the right artifact for the next wave, the wrong one for the human
+closing the mission: several screens deep, the takeaways drown. This
+section renders the closing synthesis. The report file stays the
+deliverable; only what the human sees at the end of the mission
+changes.
+
+### Input
+
+The report to render, in one of two forms:
+
+- **The persistence return value** — what the persistence step above
+  just returned for the mission being closed, carried in the agent's
+  reply: the stored path, the carrying commit (or `not committed`),
+  and the synthesis block — the frontmatter, section 1's
+  recalled-baseline line, section 2's delta lines, check rulings or
+  presence rulings, section 3's ranked table with the baseline
+  anomalies' fates, the telemetry gaps with the baseline gaps' fates,
+  and the open decisions, quoted from the file (`## Return value` above
+  owns the list). Render from it; never
+  re-read the file it just wrote — the block carries every input the
+  synthesis below reads, and a value it lacks is absent from the
+  synthesis (the way a benchmark's synthesis renders from its
+  persistence return).
+- **A stored report the caller names** — no return value in hand:
+  read from disk the same set — that file's frontmatter, section 1's
+  recalled-baseline line, section 2's delta lines, check rulings or
+  presence rulings, section 3's table, sections 5 and 6 — never the
+  whole file — and its carrying commit from git
+  (`git log -1 --format=%h -- <path>`).
+
+Either way the synthesis renders the stored content, never the
+conversation's memory of the mission.
+
+### The synthesis, in order
+
+1. **Headline** — one bold line answering "how did it go", shaped by
+   the report's `mode`: an observation leads with counts and the
+   baseline delta (`3 anomalies (1 high, confirmed), 2 telemetry
+   gaps, p95 stable vs baseline`); a verification leads with the
+   ruling (`FAIL — 2/5 checks red`); a re-measure leads with drift
+   (`no drift — 5/5 measurements within range`). A `quick` report says
+   so in the headline (`quick — 1 anomaly (suspected), logs and
+   profiles not queried`), and a quick verify counts what it did not
+   rule (`PASS — 3/3 checks ruled, 2 not ruled (quick)`).
+2. **Where it lives** — one line: the stored path and the commit that
+   carries it; on a custom stack whose file the run changed, a second
+   line: the stack file's path, its commit and the one-line reason.
+3. **Run block** — compact `key: value` lines: services, stack, mode,
+   depth (`full` when the frontmatter has none), window, detected
+   environment (all from the frontmatter), and the baseline report
+   used — `verifies` when present, else section 1's recalled
+   baseline, or "none" when the report names none.
+4. **The core, by kind** — tables, capped at ~10 rows with a
+   `+N more in the report` marker:
+   - observation / re-measure: the findings table (severity |
+     confidence | one-line anomaly), then the telemetry gaps, one
+     line each;
+   - verification: the verdict table first (check | before | after |
+     pass/fail), then the anomalies ruled fixed / still present /
+     worse and the gaps ruled filled / still missing, one line each —
+     for an instrumentation baseline, the presence rulings instead
+     (planned item | closed / present, unattributed / still missing),
+     and nothing else to rule.
+5. **Decisions the spec must settle** — the count, then one line per
+   open question.
+6. **Next action** — one line naming the loop's next step: build the
+   fix plan from the report, replay the protocol with `/odd-verify`,
+   or settle the open decisions first.
+
+### Rules
+
+The contract's synthesis rules (`SKILL.md`): everything from
+the stored report, the carrying commit the one value outside it; one
+screen with `+N more`; the conversation's language; never a
+replacement for the file.

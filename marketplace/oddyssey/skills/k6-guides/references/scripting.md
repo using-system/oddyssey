@@ -205,6 +205,7 @@ API, never inlined:
   stores a value for (`__ENV.API_TOKEN` in the script, the manifest
   records only the variable's **name**).
 
-`create-update-benchmark` refuses to persist a script containing a
+The benchmark persistence (`odd-memory`) refuses to persist a script
+containing a
 literal credential - this reference is what the authoring agent follows
 so that check never fires.

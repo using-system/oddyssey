@@ -1,16 +1,13 @@
----
-name: record-finding-decision
-description: Record a maintainer decision (wontfix, ...) on a finding of a stored observation report into the committed ledger at .odd/decisions.md - the write that lets /odd-status stop rendering a declined finding as open. Use when the user declines a finding, marks it wontfix, or reverses such a decision. Never edits a report.
----
-
-# Record a Finding Decision
+# Finding decisions
 
 A finding no verification ever ruled on stays open forever — the status
 has no other verdict for it, however deliberately the maintainer decided
 to live with it. The decision is real, it is just homeless: it was taken
 between runs, and the only artifacts that could carry it are past
-evidence that must never be rewritten. This skill gives it a committed
-home of its own, next to the reports and never inside them.
+evidence that must never be rewritten. This reference gives it a committed
+home of its own, next to the reports and never inside them. What every
+kind of memory shares is the contract in `SKILL.md`; this reference
+states what is specific to the ledger.
 
 ## The ledger
 
@@ -78,17 +75,20 @@ One row per decision:
 
 ## Rules
 
-- **Never modify or delete a report.** `.odd/` reports are append-only
-  evidence; this skill writes `decisions.md` and nothing else. A
-  decision that "should be in the report" is still a ledger row.
-- **Never write secrets into a rationale** — no tokens, credentials,
-  cookies, or connection strings. The file is made to be committed and
-  shared; refer to access material by variable or secret name only.
-- **After writing, commit the ledger file on its own**:
-  `git add .odd/decisions.md` then
-  `git commit -m "docs(odd): finding decision <finding ID> <verdict>"` —
-  never stage anything else; a dirty working tree stays untouched
-  otherwise. If committing is impossible (not a git repository, or the
-  caller said not to), state the path and leave the commit to the
-  caller.
-- Either way, state the ledger path and the appended row in the reply.
+- **Recording a decision writes `decisions.md` and nothing else.** A decision
+  that "should be in the report" is still a ledger row: reports are
+  append-only evidence (the memory contract).
+- **No secrets** in a rationale (the memory contract).
+- **The work branch** (the memory contract) is
+  `docs/odd-finding-decision-<finding ID>-<verdict>`, both values
+  normalized for the branch name only: lowercased, every run of
+  characters outside `[a-z0-9]` replaced by a single `-`, leading and
+  trailing `-` trimmed (`A5 (2026-08-22-2227)` + `wontfix` →
+  `docs/odd-finding-decision-a5-2026-08-22-2227-wontfix`); the ledger
+  row keeps the finding ID exactly as the report names it. **The
+  commit** carries `.odd/decisions.md` alone, subject
+  `docs(odd): finding decision <finding ID> <verdict>`.
+- The reply states the appended row with the path and the commit —
+  and that a decision on a work branch reaches `/odd-status` on the
+  default branch only once that branch is merged, so it is not
+  recorded a second time from there.

@@ -108,6 +108,19 @@ Pyroscope endpoint behind it is what requires a range; through gcx the
 call answers without one, over an unspecified window (see its row, and
 its seconds-not-milliseconds trap).
 
+gcx query commands are **safe to run concurrently against one
+context**: backgrounded in one shell call sharing one `GCX_CONFIG`,
+they neither lock the config file nor contend for the credential —
+six discoveries (`metrics labels`, `metrics metadata`, `traces
+labels`, `logs labels`, `profiles list-profile-types`, a `traces
+query`) all exited 0 in 0.33 s against 1.56 s serial, eight `traces
+get` in 0.62 s against 2.1 s serial with every output parsing, and 32
+`traces get` at once with no failure (verified 2026-09-04, gcx 1.2.0,
+local stack). Redirect **stdout and stderr to separate files**: gcx
+prints its `{"class":"hint",...}` line on stderr, and a `2>&1`
+capture puts it in front of the JSON (`Extra data: line 2` on
+parsing).
+
 ### Reading gcx output
 
 All verified against gcx 1.2.0 — five traps that each cost real missions

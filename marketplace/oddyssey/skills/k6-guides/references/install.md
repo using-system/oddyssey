@@ -32,7 +32,7 @@ if a script or command predates v2.
 The criterion for installing a CLI rather than offering it: no
 account, no credentials, no tenant behind it. The backend CLIs (`aws`,
 `az`, `gcx` against a remote instance, ...) are offered and never
-installed silently (`update-backend-configuration`'s rule), because
+installed silently (`backend-configuration`'s rule), because
 each is tied to an account, credentials, and a tenant the user must
 set up regardless - the install is one step of a setup only they can
 finish. k6 has none of that: no account, no login, no configuration
@@ -88,7 +88,7 @@ a subagent.
 **Both sides.** `k6-benchmark-expert` needs it to **validate** what it
 writes - `k6 inspect` and the one-iteration smoke (running-tests.md,
 "Validating without running") - without ever running the benchmark;
-`run-scenario`'s stored-benchmark step (its section 6, reached from
+`run-scenario`'s stored-benchmark step (its `benchmark-replay.md` reference, reached from
 `/odd-observe` or `/odd-verify` in `drive` mode with a `benchmark`, or
 entered directly) needs it to **run** one. The `/odd-instrument-bench`, `/odd-observe`,
 and `/odd-verify` preflights ensure it is present before dispatching

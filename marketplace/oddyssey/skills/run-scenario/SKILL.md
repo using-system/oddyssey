@@ -10,99 +10,19 @@ the numbers in an observation report produce the numbers that verify the
 fix. A scenario that cannot be replayed verbatim makes before/after
 comparison an impression, not a measurement.
 
-## 0. A clean backend is not a clean run
+## Read by situation
 
-`odd_stack_reset` clears the **store**, not the **process**: cumulative
-counters and histograms live in the application and keep their pre-run
-history, while traces and logs are window-scoped — the two signal
-families disagree about what "the run" is. Restart order matters too: an
-old process that outlives the reset flushes its whole cumulative history
-into the brand-new store on its next periodic export.
+This file is the method every scenario follows — steps 1 to 5 and the
+rules. What depends on the situation lives in a reference, read by the
+block that applies, never whole:
 
-Start a clean run in this order — the reverse of what feels natural:
+| Situation | Reference |
+| --- | --- |
+| Every drive: the clean-base order and the identity the queries are qualified by — a process the run launches, a port already served, a remote target the run cannot launch, a reset that is forbidden | [references/run-identity.md](references/run-identity.md), the block that applies |
+| An iteration that is expensive or non-deterministic, a wait that must stay inside the turn, a scenario longer than a tool call | [references/long-scenarios.md](references/long-scenarios.md) |
+| A stored k6 benchmark under `.odd/benchmarks/<name>/` | [references/benchmark-replay.md](references/benchmark-replay.md), in place of the ad-hoc commands |
 
-1. **Restart the observed process first** — its dying flush lands in the
-   old store;
-2. **then `odd_stack_reset`** — the wipe takes that flush with it;
-3. record the new process's identity in the protocol —
-   `service.instance.id` when the SDK emits one, or the backend
-   equivalent when it is absent (its start time, a
-   `target_info` label, a container id) — and qualify every
-   cumulative-metric query with it: an unfiltered query mixes instances
-   the moment an old one got a last export in.
-
-   **Prefer creating the identity over hunting for a substitute.** When
-   the driven service honors `OTEL_RESOURCE_ATTRIBUTES` — any OTel SDK
-   service, including `oddyssey-mcp`, which strips the SDK's default
-   UUID unless opted in — launch its process with
-   `OTEL_RESOURCE_ATTRIBUTES=service.instance.id=<run slug>` and record
-   the slug you chose. One bounded label per run makes the run's
-   cumulative series attributable by name and keeps a co-resident
-   server's re-exported history (an installed `uvx oddyssey-mcp`
-   long-lived process dumps its whole counter history into a
-   seconds-old store) separable instead of merely suspected. The
-   substitutes above stay the fallback for services that cannot opt in.
-   The OTel attribute never reaches a Pyroscope SDK: when the service
-   pushes profiles, pass the same slug to the profiler as a tag
-   (`service_instance_id=<run slug>`) so its profiles are attributable
-   too — otherwise its profiles fall back to `process.runtime.version`
-   and application frames, stated in the record.
-
-**The port is already served.** Before launching the service, look at
-who listens on its port: `lsof -nP -iTCP:<port> -sTCP:LISTEN` (exit 1
-and no output on a free port). When the port is served by a process
-the run did not start — a stale instance from an earlier session, a
-compose container, someone's work — **never kill it**: run your own
-instance on a free port, launched with the run slug as its
-`service.instance.id` (above), and drive `127.0.0.1:<port>`, never
-`localhost` — on a dual-stack host `localhost` may resolve to whichever
-listener bound the other address family. Qualify every query by the
-run's identity: co-resident emitters sharing a `service.name` fold into
-one series otherwise, and their divergent code states re-export into
-the fresh store. A mission that says "start the service on :<port>"
-reads as "on that port, or the next free one": the deviation is a
-`Listeners:` line in the record — each foreign listener with its pid,
-command and bind address, and the port the run used instead; record
-those fields, never the raw `lsof` output, whose `USER` column is a
-login name — and a sentence in section 1 of the report. A replay
-reads the recorded port the same way: the requests and counts must
-match, the port need not, and a moved port is another `Listeners:`
-line. When the port cannot be moved — fixed in an image, a compose
-file or the code — neither kill the listener nor drive it: stop and
-report what holds the port, with the probe's fields. A run that cannot
-prove which process it measured is not a measurement.
-
-**Reset once.** That clean-base reset is the only reset this skill takes
-on its own. Any further `odd_stack_reset` inside a mission is an
-explicit mission requirement — an operation the mission observes (a
-lifecycle test whose subject is the reset itself), an env change the
-mission dictates mid-run — never the agent's initiative: a reset
-costs ~6 s, wipes the store, and restarts the flush wait (step 5) from
-zero. Every reset the mission requires is its own `Commands:` line in
-the record (step 4), carrying the env it passed and the reason it
-exists.
-
-When restarting is not possible, say so in the record — and still record
-the identity **and the process start time**: the start time is what
-dates the pre-window history. Traces and logs stay trustworthy, but
-cumulative metrics read inside the window include pre-window activity —
-treat them as deltas between the window's edges, never as run totals
-(valid only within one instance, which the recorded identity proves).
-
-**When a reset is forbidden** — not impossible, actively harmful: a
-creation-time env the reset would not reapply (credential-named
-variables are never persisted — `env_not_persisted` names them — and a
-manually run or pre-persistence container has nothing recorded to
-reapply), or shared stored
-history the caller still needs — do not take the clean slate at all.
-Isolate the window without one: **time-scope every query explicitly**
-to the recorded start/end (no unscoped search, no store-equals-run
-shortcut), qualify every cumulative-metric query with the recorded
-identity and read it as a window-edge delta, and say in the record
-that the run rode a shared store and why the reset was off the table.
-A window carved by timestamps out of a live store is a weaker
-isolation than a wipe — the record must let the verify run reproduce
-the same carving.
+Start with the identity reference, then follow the steps below.
 
 ## 1. Decide what to exercise
 
@@ -126,7 +46,7 @@ Send a few requests per endpoint (typically 5) before measuring: JIT
 compilation, connection pools, lazy caches, and first-hit schema loads all
 land in the first requests and distort a small sample. Discard the warmup
 from the quoted numbers, and say in the record that it was discarded —
-unless an iteration is expensive: see the carve-out in step 3.
+unless an iteration is expensive: see `references/long-scenarios.md`.
 
 ## 3. Iterate enough to quote a number
 
@@ -139,56 +59,6 @@ unless an iteration is expensive: see the carve-out in step 3.
   random payload is not replayable; if randomness is unavoidable, record the
   seed.
 
-### When an iteration is expensive or non-deterministic
-
-The counts above assume cheap, repeatable iterations. Some scenarios are
-neither: an LLM-backed job can cost real money and tens of minutes per
-iteration, and two identical invocations legitimately differ (turn
-count, tool mix, tokens, duration). Then:
-
-- **How many samples to spend is the caller's decision, not yours** —
-  state the count in the record and run that. When the mission names no
-  count and an iteration is visibly expensive, stop after the first
-  sample and ask: a sample spent is a decision the caller never made.
-  Skipping the warmup is expected at these prices: keep the first
-  sample and mark it cold instead of discarding it.
-- **Never dress samples up as statistics** — quote every number with its
-  sample count (`n=2`), and at one or two samples write *observation*,
-  never a quantile or a mean. A verify run that diffs two single
-  observations is comparing noise.
-- **Non-deterministic runs are compared by structure and order of
-  magnitude** — same steps present, similar proportions, durations and
-  costs in the same range — never value against value. Record what varied
-  between identical invocations, so the verify run knows what noise
-  looks like.
-
-### Waiting out the scenario — inside the turn, never past it
-
-A scenario that fits a tool call's budget (hosts allow up to ~10
-minutes) runs as **one blocking foreground command** that drives the
-requests and exits when the last one is done — never as a background
-job plus a poll loop. When the platform blocks foreground `sleep`, use
-its blocking wait primitive (a Monitor-style until-condition tool)
-instead of pushing the wait itself into the background (the scenario
-may then have to run as a background job — the wait never does). Never
-end the turn to "wait for a completion notification": as a subagent —
-the nominal case — ending the turn terminates the mission, the
-scenario keeps running orphaned, and the waiting sentence becomes the
-final result (only a main conversation is re-invoked when a background
-task finishes).
-
-### Scenarios longer than a tool call
-
-A job running 15–30 minutes cannot be polled inside a single tool call
-on hosts with a hard tool timeout (some enforce ~10 minutes): the call
-dies mid-wait and takes its observations with it. The working shape is
-a **detached poller**: start the job, then launch a small script with
-`nohup` (survives the tool call that spawned it) that polls the job and
-appends timestamped progress to a file; later tool calls only read that
-file. The scenario record cites the poller script and its output file
-verbatim — they are part of the protocol, and a replay re-runs the same
-poller, not a hand-watched approximation.
-
 ## 4. Record verbatim
 
 Record the scenario while running it, not from memory. The record is the
@@ -200,6 +70,7 @@ Base URL: http://127.0.0.1:<port>   # not localhost: a dual-stack host may resol
 Listeners: none   # or: :8000 served by 41234 uvicorn (127.0.0.1) and 51022 com.docker (*), ran on :8001
 Backend:  odd_stack_reset, env: {"PROMETHEUS_EXTRA_ARGS": "..."}   # or "defaults"
 Instance: af6070... (restarted before reset)   # or equivalent identity; add the start time when not restarted
+Identity: launched with service.instance.id=<slug>   # or, when the run launched nothing: User-Agent "odd-verify/<slug>" (+ "-warmup"); traceparent "00-<prefix><run8><seq:016x>-<seq:016x>-01", run8 = sha256(<slug>)[:8]; instance read from the rows: <id>
 Warmup:   5 requests per endpoint (discarded)
 Load:     30 requests per endpoint, sequential
 Started (UTC): 2026-08-17T10:04:12Z
@@ -208,7 +79,7 @@ Query points: 1 (after Ended)   # more than one only with a reason - see step 5
 Commands:
   for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:8080/api/users; done
   for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:8080/api/orders/42; done
-  # a mission-required reset is a Commands line too (step 0), e.g.:
+  # a mission-required reset is a Commands line too (references/run-identity.md), e.g.:
   # odd_stack_reset env={"GF_LOG_LEVEL":"debug"}   # reason: the mission observes the reset itself
 Not reproducible: <auth token / seeded data / time-dependent input, or "none">
 ```
@@ -218,9 +89,9 @@ is also the observation window for every query run against this scenario.
 The `Query points:` line is the default `1` — the whole scenario, then one
 flush wait, then every query (step 5); a mission that must read the store
 at several points lists them here with the reason each one exists. A
-reset the mission requires (step 0) is a `Commands:` line like any other
-driven call, with its env and its reason — in a benchmark record (step
-6) it keeps that slot next to the single `k6 run` command.
+reset the mission requires (`references/run-identity.md`) is a `Commands:` line like any other
+driven call, with its env and its reason — in a benchmark record
+(`references/benchmark-replay.md`) it keeps that slot next to the single `k6 run` command.
 The `Backend:` line records how the stack was (re)started, **including any
 `env`**: a replay must reproduce the backend and not only the requests. A
 bare `odd_stack_reset` reapplies the env persisted in `stack_config.local`,
@@ -255,125 +126,10 @@ A remote backend's wait is not this skill's to size — `observe-run`
 owns it (the backend's documented ingest latency, or a bounded proof
 query); this skill stays scoped to locally running services.
 
-## 6. Replay a stored k6 benchmark
-
-When the mission names a benchmark under `.odd/benchmarks/<name>/`
-(`k6-benchmark-expert` authored it, `create-update-benchmark` stored it),
-the load comes from its script instead of a curl loop. Steps 0, 3 and
-5 apply unchanged — the clean-base order, the sample-count rules, the
-flush wait — and step 4 applies with the record shape below. What
-differs is how the load is generated and how the record cites it:
-
-- **Confirm k6 is installed before anything else — before step 0.**
-  `command -v k6`, per the `k6-guides` skill's `install.md`. Reached
-  from a prompt's preflight (the nominal case, inside `observe-run`),
-  the binary is already there — a still-missing one is a contract
-  failure to report with the reference's install steps, never a reason
-  to install from a subagent. Entered directly in the main
-  conversation, with no preflight behind it, run that reference's
-  auto-install step first. Either way, when k6 is absent the observed
-  process and the store stay untouched: never restart or reset for a
-  run you cannot perform, never approximate the script with a curl
-  loop. `running-tests.md` in the same skill carries the flags, the
-  output surface, and the exit codes cited below.
-- **Read the manifest, then run the script unmodified.** The benchmark
-  directory holds one k6 script and one manifest
-  (`create-update-benchmark`'s layout): the script is `script.js`
-  unless the manifest names another file. Run it from the repository
-  root, as one blocking foreground command (or the detached poller
-  below when the run outlasts a tool call), with k6's end-of-test
-  summary exported to a scratch file:
-
-  ```text
-  k6 run .odd/benchmarks/<name>/script.js --summary-export <summary-file>
-  ```
-
-  Inputs the manifest leaves to mission time (a base URL, a named
-  environment variable) are passed through k6's `-e KEY=value` or the
-  environment, and recorded by name — a credential's value never lands
-  in the record. Never edit the script or the manifest to make the run
-  nicer: a benchmark that cannot run as stored is a reported failure,
-  and a change to it goes through `/odd-instrument-bench`'s reviewed
-  diff, never through the run.
-- **The record cites the benchmark by name and git revision, not by
-  commands.** Record the repository revision (`git rev-parse HEAD`) and
-  whether the benchmark's directory is clean
-  (`git status --porcelain .odd/benchmarks/<name>/` prints nothing). A
-  dirty benchmark has no revision to replay at — say so in the record.
-  A replay runs the same benchmark at the same revision; when the
-  stored benchmark moved between the two runs (a diff-reviewed update
-  landed), the load may have changed with it. The record then says
-  what moved: findings against the benchmark itself (a script defect,
-  an unattainable threshold) are ruled on the new revision, while the
-  service's before/after numbers compare only when the requests,
-  pacing, and stages are the same — otherwise the second run's numbers
-  open the service's new baseline, stated as such, never a before/after
-  against the first.
-- **Warmup is the manifest's stage boundaries.** A k6 run is one
-  continuous window, so step 2's "discard the warmup" becomes a
-  sub-window: quote steady-state numbers from the interval the
-  manifest's ramp and steady stages delimit, record those boundaries
-  as UTC timestamps, and say the ramp was excluded. Step 3's standard
-  sample counts apply (>= 30 requests before a p95, ~100 before a p99)
-  — k6 load is cheap, high-volume, and deterministic, so the
-  expensive-iteration carve-out does not.
-- **k6's own summary and exit status are evidence, never the verdict.**
-  Record the exit code (`0` every threshold passed, `99` a threshold
-  was crossed, anything else a setup or script error — read stderr),
-  the request count, failed checks, dropped iterations, and script
-  exceptions from stderr — folded into the record's `k6:` line, which
-  is what survives. The summary file itself is transient: write it to
-  a scratch location, never inside `.odd/benchmarks/<name>/` (it would
-  dirty the directory the record just declared clean), and never
-  count on it existing when the run is verified later. Then measure
-  through the service's own telemetry, after step 5's flush wait. A
-  generator that never connected, crashed mid-run, or threw on every
-  iteration leaves telemetry that looks deceptively clean — "a failed
-  or partial run is data" applies to the generator too. The manifest's
-  thresholds are what the observation rules on, each against a
-  telemetry-derived measurement carrying its query — **unless the
-  generator threw**: script exceptions above zero mean the benchmark
-  did not exercise what it was built to measure, every threshold
-  ruling is void, and the run is reported as a defective benchmark (a
-  finding against the script, to fix through `/odd-instrument-bench`),
-  never as a pass.
-- **k6's own OpenTelemetry output is a bonus signal.** Against the local
-  stack, `K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run -o opentelemetry
-  <script>` lands k6's client-side view in the same store under
-  `service_name="k6"` (`running-tests.md`): cross-confirm against it
-  when it lands, never require it, never mistake it for the target
-  service.
-- **A run longer than a tool call uses step 3's detached poller.** A
-  staged benchmark routinely exceeds one tool call's budget; the poller
-  script and its output file are part of the record.
-- **This skill stays scoped to locally running services.** Whether a
-  benchmark may be driven at a remote target is the observation
-  caller's decision, given at mission time through `observe-run`'s own
-  rule — never read from the manifest, never decided here.
-
-The record replaces step 4's `Commands:` lines with the benchmark's
-identity, the single command, and k6's own evidence:
-
-```text
-Scenario:  benchmark orders-read-heavy
-Benchmark: .odd/benchmarks/orders-read-heavy/ @ 3ccfd18 (clean)
-Base URL:  http://127.0.0.1:8080   # BASE_URL, mission-time
-Listeners: none
-Backend:   odd_stack_reset, env: defaults
-Instance:  orders-run-0902 (restarted before reset)
-Stages (UTC): ramp 10:04:12–10:05:12 (excluded), steady 10:05:12–10:10:12, ramp-down 10:10:12–10:10:42
-Started (UTC): 2026-09-02T10:04:12Z
-Ended   (UTC): 2026-09-02T10:10:42Z
-Query points: 1 (after Ended)
-Command:
-  K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run .odd/benchmarks/orders-read-heavy/script.js -o opentelemetry --summary-export /tmp/k6-summary-orders-run-0902.json -e BASE_URL=http://127.0.0.1:8080   # -o opentelemetry and its env: local stack only
-k6:        exit 0, 1234 requests, checks 100%, dropped iterations 0, script errors 0 (summary file transient, numbers above are the record)
-Not reproducible: none
-```
-
 ## Output
 
-The scenario block from step 4 (or step 6 for a stored benchmark), ready
+The scenario block from step 4 (or `references/benchmark-replay.md`'s
+record for a stored benchmark), ready
 to paste into an observation report (the run record, and the replay
 instruction in the measurement protocol) — and ready to re-run unchanged
 after a fix.

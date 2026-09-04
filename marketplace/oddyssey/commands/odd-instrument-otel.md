@@ -13,7 +13,8 @@ Build the mission from the arguments below:
   investigate (default: the current repository), and optionally the
   intended export stack (default: the local one).
 
-Close the mission with the `show-otel-instrumentation-report` skill:
+Close the mission with the `## Show` of `odd-memory`'s
+`otel-instrumentation-report` reference:
 render its synthesis of the stored report as the final answer, stating
 the stored path. The report file - not the synthesis - is the input
 the spec-driven instrumentation plan is built from: never re-dump the

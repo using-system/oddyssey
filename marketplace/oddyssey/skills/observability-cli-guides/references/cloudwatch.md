@@ -23,15 +23,16 @@ mirror was found; fetch and convert, don't guess at raw links.
 | Authentication overview | [Authentication and access credentials for the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-authentication.html) | Landing page for every credential source (static keys, SSO, assume-role, env vars, external process, instance/container roles) — use it to pick the right mechanism for a given environment (laptop vs CI vs EC2/ECS). |
 | Environment variables | [Configuring environment variables for the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, `AWS_PROFILE` — use for containers/CI where a shared credentials file isn't wanted. |
 | Current context & connection probe | [aws sts get-caller-identity](https://docs.aws.amazon.com/cli/latest/reference/sts/get-caller-identity.html) | `aws configure list` displays the effective profile, region, and credential source — the preflight's context display; `aws sts get-caller-identity` proves the credentials actually work (returns account and ARN, requires no permissions) — the cheapest connection probe. |
-| IAM Identity Center (SSO) login | [Configuring IAM Identity Center authentication](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html) | `aws configure sso` (interactive wizard: start URL, SSO region, account, role, profile name) writes a `[profile ...]` + `[sso-session ...]` block to `~/.aws/config`; then `aws sso login --profile <name>` (or `--sso-session <name>`) opens a browser and caches short-lived credentials under `~/.aws/sso/cache`. `aws sso logout` clears cached sessions. PKCE is the default flow since CLI 2.22.0; add `--use-device-code` for the older device-code flow. A separate top-level `aws login` subcommand also exists on newer CLI builds (2.36.34), distinct from `aws sso login` — it's what a `NoCredentials` error suggests running, but check `aws configure list-profiles` for an already-working named profile first (the `check-backend-configuration` skill's connection-proof section owns this failure mode): the everyday cause is a missing `default` profile, not a missing login. `aws sso login --profile <name>` is also the fix for an *expired* cached session (`Error when retrieving token from sso: Token has expired and refresh failed`), not only a missing one — that error means the profile itself works and only its short-lived token lapsed, and re-running the login refreshes it. |
+| IAM Identity Center (SSO) login | [Configuring IAM Identity Center authentication](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html) | `aws configure sso` (interactive wizard: start URL, SSO region, account, role, profile name) writes a `[profile ...]` + `[sso-session ...]` block to `~/.aws/config`; then `aws sso login --profile <name>` (or `--sso-session <name>`) opens a browser and caches short-lived credentials under `~/.aws/sso/cache`. `aws sso logout` clears cached sessions. PKCE is the default flow since CLI 2.22.0; add `--use-device-code` for the older device-code flow. A separate top-level `aws login` subcommand also exists on newer CLI builds (2.36.34), distinct from `aws sso login` — it's what a `NoCredentials` error suggests running, but check `aws configure list-profiles` for an already-working named profile first (the `backend-configuration`'s `## Check` skill's connection-proof section owns this failure mode): the everyday cause is a missing `default` profile, not a missing login. `aws sso login --profile <name>` is also the fix for an *expired* cached session (`Error when retrieving token from sso: Token has expired and refresh failed`), not only a missing one — that error means the profile itself works and only its short-lived token lapsed, and re-running the login refreshes it. |
 | `aws cloudwatch` command reference | [cloudwatch — AWS CLI reference](https://docs.aws.amazon.com/cli/latest/reference/cloudwatch/index.html) | Metrics and metric-alarm operations: `list-metrics`, `get-metric-data`, `get-metric-statistics`, `put-metric-alarm`, etc. Start here for anything metric-shaped. |
 | `aws logs` command reference | [logs — AWS CLI reference](https://docs.aws.amazon.com/cli/latest/reference/logs/index.html) | CloudWatch Logs operations: log group/stream discovery, `filter-log-events`, and the Logs Insights query trio `start-query` / `get-query-results` / `stop-query`. |
 | `aws xray` command reference | [xray — AWS CLI reference](https://docs.aws.amazon.com/cli/latest/reference/xray/index.html) | X-Ray trace search (`get-trace-summaries`), full trace retrieval (`batch-get-traces`), and service map (`get-service-graph`). |
 
 ## Reading aws output
 
-Verified live (`aws-cli/2.36.34`, 2026-08; last three against
-`aws-cli/2.36.36`, 2026-09) — traps that cost real missions retries:
+Verified live (`aws-cli/2.36.34`, 2026-08; the next three against
+`aws-cli/2.36.36`, 2026-09; the last two against `aws-cli/2.36.37`,
+2026-09-04) — traps that cost real missions retries:
 
 - **`-o` is not accepted as a short form of `--output`** on this build —
   `aws logs describe-log-groups ... -o table` fails with `Unknown
@@ -79,7 +80,23 @@ Verified live (`aws-cli/2.36.34`, 2026-08; last three against
   common case, not an edge case: before concluding "no data",
   cross-check with a plain `--statistics` call on the same
   series/window — data there plus an empty extended result means the
-  storage format, not the query, is the limit.
+  storage format, not the query, is the limit. The percentiles then
+  come from X-Ray, not CloudWatch metrics (verified 2026-09-04): every
+  `get-trace-summaries` summary carries `Duration` (seconds, 1 ms
+  resolution) — compute p50/p95/p99 client-side over the summaries of
+  the window and filter; and `get-service-graph` returns a
+  `ResponseTimeHistogram` per client→server edge (bucketed, enough for
+  a distribution check). Neither needs the raw datapoints EMF does
+  not carry.
+- **[`describe-log-streams`](https://docs.aws.amazon.com/cli/latest/reference/logs/describe-log-streams.html)
+  `lastEventTimestamp` is not a freshness signal** — it is eventually
+  consistent (the command reference says so)
+  and lags the newest record by minutes (verified 2026-09-04: 12
+  minutes behind on a stream written every second), so read alone it
+  says "the pipeline stopped" on a pipeline that is writing. For "is
+  telemetry still arriving", run a Logs Insights `stats
+  max(@timestamp)` over the group (or `filter-log-events` on the last
+  minute), never the stream listing.
 
 ## Query by signal
 
@@ -91,10 +108,20 @@ Verified live (`aws-cli/2.36.34`, 2026-08; last three against
 | Logs (discovery) | `aws logs describe-log-groups --log-group-name-prefix <prefix>` | [describe-log-groups](https://docs.aws.amazon.com/cli/latest/reference/logs/describe-log-groups.html) | Lists log groups (name, ARN, retention, stored bytes), ASCII-sorted by name. `--log-group-name-prefix` and `--log-group-name-pattern` are mutually exclusive. |
 | Logs (simple filter) | `aws logs filter-log-events --log-group-name <name> --filter-pattern "<pattern>" --start-time <epoch-ms> --end-time <epoch-ms>` | [filter-log-events](https://docs.aws.amazon.com/cli/latest/reference/logs/filter-log-events.html) | Pattern-based search across streams in one log group, no aggregation — reach for Logs Insights below for anything needing `stats`/`parse`/joins. Paginated, up to 1&nbsp;MB or 10,000 events per page; `--start-time`/`--end-time` are epoch **milliseconds**, not seconds. An OTel Collector's log exporter commonly writes the whole OTel log record as one JSON body per event (`trace_id`, `span_id`, `resource.service.name`, ...) rather than plain text — see Planning notes for a Logs Insights `parse` example. |
 | Logs (CloudWatch Logs Insights, query language) | `aws logs start-query --log-group-name <name> --start-time <epoch-s> --end-time <epoch-s> --query-string '<CWLI query>'` → poll `aws logs get-query-results --query-id <id>` | [start-query](https://docs.aws.amazon.com/cli/latest/reference/logs/start-query.html), [get-query-results](https://docs.aws.amazon.com/cli/latest/reference/logs/get-query-results.html), [query syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html) | Async: `start-query` returns a `queryId` immediately (`--start-time`/`--end-time` here are epoch **seconds**, unlike `filter-log-events`); poll `get-query-results` until `status` is `Complete` (also: `Scheduled, Running, Failed, Cancelled, Timeout, Unknown`) — a `Running`/`Scheduled` poll returns partial results. Queries auto-timeout after 60 minutes; up to 100 concurrent queries per account. `--query-language` defaults to `CWLI` (pipe-separated commands: `fields`, `filter`, `stats`, `sort`, `limit`, `parse`, `dedup`, `stats ... by bin()`, …) but also accepts `SQL` and `PPL`. |
-| Traces (search) | `aws xray get-trace-summaries --start-time <epoch-s> --end-time <epoch-s> --filter-expression 'service("api.example.com")'` | [get-trace-summaries](https://docs.aws.amazon.com/cli/latest/reference/xray/get-trace-summaries.html) | Returns trace IDs + annotation summaries matching the filter, not full trace bodies — feed the IDs to `batch-get-traces` for detail. `--time-range-type` can key the search on `TraceId` (default), `Event`, or `Service`. The filter-expression vocabulary is a fixed set of reserved fields and functions — `http.status`, `http.method`, `http.url`, `responsetime`, `error`/`fault`/`throttle`, `annotation[<key>]` for custom annotations (the square brackets are mandatory when the key contains dots — which OTel-derived keys routinely do), `service("name")`, `duration`, ... ([full syntax](https://docs.aws.amazon.com/xray/latest/devguide/xray-console-filters.html)) — not OTel semconv attribute names: an invented-by-analogy name (`responsecode("404")`) fails with `InvalidRequestException ... Invalid input symbol` pointing at a byte offset, nothing saying "unknown field". Verified working form for status filtering: `http.status = 404`. |
-| Traces (full detail) | `aws xray batch-get-traces --trace-ids <id1> <id2> ...` | [batch-get-traces](https://docs.aws.amazon.com/cli/latest/reference/xray/batch-get-traces.html) | Returns full segment/subsegment JSON per trace ID (duration, resources, exceptions, annotations). Does not work if the account has Transaction Search enabled — traces then aren't indexed in classic X-Ray and must be queried differently. |
+| Traces (search) | `aws xray get-trace-summaries --start-time <epoch-s> --end-time <epoch-s> --filter-expression 'service("api.example.com")'` | [get-trace-summaries](https://docs.aws.amazon.com/cli/latest/reference/xray/get-trace-summaries.html) | Returns trace IDs + annotation summaries matching the filter, not full trace bodies — feed the IDs to `batch-get-traces` for detail. `--time-range-type` can key the search on `TraceId` (default), `Event`, or `Service`. The filter-expression vocabulary is a fixed set of reserved fields and functions — `http.status`, `http.method`, `http.url`, `responsetime`, `error`/`fault`/`throttle`, `annotation[<key>]` for custom annotations (the square brackets are mandatory when the key contains dots — which OTel-derived keys routinely do), `service("name")`, `duration`, ... ([full syntax](https://docs.aws.amazon.com/xray/latest/devguide/xray-console-filters.html)) — not OTel semconv attribute names: an invented-by-analogy name (`responsecode("404")`) fails with `InvalidRequestException ... Invalid input symbol` pointing at a byte offset, nothing saying "unknown field". Verified working form for status filtering: `http.status = 404`. `StartTime`/`ApproximateTime` render in the machine's **local offset** (`2026-09-04T22:24:49+02:00`), not UTC, while every log timestamp is UTC — convert with `date -u` or a timezone-aware parser before bucketing, never by string prefix; `MatchedEventTime` is `null` unless the search runs with `--time-range-type Event` (verified 2026-09-04). |
+| Traces (full detail) | `aws xray batch-get-traces --trace-ids <id1> ... <id5>` (at most **5** IDs per call — a sixth fails with `InvalidRequestException: Exceeding maximum query size: 5`, verified 2026-09-04; batch and loop) | [batch-get-traces](https://docs.aws.amazon.com/cli/latest/reference/xray/batch-get-traces.html) | Returns full segment/subsegment JSON per trace ID (duration, resources, exceptions, annotations). Does not work if the account has Transaction Search enabled — traces then aren't indexed in classic X-Ray and must be queried differently. |
 | Traces (service map) | `aws xray get-service-graph --start-time <epoch-s> --end-time <epoch-s>` | [get-service-graph](https://docs.aws.amazon.com/cli/latest/reference/xray/get-service-graph.html) | The node/edge graph backing the X-Ray console's Service Map — use for a topology view rather than individual trace inspection. |
 | Profiles | Not a CloudWatch signal — profiling lives in the separate Amazon CodeGuru Profiler service: `aws codeguruprofiler list-profiling-groups --include-description` then `aws codeguruprofiler get-profile --profiling-group-name <name> --period P1D --accept application/json <outfile>` | [codeguruprofiler CLI reference](https://docs.aws.amazon.com/cli/latest/reference/codeguruprofiler/index.html), [get-profile](https://docs.aws.amazon.com/cli/latest/reference/codeguruprofiler/get-profile.html), [list-profiling-groups](https://docs.aws.amazon.com/cli/latest/reference/codeguruprofiler/list-profiling-groups.html), [What is CodeGuru Profiler](https://docs.aws.amazon.com/codeguru/latest/profiler-ug/what-is-codeguru-profiler.html) | `get-profile` writes the aggregated profile to a positional `<outfile>`; pick the window with 1 or 2 of `--start-time`/`--end-time`/`--period` (ISO 8601, e.g. `P1DT1H1M1S`), max range **7 days**. `--accept` defaults to `application/x-amzn-ion` — pass `application/json` for a readable profile. `--max-depth` (1–10000) caps stack depth. Requires the CodeGuru Profiler agent in the application and a profiling group; supported runtimes are JVM languages and Python 3.6+. No `aws cloudwatch`/`aws logs`/`aws xray` command returns profiles. |
+
+`aws logs`, `aws cloudwatch` and `aws xray` read commands are **safe to
+run concurrently against one profile**: backgrounded in one shell
+call, they share the SSO credential cache without contention — a
+`describe-log-groups`, two `filter-log-events`, a `list-metrics`, a
+`get-trace-summaries` and a `get-service-graph` all exited 0 with
+their data in 11.0 s against 13.0 s serial, the slowest call
+(`get-trace-summaries` over six hours, ~40 K summaries) bounding both
+(verified 2026-09-04, aws-cli 2.36.37, an account carrying real logs,
+metrics and traces).
 
 ## Planning notes
 
@@ -159,10 +186,21 @@ Verified live (`aws-cli/2.36.34`, 2026-08; last three against
   folded two routes into one group and returned -165k for a positive
   count). A mid-window process restart resets the cumulative counter to
   zero, which an edge diff reads as a traffic drop — also qualify the
-  grouping by the emitting process (`resource.service.instance.id` when
-  the pipeline emits a per-process value, or the log stream when
-  instances map to streams), then sum the per-epoch deltas to recover
-  the window total.
+  grouping by the emitting process, and **probe the field first**: an
+  EMF pipeline may carry no resource fields at all (verified
+  2026-09-04: `` stats sum(ispresent(`resource.service.name`)),
+  sum(ispresent(`resource.service.instance.id`)), count() `` → `0 /
+  0 of 10080` on the metrics group, while the log group's records all
+  carried the instance id), and grouping by an absent field does not
+  error — every record lands in one null group, the delta computes,
+  and nothing says the guard did nothing. So: `ispresent()` on the
+  resource fields as the first step; qualify by
+  `resource.service.instance.id` when present, else by the log stream
+  when instances map to streams, else attribute the series through the
+  log records' instance id and check monotonicity across consecutive
+  pushes as the restart guard; then sum the per-epoch deltas to recover
+  the window total (verified: per-route counts attributed through the
+  logs' instance id agreed with X-Ray trace counts within 0.5 %).
 - CloudWatch Logs Insights (`start-query`/`get-query-results`) and
   `filter-log-events` use **different time units** for the same-named flags
   — `filter-log-events` wants epoch milliseconds, `start-query` wants epoch
@@ -179,6 +217,17 @@ Verified live (`aws-cli/2.36.34`, 2026-08; last three against
   never re-list a `parse`-created field in a downstream `fields`
   (renaming the alias doesn't help): `MalformedQueryException: Ephemeral
   field is already defined`.
+- **Logs Insights regex literals are valid in `parse` and `filter …
+  like /…/` only** — `replace()` takes plain strings, and
+  `fields replace(path, /\/orders\/[0-9]+/, "/orders/{id}") as route`
+  fails with `MalformedQueryException: token recognition error at:
+  '\'`, an error that points at a byte, not at the rule (verified
+  2026-09-04). Route normalization — the query every per-route
+  analysis needs here, since `http.route` is not indexed in X-Ray
+  annotations and the access-log body carries the raw path — goes
+  through a chained `parse` with named groups, then `stats … by` the
+  groups: `parse path /^(?<route>\/[a-z]+)(\/[0-9]+)?(?<tail>\/[a-z]+)?$/
+  | stats count() as n by method, route, tail, status`.
 - `batch-get-traces` explicitly does not work once Transaction Search is
   enabled on the account (traces stop being indexed in classic X-Ray) — a
   quirk worth checking for before assuming this path works in a given
@@ -359,7 +408,7 @@ the configuration.
 
 `aws sts get-caller-identity` is the identity check, not a source of
 targeting values — it belongs to the connection proof in
-`check-backend-configuration`.
+`backend-configuration`'s `## Check`.
 
 ### What to ask the user
 
