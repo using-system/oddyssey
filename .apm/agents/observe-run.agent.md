@@ -634,8 +634,9 @@ from your reply, without re-reading the file:
    read a zero, or assert the row count equals the request count; in
    KQL write `coalesce(<right column>, 0)` after a `leftouter` join
    (or count on the request side), in PromQL `or vector(0)`, in LogQL
-   two raw line counts (the form the persistence skill fixes for
-   equality checks). The validation marker then says which shapes were
+   a count that yields zero rather than an empty result (the
+   persistence skill's two-raw-counts form is the same discipline for
+   an equality check). The validation marker then says which shapes were
    exercised — `validated: before-shape` when only today's data
    answered, `validated: before-shape, after-shape` when the zero
    branch was too — or carries `not validated` (the persistence skill

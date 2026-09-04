@@ -317,9 +317,11 @@ recall or by a caller naming a stored report.
   answered, `validated: before-shape, after-shape` when the shape the
   pass criterion expects was exercised too (a "reaches zero" check run
   with a selector matching nothing on its joined side, a row count
-  equal to the request count) — or carries `not validated`. Either of
-  the two weaker markers tells the verify run to suspect the query
-  before the fix: a check authored on the populated branch alone can
+  equal to the request count) — or carries `not validated`. A stored
+  check whose validation note names no shape (every report written
+  before these markers) reads as `before-shape`. Either of the two
+  weaker markers tells the verify run to suspect the query before the
+  fix: a check authored on the populated branch alone can
   drop the very rows it measures once they go to zero (a `leftouter`
   join aggregated without `coalesce`, a ratio over an absent series).
   An equality check on log line counts ("every
