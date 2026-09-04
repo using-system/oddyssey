@@ -160,9 +160,10 @@ run record.
    follow the routing to the named sections and read nothing else of
    either file — on the local stack, with the preflight handoff in
    hand, `local.md` carries nothing of yours beyond its `## Query by
-   signal` routing note: read that note, then `grafana.md`'s `## Query
-   by signal` with its subsections and its `## Planning notes`, once
-   each; never `local.md` whole, never `grafana.md` whole, and never
+   signal` and `## Planning notes` routing notes, both pointing at
+   `grafana.md`: read them, then `grafana.md`'s `## Query by signal`
+   with its subsections and its `## Planning notes`, once each; never
+   `local.md` whole, never `grafana.md` whole, and never
    its `## Remote missions — targeting without touching the user's
    config` (a remote backend's section). The mission block's
    `Preflight:` handoff (the caller's `check-backend-configuration`

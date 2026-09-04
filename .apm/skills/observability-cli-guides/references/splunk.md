@@ -52,6 +52,14 @@ halves below.
 | Profiles | No terminal query surface for stack traces — AlwaysOn Profiling (Splunk APM) collects them continuously but is explored in the UI flame graph; its **memory** metrics are ordinary Observability Cloud metrics, so those *are* reachable via SignalFlow. | [AlwaysOn Profiling](https://help.splunk.com/en/splunk-observability-cloud/monitor-application-performance/alwayson-profiling), [Memory profiling metrics](https://help.splunk.com/en/splunk-observability-cloud/monitor-application-performance/alwayson-profiling/memory-profiling-metrics) | AlwaysOn Profiling "continuously collects stack traces" and correlates them to APM spans; the documented way to read them is "explore stack traces directly from APM" and the flame graph — no REST/CLI endpoint for stack traces is documented. Memory profiling additionally "exposes memory metrics for your application, which you can use to build charts and dashboards" (the exact set is language-dependent: Java, Node.js, .NET) — query those with the SignalFlow row above. Splunk Enterprise/Cloud Platform (SPL) has no profiles signal at all. |
 | Ingest metrics/traces/events (Observability Cloud) | `curl` to the ingest REST/gRPC endpoints | [Send traces, metrics and events](https://dev.splunk.com/observability/reference/api/ingest_data/latest), [Send APM traces](https://dev.splunk.com/observability/docs/apm/send_traces/) | Write path, not query — useful when bypassing the OTel Collector. Trace ingest is `POST /v2/trace` or `/v2/trace/otlp`; gRPC endpoint is `ingest.<realm>.observability.splunkcloud.com:443`; both need `X-SF-Token`. |
 
+Concurrency — **not verified**: read commands issued concurrently
+from one shell are the expected shape, and `splunk search` submits
+independent searches sharing one session, so nothing in its design
+objects to it — but no Splunk instance was available to prove it
+(2026-09-04). Until a live check lands here, treat a concurrent
+failure as a possible CLI limit before a backend fault: rerun the
+failed commands serially once, and record which shape answered.
+
 ## Planning notes
 
 - `docs.splunk.com` blocks non-browser `curl`/fetch requests (HTTP 403) even
