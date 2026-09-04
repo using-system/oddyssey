@@ -176,6 +176,8 @@ def test_detects_a_push_and_its_targets(guard, command, expected):
         'printf "%s\\n" "a && git commit -m x" > f',
         "cat > doc.md <<'EOF'\nrun `git add -A && git commit -m x` then\nEOF",
         "cat <<EOF > doc.md\ngit commit -m x\nEOF\ngit status",
+        "cat > d.md <<'EOF-1'\ngit commit -m x\nEOF-1",
+        "cat <<-EOF\n\tgit commit -m x\n\tEOF",
     ],
 )
 def test_ignores_everything_else(guard, command):

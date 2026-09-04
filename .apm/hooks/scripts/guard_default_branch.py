@@ -48,7 +48,7 @@ CWD_PATHS = (("cwd",), ("tool_info", "cwd"))
 
 # A heredoc opener: the body that follows, up to the delimiter line, is
 # data the shell never runs.
-HEREDOC_RE = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
+HEREDOC_RE = re.compile(r"<<-?\s*(['\"]?)([^\s'\"<>|&;()]+)\1")
 # Everything shlex returns as pure punctuation ends a command.
 PUNCTUATION = set("();<>|&")
 
