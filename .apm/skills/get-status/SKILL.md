@@ -109,7 +109,9 @@ status.
 ## Build the status in this order
 
 1. **Inventory — frontmatters only.** List both directories and read
-   every frontmatter, no bodies yet. No `.odd/` directory or no reports
+   every frontmatter, no bodies yet; the memory invariant (below) is
+   checked here, over every stored report, and rendered right after
+   the inventory. No `.odd/` directory or no reports
    at all: say the loop has not started here, point at
    `/odd-instrument-otel` or `/odd-observe`, and stop — that IS the
    status, not a failure.
@@ -228,6 +230,28 @@ status.
    verdicts, no unverified change). Every recommendation cites its
    inputs — dates, verdicts, revisions — evidence over impressions
    applies to the meta-loop too.
+
+## The memory invariant
+
+"Model-visible means logged": everything a later mission consumes is
+in `.odd/`, in the shape the `odd-memory` contract fixes — and the
+script checks it after the fact, over **every** stored report and
+decision, filtered status or not. Per report: the filename convention,
+the frontmatter fields the kind requires (`services`, `stack`,
+`environment`, `mode`, `depth`, `window` as `start/end` UTC,
+`run_name` and `date` matching the filename; `project` for a plan),
+and a `verifies` that names a stored file when the mode is a replay.
+Per decision row: a report that exists and a finding it carries (the
+ledger's own skipped rows). The fact sheet carries the result under
+`invariant`, and the rendered status carries a `## Memory invariant`
+section: the counts, then one line per violation.
+
+A violation is **never a failure**: the store is append-only, so a
+report is never edited to repair it — a new run supersedes it — and a
+decision row is appended, never rewritten. The status is where a
+reader learns that a report predates a field (`depth absent` reads as
+`full`, the way the loop state already renders it) or that a decision
+points at nothing; the remedy is the next run, or a new row.
 
 ## A filter that matches nothing is still a status
 

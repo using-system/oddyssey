@@ -1468,3 +1468,181 @@ def test_scenario_record_is_also_found_as_a_bold_label(repo):
     )
     assert "30 calls in a row." in record
     assert "Timeline" not in record
+
+
+# --- the memory invariant (issue #307) ---------------------------------------
+
+
+def _violations(facts_: dict) -> dict[str, list[str]]:
+    return {
+        Path(v["path"]).name: v["problems"] for v in facts_["invariant"]["violations"]
+    }
+
+
+def test_invariant_is_clean_for_a_conforming_store(repo):
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-checkout-sweep.md", observation()
+    )
+    repo.commit("docs(odd): report")
+    result = facts(repo)
+    assert result["invariant"] == {"checked": 1, "violations": []}
+
+
+def test_invariant_flags_missing_and_malformed_frontmatter_fields(repo):
+    text = (
+        observation()
+        .replace("depth: full\n", "")
+        .replace(
+            "window: 2026-08-10T10:00:00Z/2026-08-10T10:05:00Z",
+            "window: 10:00 to 10:05",
+        )
+        .replace("mode: drive", "mode: drove")
+    )
+    repo.write(".odd/observe-run-reports/2026-08-10-1000-checkout-sweep.md", text)
+    repo.commit("docs(odd): report")
+    problems = _violations(facts(repo))["2026-08-10-1000-checkout-sweep.md"]
+    assert any(p.startswith("depth absent") for p in problems)
+    assert any(p.startswith("window") for p in problems)
+    assert any(p.startswith("mode") for p in problems)
+    assert facts(repo)["invariant"]["checked"] == 1
+
+
+def test_invariant_flags_a_window_whose_end_precedes_its_start(repo):
+    text = observation().replace(
+        "window: 2026-08-10T10:00:00Z/2026-08-10T10:05:00Z",
+        "window: 2026-08-10T10:05:00Z/2026-08-10T10:00:00Z",
+    )
+    repo.write(".odd/observe-run-reports/2026-08-10-1000-checkout-sweep.md", text)
+    repo.commit("docs(odd): report")
+    problems = _violations(facts(repo))["2026-08-10-1000-checkout-sweep.md"]
+    assert any("end precedes" in p for p in problems)
+
+
+def test_invariant_flags_a_verifies_naming_no_stored_report(repo):
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-checkout-sweep.md", observation()
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-12-1000-verify-checkout.md",
+        observation(
+            mode="verify",
+            run_name="checkout",
+            date="2026-08-12",
+            extra_frontmatter="verifies: 2026-08-01-1000-ghost.md",
+        ),
+    )
+    repo.commit("docs(odd): reports")
+    violations = _violations(facts(repo))
+    assert "2026-08-10-1000-checkout-sweep.md" not in violations
+    assert any(
+        "verifies" in p and "ghost" in p
+        for p in violations["2026-08-12-1000-verify-checkout.md"]
+    )
+
+
+def test_invariant_requires_verifies_on_a_replay_and_accepts_an_instrumentation_path(
+    repo,
+):
+    repo.write(
+        ".odd/otel-instrumentation-reports/2026-08-09-1000-app.md",
+        "---\nproject: app\nstack: local\nrun_name: app\ndate: 2026-08-09\n---\n\n# plan\n",
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-12-1000-verify-app.md",
+        observation(
+            mode="verify",
+            run_name="app",
+            date="2026-08-12",
+            extra_frontmatter="verifies: .odd/otel-instrumentation-reports/2026-08-09-1000-app.md",
+        ),
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-13-1000-remeasure-app.md",
+        observation(mode="re-measure", run_name="app", date="2026-08-13"),
+    )
+    repo.commit("docs(odd): reports")
+    violations = _violations(facts(repo))
+    assert "2026-08-12-1000-verify-app.md" not in violations
+    assert any(
+        "verifies absent" in p for p in violations["2026-08-13-1000-remeasure-app.md"]
+    )
+
+
+def test_invariant_flags_a_filename_off_the_convention_and_a_mismatched_slug(repo):
+    repo.write(".odd/observe-run-reports/notes.md", observation())
+    repo.write(
+        ".odd/observe-run-reports/2026-08-11-1000-other-slug.md",
+        observation(date="2026-08-10"),
+    )
+    repo.commit("docs(odd): reports")
+    violations = _violations(facts(repo))
+    assert any("filename" in p for p in violations["notes.md"])
+    problems = violations["2026-08-11-1000-other-slug.md"]
+    assert any("slug" in p and "run_name" in p for p in problems)
+    assert any("date" in p for p in problems)
+
+
+def test_invariant_expects_the_replay_prefix_on_a_verification_filename(repo):
+    # A verification keeps the replayed run_name and prefixes its filename
+    # with verify-: a file named without the prefix is a violation, and a
+    # file named with it but carrying the prefixed run_name is one too.
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-checkout-sweep.md", observation()
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-12-1000-checkout-sweep.md",
+        observation(
+            mode="verify",
+            date="2026-08-12",
+            extra_frontmatter="verifies: 2026-08-10-1000-checkout-sweep.md",
+        ),
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-13-1000-verify-checkout-sweep.md",
+        observation(
+            mode="verify",
+            run_name="verify-checkout-sweep",
+            date="2026-08-13",
+            extra_frontmatter="verifies: 2026-08-10-1000-checkout-sweep.md",
+        ),
+    )
+    repo.commit("docs(odd): reports")
+    violations = _violations(facts(repo))
+    assert any(
+        "'verify-checkout-sweep'" in p
+        for p in violations["2026-08-12-1000-checkout-sweep.md"]
+    )
+    assert any(
+        "with the verify- prefix" in p
+        for p in violations["2026-08-13-1000-verify-checkout-sweep.md"]
+    )
+
+
+def test_invariant_checks_an_instrumentation_report_and_an_unreadable_file(repo):
+    repo.write(
+        ".odd/otel-instrumentation-reports/2026-08-09-1000-app.md",
+        "---\nstack: local\nrun_name: app\ndate: 2026-08-09\n---\n\n# plan\n",
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-broken.md", "no frontmatter at all\n"
+    )
+    repo.commit("docs(odd): reports")
+    violations = _violations(facts(repo))
+    assert any("project absent" in p for p in violations["2026-08-09-1000-app.md"])
+    assert any("frontmatter" in p for p in violations["2026-08-10-1000-broken.md"])
+
+
+def test_invariant_covers_every_stored_report_even_when_the_status_is_filtered(repo):
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-checkout-sweep.md",
+        observation().replace("depth: full\n", ""),
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-11-1000-cart-sweep.md",
+        observation(services="[cart]", run_name="cart-sweep", date="2026-08-11"),
+    )
+    repo.commit("docs(odd): reports")
+    result = facts(repo, services=["cart"])
+    assert result["matched"] == 1
+    assert result["invariant"]["checked"] == 2
+    assert "2026-08-10-1000-checkout-sweep.md" in _violations(result)

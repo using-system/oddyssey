@@ -1249,3 +1249,41 @@ def test_a_runtime_entry_differing_only_in_packaging_files_is_deferred(
         today="2026-08-16",
     )
     assert rec["action"] == "verification due"
+
+
+# --- the memory invariant section (issue #307) --------------------------------
+
+
+def test_memory_invariant_section_says_clean_when_the_store_conforms(
+    repo, odd_status, odd_render
+):
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md", observation(run_name="a")
+    )
+    repo.commit("docs(odd): report")
+    text = rendered(repo, odd_status, odd_render)
+    assert "## Memory invariant" in text
+    section = text.split("## Memory invariant")[1].split("## ")[0]
+    assert "1 of 1" in section
+    assert "every stored report carries the contract's frontmatter" in section
+
+
+def test_memory_invariant_section_lists_violations_and_skipped_ledger_rows(
+    repo, odd_status, odd_render
+):
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a").replace("depth: full\n", ""),
+    )
+    repo.write(
+        ".odd/decisions.md",
+        LEDGER_HEAD
+        + "| 2026-08-13 | 2026-08-10-1000-a.md / F9 | wontfix | no such finding |\n",
+    )
+    repo.commit("docs(odd): report and decision")
+    text = rendered(repo, odd_status, odd_render)
+    section = text.split("## Memory invariant")[1].split("## ")[0]
+    assert "0 of 1" in section
+    assert "2026-08-10-1000-a.md" in section and "depth absent" in section
+    assert "line 7" in section and "carries no finding F9" in section
+    assert "append-only" in section
