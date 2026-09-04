@@ -28,7 +28,11 @@ the user says to switch to it.
   exercised, per the contract's live-verification rule; anything else
   the frontmatter carries belongs to the file alone.
 - **The body** carries the contract's mandatory sections under its
-  exact headings, in any order, plus any section of the file's own.
+  exact headings, in any order, plus any section of the file's own —
+  or **nothing**, when the frontmatter links the guide (the contract's
+  `source_url`, or `source_repo` with `source_path`): one guide then
+  serves several repositories, the local file is the pointer, and the
+  fetched copy is what every consumer reads.
   The query surface is whatever the backend answers to — a CLI, plain
   `curl` against an HTTP API, anything else — a CLI is one option,
   never a requirement; every command links to the page it comes from.
@@ -86,6 +90,26 @@ is how a prompt offers the custom stacks the repository carries.
   the switch's sections are never edited by a mission — a learning
   about them is stated in the report for the user to apply through
   `/odd-config for stack <name>: ...`.
+- **A linked guide is amended where it lives.** When the file links
+  its guide, no change — a user's instruction, a run's learning — is
+  ever written into the local file: a body next to a link forks the
+  guide, and the check refuses it. The change goes to the linked
+  guide instead: when the link is a git repository the user can push
+  to (probe it — `gh repo view <repo> --json viewerPermission` for a
+  GitHub remote, a dry-run push otherwise; never assumed), clone the
+  repository into a scratch directory of your own — never the check's
+  fetch clone, which the check deletes and re-clones on every run —
+  apply the diff there on a work branch named as above, run the check
+  on the amended copy as a plain path, commit it with the same
+  subject, push the branch, and **propose a pull request** on
+  that repository — opened only with the user's go, like any outward
+  action; where no tool opens one for that remote, push the branch
+  and say so — reporting the branch and the pull request in the reply;
+  otherwise (a URL, a repository without write access) **display the
+  proposed change** in the reply — the section, the diff, the reason,
+  the date — for the user to apply on the guide themselves, saying
+  plainly that nothing was written anywhere. A mission's report names
+  the proposal the way it names a stack-file commit.
 - **Never a built-in.** A file whose name is a `STACKS` value is
   refused at the check (the script reads `builtin-stacks.md`, and the
   server refuses the name again): a learning about a stack the package
@@ -120,7 +144,10 @@ conversation's memory of the mission. A switch to one ends in
 ### What to render
 
 - **Stored path** — `.odd/observability-stacks/<name>.md`, with its
-  carrying commit, or `not committed` with the reason.
+  carrying commit, or `not committed` with the reason; for a linked
+  guide, the link too, and the amendment's branch and commit on the
+  linked repository when one was made (or "displayed, nothing
+  written").
 - **Query surface** — the binary or the transport the `## CLI binary`
   section names, one line.
 - **Declared fields** — the `stack_config_fields` of the frontmatter,

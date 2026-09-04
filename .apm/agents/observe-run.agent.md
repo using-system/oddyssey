@@ -521,7 +521,14 @@ it, and the closing synthesis says "the stack file changed" with the
 one-line reason, so the maintainer reviews it like any other committed
 change. When the file cannot be committed (the caller said not to, no
 work branch possible), the diff is still applied to the file and the
-run record says `not committed` with the reason.
+run record says `not committed` with the reason. When the file
+**links** its guide (the handoff's `Reference:` line names the link
+and the fetched copy), the local file is never edited: the
+`observability-stack` reference says where the diff goes — a pull
+request on the linked repository when the user can push to it, opened
+with their go, or the proposed diff displayed in your reply for them
+to apply — and section 1 names that proposal the way it would name
+the commit.
 
 ## The report (your only deliverable)
 

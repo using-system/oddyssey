@@ -22,6 +22,16 @@ Two callers, one checker:
   stack name must be the file's stem - the name is how the file is
   found.
 
+A custom file may **link** its guide instead of carrying it (issue
+#323): its frontmatter names the guide - ``source_url`` (a URL the
+file is fetched from as-is) or ``source_repo`` + ``source_path`` (+
+optional ``source_ref``: a git repository the user can clone, the
+path in it) - and its body stays empty. ``--declaration`` then fetches
+the guide into ``--fetch-dir <dir>`` (``<dir>/<name>.md``; a
+temporary directory when the option is absent), checks the fetched
+copy's headings, and prints the same payload; the fetched copy is what
+the skills read, never committed.
+
 Problems go to stderr, one per line, prefixed by the file; the exit
 code is 1 when any file breaks the contract. Standard library only.
 """
@@ -30,7 +40,11 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
+import urllib.request
 from pathlib import Path
 
 REFERENCES = Path(__file__).resolve().parent.parent / "references"
@@ -133,26 +147,83 @@ def _parse_fields(value: str, following: list[str]) -> list | None:
     return items or None
 
 
+SOURCE_KEYS = ("source_url", "source_repo", "source_path", "source_ref")
+
+
+def frontmatter_values(frontmatter: str) -> dict[str, tuple[str, list[str]]]:
+    """Top-level ``key: value`` lines, comments stripped, with the lines after each."""
+    lines = frontmatter.splitlines()
+    values: dict[str, tuple[str, list[str]]] = {}
+    for index, line in enumerate(lines):
+        match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):(.*)$", line)
+        if match:
+            key, value = match.group(1), COMMENT_RE.sub("", match.group(2))
+            values[key] = (value.strip().strip("'\""), lines[index + 1 :])
+    return values
+
+
+def source_of(values: dict) -> tuple[dict | None, list[str]]:
+    """The linked guide's coordinates, None when the file carries its own body."""
+    present = {k: values[k][0] for k in SOURCE_KEYS if k in values}
+    if not present:
+        return None, []
+    problems = []
+    if "source_url" in present and (
+        "source_repo" in present or "source_path" in present
+    ):
+        problems.append(
+            "frontmatter: `source_url` and `source_repo`/`source_path` exclude each other"
+        )
+    if "source_repo" in present and not present.get("source_path"):
+        problems.append(
+            "frontmatter: `source_repo` needs `source_path` (the guide's path in the repository)"
+        )
+    if "source_path" in present and not present.get("source_repo"):
+        problems.append("frontmatter: `source_path` needs `source_repo`")
+    if "source_url" in present and not present["source_url"]:
+        problems.append("frontmatter: `source_url` is empty")
+    return (present if not problems else None), problems
+
+
+def fetch_source(source: dict, target: Path) -> str | None:
+    """Fetch the linked guide to ``target``; the problem when it cannot be."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if "source_url" in source:
+        try:
+            with urllib.request.urlopen(source["source_url"], timeout=30) as response:
+                target.write_bytes(response.read())
+        except Exception as error:  # noqa: BLE001
+            return f"source_url: cannot fetch {source['source_url']}: {error}"
+        return None
+    clone = target.parent / f".{target.stem}-repo"
+    if clone.exists():
+        shutil.rmtree(clone)
+    command = ["git", "clone", "--quiet", "--depth", "1"]
+    if source.get("source_ref"):
+        command += ["--branch", source["source_ref"]]
+    command += [source["source_repo"], str(clone)]
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        return f"source_repo: cannot clone {source['source_repo']}: {result.stderr.strip()}"
+    guide = clone / source["source_path"]
+    if not guide.is_file():
+        return f"source_path: {source['source_path']} is not a file of {source['source_repo']}"
+    target.write_bytes(guide.read_bytes())
+    return None
+
+
 def declaration_of(frontmatter: str | None, stem: str) -> tuple[dict | None, list[str]]:
     """The odd_config_set payload for the switch, or the problems that prevent one."""
     if frontmatter is None:
         return None, [
             "no frontmatter: a custom stack file opens with `---`, `stack: <name>`, `stack_config_fields: [...]`, `---`"
         ]
-    lines = frontmatter.splitlines()
-    stack = None
+    values = frontmatter_values(frontmatter)
+    stack = values["stack"][0] if "stack" in values else None
     fields: list | None = None
-    seen_fields = False
-    for index, line in enumerate(lines):
-        match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):(.*)$", line)
-        if not match:
-            continue
-        key, value = match.group(1), COMMENT_RE.sub("", match.group(2))
-        if key == "stack":
-            stack = value.strip().strip("'\"")
-        elif key == "stack_config_fields":
-            seen_fields = True
-            fields = _parse_fields(value, lines[index + 1 :])
+    seen_fields = "stack_config_fields" in values
+    if seen_fields:
+        fields = _parse_fields(*values["stack_config_fields"])
     problems = []
     if stack is None:
         problems.append("frontmatter: missing `stack: <name>`")
@@ -211,14 +282,53 @@ def check_builtin(required: dict[str, list[str]]) -> int:
     return 0
 
 
-def check_custom(path: Path, required: dict[str, list[str]], declare: bool) -> int:
+def check_custom(
+    path: Path, required: dict[str, list[str]], declare: bool, fetch_dir: Path | None
+) -> int:
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as error:
         report(str(path), [f"cannot read: {error.strerror}"])
         return 1
     frontmatter, body = split_frontmatter(text)
-    problems = check_headings(body, required)
+    values = frontmatter_values(frontmatter or "")
+    source, problems = source_of(values)
+    linked = any(key in values for key in SOURCE_KEYS)
+    if source:
+        # A linked guide: the body lives at the link, the local file is
+        # the pointer - a body here would fork the guide silently.
+        if body.strip():
+            problems.append(
+                "a linked stack file carries no body: the guide is the linked file"
+            )
+        else:
+            target = (
+                fetch_dir or Path(tempfile.mkdtemp(prefix="odd-stack-"))
+            ) / f"{path.stem}.md"
+            failure = fetch_source(source, target)
+            if failure:
+                problems.append(failure)
+            else:
+                origin = source.get("source_url") or (
+                    f"{source['source_repo']} {source['source_path']}"
+                )
+                print(f"fetched {origin} to {target}", file=sys.stderr)
+                guide_front, body = split_frontmatter(
+                    target.read_text(encoding="utf-8")
+                )
+                if any(
+                    key in frontmatter_values(guide_front or "") for key in SOURCE_KEYS
+                ):
+                    problems.append(
+                        "the linked guide is itself a link: link the guide, not a pointer"
+                    )
+                else:
+                    problems.extend(check_headings(body, required))
+    elif not linked:
+        problems.extend(check_headings(body, required))
+    # A malformed link (source problems, no source): the body check is
+    # skipped - the file is a pointer by intent, and six missing-heading
+    # lines would bury the real cause.
     declaration = None
     if declare:
         declaration, more = declaration_of(frontmatter, path.stem)
@@ -233,16 +343,44 @@ def check_custom(path: Path, required: dict[str, list[str]], declare: bool) -> i
     return 0
 
 
+USAGE = """usage: check_stack_reference.py [--declaration] [--fetch-dir DIR] [FILE ...]
+
+No FILE: check the built-in references against the contract (CI).
+FILE ...: check those files' headings.
+--declaration FILE: check one custom stack file and print the odd_config_set
+  payload that switches to it; a linked guide is fetched into --fetch-dir
+  (a temporary directory when absent) as <name>.md and checked there.
+"""
+
+
 def main(argv: list[str]) -> int:
+    if "--help" in argv or "-h" in argv:
+        print(USAGE, end="")
+        return 0
     required = required_headings(CONTRACT.read_text(encoding="utf-8"))
     declare = "--declaration" in argv
-    paths = [Path(a) for a in argv if a != "--declaration"]
+    fetch_dir: Path | None = None
+    rest: list[str] = []
+    skip = False
+    for index, arg in enumerate(argv):
+        if skip:
+            skip = False
+            continue
+        if arg == "--fetch-dir":
+            if index + 1 >= len(argv):
+                print("--fetch-dir takes a directory", file=sys.stderr)
+                return 2
+            fetch_dir = Path(argv[index + 1])
+            skip = True
+        elif arg != "--declaration":
+            rest.append(arg)
+    paths = [Path(a) for a in rest]
     if declare and len(paths) != 1:
         print("--declaration takes exactly one custom stack file", file=sys.stderr)
         return 2
     if not paths:
         return check_builtin(required)
-    failures = sum(check_custom(path, required, declare) for path in paths)
+    failures = sum(check_custom(path, required, declare, fetch_dir) for path in paths)
     return 1 if failures else 0
 
 

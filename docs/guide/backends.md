@@ -24,7 +24,10 @@ the file declares. `/odd-config` writes the file for you — from the
 documentation you point at, your own instructions, or its own web
 research — then offers the switch; a run against the stack then
 corrects the file's query commands as a commit you review, and tells
-you what it could not fix itself:
+you what it could not fix itself. A file may also just link a guide
+another repository carries, so one guide serves a whole team; a
+change then goes to that repository as a pull request, or is shown to
+you to apply there:
 
 ```text
 /odd-config create a stack <name> from <docs URL or path>

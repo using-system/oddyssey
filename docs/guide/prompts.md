@@ -432,13 +432,22 @@ The file is checked against the reference contract, committed, and the
 switch to it offered.
 
 ```text
+/odd-config create a stack seq linked to https://github.com/example-org/obs-guides stacks/seq.md
+```
+
+"linked to <repository and path>" (or a URL) writes only a pointer to a
+guide another repository carries — one guide for the whole team; the
+switch fetches and checks it every time.
+
+```text
 /odd-config for stack seq: the traces endpoint is /api/traces, it takes a service query parameter
 ```
 
 "for stack seq: ..." completes an existing custom stack file: the
 instruction becomes a diff to the section it touches, shown before it
-is committed. A built-in stack is refused here — it changes through
-the package.
+is committed — or, for a linked guide, proposed as a pull request on
+the repository that carries it, or shown for you to apply there. A
+built-in stack is refused here — it changes through the package.
 
 ```text
 /odd-config switch to seq
