@@ -23,6 +23,7 @@ process and the store stay untouched: never restart or reset for a
 run you cannot perform, never approximate the script with a curl
 loop. `running-tests.md` in the same skill carries the flags, the
 output surface, and the exit codes cited below.
+
 ## Read the manifest, then run the script unmodified
 
 The benchmark
@@ -58,16 +59,19 @@ diff, never through the run.
   pacing, and stages are the same — otherwise the second run's numbers
   open the service's new baseline, stated as such, never a before/after
   against the first.
+
 ## Warmup is the manifest's stage boundaries
 
 A k6 run is one
-continuous window, so step 2's "discard the warmup" becomes a
+continuous window, so `SKILL.md` step 2's "discard the warmup" becomes a
 sub-window: quote steady-state numbers from the interval the
 manifest's ramp and steady stages delimit, record those boundaries
-as UTC timestamps, and say the ramp was excluded. Step 3's standard
-sample counts apply (>= 30 requests before a p95, ~100 before a p99)
+as UTC timestamps, and say the ramp was excluded. `SKILL.md` step 3's
+standard sample counts apply (>= 30 requests before a p95, ~100 before a p99)
 — k6 load is cheap, high-volume, and deterministic, so the
-expensive-iteration carve-out does not.
+expensive-iteration carve-out of `references/long-scenarios.md` does
+not.
+
 ## k6's own summary and exit status are evidence, never the verdict
 
 Record the exit code (`0` every threshold passed, `99` a threshold
@@ -89,6 +93,7 @@ did not exercise what it was built to measure, every threshold
 ruling is void, and the run is reported as a defective benchmark (a
 finding against the script, to fix through `/odd-instrument-bench`),
 never as a pass.
+
 ## k6's own OpenTelemetry output is a bonus signal
 
 Against the local
@@ -97,11 +102,13 @@ stack, `K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run -o opentelemetry
 `service_name="k6"` (`running-tests.md`): cross-confirm against it
 when it lands, never require it, never mistake it for the target
 service.
+
 ## A run longer than a tool call uses the detached poller of `references/long-scenarios.md`
 
 A
 staged benchmark routinely exceeds one tool call's budget; the poller
 script and its output file are part of the record.
+
 ## This skill stays scoped to locally running services
 
 Whether a
