@@ -243,3 +243,12 @@ def test_config_set_description_states_the_env_carry_over():
     # learns about env_preserved from the description, nowhere else.
     tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
     assert "env_preserved" in tools["odd_config_set"].description
+
+
+def test_config_set_description_states_the_custom_stack_declaration():
+    # Issue #228: an agent must learn from the tool description that a
+    # stack outside the built-in list needs a declaration, and its shape.
+    tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
+    description = tools["odd_config_set"].description
+    assert "custom" in description
+    assert "stack_config_fields" in description

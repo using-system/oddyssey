@@ -2,7 +2,8 @@
 # Configuration surface end to end (#172): the stack switch round-trips
 # through every allowed value, a rejected partial writes nothing, the
 # stack_config contract holds through a real MCP client (merge, null
-# deletion of a key and of a whole entry), and the tolerant read lists
+# deletion of a key and of a whole entry), a custom stack declared by
+# the caller (#228) is accepted, validated and removed, and the tolerant read lists
 # hand-edited invalid values in invalid_ignored instead of crashing.
 # Pure configuration - no stack container is booted, reset, or wiped.
 # The config file is backed up/restored so a developer machine is left
@@ -140,10 +141,65 @@ mcp_call odd_config_get > "$workdir/after-sc-bad.json"
 jq -e '.content[0].text | contains("bad") | not' "$workdir/after-sc-bad.json" > /dev/null \
   || { echo "ASSERTION FAILED: rejected partial was written anyway" >&2; cat "$workdir/after-sc-bad.json" >&2; exit 1; }
 
+step "a custom stack needs a declaration - undeclared, the door stays closed (#228)"
+mcp_call odd_config_set 'config={"stack":"seq"}' > "$workdir/custom-undeclared.json" || true
+grep -q "or a declared custom stack" "$workdir/custom-undeclared.json" \
+  || { echo "ASSERTION FAILED: undeclared custom stack was not rejected" >&2; cat "$workdir/custom-undeclared.json" >&2; exit 1; }
+mcp_call odd_config_get > "$workdir/after-custom-undeclared.json"
+assert_result_contains "$workdir/after-custom-undeclared.json" '"stack": "local"'
+assert_result_contains "$workdir/after-custom-undeclared.json" '"custom": {}'
+
+step "a declaration, the switch and a declared value land in one call (#228)"
+mcp_call odd_config_set \
+  'config={"stack":"seq","custom":{"seq":{"stack_config_fields":["base_url"]}},"stack_config":{"seq":{"base_url":"http://seq.example.test:5341"}}}' \
+  > "$workdir/custom-declare.json"
+assert_result_contains "$workdir/custom-declare.json" '"stack": "seq"'
+assert_result_contains "$workdir/custom-declare.json" '"base_url": "http://seq.example.test:5341"'
+jq -e '.content[0].text | fromjson | .config.custom.seq.stack_config_fields == ["base_url"]' \
+  "$workdir/custom-declare.json" > /dev/null \
+  || { echo "ASSERTION FAILED: declaration not stored" >&2; cat "$workdir/custom-declare.json" >&2; exit 1; }
+
+step "an undeclared field of a custom stack is rejected and writes nothing (#228)"
+mcp_call odd_config_set \
+  'config={"stack_config":{"seq":{"api_key_name":"SEQ_API_KEY"}}}' > "$workdir/custom-bad-field.json" || true
+grep -q "accepts only" "$workdir/custom-bad-field.json" \
+  || { echo "ASSERTION FAILED: undeclared custom field was not rejected" >&2; cat "$workdir/custom-bad-field.json" >&2; exit 1; }
+mcp_call odd_config_get > "$workdir/after-custom-bad-field.json"
+jq -e '.content[0].text | contains("api_key_name") | not' "$workdir/after-custom-bad-field.json" > /dev/null \
+  || { echo "ASSERTION FAILED: rejected partial was written anyway" >&2; cat "$workdir/after-custom-bad-field.json" >&2; exit 1; }
+
+step "a built-in name cannot be redeclared (#228)"
+mcp_call odd_config_set \
+  'config={"custom":{"grafana":{"stack_config_fields":[]}}}' > "$workdir/custom-builtin.json" || true
+grep -q "built-in" "$workdir/custom-builtin.json" \
+  || { echo "ASSERTION FAILED: redeclaring a built-in was not rejected" >&2; cat "$workdir/custom-builtin.json" >&2; exit 1; }
+
+step "the declaration and its values survive a switch to a built-in and back (#228)"
+mcp_call odd_config_set 'config={"stack":"local"}' > "$workdir/custom-away.json"
+assert_result_contains "$workdir/custom-away.json" '"stack": "local"'
+assert_result_contains "$workdir/custom-away.json" '"base_url": "http://seq.example.test:5341"'
+mcp_call odd_config_set 'config={"stack":"seq"}' > "$workdir/custom-back.json"
+assert_result_contains "$workdir/custom-back.json" '"stack": "seq"'
+
+step "removing the declaration of the configured stack is refused (#228)"
+mcp_call odd_config_set 'config={"custom":{"seq":null}}' > "$workdir/custom-remove-configured.json" || true
+grep -q "configured stack" "$workdir/custom-remove-configured.json" \
+  || { echo "ASSERTION FAILED: removing the configured stack's declaration was not refused" >&2; cat "$workdir/custom-remove-configured.json" >&2; exit 1; }
+mcp_call odd_config_get > "$workdir/after-custom-remove-configured.json"
+assert_result_contains "$workdir/after-custom-remove-configured.json" '"stack": "seq"'
+
+step "switching away and removing the declaration in one call (#228)"
+mcp_call odd_config_set 'config={"stack":"local","custom":{"seq":null},"stack_config":{"seq":null}}' \
+  > "$workdir/custom-remove.json"
+assert_result_contains "$workdir/custom-remove.json" '"stack": "local"'
+assert_result_contains "$workdir/custom-remove.json" '"custom": {}'
+jq -e '.content[0].text | contains("seq") | not' "$workdir/custom-remove.json" > /dev/null \
+  || { echo "ASSERTION FAILED: removed custom stack still present" >&2; cat "$workdir/custom-remove.json" >&2; exit 1; }
+
 step "hand-edited invalid values degrade to defaults, listed in invalid_ignored"
 mkdir -p "$(dirname "$CONFIG_FILE")"
 printf '%s' \
-  '{"stack":"narnia","local":{"grafana_port":"high"},"stack_config":{"notastack":{},"azure-monitor":{"tenant":"11111111-1111-1111-1111-111111111111"}}}' \
+  '{"stack":"narnia","local":{"grafana_port":"high"},"custom":{"seq":{"stack_config_fields":"base_url"}},"stack_config":{"notastack":{},"azure-monitor":{"tenant":"11111111-1111-1111-1111-111111111111"}}}' \
   > "$CONFIG_FILE"
 mcp_call odd_config_get > "$workdir/tolerant.json"
 assert_result_contains "$workdir/tolerant.json" '"stack": "local"'
@@ -151,7 +207,8 @@ assert_result_contains "$workdir/tolerant.json" '"grafana_port": 3000'
 jq -e '.content[0].text | fromjson | .stack_config["azure-monitor"] | has("tenant") | not' \
   "$workdir/tolerant.json" > /dev/null \
   || { echo "ASSERTION FAILED: undocumented key tenant was surfaced as effective config" >&2; cat "$workdir/tolerant.json" >&2; exit 1; }
-for flagged in "stack" "local.grafana_port" "stack_config.notastack" "stack_config.azure-monitor.tenant"; do
+assert_result_contains "$workdir/tolerant.json" '"custom": {}'
+for flagged in "custom.seq" "stack" "local.grafana_port" "stack_config.notastack" "stack_config.azure-monitor.tenant"; do
   jq -e --arg name "$flagged" \
     '.content[0].text | fromjson | .invalid_ignored | index($name)' \
     "$workdir/tolerant.json" > /dev/null \
