@@ -100,8 +100,9 @@ dotnet tool install --global seqcli
 /odd-config switch to seq
 ```
 
-The connection proof shows `"status":"healthy"` from `seqcli node
-health`, and a `/odd-observe` against the sample data Seq ships
-(`seqcli sample ingest`, stopped after a minute) exercises the file's
-logs and traces commands. `docker compose down -v` in that directory
+The connection proof shows `"status":"healthy"` from
+`seqcli node health --json`, and a `/odd-observe` against the sample
+data Seq ships (`seqcli sample ingest`, stopped after a minute)
+exercises the file's logs and traces commands.
+`docker compose -f docker-compose/seq/docker-compose.yml down -v`
 removes the instance and its data.
