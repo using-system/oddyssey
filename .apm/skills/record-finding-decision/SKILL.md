@@ -84,6 +84,16 @@ One row per decision:
 - **Never write secrets into a rationale** — no tokens, credentials,
   cookies, or connection strings. The file is made to be committed and
   shared; refer to access material by variable or secret name only.
+- **Never commit on the default branch**: before committing, compare
+  `git branch --show-current` with the repository's default branch
+  (`git symbolic-ref --short refs/remotes/origin/HEAD` stripped of its
+  `origin/` prefix; if unset, `main` — or `master` when that is the
+  checked-out branch). Only when on the default branch, create and
+  switch to a work branch named
+  `docs/odd-finding-decision-<finding ID>-<verdict>` (switching to it
+  if it already exists) and commit there — and say so in the reply. If
+  switching is impossible, do not commit: state the path and leave the
+  commit to the caller.
 - **After writing, commit the ledger file on its own**:
   `git add .odd/decisions.md` then
   `git commit -m "docs(odd): finding decision <finding ID> <verdict>"` —
@@ -91,4 +101,6 @@ One row per decision:
   otherwise. If committing is impossible (not a git repository, or the
   caller said not to), state the path and leave the commit to the
   caller.
-- Either way, state the ledger path and the appended row in the reply.
+- Either way, state the ledger path, the appended row and the branch
+  that carries the commit (or `not committed` with the reason) in the
+  reply.
