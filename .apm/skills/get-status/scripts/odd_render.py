@@ -948,6 +948,70 @@ def inventory_lines(facts: dict) -> list[str]:
     ]
 
 
+def invariant_section(facts: dict) -> list[str]:
+    """The memory invariant: never a failure - the store is append-only."""
+    invariant = facts.get("invariant") or {
+        "checked": 0,
+        "violations": [],
+        "legacy": [],
+    }
+    ledger = facts["ledger"]
+    skipped = [r for r in ledger["rows"] if r["status"] == "skipped"]
+    checked = invariant["checked"]
+    legacy = invariant.get("legacy", [])
+    clean = checked - len(invariant["violations"])
+    out = [
+        "## Memory invariant",
+        "",
+        (
+            f"- Reports: {clean} of {checked} carry the contract's frontmatter"
+            + (
+                ""
+                if invariant["violations"]
+                else " - every stored report carries the contract's frontmatter"
+            )
+            + (
+                f"; {len(legacy)} predate the `depth` field and read as full"
+                f" ({', '.join(Path(p).name for p in legacy[:3])}"
+                + (f", +{len(legacy) - 3} more" if len(legacy) > 3 else "")
+                + ")"
+                if legacy
+                else ""
+            )
+        ),
+        (
+            f"- Decisions: {len(skipped)} row(s) skipped"
+            + (
+                ""
+                if skipped
+                else (
+                    " - every decision names a stored report and a finding it carries"
+                    if ledger["present"]
+                    else " (no ledger yet)"
+                )
+            )
+        ),
+        "",
+    ]
+    rows: list[list[str]] = []
+    for violation in invariant["violations"]:
+        for problem in violation["problems"]:
+            rows.append([violation["path"], problem])
+    for row in skipped:
+        rows.append([f"decisions.md line {row['line']}", row["reason"]])
+    if rows:
+        out += [
+            md_table(["File", "Violation"], rows),
+            "",
+            (
+                "The store is append-only: a report is never edited to repair it - "
+                "a new run supersedes it, and a decision row is appended, never rewritten."
+            ),
+            "",
+        ]
+    return out
+
+
 def state_rows(facts: dict) -> list[list[str]]:
     by_target = verifications_of(facts)
     rows = []
@@ -1010,6 +1074,7 @@ def render(facts: dict, today: str | date | None = None) -> str:
 
     judgment: list[str] = []
     out += inventory_lines(facts)
+    out += invariant_section(facts)
 
     for report in facts["reports"]:
         if "unreadable" in report:

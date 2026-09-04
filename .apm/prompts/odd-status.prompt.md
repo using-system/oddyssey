@@ -1,5 +1,5 @@
 ---
-description: Where is the ODD loop? Read the repository's .odd/ history and render per-service loop state, the findings ledger, trends, open telemetry gaps, and the next recommended action - reports read-only, no backend queries, no report written; can record finding decisions (wontfix) into .odd/decisions.md
+description: Where is the ODD loop? Read the repository's .odd/ history and render the memory invariant, per-service loop state, the findings ledger, trends, open telemetry gaps, and the next recommended action - reports read-only, no backend queries, no report written; can record finding decisions (wontfix) into .odd/decisions.md
 ---
 
 Answer "where is the loop?" for this repository, from its committed

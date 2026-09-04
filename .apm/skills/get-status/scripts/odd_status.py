@@ -898,6 +898,135 @@ def load_ledger(root: Path, reports: list[dict]) -> dict:
     return {"present": True, "rows": rows, "effective": effective}
 
 
+# --- the memory invariant (issue #307) ---------------------------------------
+
+REPORT_NAME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})-\d{4}-([a-z0-9][a-z0-9-]*)\.md$")
+WINDOW_RE = re.compile(
+    r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)$"
+)
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+OBSERVATION_MODES_ALL = ("drive", "observe", "post-hoc", "verify", "re-measure")
+DEPTHS = ("quick", "full")
+
+
+def check_report(report: dict, stored_names: set[str], root: Path) -> list[str]:
+    """What the report lacks against the memory contract's frontmatter.
+
+    Every stored report is checked, filtered or not: the store is
+    append-only, so a violation is never repaired in place - a new run
+    supersedes the file - and the status is where a reader learns it.
+    """
+    problems: list[str] = []
+    name = Path(report["path"]).name
+    match = REPORT_NAME_RE.match(name)
+    if not match:
+        problems.append("filename is not YYYY-MM-DD-HHmm-<run_name>.md")
+    if "unreadable" in report:
+        problems.append(f"unreadable: {report['unreadable']}")
+        return problems
+    fm = report["frontmatter"]
+    for error in report.get("frontmatter_errors", []):
+        problems.append(f"frontmatter: {error}")
+    if not fm:
+        problems.append("frontmatter absent")
+        return problems
+
+    def scalar(key: str) -> str | None:
+        value = fm.get(key)
+        if value is None or value == "" or value == []:
+            problems.append(f"{key} absent")
+            return None
+        return str(value)
+
+    kind = report["kind"]
+    required = (
+        ("project", "stack", "run_name", "date")
+        if kind == "instrumentation"
+        else ("services", "stack", "environment", "mode", "window", "run_name", "date")
+    )
+    values = {key: scalar(key) for key in required}
+    if kind == "observation":
+        if fm.get("services") is not None and not as_list(fm.get("services")):
+            problems.append("services empty")
+        mode = values.get("mode")
+        if mode is not None and mode not in OBSERVATION_MODES_ALL:
+            problems.append(
+                f"mode {mode!r} is not one of {list(OBSERVATION_MODES_ALL)}"
+            )
+        depth = fm.get("depth")
+        if depth is None:
+            problems.append("depth absent (predates the field: reads as full)")
+        elif str(depth) not in DEPTHS:
+            problems.append(f"depth {str(depth)!r} is not one of {list(DEPTHS)}")
+        window = values.get("window")
+        if window is not None:
+            wm = WINDOW_RE.match(window)
+            if not wm:
+                problems.append(
+                    "window is not <start>/<end> in UTC (YYYY-MM-DDTHH:MM:SSZ)"
+                )
+            elif wm.group(2) < wm.group(1):
+                problems.append("window end precedes its start")
+        verifies = fm.get("verifies")
+        if mode in REPLAY_MODES and not verifies:
+            problems.append(f"verifies absent on a {mode} report")
+        elif verifies:
+            # A bare filename names a sibling observation report; an
+            # instrumentation baseline is named by its repo-relative path
+            # (the report reference: the value's shape says the directory).
+            target = str(verifies)
+            exists = (
+                (root / target).is_file() if "/" in target else target in stored_names
+            )
+            if not exists:
+                problems.append(f"verifies names no stored report: {target}")
+    date = values.get("date")
+    if date is not None and not DATE_RE.match(date):
+        problems.append(f"date {date!r} is not YYYY-MM-DD")
+    if match:
+        if date is not None and DATE_RE.match(date) and date != match.group(1):
+            problems.append(f"date {date} differs from the filename's {match.group(1)}")
+        run_name = values.get("run_name")
+        if run_name is not None:
+            # A replay keeps the replayed report's run_name and prefixes
+            # its filename (the report reference's filename rules).
+            mode = fm.get("mode") if kind == "observation" else None
+            prefix = {"verify": "verify-", "re-measure": "remeasure-"}.get(
+                str(mode), ""
+            )
+            expected = f"{prefix}{run_name}"
+            if match.group(2) != expected:
+                with_prefix = f" with the {prefix} prefix" if prefix else ""
+                problems.append(
+                    f"filename slug {match.group(2)!r} is not {expected!r}"
+                    f" (run_name {run_name!r}{with_prefix})"
+                )
+    return problems
+
+
+LEGACY_PREFIX = "depth absent (predates"
+
+
+def check_invariant(root: Path, reports: list[dict]) -> dict:
+    """Every stored report checked; a report whose only problem is a field
+    it predates is listed as legacy, not as a violation - the contract reads
+    it as full, and nothing can ever change an append-only file."""
+    stored = {Path(r["path"]).name for r in reports if r["kind"] == "observation"}
+    violations = []
+    legacy = []
+    for report in reports:
+        problems = check_report(report, stored, root)
+        if not problems:
+            continue
+        if all(p.startswith(LEGACY_PREFIX) for p in problems):
+            legacy.append(report["path"])
+            continue
+        violations.append(
+            {"path": report["path"], "kind": report["kind"], "problems": problems}
+        )
+    return {"checked": len(reports), "violations": violations, "legacy": legacy}
+
+
 # --- the fact sheet -----------------------------------------------------------
 
 
@@ -955,6 +1084,7 @@ def build_facts(
     }
     matched = [r for r in reports if matches(r, services, stack, environment)]
     ledger = load_ledger(root, reports)
+    invariant = check_invariant(root, reports)
     for report in readable:
         report.pop("_section3_prose", None)
     return {
@@ -967,6 +1097,7 @@ def build_facts(
         "matched": len(matched),
         "reports": matched,
         "ledger": ledger,
+        "invariant": invariant,
     }
 
 

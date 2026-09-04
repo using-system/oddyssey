@@ -1249,3 +1249,65 @@ def test_a_runtime_entry_differing_only_in_packaging_files_is_deferred(
         today="2026-08-16",
     )
     assert rec["action"] == "verification due"
+
+
+# --- the memory invariant section (issue #307) --------------------------------
+
+
+def test_memory_invariant_section_says_clean_when_the_store_conforms(
+    repo, odd_status, odd_render
+):
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md", observation(run_name="a")
+    )
+    repo.commit("docs(odd): report")
+    text = rendered(repo, odd_status, odd_render)
+    assert "## Memory invariant" in text
+    section = text.split("## Memory invariant")[1].split("## ")[0]
+    assert "1 of 1" in section
+    assert "every stored report carries the contract's frontmatter" in section
+
+
+def test_memory_invariant_section_lists_violations_and_skipped_ledger_rows(
+    repo, odd_status, odd_render
+):
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a").replace("mode: drive", "mode: drove"),
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-11-1000-b.md",
+        observation(run_name="b", date="2026-08-11").replace("depth: full\n", ""),
+    )
+    repo.write(
+        ".odd/decisions.md",
+        LEDGER_HEAD
+        + "| 2026-08-13 | 2026-08-10-1000-a.md / F9 | wontfix | no such finding |\n",
+    )
+    repo.commit("docs(odd): report and decision")
+    text = rendered(repo, odd_status, odd_render)
+    section = text.split("## Memory invariant")[1].split("## ")[0]
+    assert "1 of 2" in section
+    assert (
+        "1 predate the `depth` field and read as full (2026-08-11-1000-b.md)" in section
+    )
+    assert "2026-08-10-1000-a.md" in section and "mode 'drove'" in section
+    assert "2026-08-11-1000-b.md | depth absent" not in section
+    assert "line 7" in section and "carries no finding F9" in section
+    assert "append-only" in section
+
+
+def test_memory_invariant_note_caps_the_legacy_names(repo, odd_status, odd_render):
+    for day in range(10, 15):
+        repo.write(
+            f".odd/observe-run-reports/2026-08-{day}-1000-r{day}.md",
+            observation(run_name=f"r{day}", date=f"2026-08-{day}").replace(
+                "depth: full\n", ""
+            ),
+        )
+    repo.commit("docs(odd): reports")
+    text = rendered(repo, odd_status, odd_render)
+    section = text.split("## Memory invariant")[1].split("## ")[0]
+    assert "5 predate the `depth` field" in section
+    assert "2026-08-12-1000-r12.md, +2 more)" in section
+    assert "r13.md" not in section
