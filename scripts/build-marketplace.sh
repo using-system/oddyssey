@@ -68,9 +68,13 @@ EOF
 # paths, and refuse a bundle that names a script it does not carry.
 if [ -f marketplace/oddyssey/hooks.json ]; then
   mkdir -p marketplace/oddyssey/hooks
-  sed 's#"command": "\(.*\)\./scripts/#"command": "\1\\"${CLAUDE_PLUGIN_ROOT}\\"/hooks/scripts/#' \
+  sed 's#\("command":[[:space:]]*"[^"]*\)\./scripts/#\1\\"${CLAUDE_PLUGIN_ROOT}\\"/hooks/scripts/#g' \
     marketplace/oddyssey/hooks.json > marketplace/oddyssey/hooks/hooks.json
   rm marketplace/oddyssey/hooks.json
+  if grep -q '\./scripts/' marketplace/oddyssey/hooks/hooks.json; then
+    echo "hooks/hooks.json still names a relative script path" >&2
+    exit 1
+  fi
   if [ -d .apm/hooks/scripts ]; then
     cp -R .apm/hooks/scripts marketplace/oddyssey/hooks/scripts
   fi

@@ -137,23 +137,29 @@ def test_a_payload_without_a_command_reads_as_none(guard):
     ],
 )
 def test_detects_a_commit(guard, command):
-    assert guard.git_operations(command) == [("commit", None)]
+    assert guard.git_operations(command) == [("commit", (), None)]
 
 
 @pytest.mark.parametrize(
     "command, expected",
     [
-        ("git push", [("push", None)]),
-        ("git push origin main", [("push", "main")]),
-        ("git push -u origin feature", [("push", "feature")]),
-        ("git push origin HEAD", [("push", "HEAD")]),
-        ("git push origin feature:main", [("push", "main")]),
-        ("git push --force-with-lease origin main", [("push", "main")]),
-        ("git push origin --delete old", [("push", "old")]),
+        ("git push", ()),
+        ("git push origin main", ("main",)),
+        ("git push -u origin feature", ("feature",)),
+        ("git push origin HEAD", ("HEAD",)),
+        ("git push origin feature:main", ("main",)),
+        ("git push --force-with-lease origin main", ("main",)),
+        ("git push origin --delete old", ("old",)),
+        ("git push origin :main", ("main",)),
+        ("git push origin +main", ("main",)),
+        ("git push origin main -o ci.skip", ("main",)),
+        ("git push origin main --push-option=ci.skip", ("main",)),
+        ("git push -o ci.skip origin main dev", ("main", "dev")),
+        ("git push origin refs/heads/main", ("main",)),
     ],
 )
-def test_detects_a_push_and_its_target(guard, command, expected):
-    assert guard.git_operations(command) == expected
+def test_detects_a_push_and_its_targets(guard, command, expected):
+    assert guard.git_operations(command) == [("push", expected, None)]
 
 
 @pytest.mark.parametrize(
@@ -166,16 +172,29 @@ def test_detects_a_push_and_its_target(guard, command, expected):
         "ls",
         "npm test",
         "gh pr create --title 'git commit fix'",
+        'echo "git add x && git commit -m msg"',
+        'printf "%s\\n" "a && git commit -m x" > f',
+        "cat > doc.md <<'EOF'\nrun `git add -A && git commit -m x` then\nEOF",
+        "cat <<EOF > doc.md\ngit commit -m x\nEOF\ngit status",
     ],
 )
 def test_ignores_everything_else(guard, command):
     assert guard.git_operations(command) == []
 
 
-def test_reads_the_repository_from_git_dash_c(guard):
-    assert guard.git_operations("git -C /some/where commit -m x") == [("commit", None)]
-    assert guard.repository_hint("git -C /some/where commit -m x") == "/some/where"
-    assert guard.repository_hint("git commit -m x") is None
+def test_a_command_after_a_heredoc_is_still_read(guard):
+    command = "cat <<'EOF' > f\ngit commit -m inside\nEOF\ngit commit -m real"
+    assert guard.git_operations(command) == [("commit", (), None)]
+
+
+def test_reads_the_repository_from_git_dash_c_per_invocation(guard):
+    assert guard.git_operations("git -C /some/where commit -m x") == [
+        ("commit", (), "/some/where")
+    ]
+    assert guard.git_operations("git -C/other push origin main && git commit") == [
+        ("push", ("main",), "/other"),
+        ("commit", (), None),
+    ]
 
 
 # --- the default branch -------------------------------------------------
@@ -263,6 +282,25 @@ def test_honors_git_dash_c(tmp_path):
     elsewhere.mkdir()
     payload = claude_payload(f"git -C {repo.root} commit -m x", elsewhere)
     assert run_hook(payload, cwd=elsewhere).returncode == 2
+
+
+def test_a_foreign_dash_c_skips_only_its_own_invocation(tmp_path):
+    repo = Repo(tmp_path)
+    command = "git -C /nonexistent/elsewhere commit -m x && git commit -m y"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 2
+    only_foreign = "git -C /nonexistent/elsewhere commit -m x"
+    assert run_hook(claude_payload(only_foreign, repo.root)).returncode == 0
+
+
+def test_a_quoted_or_heredoc_commit_line_passes_on_the_default_branch(tmp_path):
+    repo = Repo(tmp_path)
+    for command in (
+        'echo "git add x && git commit -m msg"',
+        "cat > doc.md <<'EOF'\ngit commit -m \"docs(odd): report\"\nEOF",
+        'printf "%s\\n" "a && git commit -m x" > f',
+    ):
+        result = run_hook(claude_payload(command, repo.root))
+        assert result.returncode == 0, command
 
 
 def test_blocks_from_the_copilot_and_windsurf_shapes(tmp_path):

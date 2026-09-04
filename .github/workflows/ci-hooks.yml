@@ -67,8 +67,12 @@ jobs:
           git -C "$probe" init -q -b main
           git -C "$probe" -c user.name=ci -c user.email=ci@example.com commit -q --allow-empty -m init
           payload='{"tool_input":{"command":"git commit -m x"},"cwd":"'"$probe"'"}'
-          if echo "$payload" | python3 .claude/hooks/oddyssey/scripts/guard_default_branch.py PreToolUse; then
-            echo "the guard let a commit on the default branch through" >&2; exit 1
+          set +e
+          echo "$payload" | python3 .claude/hooks/oddyssey/scripts/guard_default_branch.py PreToolUse
+          rc=$?
+          set -e
+          if [ "$rc" -ne 2 ]; then
+            echo "the guard answered $rc on the default branch, expected the block code 2" >&2; exit 1
           fi
           git -C "$probe" checkout -q -b docs/probe
           echo "$payload" | python3 .claude/hooks/oddyssey/scripts/guard_default_branch.py PreToolUse

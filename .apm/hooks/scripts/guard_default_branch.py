@@ -12,7 +12,10 @@ understands. Everything else exits 0.
 It fails open: a payload it cannot parse, a shape it does not know, a
 directory that is not a repository, a git that does not answer - none
 of them block anything. A hook that broke a host on an unforeseen
-payload would cost more than the rule it enforces.
+payload would cost more than the rule it enforces. It reads the shell
+line as a shell would - quoted text and heredoc bodies are data, not
+commands - and does not look inside a command an interpreter wraps
+(``sh -c "..."``, ``eval``).
 
 Standard library only; python3 >= 3.10. Invoked as
 ``python3 guard_default_branch.py PreToolUse`` by the hook entry in
@@ -43,9 +46,11 @@ COMMAND_PATHS = (
 )
 CWD_PATHS = (("cwd",), ("tool_info", "cwd"))
 
-# A shell line is several commands: split on the operators that chain
-# them so each git invocation is read on its own.
-SEGMENT_RE = re.compile(r"\s*(?:&&|\|\||;|\||\n)\s*")
+# A heredoc opener: the body that follows, up to the delimiter line, is
+# data the shell never runs.
+HEREDOC_RE = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
+# Everything shlex returns as pure punctuation ends a command.
+PUNCTUATION = set("();<>|&")
 
 # git's global options that consume the next token.
 GIT_GLOBAL_WITH_VALUE = {
@@ -57,6 +62,8 @@ GIT_GLOBAL_WITH_VALUE = {
     "--exec-path",
     "--config-env",
 }
+# git push options that consume the next token.
+PUSH_WITH_VALUE = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
 
 
 def _dig(payload: object, path: tuple[str, ...]) -> object:
@@ -86,19 +93,45 @@ def payload_cwd(payload: object) -> str | None:
     return None
 
 
-def _tokens(segment: str) -> list[str]:
+def _strip_heredocs(command: str) -> str:
+    """Drop every heredoc body: the shell feeds it to a command, never runs it."""
+    lines = command.split("\n")
+    kept: list[str] = []
+    pending: list[str] = []
+    for line in lines:
+        if pending:
+            if line.strip() == pending[0]:
+                pending.pop(0)
+            continue
+        kept.append(line)
+        pending.extend(match.group(2) for match in HEREDOC_RE.finditer(line))
+    return "\n".join(kept)
+
+
+def _segments(command: str) -> list[list[str]]:
+    """Split the shell line into commands, the way a shell reads it."""
+    text = _strip_heredocs(command).replace("\n", " ; ")
+    lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
     try:
-        return shlex.split(segment, posix=True)
+        tokens = list(lexer)
     except ValueError:
-        return segment.split()
+        tokens = text.split()
+    segments: list[list[str]] = [[]]
+    for token in tokens:
+        if token and set(token) <= PUNCTUATION:
+            if segments[-1]:
+                segments.append([])
+            continue
+        segments[-1].append(token)
+    return [segment for segment in segments if segment]
 
 
 def _git_invocations(command: str) -> list[tuple[str, list[str], str | None]]:
     """Yield (subcommand, arguments, -C path) for each git call in the line."""
     found = []
-    for segment in SEGMENT_RE.split(command):
-        tokens = _tokens(segment)
-        if not tokens or Path(tokens[0]).name != "git":
+    for tokens in _segments(command):
+        if Path(tokens[0]).name != "git":
             continue
         repo_hint = None
         index = 1
@@ -119,33 +152,38 @@ def _git_invocations(command: str) -> list[tuple[str, list[str], str | None]]:
     return found
 
 
-def _push_target(arguments: list[str]) -> str | None:
-    """Return the branch a push writes to, or None for 'the current branch'."""
-    positional = [token for token in arguments if not token.startswith("-")]
-    if len(positional) < 2:
-        return None
-    refspec = positional[-1]
-    destination = refspec.split(":", 1)[1] if ":" in refspec else refspec
-    return destination.removeprefix("refs/heads/") or None
+def _push_targets(arguments: list[str]) -> tuple[str, ...]:
+    """Return the branches a push writes to; empty means 'the current branch'."""
+    positional: list[str] = []
+    skip = False
+    for token in arguments:
+        if skip:
+            skip = False
+            continue
+        if token in PUSH_WITH_VALUE:
+            skip = True
+            continue
+        if token.startswith("-"):
+            continue
+        positional.append(token)
+    targets = []
+    for refspec in positional[1:]:
+        destination = refspec.split(":", 1)[1] if ":" in refspec else refspec
+        destination = destination.lstrip("+").removeprefix("refs/heads/")
+        if destination:
+            targets.append(destination)
+    return tuple(targets)
 
 
-def git_operations(command: str) -> list[tuple[str, str | None]]:
-    """Return the commits and pushes the command performs, in order."""
-    operations: list[tuple[str, str | None]] = []
-    for subcommand, arguments, _hint in _git_invocations(command):
+def git_operations(command: str) -> list[tuple[str, tuple[str, ...], str | None]]:
+    """Return (kind, push targets, -C path) for each commit or push in the line."""
+    operations: list[tuple[str, tuple[str, ...], str | None]] = []
+    for subcommand, arguments, hint in _git_invocations(command):
         if subcommand == "commit":
-            operations.append(("commit", None))
+            operations.append(("commit", (), hint))
         elif subcommand == "push":
-            operations.append(("push", _push_target(arguments)))
+            operations.append(("push", _push_targets(arguments), hint))
     return operations
-
-
-def repository_hint(command: str) -> str | None:
-    """Return the first ``git -C <path>`` the command names, if any."""
-    for _subcommand, _arguments, hint in _git_invocations(command):
-        if hint:
-            return hint
-    return None
 
 
 def _git(repo: Path, *args: str) -> str | None:
@@ -185,24 +223,26 @@ def decide(payload: object, process_cwd: str) -> tuple[int, str]:
     operations = git_operations(command)
     if not operations:
         return PASS, ""
-    base = payload_cwd(payload) or process_cwd
-    hint = repository_hint(command)
-    repo = Path(base) / hint if hint else Path(base)
-    if not repo.is_dir():
-        return PASS, ""
-    current = current_branch(repo)
-    if current is None:
-        return PASS, ""
-    default = default_branch(repo)
-    for operation, target in operations:
-        if operation == "commit" and current == default:
+    base = Path(payload_cwd(payload) or process_cwd)
+    branches: dict[Path, tuple[str | None, str]] = {}
+    for kind, targets, hint in operations:
+        repo = base / hint if hint else base
+        if not repo.is_dir():
+            continue
+        if repo not in branches:
+            current = current_branch(repo)
+            branches[repo] = (current, default_branch(repo) if current else "")
+        current, default = branches[repo]
+        if current is None:
+            continue
+        if kind == "commit" and current == default:
             return BLOCK, (
                 f"odd-guards: never commit on the default branch (`{default}` is "
                 "checked out): create or switch to a work branch first."
             )
-        if operation == "push":
-            aimed_at_default = target == default or (
-                target in (None, "HEAD") and current == default
+        if kind == "push":
+            aimed_at_default = default in targets or (
+                current == default and (not targets or "HEAD" in targets)
             )
             if aimed_at_default:
                 return BLOCK, (
