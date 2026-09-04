@@ -22,19 +22,19 @@ The report to render, in one of two forms:
   and the synthesis block — the frontmatter, section 1's
   recalled-baseline line, section 2's delta lines, check rulings or
   presence rulings, section 3's ranked table with the baseline
-  anomalies' fates, the
-  telemetry gaps with the baseline gaps' fates, and the open
-  decisions, quoted from the file (the persistence skill's `## Return
-  value` owns the list). Render from it; never re-read the file it
-  just wrote — the block carries every input the synthesis below
-  reads, and a value it lacks is absent from the synthesis (the way
-  `show-benchmark` renders from `create-update-benchmark`'s return).
+  anomalies' fates, the telemetry gaps with the baseline gaps' fates,
+  and the open decisions, quoted from the file (the persistence
+  skill's `## Return value` owns the list). Render from it; never
+  re-read the file it just wrote — the block carries every input the
+  synthesis below reads, and a value it lacks is absent from the
+  synthesis (the way `show-benchmark` renders from
+  `create-update-benchmark`'s return).
 - **A stored report the caller names** — no return value in hand:
   read from disk the same set — that file's frontmatter, section 1's
   recalled-baseline line, section 2's delta lines, check rulings or
   presence rulings, section 3's table, sections 5 and 6 — never the
-  whole file, and its
-  carrying commit from git (`git log -1 --format=%h -- <path>`).
+  whole file — and its carrying commit from git
+  (`git log -1 --format=%h -- <path>`).
 
 Either way the synthesis renders the stored content, never the
 conversation's memory of the mission.
