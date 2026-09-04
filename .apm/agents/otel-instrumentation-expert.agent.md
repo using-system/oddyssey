@@ -190,7 +190,8 @@ return it along with its stored path:
    a literal grep for it matches nothing on a broken exporter too) —
    and says the replay reads that id from the configuration file at
    replay time and proves the grep can match (the component's startup
-   line, a known error line) before "zero error lines" closes anything. Plan the
+   line, a known error line) before "zero error lines" closes anything.
+   Plan the
    per-run tag in section 3's configuration block so the verify can
    set it. **A check never projects a credential.** Its query and its
    expected outcome name no connection string, instrumentation or API

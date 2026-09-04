@@ -483,7 +483,8 @@ Then go from aggregates to explanations:
   match nothing, healthy or broken — observed: `azuremonitor` matched
   nothing where the exporter ran as `azure_monitor/app-insights`).
   Widening the grep to the configured id is part of the ruling, and
-  section 1 says the baseline named the component by another name. When the protocol names no attribution evidence (written
+  section 1 says the baseline named the component by another name.
+  When the protocol names no attribution evidence (written
   before this rule), the run supplies its own: drive the service with
   the run slug and the profiler tag (`run-scenario`'s `run-identity.md`) and rule
   on that identity; only a signal you cannot tie to a process you
