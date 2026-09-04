@@ -79,7 +79,7 @@ this order:
    standing permission. A refusal ends the mission before anything is
    installed or checked: never downgrade the replay to `observe` on
    your own - that changes the protocol.
-3. **The CLI.** Run the `check-backend-configuration` skill against the
+3. **The CLI.** Run the `backend-configuration` skill's `## Check` against the
    report's stack: show the CLI's configuration, stop where the skill
    stops, in its own words — the binary **not installed**: it offers
    the guided install and resumes once the binary exists, stopping only

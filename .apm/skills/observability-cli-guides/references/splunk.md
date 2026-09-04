@@ -176,7 +176,7 @@ the password, or any authentication value with the intent of storing it
 own inputs.
 
 Asking which instance a run should target is a **mission** question, and
-`check-backend-configuration` displays whatever the mission supplies.
+`backend-configuration`'s `## Check` displays whatever the mission supplies.
 Keep it there.
 
 Leave `stack_config.splunk` alone.

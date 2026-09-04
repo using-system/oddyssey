@@ -32,7 +32,7 @@ if a script or command predates v2.
 The criterion for installing a CLI rather than offering it: no
 account, no credentials, no tenant behind it. The backend CLIs (`aws`,
 `az`, `gcx` against a remote instance, ...) are offered and never
-installed silently (`update-backend-configuration`'s rule), because
+installed silently (`backend-configuration`'s rule), because
 each is tied to an account, credentials, and a tenant the user must
 set up regardless - the install is one step of a setup only they can
 finish. k6 has none of that: no account, no login, no configuration

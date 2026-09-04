@@ -1,5 +1,5 @@
 ---
-description: "Display the current oddyssey backend configuration - configured stack, targeted instance, connection proof - then offer to change it: pick a backend from the full list and route the switch to the update-backend-configuration skill"
+description: "Display the current oddyssey backend configuration - configured stack, targeted instance, connection proof - then offer to change it: pick a backend from the full list and route the switch to the backend-configuration skill's Switch"
 ---
 
 Answer "where do my missions point?" - and let the user change the
@@ -16,7 +16,7 @@ picks a change.
 
 When the arguments already name a target backend or a persist or clear
 request, skip the display-first flow and route straight to the
-`update-backend-configuration` skill - it owns those entries: a named
+`backend-configuration` skill's `## Switch` - it owns those entries: a named
 backend runs the full switch, a bare targeting value enters at its
 `stack_config` step and stands alone, and a clear is the same step's
 null write. The verification it ends with produces the display anyway,
@@ -31,7 +31,7 @@ result embeds the reset outcome).
 
 With no arguments, in this order:
 
-1. **Display.** Run the `check-backend-configuration` skill for the
+1. **Display.** Run the `backend-configuration` skill's `## Check` for the
    configured stack: the effective configuration in that backend's own
    display shape (the `## Configuration display` section of its
    `observability-cli-guides` reference), which instance, tenant,
@@ -46,10 +46,10 @@ With no arguments, in this order:
    `references/builtin-stacks.md` - every `STACKS` value with its
    one-line "where" (local or remote) - with the current one marked.
    Anything the user picks goes
-   to the `update-backend-configuration` skill, which owns the switch
+   to the `backend-configuration` skill's `## Switch`, which owns the switch
    end to end: CLI presence preflight with a guided install offer, the
    persisted switch, the per-stack `stack_config` values, and the
-   re-verification through `check-backend-configuration`.
+   re-verification through its `## Check`.
 
 Displaying never writes configuration - not the stack, not a
 `stack_config` value, not a port. A user who only wanted to look ends

@@ -180,7 +180,7 @@ One thing is worth saying out loud after the switch, because it fails
 quietly: a session pointed at the wrong site returns **empty results
 rather than an error**. So confirm with the user that the session's site
 is the region their data lives in, and let
-`check-backend-configuration` display it. That is a confirmation, not a
+`backend-configuration`'s `## Check` display it. That is a confirmation, not a
 value to store.
 
 Leave `stack_config.datadog` alone.
