@@ -96,6 +96,16 @@ Verified live (`aws-cli/2.36.34`, 2026-08; last three against
 | Traces (service map) | `aws xray get-service-graph --start-time <epoch-s> --end-time <epoch-s>` | [get-service-graph](https://docs.aws.amazon.com/cli/latest/reference/xray/get-service-graph.html) | The node/edge graph backing the X-Ray console's Service Map — use for a topology view rather than individual trace inspection. |
 | Profiles | Not a CloudWatch signal — profiling lives in the separate Amazon CodeGuru Profiler service: `aws codeguruprofiler list-profiling-groups --include-description` then `aws codeguruprofiler get-profile --profiling-group-name <name> --period P1D --accept application/json <outfile>` | [codeguruprofiler CLI reference](https://docs.aws.amazon.com/cli/latest/reference/codeguruprofiler/index.html), [get-profile](https://docs.aws.amazon.com/cli/latest/reference/codeguruprofiler/get-profile.html), [list-profiling-groups](https://docs.aws.amazon.com/cli/latest/reference/codeguruprofiler/list-profiling-groups.html), [What is CodeGuru Profiler](https://docs.aws.amazon.com/codeguru/latest/profiler-ug/what-is-codeguru-profiler.html) | `get-profile` writes the aggregated profile to a positional `<outfile>`; pick the window with 1 or 2 of `--start-time`/`--end-time`/`--period` (ISO 8601, e.g. `P1DT1H1M1S`), max range **7 days**. `--accept` defaults to `application/x-amzn-ion` — pass `application/json` for a readable profile. `--max-depth` (1–10000) caps stack depth. Requires the CodeGuru Profiler agent in the application and a profiling group; supported runtimes are JVM languages and Python 3.6+. No `aws cloudwatch`/`aws logs`/`aws xray` command returns profiles. |
 
+`aws logs`, `aws cloudwatch` and `aws xray` read commands are **safe to
+run concurrently against one profile**: backgrounded in one shell
+call, they share the SSO credential cache without contention — a
+`describe-log-groups`, two `filter-log-events`, a `list-metrics`, a
+`get-trace-summaries` and a `get-service-graph` all exited 0 with
+their data in 11.0 s against 13.0 s serial, the slowest call
+(`get-trace-summaries` over six hours, ~40 K summaries) bounding both
+(verified 2026-09-04, aws-cli 2.36.37, an account carrying real logs,
+metrics and traces).
+
 ## Planning notes
 
 - A trace/span in X-Ray is a **segment** (one service's work in the request)
