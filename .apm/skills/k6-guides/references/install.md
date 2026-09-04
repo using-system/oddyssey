@@ -88,7 +88,7 @@ a subagent.
 **Both sides.** `k6-benchmark-expert` needs it to **validate** what it
 writes - `k6 inspect` and the one-iteration smoke (running-tests.md,
 "Validating without running") - without ever running the benchmark;
-`run-scenario`'s stored-benchmark step (its section 6, reached from
+`run-scenario`'s stored-benchmark step (its `benchmark-replay.md` reference, reached from
 `/odd-observe` or `/odd-verify` in `drive` mode with a `benchmark`, or
 entered directly) needs it to **run** one. The `/odd-instrument-bench`, `/odd-observe`,
 and `/odd-verify` preflights ensure it is present before dispatching

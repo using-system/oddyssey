@@ -78,7 +78,7 @@ run, and belongs to the execution side (`run-scenario`).
   This is **not** the pass/fail signal `/odd-observe`/`/odd-verify` use
   (that's telemetry-only, per the design) - it is k6's own execution
   evidence, recorded alongside the telemetry-derived numbers by
-  `run-scenario`'s stored-benchmark step (its section 6).
+  `run-scenario`'s stored-benchmark step (its `benchmark-replay.md` reference).
 - Other non-zero codes cover setup/script errors - always read stderr,
   don't infer the failure kind from the code alone (this repo's own
   convention with other CLIs' exit codes, e.g. `az`'s).

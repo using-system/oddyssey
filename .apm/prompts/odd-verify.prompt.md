@@ -233,7 +233,7 @@ Then build the mission block from that report:
   the run supplies its own (the service driven with the run slug and
   the profiler tag) and the report says the protocol predated the
   rule. On a remote drive, the identity is header-borne
-  (`run-scenario` step 0: the run's User-Agent and a `traceparent`
+  (`run-scenario`'s `run-identity.md`: the run's User-Agent and a `traceparent`
   whose trace id carries the protocol's prefix, a part derived from
   **this run's slug**, and the sequence) - a new slug every replay,
   and when the baseline's ids carried no run part, the replay adopts

@@ -178,7 +178,7 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   the profile — and if the workload changes mid-mission, that is a new
   run, not a note.
 - `instance` and `process_restarted` pin which process the numbers
-  belong to (run-scenario step 0). `instance` maps each observed service
+  belong to (`run-scenario`'s `run-identity.md`). `instance` maps each observed service
   to its identity: `service.instance.id` when the SDK emits one, or the
   backend equivalent when it is absent — the process start time, a
   `target_info` label, a container id. `process_restarted`
