@@ -47,7 +47,11 @@ With no arguments, in this order:
    was tolerated but ignored, and only the user can say what they meant.
    Name the effect per field: a `local.*` port fell back to its default,
    a `stack_config` dotted name was simply dropped - nothing defaults it,
-   so it now reads as not persisted.
+   so it now reads as not persisted; a `stack` value no longer accepted
+   (a built-in the package removed, a custom stack whose declaration is
+   gone) fell back to the default stack - say which stack the runs now
+   hit, and offer the switch, or `create a stack <name>` to bring the
+   backend back as a custom one.
 2. **Offer the change**, starting with **"Change backend?"**: list the
    built-in stacks from the `observability-cli-guides` skill's
    `references/builtin-stacks.md` - every `STACKS` value with its

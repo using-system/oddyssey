@@ -31,7 +31,9 @@ came from, runs each command against the backend when it answers from
 your machine, and asks you once for what nothing settled — the
 instance's address, the name of the credential — by name, never a
 value. A name the package ships (`grafana`, `datadog`, ...) is refused
-here: those change through the package.
+here: those change through the package. A backend the package used to
+ship is recreated the same way (`/odd-config create a stack splunk`);
+its former reference is in the package's git history.
 
 What comes out: `.odd/observability-stacks/<name>.md`, committed on a
 work branch (`docs/odd-stack-<name>`) for you to review like code, a
