@@ -236,6 +236,19 @@ lag one that does.
 The editorial rule above applies: keep the guide true, never
 exhaustive.
 
+## Keep the custom backends guide in sync
+
+`docs/guide/custom-backends.md` documents how a user creates, edits,
+shares and lets the runs amend a custom stack file. Update it in the
+same change whenever `/odd-config`'s create, link or complete shapes,
+`odd-memory`'s `observability-stack` reference, the contract check
+script's invocation, or `observe-run`'s learning rule change — the
+guide must never describe a contract that doesn't exist yet, or lag
+one that does. The README's "Every backend" section names the guide
+and the built-in list; keep both true.
+The editorial rule above applies: keep the guide true, never
+exhaustive.
+
 ## Title and label every issue
 
 GitHub issue titles follow the Conventional Commits form

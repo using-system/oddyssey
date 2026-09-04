@@ -11,23 +11,13 @@ each backend's reference under the
 skill; this page restates it, never extends it. Naming a stack in an
 `/odd-observe` mission switches the configuration too.
 
-A backend outside that list is a **custom stack**: one file the team
-writes in the observed repository, `.odd/observability-stacks/<name>.md`,
-with the same sections as a built-in reference and a frontmatter that
-declares the `stack_config` fields it persists — the
-[reference contract](../../.apm/skills/observability-cli-guides/references/CONTRACT.md)
-says what the file carries, the `odd-memory` skill's
-[observability-stack.md](../../.apm/skills/odd-memory/references/observability-stack.md)
-how it lives. The switch checks the file against the contract before
+A backend outside that list is a **custom stack**: one file in your
+repository, `.odd/observability-stacks/<name>.md`, with the same
+sections as a built-in reference, that `/odd-config` writes and your
+runs improve; the switch checks it against the contract before
 persisting anything, and `stack_config` then holds exactly the fields
-the file declares. `/odd-config` writes the file for you — from the
-documentation you point at, your own instructions, or its own web
-research — then offers the switch; a run against the stack then
-corrects the file's query commands as a commit you review, and tells
-you what it could not fix itself. A file may also just link a guide
-another repository carries, so one guide serves a whole team; a
-change then goes to that repository as a pull request, or is shown to
-you to apply there:
+the file declares. Creating, editing, sharing and amending one is
+[custom-backends.md](custom-backends.md).
 
 ```text
 /odd-config create a stack <name> from <docs URL or path>
