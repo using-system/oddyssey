@@ -1,6 +1,6 @@
 ---
 name: observability-cli-guides
-description: The package's knowledge of every observability stack it supports, one reference file per stack - the terminal query surface (how to authenticate and query metrics, traces, logs, and profiles from the CLI), how the stack's configuration is displayed and proven, and what its stack_config persists - plus the list of built-in stacks. Use when observing a run, local or remote, and when check-backend-configuration or update-backend-configuration need anything about a stack - Grafana (gcx), Datadog (Pup CLI), Dynatrace (dtctl and DQL), Azure Monitor (az), AWS CloudWatch and X-Ray (aws), Splunk (splunk CLI and SPL), and the local stack.
+description: The package's knowledge of every observability stack it supports, one reference file per stack - the terminal query surface (how to authenticate and query metrics, traces, logs, and profiles from the CLI), how the stack's configuration is displayed and proven, and what its stack_config persists - plus the list of built-in stacks. Use when observing a run, local or remote, and when backend-configuration's Check or Switch need anything about a stack - Grafana (gcx), Datadog (Pup CLI), Dynatrace (dtctl and DQL), Azure Monitor (az), AWS CloudWatch and X-Ray (aws), Splunk (splunk CLI and SPL), and the local stack.
 ---
 
 # Observability CLI Guides
@@ -18,7 +18,7 @@ what the service emits, then **query** what you discovered.
 The list of built-in stacks — every value the MCP server's `STACKS`
 accepts, with its reference, CLI, and aliases — is
 [references/builtin-stacks.md](references/builtin-stacks.md); it is what
-`check-backend-configuration`, `update-backend-configuration`, and
+`backend-configuration` (its `## Check` and `## Switch`) and
 `/odd-config` read. The query surface per backend:
 
 | Backend | CLI | Reference |

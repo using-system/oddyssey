@@ -43,7 +43,7 @@ embedded definition plus env**: hand-mounted volumes and networks do not
 survive it. Bring it up with the oddyssey MCP tools (`odd_stack_status`,
 `odd_stack_up`) before configuring anything here.
 
-**Read by section.** The caller's preflight (`check-backend-configuration`)
+**Read by section.** The caller's preflight (`backend-configuration`'s `## Check`)
 writes the isolated context below and proves it, and hands its path
 over in the mission block; an agent holding that handoff skips
 `## Configure an isolated context` (regenerate the file only when

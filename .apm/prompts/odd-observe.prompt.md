@@ -20,7 +20,7 @@ steps needing the user cannot happen inside a subagent):
    stack value names a remote backend (for `grafana`, the gcx context
    says which instance).
 
-2. Run the `check-backend-configuration` skill: show the CLI's effective
+2. Run the `backend-configuration` skill's `## Check`: show the CLI's effective
    configuration to the user (no confirmation needed), and stop where
    the skill stops, in its own words — the binary is **not installed**:
    it offers the guided install and resumes once the binary exists,

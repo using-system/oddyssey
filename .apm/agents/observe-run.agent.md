@@ -52,7 +52,7 @@ the report.
     (`odd_config_get`) — `local` is the local stack (the default), and
     every other value names a remote backend (for `grafana`, the gcx
     context says which instance). By the time you run, the caller's
-    preflight (`check-backend-configuration` skill) has proven the CLI
+    preflight (the `backend-configuration` skill's `## Check`) has proven the CLI
     connected:
     never attempt to authenticate a CLI yourself — a broken or missing
     setup is a stop-and-report, not something to fix from a subagent.
@@ -102,7 +102,7 @@ the report.
   The existing `focus` is the intermediate dial and applies at both
   depths.
 - **Preflight** — optional: the `Preflight:` handoff block the caller's
-  `check-backend-configuration` run closed with (stack, backend,
+  `backend-configuration` `## Check` closed with (stack, backend,
   reference read, CLI and context, target values, connection proof
   with its UTC). It is **conversation-scope**: section 1 restates the
   stack and backend, never the block — a real tenant, workspace or
@@ -173,7 +173,7 @@ run record.
    `local.md` whole, never `grafana.md` whole, and never
    its `## Remote missions — targeting without touching the user's
    config` (a remote backend's section). The mission block's
-   `Preflight:` handoff (the caller's `check-backend-configuration`
+   `Preflight:` handoff (the caller's `backend-configuration` `## Check`
    run) already carries what the preflight's sections resolve — the
    binary, the CLI context, the target's values, the connection proof
    with its UTC: never re-read those sections nor redo the display or

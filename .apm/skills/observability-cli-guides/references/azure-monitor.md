@@ -276,7 +276,7 @@ and `3` is set only for `ResourceNotFoundError`). So:
 - **Exit 0** — connected, the persisted appId resolves and is queryable.
 - **Exit 3** — the appId does not resolve. This is the wrong-value case:
   stop, report the persisted GUID as unresolvable, and route to
-  `update-backend-configuration` to correct it. Catching it here is far
+  `backend-configuration`'s `## Switch` to correct it. Catching it here is far
   cheaper than in an observation that returns empty trace queries and
   looks merely quiet.
 - **Exit 1** — read the message, and mind that az may wrap it in an
@@ -295,7 +295,7 @@ and `3` is set only for `ResourceNotFoundError`). So:
   account show` reads the local profile and never touches the network,
   so it returns 0 on a stale token and only this probe reveals it. Hand
   it to the identity guidance above — do not retry it, and do not route
-  it to `update-backend-configuration`, which cannot fix a login.
+  it to `backend-configuration`'s `## Switch`, which cannot fix a login.
   Anything else (connection, proxy, throttling, service error) is
   reported verbatim and retried; never rewrite it as a targeting
   failure.
@@ -311,7 +311,7 @@ A failed targeting proof is **not** a "CLI not configured" error and is
 never reported as one: the binary is installed, `az` is authenticated,
 and the backend answered. What is wrong is the stored value or the
 access to it — say it in those terms. Route to
-`update-backend-configuration` **once** for a corrected value; if the
+`backend-configuration`'s `## Switch` **once** for a corrected value; if the
 proof fails again on the value that came back, stop and report rather
 than bouncing between the two skills.
 
@@ -415,7 +415,7 @@ absence costs the most — see above.
 
 If `az` is not yet logged in, do not turn this into an auth flow: state
 what will be asked once the CLI answers, persist what the user does
-supply, and let `check-backend-configuration` guide the login.
+supply, and let `backend-configuration`'s `## Check` guide the login.
 
 **"There is no Application Insights here" is an answer, not a blank** —
 once the user says so outright, or the subscription-wide listing has

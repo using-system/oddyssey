@@ -135,7 +135,7 @@ flowchart LR
 
 Preflights in the main conversation - the stack through
 `odd_config_get`/`odd_config_set`, the CLI through
-`check-backend-configuration`, `k6` through `k6-guides` when a
+`backend-configuration`'s `## Check`, `k6` through `k6-guides` when a
 benchmark is named - then dispatches `observe-run` and closes with
 the `observe-run-report` reference's `## Show` synthesis
 (`odd-memory`). `otel-instrumentation-expert`
@@ -153,13 +153,12 @@ flowchart LR
   end
 
   subgraph Skills
-    cbc[check-backend-configuration]
+    bc[backend-configuration]
     ocg[observability-cli-guides]
     sls[setup-local-stack]
     rs[run-scenario]
     kg[k6-guides]
     mem[odd-memory]
-    ubc[update-backend-configuration]
   end
 
   subgraph MCP["MCP tools"]
@@ -174,7 +173,7 @@ flowchart LR
   end
 
   observe --> runner
-  observe --> cbc
+  observe --> bc
   observe --> mem
   observe --> cfgget
   observe --> cfgset
@@ -191,11 +190,9 @@ flowchart LR
   runner --> stack
   runner -. recommends .-> expert
 
-  cbc -.-> sls
-  cbc -.-> ubc
-  cbc --> ocg
-  cbc --> cfgget
-  cbc --> stack
+  bc -.-> sls
+  bc --> ocg
+  bc --> cfgget
   ocg -.-> sls
   sls --> cfgget
   sls --> stack
@@ -213,7 +210,7 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class observe prompt
   class runner,expert agent
-  class cbc,ocg,sls,rs,kg,mem,ubc skill
+  class bc,ocg,sls,rs,kg,mem skill
   class cfgget,cfgset,stack mcp
   class obsdir,benchdir store
 ```
@@ -241,13 +238,12 @@ flowchart LR
   end
 
   subgraph Skills
-    cbc[check-backend-configuration]
+    bc[backend-configuration]
     ocg[observability-cli-guides]
     sls[setup-local-stack]
     rs[run-scenario]
     kg[k6-guides]
     mem[odd-memory]
-    ubc[update-backend-configuration]
   end
 
   subgraph MCP["MCP tools"]
@@ -262,7 +258,7 @@ flowchart LR
   end
 
   verify --> runner
-  verify --> cbc
+  verify --> bc
   verify --> mem
   verify --> cfgget
   verify --> kg
@@ -278,11 +274,9 @@ flowchart LR
   runner --> stack
   runner -. recommends .-> expert
 
-  cbc -.-> sls
-  cbc -.-> ubc
-  cbc --> ocg
-  cbc --> cfgget
-  cbc --> stack
+  bc -.-> sls
+  bc --> ocg
+  bc --> cfgget
   ocg -.-> sls
   sls --> cfgget
   sls --> stack
@@ -300,7 +294,7 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class verify prompt
   class runner,expert agent
-  class cbc,ocg,sls,rs,kg,mem,ubc skill
+  class bc,ocg,sls,rs,kg,mem skill
   class cfgget,stack mcp
   class obsdir,insdir,benchdir store
 ```
@@ -356,10 +350,10 @@ flowchart LR
 
 ## /odd-config
 
-Displays through `check-backend-configuration` and routes a switch
-to `update-backend-configuration`, which hands back for the connection
-proof; the routing runs the other way for a missing CLI binary or a
-targeting value that fails to resolve.
+Displays through `backend-configuration`'s `## Check` and routes a
+switch to its `## Switch`, which ends in `## Check` for the connection
+proof; a missing CLI binary or a targeting value that fails to resolve
+routes the other way, inside the same skill.
 
 ```mermaid
 flowchart LR
@@ -368,8 +362,7 @@ flowchart LR
   end
 
   subgraph Skills
-    cbc[check-backend-configuration]
-    ubc[update-backend-configuration]
+    bc[backend-configuration]
     ocg[observability-cli-guides]
     sls[setup-local-stack]
   end
@@ -380,19 +373,14 @@ flowchart LR
     stack[odd_stack_status / up / reset]
   end
 
-  config --> cbc
-  config -.-> ubc
+  config --> bc
   config --> ocg
 
-  ubc --> ocg
-  ubc --> cfgset
-  ubc -.-> cbc
+  bc --> ocg
+  bc --> cfgset
 
-  cbc -.-> sls
-  cbc -.-> ubc
-  cbc --> ocg
-  cbc --> cfgget
-  cbc --> stack
+  bc -.-> sls
+  bc --> cfgget
   ocg -.-> sls
   sls --> cfgget
   sls --> stack
@@ -401,7 +389,7 @@ flowchart LR
   classDef skill fill:#e6f4ea,stroke:#34a853
   classDef mcp fill:#fce8e6,stroke:#ea4335
   class config prompt
-  class cbc,ubc,ocg,sls skill
+  class bc,ocg,sls skill
   class cfgget,cfgset,stack mcp
 ```
 
@@ -415,10 +403,10 @@ skills), and closes with a show skill's synthesis of what was stored.
 | --- | --- | --- |
 | [`/odd-instrument-otel`](../../.apm/prompts/odd-instrument-otel.prompt.md) | Entry point: point the `otel-instrumentation-expert` agent at a codebase | `otel-instrumentation-expert`; `odd-memory` (the `otel-instrumentation-report` reference's `## Show`) |
 | [`/odd-instrument-bench`](../../.apm/prompts/odd-instrument-bench.prompt.md) | Entry point: ask what only a human decides, ensure `k6`, then point the `k6-benchmark-expert` agent at a service | `k6-benchmark-expert`; `k6-guides` (`authoring-inputs.md`, `install.md`); `odd-memory` (the `benchmark` reference: its `## Show`, and its recall when new-versus-update is ambiguous) |
-| [`/odd-observe`](../../.apm/prompts/odd-observe.prompt.md) | Entry point: resolve the stack, prove the CLI connected, resolve the depth, build the mission and invoke the `observe-run` agent | `observe-run`; `check-backend-configuration`; `observability-cli-guides` (`builtin-stacks.md`); `k6-guides` (`install.md`); `odd-memory` (the `observe-run-report` reference's `## Show`); `odd_config_get`, `odd_config_set`; reads `.odd/benchmarks/` |
-| [`/odd-verify`](../../.apm/prompts/odd-verify.prompt.md) | Entry point: replay a stored report's protocol through the `observe-run` agent and rule on everything it recorded; preflights against the report's stack and asks before a remote drive replay | `observe-run`; `check-backend-configuration`; `k6-guides` (`install.md`); `odd-memory` (the `observe-run-report` reference: its `## Show`, and its verification rules); `odd_config_get`; reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/` |
+| [`/odd-observe`](../../.apm/prompts/odd-observe.prompt.md) | Entry point: resolve the stack, prove the CLI connected, resolve the depth, build the mission and invoke the `observe-run` agent | `observe-run`; `backend-configuration` (`## Check`); `observability-cli-guides` (`builtin-stacks.md`); `k6-guides` (`install.md`); `odd-memory` (the `observe-run-report` reference's `## Show`); `odd_config_get`, `odd_config_set`; reads `.odd/benchmarks/` |
+| [`/odd-verify`](../../.apm/prompts/odd-verify.prompt.md) | Entry point: replay a stored report's protocol through the `observe-run` agent and rule on everything it recorded; preflights against the report's stack and asks before a remote drive replay | `observe-run`; `backend-configuration` (`## Check`); `k6-guides` (`install.md`); `odd-memory` (the `observe-run-report` reference: its `## Show`, and its verification rules); `odd_config_get`; reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/` |
 | [`/odd-status`](../../.apm/prompts/odd-status.prompt.md) | Where is the loop? Rendered from the `.odd/` history and git alone; records decisions on findings. Dispatches no agent | `get-status`; `odd-memory` (the `decisions` reference) when, and only when, the user asks for a decision on a finding, then re-renders |
-| [`/odd-config`](../../.apm/prompts/odd-config.prompt.md) | Show the configured backend - stack, targeted instance, connection proof - and guide a backend switch | `check-backend-configuration`; `observability-cli-guides`; routes to `update-backend-configuration` when the user picks a backend |
+| [`/odd-config`](../../.apm/prompts/odd-config.prompt.md) | Show the configured backend - stack, targeted instance, connection proof - and guide a backend switch | `backend-configuration` (`## Check` to display, `## Switch` when the user picks a backend); `observability-cli-guides` |
 
 ## Agents
 
@@ -445,8 +433,7 @@ each other.
 | [`odd-memory`](../../.apm/skills/odd-memory/SKILL.md) | The `.odd/` memory: the contract every kind shares, and one reference per kind - observation reports, instrumentation reports, the finding-decision ledger, benchmarks - saying how to persist, recall and show it; owns the four stores | Nothing - read by the three agents at persist and recall time, by the prompts at show time, by `get-status`; never invoked on its own |
 | [`observability-cli-guides`](../../.apm/skills/observability-cli-guides/SKILL.md) | One reference per stack - query surface, configuration display, what to persist - plus the built-in stack list: the local stack, Grafana (gcx), Datadog (Pup), Dynatrace (dtctl), Azure Monitor (az), CloudWatch (aws), Splunk | Routes the local-stack case to `setup-local-stack` |
 | [`setup-local-stack`](../../.apm/skills/setup-local-stack/SKILL.md) | Configure gcx against the local stack without touching the user's contexts, with the datasource UIDs and the push-model caveats | `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset` |
-| [`check-backend-configuration`](../../.apm/skills/check-backend-configuration/SKILL.md) | Before a run: display the configured stack's CLI context, prove it connected, guide the setup, and hand the preflight over to the mission | `observability-cli-guides` (`builtin-stacks.md`); `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset`; routes to `setup-local-stack` for the local stack, and to `update-backend-configuration` for a missing CLI binary or a persisted targeting value that fails to resolve |
-| [`update-backend-configuration`](../../.apm/skills/update-backend-configuration/SKILL.md) | Own the backend switch: CLI presence with a guided install offer, the switch and the per-stack `stack_config` values persisted | `observability-cli-guides` (`builtin-stacks.md`); `odd_config_set`; hands the verification back to `check-backend-configuration` |
+| [`backend-configuration`](../../.apm/skills/backend-configuration/SKILL.md) | The configured backend, in two sections: `## Check` displays the configured stack's CLI context, proves it connected, guides the setup and hands the preflight over to the mission; `## Switch` owns the change - CLI presence with a guided install offer, the switch and the per-stack `stack_config` values persisted, then `## Check` for the proof | `observability-cli-guides` (`builtin-stacks.md`, the stack's four preflight sections); `odd_config_get`, `odd_config_set`; routes to `setup-local-stack` for the local stack |
 | [`run-scenario`](../../.apm/skills/run-scenario/SKILL.md) | Drive a reproducible request scenario - ad-hoc requests or a stored benchmark - and record it verbatim for the replay | `k6-guides` (`running-tests.md`, `install.md`); reads `.odd/benchmarks/<name>/` (never writes there); orders the clean-base sequence around `odd_stack_reset` and follows `setup-local-stack` |
 | [`get-status`](../../.apm/skills/get-status/SKILL.md) | Render the state of the ODD loop from the committed `.odd/` history and git alone, read-only | `odd-memory`; reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`, and `.odd/decisions.md` (under `odd-memory`'s `decisions` reference); recommends `/odd-instrument-otel` or `/odd-observe` |
 
