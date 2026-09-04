@@ -161,7 +161,9 @@ real traffic history to read, not a freshly booted service. Then point
 the missions at the remote stack: **its CLI must be installed and
 configured beforehand** (gcx for a Grafana stack), and `/odd-config`
 is the guided way to switch and prove the connection before any
-mission runs.
+mission runs. A backend the package does not ship is one
+`/odd-config create a stack <name>` away: the file it writes lives in
+your repository, and you complete it as your runs teach you.
 
 ```text
 /odd-config switch to grafana

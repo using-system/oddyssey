@@ -20,9 +20,12 @@ says what the file carries, the `odd-memory` skill's
 [observability-stack.md](../../.apm/skills/odd-memory/references/observability-stack.md)
 how it lives. The switch checks the file against the contract before
 persisting anything, and `stack_config` then holds exactly the fields
-the file declares:
+the file declares. `/odd-config` writes the file for you — from the
+documentation you point at, your own instructions, or its own web
+research — then offers the switch:
 
 ```text
+/odd-config create a stack <name> from <docs URL or path>
 /odd-config switch to <name>
 ```
 

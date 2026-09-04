@@ -357,7 +357,10 @@ switch to its `## Switch`, which ends in `## Check` for the connection
 proof; a missing CLI binary or a targeting value that fails to resolve
 routes the other way, inside the same skill. A custom stack's file
 (`odd-memory`'s `observability-stack` reference) is the target's
-reference, checked against the contract before the switch.
+reference, checked against the contract before the switch; the prompt
+itself creates or completes such a file, from the documentation the
+user points at, their instructions, or web research, and persists it
+through that reference.
 
 ```mermaid
 flowchart LR
@@ -384,6 +387,7 @@ flowchart LR
 
   config --> bc
   config --> ocg
+  config --> mem
 
   bc --> ocg
   bc --> mem
@@ -419,7 +423,7 @@ skills), and closes with a show skill's synthesis of what was stored.
 | [`/odd-observe`](../../.apm/prompts/odd-observe.prompt.md) | Entry point: resolve the stack, prove the CLI connected, resolve the depth, build the mission and invoke the `observe-run` agent | `observe-run`; `backend-configuration` (`## Check`); `observability-cli-guides` (`builtin-stacks.md`); `k6-guides` (`install.md`); `odd-memory` (the `observe-run-report` reference's `## Show`); `odd_config_get`, `odd_config_set`; reads `.odd/benchmarks/` |
 | [`/odd-verify`](../../.apm/prompts/odd-verify.prompt.md) | Entry point: replay a stored report's protocol through the `observe-run` agent and rule on everything it recorded; preflights against the report's stack and asks before a remote drive replay | `observe-run`; `backend-configuration` (`## Check`); `k6-guides` (`install.md`); `odd-memory` (the `observe-run-report` reference: its `## Show`, and its verification rules); `odd_config_get`; reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/` |
 | [`/odd-status`](../../.apm/prompts/odd-status.prompt.md) | Where is the loop? Rendered from the `.odd/` history and git alone; records decisions on findings. Dispatches no agent | `get-status`; `odd-memory` (the `decisions` reference) when, and only when, the user asks for a decision on a finding, then re-renders |
-| [`/odd-config`](../../.apm/prompts/odd-config.prompt.md) | Show the configured backend - stack, targeted instance, connection proof - and guide a backend switch | `backend-configuration` (`## Check` to display, `## Switch` when the user picks a backend); `observability-cli-guides` |
+| [`/odd-config`](../../.apm/prompts/odd-config.prompt.md) | Show the configured backend - stack, targeted instance, connection proof - guide a backend switch, and create or complete a custom stack file for a backend the package does not ship | `backend-configuration` (`## Check` to display, `## Switch` when the user picks a backend); `observability-cli-guides` (`builtin-stacks.md`, `CONTRACT.md` and its check script for a custom file); `odd-memory` (the `observability-stack` reference, to persist and show a custom file); writes `.odd/observability-stacks/` |
 
 ## Agents
 

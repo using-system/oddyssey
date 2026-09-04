@@ -35,7 +35,8 @@ the user says to switch to it.
 - **No secrets, no real endpoints, amplified**: a file filled from a
   live instance is exactly where an endpoint, a tenant or a token would
   leak. A real endpoint or identifier is a `stack_config` field the
-  file names (`stack_config.base_url`) and never a value in the file; a
+  file names (`stack_config.base_url`) and never a value in the file
+  (a `localhost` default is an example, not a real endpoint); a
   credential is the environment variable **name** the command reads.
   On a host that runs the package's lifecycle hooks, a hook flags what
   slipped through, after the write.
