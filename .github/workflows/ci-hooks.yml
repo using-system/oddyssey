@@ -123,6 +123,6 @@ jobs:
           test -f marketplace/oddyssey/hooks/hooks.json
           test ! -e marketplace/oddyssey/hooks.json
           for script in guard_default_branch scan_odd_identifiers; do
-            grep -qF "\"\${CLAUDE_PLUGIN_ROOT}\"/hooks/scripts/${script}.py" marketplace/oddyssey/hooks/hooks.json
+            grep -qF "\\\"\${CLAUDE_PLUGIN_ROOT}\\\"/hooks/scripts/${script}.py" marketplace/oddyssey/hooks/hooks.json
             test -f "marketplace/oddyssey/hooks/scripts/${script}.py"
           done

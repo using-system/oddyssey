@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -52,11 +53,28 @@ COMMAND_PATHS = (
 )
 CWD_PATHS = (("cwd",), ("tool_info", "cwd"))
 
-ODD_IN_COMMAND_RE = re.compile(r"(?<![\w./-])((?:[\w./~-]*/)?\.odd/[\w./-]+)")
+# A file tool's payload is a write when it carries what it writes, or
+# when its tool name says so; a bare path is a read on every host.
+WRITE_FIELDS = {
+    "content",
+    "contents",
+    "new_string",
+    "old_string",
+    "edits",
+    "newText",
+    "new_str",
+    "old_str",
+    "text",
+}
+WRITE_TOOL_RE = re.compile(r"write|edit|create|patch|replace|save", re.IGNORECASE)
+# Shell commands whose last positional argument is a destination.
+COPYING_COMMANDS = {"cp", "mv", "install", "rsync"}
+REDIRECTIONS = {">", ">>", ">|"}
+PUNCTUATION = set("();<>|&")
 GUID_RE = re.compile(
     r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
 )
-HOME_PATH_RE = re.compile(r"(?:/Users/|/home/|[A-Za-z]:\\Users\\)[^\s/\\'\"`]+")
+HOME_PATH_RE = re.compile(r"(?:/Users/|/home/|[A-Za-z]:\\Users\\)([^\s/\\'\"`]+)")
 
 # stack_config keys and stacks whose values identify nothing by
 # themselves: a region names a datacenter, the local stack carries the
@@ -92,11 +110,60 @@ def _strings(payload: object, paths: tuple[tuple[str, ...], ...]) -> list[str]:
     return found
 
 
+def _is_write_tool(payload: object) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    name = payload.get("tool_name") or payload.get("toolName") or ""
+    if isinstance(name, str) and WRITE_TOOL_RE.search(name):
+        return True
+    for container in ("tool_input", "toolArgs", "tool_info"):
+        fields = payload.get(container)
+        if isinstance(fields, dict) and WRITE_FIELDS & set(fields):
+            return True
+    return False
+
+
+def _segments(command: str) -> list[list[str]]:
+    lexer = shlex.shlex(
+        command.replace("\n", " ; "), posix=True, punctuation_chars=True
+    )
+    lexer.whitespace_split = True
+    try:
+        tokens = list(lexer)
+    except ValueError:
+        tokens = command.split()
+    segments: list[list[str]] = [[]]
+    for token in tokens:
+        if token and set(token) <= PUNCTUATION and token not in REDIRECTIONS:
+            if segments[-1]:
+                segments.append([])
+            continue
+        segments[-1].append(token)
+    return [segment for segment in segments if segment]
+
+
+def _command_write_targets(command: str) -> list[str]:
+    """The .odd/ paths a shell line writes: redirections, tee, a copy's destination."""
+    targets: list[str] = []
+    for tokens in _segments(command):
+        for index, token in enumerate(tokens):
+            if token in REDIRECTIONS and index + 1 < len(tokens):
+                targets.append(tokens[index + 1])
+        arguments = [
+            t for t in tokens[1:] if not t.startswith("-") and t not in REDIRECTIONS
+        ]
+        if tokens[0] == "tee":
+            targets.extend(arguments)
+        elif tokens[0] in COPYING_COMMANDS and len(arguments) >= 2:
+            targets.append(arguments[-1])
+    return [t for t in targets if "/.odd/" in t or t.startswith(".odd/")]
+
+
 def written_paths(payload: object) -> list[str]:
-    """Return the file paths the payload names: a file tool's target, or the .odd/ paths a shell command mentions."""
-    paths = _strings(payload, FILE_PATHS)
+    """Return the files the payload writes: a write tool's target, or the .odd/ paths a shell command writes to."""
+    paths = _strings(payload, FILE_PATHS) if _is_write_tool(payload) else []
     for command in _strings(payload, COMMAND_PATHS):
-        paths.extend(match.group(1) for match in ODD_IN_COMMAND_RE.finditer(command))
+        paths.extend(_command_write_targets(command))
     seen: set[str] = set()
     return [p for p in paths if not (p in seen or seen.add(p))]
 
@@ -111,8 +178,26 @@ def in_odd(path: Path) -> bool:
     return ".odd" in path.parts[:-1]
 
 
+GENERIC_USERS = {
+    "runner",
+    "root",
+    "ubuntu",
+    "vscode",
+    "codespace",
+    "jenkins",
+    "ci",
+    "user",
+}
+
+
 def _is_placeholder_guid(value: str) -> bool:
-    return len(set(value.replace("-", "").lower())) <= 2
+    digits = value.replace("-", "").lower()
+    return len(set(digits)) <= 2 or "12345678" in digits or "abcdef" in digits
+
+
+def _is_personal_home_path(match: re.Match) -> bool:
+    user = match.group(1)
+    return not user.startswith("<") and user.lower() not in GENERIC_USERS
 
 
 def forbidden_values(config: object) -> list[str]:
@@ -156,7 +241,7 @@ def scan_text(text: str, forbidden: list[str]) -> list[Finding]:
         kinds: list[str] = []
         if any(not _is_placeholder_guid(m.group(0)) for m in GUID_RE.finditer(line)):
             kinds.append("GUID")
-        if HOME_PATH_RE.search(line):
+        if any(_is_personal_home_path(m) for m in HOME_PATH_RE.finditer(line)):
             kinds.append("home path")
         if any(pattern.search(line) for pattern in patterns):
             kinds.append("stack_config value")
@@ -166,8 +251,6 @@ def scan_text(text: str, forbidden: list[str]) -> list[Finding]:
 
 def decide(payload: object, process_cwd: str) -> tuple[int, list[str]]:
     """Return (exit code, stderr lines) for the payload."""
-    if isinstance(payload, dict) and payload.get("tool_name") == "Read":
-        return PASS, []
     candidates = written_paths(payload)
     if not candidates:
         return PASS, []
@@ -195,9 +278,9 @@ def decide(payload: object, process_cwd: str) -> tuple[int, list[str]]:
     header = (
         "odd-guards: a file under .odd/ carries what a committed report must "
         "never carry (AGENTS.md's no-secrets rule) - replace each value with an "
-        "obviously fake placeholder before persisting or committing; a GUID that "
-        "is an OTel service.instance.id is evidence and stays, a cloud identifier "
-        "does not:"
+        "obviously fake placeholder (a zeroed or 1234-patterned GUID passes) "
+        "before persisting or committing; a GUID that is an OTel "
+        "service.instance.id is evidence and stays, a cloud identifier does not:"
     )
     lines = [header]
     lines.extend(f"  {f.path}:{f.line}: {f.kind}" for f in findings[:MAX_LINES])
@@ -209,6 +292,10 @@ def decide(payload: object, process_cwd: str) -> tuple[int, list[str]]:
 def _display_path(path: Path, base: Path) -> str:
     try:
         return str(path.relative_to(base))
+    except ValueError:
+        pass
+    try:
+        return "~/" + str(path.relative_to(Path.home()))
     except ValueError:
         return str(path)
 

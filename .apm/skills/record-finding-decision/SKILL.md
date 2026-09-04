@@ -84,6 +84,8 @@ One row per decision:
 - **Never write secrets into a rationale** — no tokens, credentials,
   cookies, or connection strings. The file is made to be committed and
   shared; refer to access material by variable or secret name only.
+  On a host that runs the package's lifecycle
+  hooks, a hook flags what slipped through, after the write.
 - **Never commit on the default branch**: before committing, compare
   `git branch --show-current` with the repository's default branch
   (`git symbolic-ref --short refs/remotes/origin/HEAD` stripped of its

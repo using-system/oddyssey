@@ -462,8 +462,8 @@ each other.
 
 | Hook | Role | Invoked by |
 | --- | --- | --- |
-| [`odd-guards`](../../.apm/hooks/odd-guards.json) | Refuse a `git commit` on the default branch, or a `git push` to it, before it runs - the persistence skills' rule made deterministic | The host's pre-tool event, on every target with hooks; never a prompt, agent, or skill |
-| [`odd-guards`](../../.apm/hooks/odd-guards.json) | After a tool wrote a file under `.odd/`, flag every line carrying a GUID, a home-directory path, or a value of the global configuration's `stack_config` - AGENTS.md's no-secrets rule, checked before the report is persisted; the write already happened, the message reaches the agent | The host's post-tool event, on every target with hooks |
+| [`odd-guards`](../../.apm/hooks/odd-guards.json), branch guard | Refuse a `git commit` on the default branch, or a `git push` to it, before it runs - the persistence skills' rule made deterministic | The host's pre-tool event, on every target with hooks; never a prompt, agent, or skill |
+| [`odd-guards`](../../.apm/hooks/odd-guards.json), `.odd/` scan | After a tool wrote a file under `.odd/`, flag every line carrying a GUID, a home-directory path, or a value of the global configuration's `stack_config` - AGENTS.md's no-secrets rule, checked before the report is persisted; the write already happened, the message reaches the agent | The host's post-tool event, on every target with hooks |
 
 A hook deploys with the package; a host can be told not to run it
 (`apm deny using-system/oddyssey` before installing, or the host's own

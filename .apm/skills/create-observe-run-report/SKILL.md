@@ -324,6 +324,8 @@ or by a caller naming a stored report.
   excerpt are the likeliest sources: never restate the identifiers
   they carry; replace every such value with an obviously fake
   placeholder before it lands in the file.
+  On a host that runs the package's lifecycle
+  hooks, a hook flags what slipped through, after the write.
 - **A recorded query is a contract only once shown to work**: a check is
   authored against *broken* data, so "returns NaN/empty" and "the query
   is wrong" are indistinguishable at authoring time (measured: `rate()`

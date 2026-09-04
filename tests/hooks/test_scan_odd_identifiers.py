@@ -99,24 +99,63 @@ def write_payload(path: Path, cwd: Path) -> dict:
 
 
 def test_reads_the_file_path_the_hosts_send(scan):
-    assert scan.written_paths({"tool_input": {"file_path": ".odd/a.md"}}) == [
+    assert scan.written_paths(
+        {"tool_input": {"file_path": ".odd/a.md", "content": ""}}
+    ) == [".odd/a.md"]
+    assert scan.written_paths({"toolArgs": {"path": ".odd/a.md", "content": ""}}) == [
         ".odd/a.md"
     ]
-    assert scan.written_paths({"toolArgs": {"path": ".odd/a.md"}}) == [".odd/a.md"]
-    assert scan.written_paths({"tool_info": {"file_path": ".odd/a.md"}}) == [
-        ".odd/a.md"
-    ]
+    assert scan.written_paths(
+        {"tool_info": {"file_path": ".odd/a.md", "content": ""}}
+    ) == [".odd/a.md"]
 
 
-def test_reads_the_odd_paths_a_shell_command_writes(scan):
-    payload = {
-        "tool_input": {
-            "command": "cat > .odd/observe-run-reports/x.md <<'EOF'\nhi\nEOF"
-        }
-    }
-    assert scan.written_paths(payload) == [".odd/observe-run-reports/x.md"]
-    payload = {"tool_input": {"command": "cp a.md /repo/.odd/decisions.md && ls"}}
-    assert scan.written_paths(payload) == ["/repo/.odd/decisions.md"]
+@pytest.mark.parametrize(
+    "command, expected",
+    [
+        (
+            "cat > .odd/observe-run-reports/x.md <<'EOF'\nhi\nEOF",
+            [".odd/observe-run-reports/x.md"],
+        ),
+        ("printf 'x' >> .odd/decisions.md", [".odd/decisions.md"]),
+        ("cp a.md /repo/.odd/decisions.md && ls", ["/repo/.odd/decisions.md"]),
+        (
+            "mv tmp.md .odd/benchmarks/b/manifest.yaml",
+            [".odd/benchmarks/b/manifest.yaml"],
+        ),
+        ("echo x | tee -a .odd/r.md", [".odd/r.md"]),
+        ('cat > "$repo"/.odd/r.md <<EOF\nx\nEOF', ["$repo/.odd/r.md"]),
+        ("sed -n '1,40p' .odd/observe-run-reports/r.md", []),
+        ("grep -rn 'x' .odd/observe-run-reports/r.md | head", []),
+        ("cat .odd/decisions.md; ls .odd/", []),
+        ("cp .odd/r.md /tmp/copy.md", []),
+        ("git add .odd/r.md && git commit -m x", []),
+    ],
+)
+def test_reads_only_the_odd_paths_a_shell_command_writes(scan, command, expected):
+    assert scan.written_paths({"tool_input": {"command": command}}) == expected
+
+
+def test_a_file_tool_payload_counts_as_a_write_only_with_content(scan):
+    assert scan.written_paths({"tool_input": {"file_path": ".odd/a.md"}}) == []
+    assert (
+        scan.written_paths(
+            {"tool_name": "Read", "tool_input": {"file_path": ".odd/a.md"}}
+        )
+        == []
+    )
+    assert scan.written_paths(
+        {"tool_input": {"file_path": ".odd/a.md", "content": "x"}}
+    ) == [".odd/a.md"]
+    assert scan.written_paths(
+        {"tool_input": {"file_path": ".odd/a.md", "old_string": "a", "new_string": "b"}}
+    ) == [".odd/a.md"]
+    assert scan.written_paths(
+        {"tool_name": "write_file", "tool_input": {"file_path": ".odd/a.md"}}
+    ) == [".odd/a.md"]
+    assert scan.written_paths(
+        {"tool_name": "edit", "toolArgs": {"path": ".odd/a.md"}}
+    ) == [".odd/a.md"]
 
 
 def test_ignores_files_outside_odd(scan, tmp_path):
@@ -132,12 +171,15 @@ def test_ignores_files_outside_odd(scan, tmp_path):
 def test_finds_a_real_guid_and_passes_a_patterned_one(scan):
     text = f"workspace {REAL_GUID}\nzeroed 00000000-0000-0000-0000-000000000000\n"
     text += "patterned 11111111-1111-1111-1111-111111111111\n"
+    text += "sequential 12345678-1234-1234-1234-123456789abc\n"
+    text += "trace 3f2a9c1e7b4d4e8a9c215d6e7f8a9b0c and anchor 5ea231f0c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8\n"
     findings = scan.scan_text(text, forbidden=[])
     assert [(f.line, f.kind) for f in findings] == [(1, "GUID")]
 
 
 def test_finds_home_directory_paths(scan):
     text = "a /Users/someone/Repos/x\nb /home/someone/x\nc C:\\Users\\someone\\x\nd <scratchpad>/x\n"
+    text += "e /home/runner/work/x\nf /Users/<user>/x\ng /root/x\n"
     findings = scan.scan_text(text, forbidden=[])
     assert [(f.line, f.kind) for f in findings] == [
         (1, "home path"),
@@ -219,6 +261,20 @@ def test_a_clean_report_passes(tmp_path, home):
     assert result.stderr == ""
 
 
+def test_the_message_never_shows_a_home_directory(tmp_path):
+    home = tmp_path / "home"
+    report = home / "Repos" / "x" / ".odd" / "r.md"
+    report.parent.mkdir(parents=True)
+    report.write_text("see /home/someone/repo\n")
+    (tmp_path / "elsewhere").mkdir()
+    result = run_hook(
+        write_payload(report, tmp_path / "elsewhere"), tmp_path / "elsewhere", home
+    )
+    assert result.returncode == 2
+    assert str(home) not in result.stderr
+    assert "~/Repos/x/.odd/r.md:1" in result.stderr
+
+
 def test_a_file_outside_odd_is_never_scanned(tmp_path, home):
     other = tmp_path / "notes.md"
     other.write_text(f"{REAL_GUID} /Users/someone/x\n")
@@ -237,6 +293,8 @@ def test_a_shell_write_into_odd_is_scanned(tmp_path, home):
     result = run_hook(payload, tmp_path, home)
     assert result.returncode == 2
     assert "home path" in result.stderr
+    read = {"tool_input": {"command": f"sed -n '1,40p' {report}"}, "cwd": str(tmp_path)}
+    assert run_hook(read, tmp_path, home).returncode == 0
 
 
 def test_findings_are_capped_and_counted(tmp_path, home):

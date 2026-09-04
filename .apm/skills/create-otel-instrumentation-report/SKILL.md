@@ -90,14 +90,15 @@ Before a new investigation, load what is already known:
   identifies a real customer, tenant or environment; a live CLI
   excerpt (a component's `show` output, a resource id) is the likeliest
   source, and every such value lands in the file as an obviously fake
-  placeholder. The rule reaches the **verification protocol's
-  checks**: a check whose query projects a credential-bearing field (a
-  connection string, a key, a token, an auth-header value) or whose
-  expected outcome is one is a leak deferred, not avoided —
-  `/odd-verify` replays the query verbatim and quotes its result into
-  a committed report. A check proves a secret is wired by naming the
-  wiring (a secret reference, an env var name, a redacted flag, the
-  resource identity it binds to), never the value.
+  placeholder. On a host that runs the package's lifecycle hooks, a
+  hook flags what slipped through, after the write. The rule reaches
+  the **verification protocol's checks**: a check whose query projects
+  a credential-bearing field (a connection string, a key, a token, an
+  auth-header value) or whose expected outcome is one is a leak
+  deferred, not avoided — `/odd-verify` replays the query verbatim and
+  quotes its result into a committed report. A check proves a secret
+  is wired by naming the wiring (a secret reference, an env var name,
+  a redacted flag, the resource identity it binds to), never the value.
 - One investigation, one file: never edit a previous report to "update"
   it — a new investigation writes a new file.
 - Write the file exactly where the contract says: the report belongs to
