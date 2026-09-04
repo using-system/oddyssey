@@ -532,7 +532,8 @@ def test_non_runtime_classification_is_generic_and_correctable(repo):
     assert "assets" in loose["non_runtime"]
     corrected = facts(repo, runtime=["DOCS"])["reports"][0]["tree_anchor_diff"]
     assert corrected["non_runtime"] == [".github", "README.md"]
-    assert "docs" in corrected["unclassified"]
+    assert corrected["runtime"] == ["docs"]
+    assert "docs" not in corrected["unclassified"]
 
 
 def test_tree_anchor_diff_honours_extra_non_runtime_names(repo):
@@ -1448,3 +1449,22 @@ def test_cli_outside_a_git_repository_exits_2(tmp_path):
     assert proc.returncode == 2
     assert proc.stdout == ""
     assert "git repository" in proc.stderr
+
+
+def test_scenario_record_is_also_found_as_a_bold_label(repo):
+    body = DEFAULT_BODY.replace(
+        "### Scenario record (verbatim)\n\nAd-hoc: 30 calls.",
+        "- **Scenario record** (`run-scenario` section 6): Ad-hoc,\n"
+        "  30 calls in a row.\n- **Timeline (UTC):** 10:00 start.",
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", body=body),
+    )
+    repo.commit("docs(odd): report")
+    record = facts(repo)["reports"][0]["scenario_record"]
+    assert record.startswith(
+        "- **Scenario record** (`run-scenario` section 6): Ad-hoc,"
+    )
+    assert "30 calls in a row." in record
+    assert "Timeline" not in record

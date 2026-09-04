@@ -87,6 +87,8 @@ FRONTMATTER_LINE_RE = re.compile(r"^([A-Za-z_][\w.-]*):(.*)$")
 BENCHMARK_RE = re.compile(r"\.odd/benchmarks/([A-Za-z0-9_.-]+)")
 TABLE_SEPARATOR_RE = re.compile(r"^:?-{3,}:?$")
 SCENARIO_HEADING_RE = re.compile(r"^#{3,}\s+scenario record\b", re.IGNORECASE)
+SCENARIO_LABEL_RE = re.compile(r"^\s*(?:-\s*)?\*\*scenario record", re.IGNORECASE)
+BOLD_LABEL_RE = re.compile(r"^\s*(?:-\s*)?\*\*[A-Z]")
 
 
 # --- git ------------------------------------------------------------------
@@ -533,17 +535,30 @@ def paragraphs_starting_with(body: str, prefix: str) -> list[str]:
 
 
 def scenario_record(body: str) -> str | None:
-    """The text under the ``### Scenario record`` heading, up to the next heading."""
+    """The scenario record: under its ``### Scenario record`` heading, up to
+    the next heading - or, when the report writes it as a bold label
+    (``**Scenario record**``), from that line up to the next heading or
+    the next bold-labelled paragraph."""
     lines = body.splitlines()
     start = next(
         (i + 1 for i, line in enumerate(lines) if SCENARIO_HEADING_RE.match(line)), None
     )
+    if start is not None:
+        end = next(
+            (i for i in range(start, len(lines)) if lines[i].startswith("#")),
+            len(lines),
+        )
+        return "\n".join(lines[start:end]).strip()
+    start = next(
+        (i for i, line in enumerate(lines) if SCENARIO_LABEL_RE.match(line)), None
+    )
     if start is None:
         return None
-    end = next(
-        (i for i in range(start, len(lines)) if lines[i].startswith("#")),
-        len(lines),
-    )
+    end = len(lines)
+    for i in range(start + 1, len(lines)):
+        if lines[i].startswith("#") or BOLD_LABEL_RE.match(lines[i]):
+            end = i
+            break
     return "\n".join(lines[start:end]).strip()
 
 
@@ -590,6 +605,7 @@ def tree_anchor_diff(
         "candidate": "HEAD",
         "ignored": [],
         "unchanged": 0,
+        "runtime": [],
         "non_runtime": [],
         "unclassified": [],
         "only_in_anchor": [],
@@ -608,7 +624,9 @@ def tree_anchor_diff(
             diff["unchanged"] += 1
         else:
             differing.append(name)
-            if is_non_runtime(name, opts["non_runtime"], opts["runtime"]):
+            if name.lower() in opts["runtime"]:
+                diff["runtime"].append(name)
+            elif is_non_runtime(name, opts["non_runtime"], opts["runtime"]):
                 diff["non_runtime"].append(name)
             else:
                 diff["unclassified"].append(name)
@@ -972,6 +990,15 @@ def main(argv: list[str] | None = None) -> int:
         help="restrict to this service (exact name; repeatable)",
     )
     parser.add_argument("--stack", help="restrict to this stack")
+    parser.add_argument(
+        "--render",
+        action="store_true",
+        help="print the status as markdown by the skill's rules instead of the JSON facts",
+    )
+    parser.add_argument(
+        "--today",
+        help="the date the cadence rules count from, YYYY-MM-DD (default: today; with --render)",
+    )
     parser.add_argument("--env", help="restrict to this deployment environment")
     parser.add_argument(
         "--non-runtime",
@@ -1016,9 +1043,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--recent",
-        default=str(DEFAULT_RECENT),
+        default=None,
         help="reports lifted in full per lineage (service set, stack, environment), "
-        "newest first; the rest are compact. A number, or 'all' (default: 3)",
+        "newest first; the rest are compact. A number, or 'all' (default: 3; "
+        "not with --render)",
     )
     parser.add_argument(
         "--max-commits",
@@ -1028,8 +1056,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    if args.recent.lower() != "all" and not args.recent.isdigit():
+    if (
+        args.recent is not None
+        and args.recent.lower() != "all"
+        and not args.recent.isdigit()
+    ):
         parser.error("--recent takes a number or 'all'")
+    if args.render and args.recent is not None:
+        parser.error(
+            "--recent does not apply with --render: the rules read every report"
+        )
+    if args.today and not args.render:
+        parser.error("--today only applies with --render")
+    if args.recent is None:
+        recent = DEFAULT_RECENT
+    else:
+        recent = None if args.recent.lower() == "all" else int(args.recent)
     root = git_root(Path(args.repo))
     if root is None:
         print(f"not a git repository: {Path(args.repo).resolve()}", file=sys.stderr)
@@ -1051,8 +1093,17 @@ def main(argv: list[str] | None = None) -> int:
         max_commits=args.max_commits,
         non_runtime=tuple(args.non_runtime),
         runtime=tuple(args.runtime),
-        recent=None if args.recent.lower() == "all" else int(args.recent),
+        # the renderer applies the rules to every report: no window
+        recent=None if args.render else recent,
     )
+    if args.render:
+        # the renderer lives next to this file; never leave bytecode in the skill
+        sys.dont_write_bytecode = True
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import odd_render
+
+        sys.stdout.write(odd_render.render(facts, today=args.today))
+        return 0
     json.dump(facts, sys.stdout, ensure_ascii=False, separators=(",", ":"))
     sys.stdout.write("\n")
     return 0
