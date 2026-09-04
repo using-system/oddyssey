@@ -57,7 +57,12 @@ jobs:
         run: |
           uvx --from apm-cli=="$APM_CLI_VERSION" apm install --target claude
           test -f .claude/hooks/oddyssey/scripts/guard_default_branch.py
-          grep -q 'guard_default_branch.py PreToolUse' .claude/settings.json
+          python3 - <<'EOF'
+          import json
+          hooks = json.load(open(".claude/settings.json"))["hooks"]["PreToolUse"]
+          commands = [h["command"] for entry in hooks for h in entry["hooks"]]
+          assert any("guard_default_branch.py" in c and c.endswith("PreToolUse") for c in commands), commands
+          EOF
       - name: Run the deployed guard against a repository on its default branch
         # The checkout is a detached merge ref, so the probe repository is
         # built on the side: on main the guard must block, on a work
@@ -81,7 +86,12 @@ jobs:
         run: |
           uvx --from apm-cli=="$APM_CLI_VERSION" apm install --target codex
           test -f .codex/hooks/oddyssey/scripts/guard_default_branch.py
-          grep -q 'guard_default_branch.py PreToolUse' .codex/hooks.json
+          python3 - <<'EOF'
+          import json
+          hooks = json.load(open(".codex/hooks.json"))["hooks"]["PreToolUse"]
+          commands = [h["command"] for entry in hooks for h in entry["hooks"]]
+          assert any("guard_default_branch.py" in c and c.endswith("PreToolUse") for c in commands), commands
+          EOF
 
   marketplace:
     # The plugin bundle must carry hooks/hooks.json with plugin-root
