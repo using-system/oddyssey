@@ -17,7 +17,12 @@ call (`Read`/`Grep`/`Bash`, doc fetches, skills) — never call the `Agent`,
 `Task`, or `Workflow` tool (or any equivalent delegation/subagent tool your
 runtime exposes) to delegate any part of the mission, including to another
 instance of yourself. A mission you cannot complete directly is a
-stop-and-report, never a delegation.
+stop-and-report, never a delegation. A shell block of more than one
+command — a batched read of several files, say — runs under `bash -c`
+or from a `#!/bin/bash` helper file, never as bare lines: the host's
+shell may be zsh, which reads bash idioms differently (a bare
+`echo ====` separator fails there with `=== not found` — write
+`echo "----- $f"`).
 
 The skills live under the `Skills:` directory of the mission block:
 `<Skills>/<skill-name>/SKILL.md`, its references beside it as

@@ -369,9 +369,16 @@ stage boundaries that carve the steady-state sub-window. Drive the
 scenario to completion **inside your turn** — the skill owns the wait
 method (one blocking foreground command, the platform's blocking wait
 primitive, or its detached poller for a run longer than a tool call —
-the job detaches, the wait never does): as a subagent, never end your
-turn while the scenario is running — ending the turn terminates the
-mission and returns an unfinished result, with no later wake-up. On
+the job detaches, the wait never does; where the host blocks a
+foreground `sleep`, a bounded wait — the flush wait of that skill's
+step 5 included — runs through the platform's blocking wait primitive,
+a Monitor-style until-condition tool, with the elapsed time or the
+poll's `until` condition as that primitive's condition, inside the
+turn: the scenario may have to run as a background job, the wait never
+does, and no turn ends to wait for a completion notification): as a
+subagent, never end your turn while the scenario is running — ending
+the turn terminates the mission and returns an unfinished result, with
+no later wake-up. On
 the local stack, when the mission asks for a clean base — or isolating
 the run matters — restart the observed process, **then** call
 `odd_stack_reset` before the scenario (`run-scenario`'s `run-identity.md`: a clean
@@ -419,6 +426,33 @@ the serial cost of a phase that needs one, and whether a host runs
 several tool calls of one turn together is the host's choice, while
 one shell call is one round trip on every host. The per-file capture
 is what lets the report quote each query and its result verbatim.
+
+Any such block — a batched read, a backgrounded batch with its waits,
+a bounded poll (its `until` condition being the primitive's, where the
+host blocks a foreground `sleep`): anything of more than one command
+— runs as
+`bash -c '...'` or from a `#!/bin/bash` helper file written to the
+scratchpad, never as bare lines handed to the host's shell, which may
+be zsh and reads bash idioms differently. A single command that stays
+inline in the host's shell dodges four zsh traps, each proven in one
+line: no `${!var}` — zsh answers `bad substitution` where bash
+resolves the indirection; it only arises in a loop over captured
+PIDs, a block that belongs under `bash -c` anyway — inline, write the
+waits out (`wait "$p1"; wait "$p2"`); no unquoted variable holding
+several flags — zsh does not word-split it, `A="-a -b"; printf
+"%s\n" $A` prints one word `-a -b` where bash prints two, so a CLI
+reads one unknown flag — write the flags literally, or use an array
+(`"${A[@]}"` expands the same in both shells; only indexing differs,
+zsh counting from 1 and bash from 0); brace every variable followed
+by `[` — zsh reads `$var[...]` as a subscript: `CD=customDimensions;
+echo "tostring($CD['user_agent.original'])"` aborts the whole line
+with `bad math expression: operand expected`, exit 1, so the CLI
+never runs, and `"tostring($CD[1])"` prints `tostring(c)`, one
+character of the scalar, where bash prints both as written — write
+`${CD}[...]`, or the literal name; no word starting with `=` — zsh
+looks up a command named `===` for `echo ====` and fails with
+`=== not found` where bash prints it — write `echo "----- $f"`.
+
 Then query per signal from what came back:
 
 - **Metrics** — discover what the service exports (metric names, labels or

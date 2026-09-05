@@ -137,6 +137,13 @@ without contention — four `app-insights query` and two
 `log-analytics query` calls all exited 0 with their rows in 2.1 s
 against 4.0 s serial (verified 2026-09-04, azure-cli 2.89.1, a
 workspace and an Application Insights resource carrying real data).
+The batch runs under `bash -c` or from a `#!/bin/bash` helper file,
+never as bare lines in the host's shell, which may be zsh: there a KQL
+`$CD['user_agent.original']` inside a double-quoted
+`--analytics-query` is a subscript, and the line aborts with
+`bad math expression: operand expected`, exit 1, before `az` runs —
+where the literal `customDimensions[...]`, or `${CD}[...]`, sends the
+query as written.
 
 ## Planning notes
 
