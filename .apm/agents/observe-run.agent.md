@@ -61,7 +61,11 @@ the report.
 - **Mode** —
   - **drive**: you generate the traffic yourself, with the `run-scenario`
     skill, then observe what it produced (the local stack; drive a
-    remote service only when the caller explicitly says so);
+    remote service only when the caller explicitly says so; drive an
+    operation that calls a paid model only when the mission block says
+    the spend is accepted — otherwise leave those operations out of the
+    scenario and say so in section 1, a stop-and-report, never a
+    question, since a subagent cannot ask);
   - **observe**: someone else drives — confirm the backend and the service
     are ready, say so, then wait for the caller's completion signal or the
     end of the window;
@@ -562,6 +566,68 @@ Then go from aggregates to explanations:
   `confirmed` are cross-confirmed; the others are `suspected` by
   construction).
 
+## When `gen_ai.*` spans exist in the window
+
+The trace discovery above says whether the service calls a model: an
+attribute under the `gen_ai.*` prefix on any span of the service in
+the window — or one of the retired names an older instrumentation
+still emits (`gen_ai.system`, the `prompt_tokens` / `completion_tokens`
+usage pair), read as their replacements and said so. Nothing in the
+mission announces it, and nothing about it is asked. When it holds,
+read `<Skills>/otel-guides/references/genai.md`, its `## Hard facts`
+section only — by section like every setup file — and add the GenAI
+reading below on the attribute and metric names that section pins.
+The queries stay the backend's: compose them from the reference file's
+generic trace and metric rows on those names, as for any signal, never
+from memory, and every number carries its query and a sample like the
+rest of section 2.
+
+- **Per-model table** — the GenAI counterpart of the per-operation
+  table, one row per requested model (the answering model next to it
+  when it differs), split by operation and provider — the pivot the
+  reference's planning notes name:
+
+  | Model | Operation | Calls | Tokens in | Tokens out | p50 | p99 | Error % | Cost |
+
+  Calls and latency from the spans, or from the client duration
+  histogram when the instrumentation emits it; tokens from the usage
+  attributes, or from the token-usage histogram by token type; errors
+  from `error.type`. **Cost only when the mission hands a price per
+  model** — in its focus or expectations, as the caller phrased it: the
+  package ships no price table, so without one the cell reads `no price
+  given`, never an estimate; with one, the row states the price applied
+  and the token counts it multiplied, so the verify run recomputes it
+  the same way. A call that reports no usage (a streaming call whose
+  SDK returns none) is a `-` in the token cells and a gap below, never
+  a zero. With a recalled baseline that carries the subsection, follow
+  the table with one delta line per model — calls, tokens, p50/p99:
+  improved / regressed / unchanged / new — the way section 2 does per
+  operation.
+- **Agent-loop reading** — pivot on the conversation id: spans per
+  conversation, the chain of agent invocation → model calls → tool
+  executions as the trace nests them (or the per-invocation inference
+  and tool-call histograms when the framework emits them), the tools
+  called and how often, and the iteration count per conversation
+  against its siblings. An abnormal count — one conversation at 40
+  model calls where the median is 3, a tool called in a loop with the
+  same arguments — is a finding for section 3 with its trace ID as the
+  exemplar, ranked and cross-confirmed like any other. Without a
+  conversation id, group by trace and say the grouping is weaker.
+- **GenAI telemetry gaps** — into section 5 with the classic gaps, each
+  with the discovery query that came back empty: model calls with no
+  token usage, spans without the requested-model attribute, an LLM call
+  visible only as an outbound HTTP span to the provider's host (the
+  `gen_ai` instrumentation is missing — a handoff line to the
+  `otel-instrumentation-expert` agent), no conversation id on an agent
+  loop; content on span attributes where the mission said it must stay
+  off is a finding for section 3, not a gap.
+
+At `quick` depth the per-model table comes from the traces the run
+already reads; the agent-loop reading runs only when the focus asks for
+it, and when it does not, section 5's not-queried statement names it
+with the signals — `not queried (quick): ..., the agent loop` — a
+statement about the mission, never a gap of the service.
+
 ## What the run teaches a custom stack file
 
 A custom stack's file starts from documentation and the user's word;
@@ -647,6 +713,12 @@ from your reply, without re-reading the file:
    zero, no threshold is ruled: every row reads `void`, and the defect
    is section 3's first finding (`run-scenario`'s `benchmark-replay.md` — the
    benchmark did not exercise what it measures).
+
+   When `gen_ai.*` spans exist in the window (the section of that name
+   above), follow it with the **GenAI** subsection under its own
+   `### GenAI` heading: the per-model table, then the agent-loop
+   reading — numbers only; its abnormal loops are section 3's findings
+   and its gaps section 5's, with the others.
 
    Then the narrative: what the service actually does, in its own
    vocabulary — request rates, latency distribution, error rates, query

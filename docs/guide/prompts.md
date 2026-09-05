@@ -56,11 +56,14 @@ the export stack; the Collector shape is context that becomes
 decisions or open questions.
 
 ```text
-/odd-instrument-otel my agent under src/assistant is built on LangChain - plan GenAI observability with the gen_ai semantic conventions for its LLM calls
+/odd-instrument-otel my agent under src/assistant is built on LangChain - plan GenAI observability for its LLM calls, never capture prompts or completions, and we want cost per model
 ```
 
-"src/assistant" is the investigated path; the GenAI framework and the
-semantic conventions to apply are context the investigation verifies.
+"src/assistant" is the investigated path; the GenAI framework is
+context the investigation verifies; "never capture prompts or
+completions" answers the content-capture decision (capture prompts:
+no) and "cost per model" the cost-attribution one, so neither is left
+open in the report.
 
 Across all of them:
 
@@ -236,6 +239,19 @@ one-question mission answered in minutes with the signals it needs,
 
 "checkout" is the service, "full audit" the `full` depth: the whole
 protocol runs.
+
+```text
+/odd-observe drive 30 chat requests against assistant, focus on tokens and cost - price <model> at <in>/<out> USD per million tokens, the spend is fine
+```
+
+"assistant" is the service, "drive 30 chat requests" the `drive` mode
+and its scenario, "focus on tokens and cost" the focus; the price per
+model rides with the baseline expectations and fills the cost column
+of the report's per-model table - without one it reads "no price
+given", never an estimate. Nothing announces that the service calls a
+model: the agent sees it in the traces. "the spend is fine" accepts
+the cost of driving a paid model: without it, the operations that call
+one are left out of the scenario and the report says so.
 
 Across all of them:
 

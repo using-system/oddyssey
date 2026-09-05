@@ -100,6 +100,12 @@ check passed or failed, each anomaly fixed or still present, each gap
 filled or still missing. A re-measure replays the same protocol and
 rules on no fix: its numbers extend the run's measurement history.
 
+A service that calls a model adds a **GenAI** subsection to section 2:
+the per-model table — calls, tokens in and out, p50/p99, error rate,
+and cost only when you handed the run a price per model — and the
+agent-loop reading (spans per conversation, tool-call chains,
+iteration counts). Its telemetry gaps sit in section 5 with the others.
+
 ## Instrumentation reports — `.odd/otel-instrumentation-reports/`
 
 Written by `/odd-instrument-otel`, one file per investigation.
@@ -153,6 +159,12 @@ checking that a protocol's query runs.
    signal, with the identity that ties it to the process under test,
    so `/odd-verify` can rule closed, present but unattributed, or
    still missing.
+
+A service whose dependencies name a model SDK adds a **GenAI
+approach** to section 3 — the instrumentation library the plan adopts,
+and what stays hand-coded — and two decisions to section 4: prompt and
+completion content capture (off unless you turn it on, named as the
+library's own switch) and cost attribution.
 
 ## How the reports chain
 
