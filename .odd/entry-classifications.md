@@ -11,3 +11,4 @@ persists nothing.
 | Date | Entry | Class | Rationale |
 |---|---|---|---|
 | 2026-09-05 | .apm | non-runtime | the package's prompts, agents and skills - never on the MCP server's request path |
+| 2026-09-05 | marketplace | non-runtime | generated from .apm by the release workflow |
