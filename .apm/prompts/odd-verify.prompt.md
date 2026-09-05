@@ -34,8 +34,9 @@ Resolve the report first:
   report; it may itself be a verification whose own §7 measurement
   protocol was the one replayed — then that verification is the
   baseline, and the new report's `verifies` names it. Never chase the
-  chain further: the reference always names the protocol's actual
-  source, one hop away. One carve-out: when the caller explicitly
+  chain further for the baseline: the reference always names the
+  protocol's actual source, one hop away (the execution mode does walk
+  the chain - preflight step 2). One carve-out: when the caller explicitly
   targets a verification report's **own** §7 protocol, there is no
   hop — that verification is the baseline, and the new report's
   `verifies` names it (this is how the first `verifies: <verification>`
@@ -63,9 +64,19 @@ this order:
    guess, and never from the configured stack instead.
 2. **The execution mode, and the remote-drive question.** Resolve the
    mode - the mission block below restates the rule: the frontmatter's
-   mode; for a `verify` or `re-measure` baseline, the mode of the
-   report its `verifies` names; `drive` for an instrumentation report,
-   whose frontmatter has no mode - never inferred from what the record
+   mode when it is an execution mode (`drive`, `observe`, `post-hoc`);
+   `drive` for an instrumentation baseline, whose frontmatter has no
+   mode; for a `verify` or `re-measure` baseline, follow `verifies`
+   until a report whose mode is an execution mode, or an
+   instrumentation report (the `verifies` that named it is the
+   `.odd/otel-instrumentation-reports/<file>` path form) - that
+   report's mode is the replay's mode, `drive` for the instrumentation
+   one. The baseline stays one hop away, or none under the carve-out;
+   only the mode walks. When the chain ends without reaching either - a
+   `verifies` naming a file no longer stored, a pre-convention report
+   with no `verifies` or no `mode` - say so and ask the user for the
+   mode to replay, the way the resolution above asks for the original
+   report. Never inferred from what the record
    contains. Driving is self-authorized only when the stack and the
    target are both local. When the resolved mode is `drive` and the
    report's `stack` is remote - whatever the report kind - ask the
@@ -128,7 +139,12 @@ Then build the mission block from that report:
   this run to drive, so it replays as `observe` — and when the
   baseline is itself a verification or a re-measure (its frontmatter
   says `verify` or `re-measure`, neither an execution mode), the
-  execution mode of the report **its** `verifies` names.
+  execution mode of the first report the `verifies` chain reaches
+  whose mode is one, walking from the baseline as far as the chain
+  goes - an instrumentation report at its end means `drive`; the walk
+  resolves the mode alone, the baseline is still the report the
+  resolution above settled on, one hop away or none under the
+  carve-out.
   For an **instrumentation report** the frontmatter has no `services` or
   `mode`: the services are the ones its per-service plan names (summary
   table), the stack is its frontmatter's `stack` all the same, and the
