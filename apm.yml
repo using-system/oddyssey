@@ -25,6 +25,8 @@ dependencies:
       transport: stdio
       command: uvx
       args:
+        - "--refresh-package"
+        - "oddyssey-mcp"
         - "oddyssey-mcp==1.11.1"
 
 # `apm pack` compiles this block into the native marketplace manifests

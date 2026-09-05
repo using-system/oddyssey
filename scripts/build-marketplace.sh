@@ -55,7 +55,7 @@ cat > marketplace/oddyssey/.mcp.json <<EOF
     "oddyssey": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["${MCP_PIN}"]
+      "args": ["--refresh-package", "oddyssey-mcp", "${MCP_PIN}"]
     }
   }
 }
