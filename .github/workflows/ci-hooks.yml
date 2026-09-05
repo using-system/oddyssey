@@ -63,11 +63,13 @@ jobs:
         run: |
           uvx --from apm-cli=="$APM_CLI_VERSION" apm install --target claude
           test -f .claude/hooks/oddyssey/scripts/guard_default_branch.py
+          test -f .claude/hooks/oddyssey/scripts/guard_append_only.py
           python3 - <<'EOF'
           import json
           hooks = json.load(open(".claude/settings.json"))["hooks"]["PreToolUse"]
           commands = [h["command"] for entry in hooks for h in entry["hooks"]]
-          assert any("guard_default_branch.py" in c and c.endswith("PreToolUse") for c in commands), commands
+          for script in ("guard_default_branch.py", "guard_append_only.py"):
+              assert any(script in c and c.endswith("PreToolUse") for c in commands), (script, commands)
           EOF
       - name: Run the deployed guard against a repository on its default branch
         # The checkout is a detached merge ref, so the probe repository is
@@ -104,15 +106,47 @@ jobs:
           printf 'clean line\n' > "$probe/.odd/r.md"
           echo "$payload" | python3 .claude/hooks/oddyssey/scripts/scan_odd_identifiers.py PostToolUse
           echo "the scan flags a GUID and passes a clean report"
+      - name: Run the deployed append-only guard against a committed report and a ledger
+        # The gate is git's: a report HEAD holds is refused, a report not
+        # committed yet stays the run's to write.
+        run: |
+          probe="$(mktemp -d)"
+          mkdir -p "$probe/.odd/observe-run-reports"
+          printf 'stored\n' > "$probe/.odd/observe-run-reports/r.md"
+          git -C "$probe" init -q -b main
+          git -C "$probe" add -A
+          git -C "$probe" -c user.name=ci -c user.email=ci@example.com commit -q -m 'docs(odd): observation report'
+          guard=.claude/hooks/oddyssey/scripts/guard_append_only.py
+          edit='{"tool_name":"Edit","tool_input":{"file_path":"'"$probe"'/.odd/observe-run-reports/r.md","old_string":"stored","new_string":"edited"},"cwd":"'"$probe"'"}'
+          shell='{"tool_name":"Bash","tool_input":{"command":"sed -i s/stored/edited/ .odd/observe-run-reports/r.md"},"cwd":"'"$probe"'"}'
+          ledger='{"tool_name":"Write","tool_input":{"file_path":"'"$probe"'/.odd/decisions.md","content":"| row |"},"cwd":"'"$probe"'"}'
+          new='{"tool_name":"Write","tool_input":{"file_path":"'"$probe"'/.odd/observe-run-reports/new.md","content":"new"},"cwd":"'"$probe"'"}'
+          set +e
+          echo "$edit" | python3 "$guard" PreToolUse
+          rc_edit=$?
+          echo "$shell" | python3 "$guard" PreToolUse
+          rc_shell=$?
+          echo "$ledger" | python3 "$guard" PreToolUse
+          rc_ledger=$?
+          set -e
+          if [ "$rc_edit" -ne 2 ] || [ "$rc_shell" -ne 2 ] || [ "$rc_ledger" -ne 2 ]; then
+            echo "the guard answered $rc_edit (Edit) and $rc_shell (sed -i) on a committed report and $rc_ledger on a ledger, expected the block code 2" >&2; exit 1
+          fi
+          echo "$new" | python3 "$guard" PreToolUse
+          printf 'new\n' > "$probe/.odd/observe-run-reports/new.md"
+          echo "$new" | python3 "$guard" PreToolUse
+          echo "the guard refuses an edit and a sed -i of a committed report and a write to a ledger, and passes a report not committed yet"
       - name: Deploy for Codex and assert the hook landed
         run: |
           uvx --from apm-cli=="$APM_CLI_VERSION" apm install --target codex
           test -f .codex/hooks/oddyssey/scripts/guard_default_branch.py
+          test -f .codex/hooks/oddyssey/scripts/guard_append_only.py
           python3 - <<'EOF'
           import json
           hooks = json.load(open(".codex/hooks.json"))["hooks"]["PreToolUse"]
           commands = [h["command"] for entry in hooks for h in entry["hooks"]]
-          assert any("guard_default_branch.py" in c and c.endswith("PreToolUse") for c in commands), commands
+          for script in ("guard_default_branch.py", "guard_append_only.py"):
+              assert any(script in c and c.endswith("PreToolUse") for c in commands), (script, commands)
           EOF
 
   marketplace:
@@ -130,7 +164,7 @@ jobs:
           bash scripts/build-marketplace.sh
           test -f marketplace/oddyssey/hooks/hooks.json
           test ! -e marketplace/oddyssey/hooks.json
-          for script in guard_default_branch scan_odd_identifiers; do
+          for script in guard_default_branch guard_append_only scan_odd_identifiers; do
             grep -qF "\\\"\${CLAUDE_PLUGIN_ROOT}\\\"/hooks/scripts/${script}.py" marketplace/oddyssey/hooks/hooks.json
             test -f "marketplace/oddyssey/hooks/scripts/${script}.py"
           done

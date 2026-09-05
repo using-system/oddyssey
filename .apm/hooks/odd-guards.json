@@ -9,6 +9,15 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ./scripts/guard_append_only.py PreToolUse",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
