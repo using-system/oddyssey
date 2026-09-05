@@ -16,6 +16,7 @@ backend, never starts the stack. JSON on stdout, diagnostics on stderr.
                           [--runtime NAME ...] [--section-texts 3,5]
                           [--table-sections 2,3,5] [--max-cell N]
                           [--max-text N] [--max-commits N]
+    python3 odd_status.py --render [--full] [--ruled REPORT/ID=STATE ...] ...
 """
 
 from __future__ import annotations
@@ -379,8 +380,8 @@ def paragraphs(lines: list[str]) -> list[str]:
     return out
 
 
-def cap(text: str, limit: int) -> tuple[str, bool]:
-    if len(text) <= limit:
+def cap(text: str, limit: int | None) -> tuple[str, bool]:
+    if limit is None or len(text) <= limit:
         return text, False
     return text[:limit] + ELLIPSIS, True
 
@@ -486,7 +487,9 @@ def cell_at(row: list[str], index: int | None) -> str | None:
     return row[index].strip() or None
 
 
-def findings_at_a_glance(sections: list[dict], replay: bool) -> list[dict]:
+def findings_at_a_glance(
+    sections: list[dict], replay: bool, max_title: int | None = MAX_FINDING_TITLE
+) -> list[dict]:
     """The findings a report names, reduced to id, title, severity, ruling.
 
     Section 3's rows always; on a replay, the rows of every other table
@@ -510,7 +513,7 @@ def findings_at_a_glance(sections: list[dict], replay: bool) -> list[dict]:
                 out.append(
                     {
                         "id": row[0].split()[0].strip("*`"),
-                        "title": cap(title, MAX_FINDING_TITLE)[0] if title else None,
+                        "title": cap(title, max_title)[0] if title else None,
                         "severity": cell_at(row, severity),
                         "ruling": cell_at(row, ruling),
                         "section": number,
@@ -802,7 +805,7 @@ def enrich_report(root: Path, report: dict, opts: dict) -> dict:
             "scenario_record": record_text,
             "scenario_record_truncated": record_truncated,
             "finding_ids": report.pop("_ids"),
-            "findings": findings_at_a_glance(sections, replay),
+            "findings": findings_at_a_glance(sections, replay, opts["max_title"]),
             "sections": capped_sections(sections, opts, table_sections) if full else [],
         }
     )
@@ -1044,6 +1047,7 @@ def build_facts(
     non_runtime: tuple[str, ...] = (),
     runtime: tuple[str, ...] = (),
     recent: int | None = DEFAULT_RECENT,
+    max_title: int | None = MAX_FINDING_TITLE,
 ) -> dict:
     root = Path(root)
     services = list(services or [])
@@ -1054,6 +1058,7 @@ def build_facts(
         "max_text": max_text,
         "max_record": max_record,
         "max_commits": max_commits,
+        "max_title": max_title,
         "non_runtime": {n.lower() for n in non_runtime},
         "runtime": {n.lower() for n in runtime},
         "head_tree": ls_tree(root, "HEAD"),
@@ -1130,6 +1135,20 @@ def main(argv: list[str] | None = None) -> int:
         "--today",
         help="the date the cadence rules count from, YYYY-MM-DD (default: today; with --render)",
     )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="render the working tables whole instead of the one-screen synthesis "
+        "(implied by a scope: --service, --stack or --env; with --render)",
+    )
+    parser.add_argument(
+        "--ruled",
+        action="append",
+        default=[],
+        metavar="REPORT/ID=STATE",
+        help="a ruling on a finding applied before rendering, STATE one of open, "
+        "fixed, regressed (repeatable; with --render; never persisted)",
+    )
     parser.add_argument("--env", help="restrict to this deployment environment")
     parser.add_argument(
         "--non-runtime",
@@ -1199,6 +1218,10 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.today and not args.render:
         parser.error("--today only applies with --render")
+    if args.full and not args.render:
+        parser.error("--full only applies with --render")
+    if args.ruled and not args.render:
+        parser.error("--ruled only applies with --render")
     if args.recent is None:
         recent = DEFAULT_RECENT
     else:
@@ -1226,6 +1249,8 @@ def main(argv: list[str] | None = None) -> int:
         runtime=tuple(args.runtime),
         # the renderer applies the rules to every report: no window
         recent=None if args.render else recent,
+        # the rendering references a finding by its key and its whole title
+        max_title=None if args.render else MAX_FINDING_TITLE,
     )
     if args.render:
         # the renderer lives next to this file; never leave bytecode in the skill
@@ -1233,7 +1258,10 @@ def main(argv: list[str] | None = None) -> int:
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         import odd_render
 
-        sys.stdout.write(odd_render.render(facts, today=args.today))
+        full = args.full or bool(args.service or args.stack or args.env)
+        sys.stdout.write(
+            odd_render.render(facts, today=args.today, full=full, ruled=args.ruled)
+        )
         return 0
     json.dump(facts, sys.stdout, ensure_ascii=False, separators=(",", ":"))
     sys.stdout.write("\n")

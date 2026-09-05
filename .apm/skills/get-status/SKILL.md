@@ -1,6 +1,6 @@
 ---
 name: get-status
-description: Render the state of the ODD loop from the repository's committed .odd/ history and git alone - per-service loop state, findings ledger, trends, open telemetry gaps, next recommended action - read-only, no backend queries, no report written. Use when answering where the loop is, when /odd-status runs, or when a status must be computed offline from the clone.
+description: Render the state of the ODD loop from the repository's committed .odd/ history and git alone - one screen by default (the loop state per lineage with its burn-down and next action), the full tables on request (per-service loop state, findings ledger, trends, open telemetry gaps) - read-only, no backend queries, no report written. Use when answering where the loop is, when /odd-status runs, or when a status must be computed offline from the clone.
 ---
 
 # Get the ODD Loop Status
@@ -38,71 +38,104 @@ Never query a backend, never start the stack, never write or edit a
 report, a ledger, or any other file — this skill reads the loop, it does
 not advance it. The one write in the status surface is the decision
 `odd-memory`'s `decisions` reference records. The status renders in
-the conversation,
-as tables — never a committed artifact.
+the conversation — one screen by default, the full tables on request
+— never a committed artifact.
 
 ## Render first, then judge
 
 The build order below is applied by the script bundled with this
-skill, in **one shell call** before any reasoning starts — and one
-more, with classification flags, when the first run defers tree
-entries you can classify:
+skill, in **one shell call** before any reasoning starts — and once
+more, with your rulings as flags, when the first run deferred what
+only a judgment can settle:
 
 ```bash
 python3 <this skill's directory>/scripts/odd_status.py --render \
-  [--service <name>]... [--stack <stack>] [--env <environment>]
+  [--service <name>]... [--stack <stack>] [--env <environment>] [--full]
 ```
 
 Pass the caller's scope as flags — the service name(s) exactly as
 named, the stack, the environment; nothing when the caller named
-nothing. The script prints the status as markdown: the inventory (or
-step 1's stop, or the filter-matches-nothing statement), the loop
-state with one row per lineage (a service set on a stack and an
-environment, or a plan on a stack), the findings ledger with its
-burn-down, the trends over the pairs comparable by construction (a
-report and the one that `verifies` it), the open telemetry gaps as
-last recorded, the next recommended action — every row citing its
-inputs — and a closing **Judgment needed** list of everything the rules
-deferred: a ruling whose wording states no state or two, verifications
-that disagree, a verification stating no verdict, a quick verification
-that ruled only part of its items, a boundary the files cannot settle
-(tree entries the anchor cannot classify, an entry present on one side
-only, a commit-date boundary with commits since), a ruling on an id its
-chain does not define (the same finding, or a homonym), a quick
-report's gaps section opening with its not-queried list, a section not
-lifted or cut by a cap, an unreadable report, a malformed frontmatter
-value, a skipped ledger row. The action column uses step 6's three
-actions plus `fix pending` (observed, nothing landed, nothing to
-verify), `plan verified` / `plan awaits verification` for a plan's
-lineage, and `judgment needed` for a deferral.
+nothing. The script prints the status as markdown, in one of two
+renderings of the same rules:
 
-When you know which top-level entries can or cannot change the
-observed service's runtime in this repository, re-run with
-`--runtime <entry>` or `--non-runtime <entry>` so the rule decides
-instead of deferring — the flags hold for the whole repository, so
-when an entry is runtime for one lineage only, leave the deferral and
-say so. `--today YYYY-MM-DD` sets the date the cadence rule counts
-from; `--help` lists the rest.
+- **The screen** — the default, the memory contract's one-screen
+  synthesis: one line of inventory, one line of memory invariant
+  (the counts, the violations only), the **loop state** — one row per
+  lineage (a service set on a stack and an environment, or a plan on
+  a stack) with its last report, its burn-down (open,
+  fixed-and-verified, regressed, declined, unknown) and the next
+  recommended action, then one line of evidence per lineage under the
+  table. Then one line saying what the screen dropped, and the
+  **Judgment needed** list, capped in length and in count (`+N more`),
+  a lineage's item pointing at its evidence line rather than
+  repeating it.
+- **The full rendering** — `--full`, and whenever the caller scoped
+  the status to a service, a stack or an environment: everything the
+  screen carries, the inventory and the memory invariant as sections,
+  plus the working tables whole — the per-service loop state with its
+  chain and its code boundary, the findings ledger with every finding under its
+  exact ledger key and its whole title, the trends over the pairs
+  comparable by construction (a report and the one that `verifies`
+  it) and the runs listed apart, the open telemetry gaps as last
+  recorded, the next recommended action — every row citing its inputs
+  — and the judgment items whole.
 
-**Print the rendering in the conversation as the status, unchanged** —
-the last one you ran, and say which flags it ran with. The tables are
-the rules; never rewrite a rendered row: when the sources contradict
-one, flag the row in the paragraph below, with the evidence. Then rule
-on the Judgment needed items — those and nothing else — in one short
-paragraph after the rendering, from the fact sheet (`odd_status.py`
-without `--render` prints it as JSON; per report, `tree_anchor_diff`,
-`commits_since`, `benchmarks`, `findings` and `sections` are the keys
-a judgment reads) and from a report body only when an item names
-one. State each judgment as what it changes in the
-tables above ("F1 of <report> reads as fixed: 'still passing' is a pass
-row"; "the `.apm` entry is the package's prompts, non-runtime: the loop
-can rest"), and nothing when an item changes nothing; the list itself
-stays as printed. Runs listed apart in the trends are information, not
+**Judgment needed** lists everything the rules deferred: a ruling
+whose wording states no state or two, verifications that disagree, a
+verification stating no verdict, a quick verification that ruled only
+part of its items, a boundary the files cannot settle (tree entries
+the anchor cannot classify, an entry present on one side only, a
+commit-date boundary with commits since), a ruling on an id its chain
+does not define (the same finding, or a homonym), a quick report's
+gaps section opening with its not-queried list, a section not lifted
+or cut by a cap, an unreadable report, a malformed frontmatter value,
+a skipped ledger row. The action column uses step 6's three actions
+plus `fix pending` (observed, nothing landed, nothing to verify),
+`plan verified` / `plan awaits verification` for a plan's lineage, and
+`judgment needed` for a deferral.
+
+**Rule, then re-run.** Rule on the Judgment needed items — those and
+nothing else — from the fact sheet (`odd_status.py` without `--render`
+prints it as JSON; per report, `tree_anchor_diff`, `commits_since`,
+`benchmarks`, `findings` and `sections` are the keys a judgment reads)
+and from a report body only when an item names one; then hand every
+ruling back to the script as a flag and run it again:
+
+- `--ruled <report>/<id>=<state>`, `<state>` one of `open`, `fixed`,
+  `regressed`: a finding whose ruling the rules could not read ("still
+  passing" is a pass), or a ruling on an id outside its chain you
+  judge to be the same finding — the item leaves the list once every
+  finding it names is ruled. A ruling on a declined finding is
+  refused — the ledger is the memory, the flag is one run's judgment,
+  never persisted.
+- `--runtime <entry>` / `--non-runtime <entry>` for the top-level
+  tree entries you can classify — the flags hold for the whole
+  repository, so when an entry is runtime for one lineage only, leave
+  the deferral and say so.
+- `--today YYYY-MM-DD` sets the date the cadence rule counts from;
+  `--help` lists the rest.
+
+The judgments are applied before the rendering, never after it: one
+burn-down, one truth. What no flag can carry stays in the list, and
+stays deferred.
+
+**Print the last rendering in the conversation as the status,
+unchanged**, and say which flags it ran with. The tables are the
+rules; never rewrite a rendered row: when the sources contradict one,
+flag the row in the paragraph below the rendering, with the evidence.
+Then, under the rendering, the **synthesis** — in the conversation's
+language, three sentences at most: where the loop is healthy, what is
+due, the next command to run — every claim taken from the rendering
+above, nothing from memory. The reply is the synthesis; the tables
+are the working data. What is still deferred after the re-run is
+stated as what it would change if settled, and nothing when it
+changes nothing. Runs listed apart in the trends are information, not
 a deferral: compare them only when the caller asks.
 
 When `python3` is missing, the script is not next to this file (an
 install that dropped `scripts/`), or it exits non-zero, say so in one
 line and build the status by hand, exactly as the steps below describe
+and in the screen's shape unless the caller asked for the full tables
 — the script is the same rules applied by code, never a different
 status.
 
@@ -243,8 +276,9 @@ the frontmatter fields the kind requires (`services`, `stack`,
 and a `verifies` that names a stored file when the mode is a replay.
 Per decision row: a report that exists and a finding it carries (the
 ledger's own skipped rows). The fact sheet carries the result under
-`invariant`, and the rendered status carries a `## Memory invariant`
-section: the counts, then one line per violation.
+`invariant`; the full rendering carries a `## Memory invariant`
+section — the counts, then one line per violation — and the screen
+carries the same as one line, violations only.
 
 A violation is **never a failure**: the store is append-only, so a
 report is never edited to repair it — a new run supersedes it — and a

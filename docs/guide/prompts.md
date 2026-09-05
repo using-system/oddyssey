@@ -327,13 +327,22 @@ Across all of them:
 Answers "where is the loop?" from the committed `.odd/` history and
 git alone — no backend query, nothing written. Arguments: **service
 name(s)**, a **stack**, and/or a **deployment environment** to
-restrict the picture to, or a **decision on a finding**.
+restrict the picture to, **full** for the whole tables, or a
+**decision on a finding**.
 
 ```text
 /odd-status
 ```
 
-No arguments: the whole picture.
+No arguments: the whole picture on one screen — one row per lineage
+with its burn-down and the next recommended action.
+
+```text
+/odd-status full picture, every finding and every trend
+```
+
+"full" renders the working tables — the findings ledger, the trends,
+the open telemetry gaps; a scoped status (below) renders them too.
 
 ```text
 /odd-status where is the loop for my service checkout
