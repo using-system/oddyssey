@@ -108,7 +108,9 @@ the ID, or list `.odd/observe-run-reports/` and read **bodies only for
 candidates whose frontmatter matches** what the caller named; create
 the file with the skeleton when absent; append the row with today's
 UTC date (`date -u`); never reflow or re-sort the existing rows. Say
-in the reply that the row was written by hand.
+in the reply that the row was written by hand. On a host that runs the
+package's hooks the by-hand append is refused - the script is the
+ledgers' only writer there; the fallback is for hosts without hooks.
 
 ## Rules
 
@@ -190,7 +192,8 @@ memory contract; the reply states the appended row with the path and
 the commit, and that a ruling on a work branch reaches `/odd-status`
 on the default branch only once that branch is merged. A change of
 mind is a new row, never a rewrite. By hand, only when the script
-cannot run: the same steps, and say so.
+cannot run and the host runs no hook of the package: the same steps,
+and say so.
 
 **Not recorded**: an entry that is runtime for one lineage and not
 for another — the ledger holds for the whole repository, so the

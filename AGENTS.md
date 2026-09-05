@@ -123,9 +123,10 @@ spec wins if this summary ever drifts:
 
 The committed reports under `.odd/` are the ODD loop's memory: never
 modify or delete a stored report — a new run writes a new file, and
-the diff lives in the new report. An `.odd/`-only change never counts
-as a fix. The formats and the rules a reviewer can enforce are in
-[docs/guide/reports.md](docs/guide/reports.md).
+the diff lives in the new report. On a host that runs the package's
+hooks, a hook refuses such an edit before it runs. An `.odd/`-only
+change never counts as a fix. The formats and the rules a reviewer
+can enforce are in [docs/guide/reports.md](docs/guide/reports.md).
 
 The rule governs the report stores — `.odd/observe-run-reports/`,
 `.odd/otel-instrumentation-reports/`, `.odd/decisions.md`, and

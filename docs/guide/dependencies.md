@@ -465,6 +465,7 @@ each other.
 | Hook | Role | Invoked by |
 | --- | --- | --- |
 | [`odd-guards`](../../.apm/hooks/odd-guards.json), branch guard | Refuse a `git commit` on the default branch, or a `git push` to it, before it runs - the persistence skills' rule made deterministic | The host's pre-tool event, on every target with hooks; never a prompt, agent, or skill |
+| [`odd-guards`](../../.apm/hooks/odd-guards.json), append-only guard | Refuse a file tool or a shell command about to modify or delete a report the repository's HEAD holds under `.odd/observe-run-reports/` or `.odd/otel-instrumentation-reports/`, or to write `.odd/decisions.md` or `.odd/entry-classifications.md` by any means but `odd-memory`'s ledger script - AGENTS.md's append-only rule made deterministic; a report not committed yet stays the run's to write, and `.odd/benchmarks/` and `.odd/observability-stacks/` stay outside | The host's pre-tool event, on every target with hooks; never a prompt, agent, or skill |
 | [`odd-guards`](../../.apm/hooks/odd-guards.json), `.odd/` scan | After a tool wrote a file under `.odd/`, flag every line carrying a GUID that the report does not declare as an OTel `service.instance.id`, a home-directory path, or a value of the global configuration's `stack_config` - AGENTS.md's no-secrets rule, checked before the report is persisted; the write already happened, the message reaches the agent | The host's post-tool event, on every target with hooks |
 
 A hook deploys with the package; a host can be told not to run it
