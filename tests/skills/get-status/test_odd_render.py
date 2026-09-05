@@ -1628,6 +1628,173 @@ def test_the_screen_caps_the_judgment_items_in_length_and_in_count(
     assert not any(i.endswith("…") for i in full_items)
 
 
+def refused_ruling(item: str) -> bool:
+    """A --ruled flag the renderer refused: a ruling to correct, not a flag
+    it could not parse."""
+    return item.endswith(": no such finding") or ": declined by the ledger (" in item
+
+
+JUDGMENT_GROUPS = (
+    # what settling the item changes, most to least: the screen's order
+    ("boundary", lambda i, lineage: i.startswith(f"{lineage}: ")),
+    (
+        "ruling",
+        lambda i, _: (
+            "ruling not readable by rule" in i
+            or "outside its chain" in i
+            or refused_ruling(i)
+        ),
+    ),
+    (
+        "verdict",
+        lambda i, _: "verdicts" in i or "no verdict" in i or i.startswith("quick "),
+    ),
+    ("gap", lambda i, _: i.startswith(("section 5 of ", "gaps of "))),
+    (
+        "hygiene",
+        lambda i, _: (
+            i.startswith(
+                ("unreadable report ", "frontmatter of ", "ledger line ", "ruling ")
+            )
+            and not refused_ruling(i)
+        ),
+    ),
+)
+
+
+def judgment_items(text: str) -> list[str]:
+    return [
+        line[2:]
+        for line in text.split("## Judgment needed")[1].splitlines()
+        if line.startswith("- ")
+    ]
+
+
+def group_of(item: str, lineage: str) -> str:
+    [name] = [name for name, match in JUDGMENT_GROUPS if match(item, lineage)]
+    return name
+
+
+def test_the_judgment_list_is_ordered_by_what_settling_an_item_changes(
+    repo, odd_status, odd_render
+):
+    # one item of each group, more than the screen's cap in all: a boundary
+    # only a judgment settles, a ruling the rules cannot read and two on an id
+    # outside the chain, two verdict words, a quick report's gaps mixed into
+    # its not-queried list, two refused flags, a skipped ledger row and three
+    # malformed flags
+    rev = repo.git("rev-parse", "--short", "HEAD")
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(
+            run_name="a",
+            revision=rev,
+            extra_frontmatter=f"tree_anchor: {repo.tree_anchor()}",
+        ),
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-11-1000-b.md",
+        observation(
+            run_name="b",
+            date="2026-08-11",
+            revision=rev,
+            body=DEFAULT_BODY.replace("| F1 |", "| G1 |").replace("| F2 |", "| G2 |"),
+        ),
+    )
+    repo.commit("docs(odd): observation reports", date="2026-08-11T12:00:00Z")
+    repo.write("src/app.py", "print('fixed')\n")
+    repo.commit("fix: batch the cart lines query", date="2026-08-11T13:00:00Z")
+    verify_a = VERIFY_BODY.replace(
+        "**Verdict: 2/2 checks PASS** on unchanged criteria.",
+        "**Verdict: FAIL** — 9 of 10 checks PASS.",
+    ).replace(
+        "| F1 | N+1 on cart lines | FIXED |",
+        "| F1 | N+1 on cart lines | mostly, see below |",
+    )
+    write_verify(repo, "2026-08-12-1000-verify-a.md", "2026-08-10-1000-a.md", verify_a)
+    # verifies b, yet rules F1 and F2 - ids report a defines, outside its chain
+    write_verify(
+        repo, "2026-08-12-1100-verify-b.md", "2026-08-11-1000-b.md", VERIFY_BODY
+    )
+    repo.write(
+        ".odd/decisions.md",
+        LEDGER_HEAD
+        + "| 2026-08-13 | 2026-08-10-1000-a.md / F9 | wontfix | no such finding |\n"
+        + "| 2026-08-13 | 2026-08-10-1000-a.md / F2 | wontfix | Cold start is rare |\n",
+    )
+    repo.commit("docs(odd): verifications and a decision", date="2026-08-13T12:00:00Z")
+    repo.write("src/app.py", "print('changed again')\n")
+    repo.commit("fix: another change", date="2026-08-14T12:00:00Z")
+    # a quick report leading its own lineage, its gaps mixed into the not-queried list
+    quick_body = DEFAULT_BODY.replace(
+        "- **Logs: absent for checkout** - no log stream carries the service.",
+        "Not queried (quick): logs, profiles — the probes showed nothing;\n"
+        "the baseline's gaps stand: no startup span (F1).",
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-14-1300-c.md",
+        observation(
+            run_name="c",
+            date="2026-08-14",
+            services="[payment]",
+            revision=repo.git("rev-parse", "--short", "HEAD"),
+            extra_frontmatter=f"tree_anchor: {repo.tree_anchor()}",
+            body=quick_body,
+        ).replace("depth: full", "depth: quick"),
+    )
+    repo.commit("docs(odd): quick observation report", date="2026-08-14T13:00:00Z")
+    facts = odd_status.build_facts(repo.root, recent=None, max_title=None)
+    [rec] = [
+        r
+        for r in odd_render.recommendations(facts, today="2026-08-15")
+        if r["action"] == "judgment needed"
+    ]
+    assert rec["lineage"] == "checkout / local / local"
+    flags = [
+        "no-equals-sign",
+        "2026-08-10-1000-a.md/F1=maybe",
+        "F2=open",
+        "2026-08-10-1000-a.md/F9=fixed",  # refused: no such finding - a ruling
+        "2026-08-10-1000-a.md/F2=open",  # refused: declined by the ledger - a ruling
+    ]
+
+    full = judgment_items(
+        odd_render.render(facts, today="2026-08-15", full=True, ruled=flags)
+    )
+    groups = [group_of(i, rec["lineage"]) for i in full]
+    assert len(full) == 12 and len(full) > odd_render.MAX_SCREEN_ITEMS
+    assert set(groups) == {name for name, _ in JUDGMENT_GROUPS}
+    # grouped in the screen's order, whole - the boundary first, hygiene last
+    assert groups == sorted(groups, key=[name for name, _ in JUDGMENT_GROUPS].index)
+    assert full[0].startswith(f"{rec['lineage']}: ") and "boundary uncertain" in full[0]
+    assert "ruling not readable by rule" in full[1]
+    # a refused --ruled flag is a ruling to correct: the tail of group 2
+    assert full[groups.index("verdict") - 2 : groups.index("verdict")] == [
+        "ruling 2026-08-10-1000-a.md / F9: no such finding",
+        "ruling 2026-08-10-1000-a.md / F2: declined by the ledger (wontfix 2026-08-13)",
+    ]
+    assert full[-4].startswith("ledger line ") and full[-3:] == [
+        "ruling no-equals-sign: not <report>/<id>=<state>",
+        "ruling 2026-08-10-1000-a.md / F1: unknown state 'maybe'",
+        "ruling F2=open: not <report>/<id>=<state>",
+    ]
+
+    screen = judgment_items(odd_render.render(facts, today="2026-08-15", ruled=flags))
+    marker = screen.pop()
+    assert marker == f"+{12 - odd_render.MAX_SCREEN_ITEMS} more - `--full`"
+    # the screen is a prefix of the full list: the same items in the same
+    # order, the lineage's item pointing at its evidence instead of carrying it
+    assert len(screen) == odd_render.MAX_SCREEN_ITEMS
+    assert (
+        screen[0]
+        == f"{rec['lineage']}: judgment needed - see its evidence under Loop state"
+    )
+    assert screen[1:] == full[1 : odd_render.MAX_SCREEN_ITEMS]
+    assert [group_of(i, rec["lineage"]) for i in screen] == groups[: len(screen)]
+    # what fell behind the marker is memory hygiene, never a boundary or a ruling
+    assert {group_of(i, rec["lineage"]) for i in full[len(screen) :]} == {"hygiene"}
+
+
 def test_a_ruling_with_nothing_to_rule_is_said(repo, odd_status, odd_render):
     facts = odd_status.build_facts(repo.root, recent=None)
     text = odd_render.render(facts, ruled=["x/F1=fixed"])

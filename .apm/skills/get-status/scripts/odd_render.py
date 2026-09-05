@@ -10,9 +10,11 @@ Two renderings of the same rules. The default is one screen, the
 memory contract's synthesis: one line of inventory, one of memory
 invariant (violations only), the burn-down per lineage with the
 recommended action and its evidence, what the screen dropped, and the
-judgment list with its items capped. ``full`` renders the working
-tables whole. A caller's rulings on findings (``ruled``) are applied
-before either rendering, never after it: one burn-down, one truth.
+judgment list ordered by what settling an item changes - a lineage's
+boundary first, memory hygiene last - then its items capped. ``full``
+renders the working tables whole, the judgment list in the same
+order. A caller's rulings on findings (``ruled``) are applied before
+either rendering, never after it: one burn-down, one truth.
 
 Standard library only. Imported by odd_status.py for ``--render``.
 """
@@ -450,6 +452,13 @@ def parse_ruling(text: str) -> tuple[str, str] | str:
     if normalized is None:
         return f"ruling {key}: unknown state '{state.strip()}'"
     return key, normalized
+
+
+# The problems apply_rulings returns for a ruling it refused - a key no
+# report carries, a finding the ledger declined - as opposed to a flag it
+# could not parse. Anchored at the end: a caller's text embedding the words
+# renders as a parse problem, whose suffix is the form the flag missed.
+RULING_REFUSED_RE = re.compile(r": (no such finding|declined by the ledger \(.*\))$")
 
 
 def apply_rulings(
@@ -1369,76 +1378,93 @@ def render(
             out.append(f"{plural(len(ruled), 'ruling')} not applied: nothing to rule.")
         return "\n".join(out) + "\n"
 
-    judgment: list[str] = []
+    # The judgment list, in five groups by what settling an item changes -
+    # the order the screen's cap applies to, the full rendering's order too.
+    # A lineage's boundary (settled with --runtime / --non-runtime, it flips
+    # the action), the rulings the rules could not read and the ones outside
+    # their chain (settled with --ruled, they move a finding between burn-down
+    # columns), the verdict problems, the gap notes, and the memory hygiene
+    # last: the reports, ledger rows and flags the run could not read, most
+    # of them already counted on the invariant line, none of them a store
+    # item to settle. A --ruled flag the renderer refused (no such finding,
+    # declined by the ledger) is a ruling to correct, so it rides with the
+    # rulings, not with the flags it could not parse.
+    hygiene: list[str] = []
     for report in facts["reports"]:
         if "unreadable" in report:
-            judgment.append(
+            hygiene.append(
                 f"unreadable report {report['path']}: {report['unreadable']}"
             )
     for report in readable(facts):
         for error in report.get("frontmatter_errors", []):
-            judgment.append(f"frontmatter of {name_of(report)}: {error}")
+            hygiene.append(f"frontmatter of {name_of(report)}: {error}")
     for row in facts["ledger"]["rows"]:
         if row["status"] == "skipped":
-            judgment.append(f"ledger line {row['line']} skipped: {row['reason']}")
+            hygiene.append(f"ledger line {row['line']} skipped: {row['reason']}")
     for row in (facts.get("classifications") or {"rows": []})["rows"]:
         if row["status"] == "skipped":
-            judgment.append(
+            hygiene.append(
                 f"classification line {row['line']} skipped: {row['reason']}"
             )
+    verdicts: list[str] = []
     for report in readable(facts):
         if is_verify(report):
             label = verdict_label(report)
             if label == "no verdict stated":
-                judgment.append(
+                verdicts.append(
                     f"{name_of(report)} states no verdict and rules on nothing"
                 )
             elif label.startswith("no verdict stated"):
-                judgment.append(f"{name_of(report)} states two verdicts {label[18:]}")
+                verdicts.append(f"{name_of(report)} states two verdicts {label[18:]}")
             coverage = quick_coverage(report)
             if coverage and coverage[0] < coverage[1]:
-                judgment.append(
+                verdicts.append(
                     f"quick verification {name_of(report)} ruled {coverage[0]} of "
                     f"{coverage[1]}: verified only for those items, never for the service"
                 )
 
     rows = finding_rows(facts)
     problems, ruled_keys = apply_rulings(rows, ruled)
-    judgment += problems
+    hygiene += [p for p in problems if not RULING_REFUSED_RE.search(p)]
     counts = burn_down(rows)
+    rulings: list[str] = []
     for r in rows:
         if r["state"] == "unknown":
-            judgment.append(
+            rulings.append(
                 f"finding {Path(r['report']).name} / {r['id']}: "
                 f"ruling not readable by rule ({r['ruled_by']})"
             )
-    judgment += out_of_chain_rulings(facts, ruled_keys)
+    rulings += out_of_chain_rulings(facts, ruled_keys)
+    rulings += [p for p in problems if RULING_REFUSED_RE.search(p)]
 
     trends, apart = trend_rows(facts)
     gaps = gap_rows(facts)
+    gap_notes: list[str] = []
     for g in gaps:
         if g["gap"].startswith("(section 5 not lifted)"):
-            judgment.append(
+            gap_notes.append(
                 f"gaps of {g['recorded_by']}: section 5 not lifted, open the body"
             )
     for name in sorted({g["recorded_by"] for g in gaps if g["truncated"]}):
-        judgment.append(
+        gap_notes.append(
             f"section 5 of {name} truncated: the gaps beyond the cap are unlisted"
         )
     for name in mixed_not_queried(facts):
-        judgment.append(
+        gap_notes.append(
             f"section 5 of {name} mixes a not-queried list with its gaps: open the body "
             "for the gaps it carries"
         )
     recs = recommendations(facts, today)
+    boundaries: list[str] = []
     for r in recs:
         if r["action"] == "judgment needed":
             # the screen's row already carries the evidence: point at it
-            judgment.append(
+            boundaries.append(
                 f"{r['lineage']}: {r['evidence']}"
                 if full
                 else f"{r['lineage']}: judgment needed - see its evidence under Loop state"
             )
+    judgment = boundaries + rulings + verdicts + gap_notes + hygiene
 
     if full:
         out += inventory_lines(facts)
