@@ -116,6 +116,12 @@ reads (60 s when it reads traces), then run every query against the
 window recorded in step 4. Never interleave requests, waits, and
 queries outside the query points the record declares: a wait after
 every request batch turns a 3-minute scenario into 4 minutes of sleep.
+Where the host blocks a foreground `sleep`, the wait — a fixed sleep or
+a bounded poll — runs through the platform's blocking wait primitive
+(a Monitor-style until-condition tool, `references/long-scenarios.md`)
+with the elapsed time or the poll's `until` condition as that
+primitive's condition, inside the turn — never a background job whose
+completion notification the turn waits for, never a turn ended to wait.
 
 A mission that must read the store at several points — each reset
 wipes it, so a lifecycle test whose subject is the reset has one store

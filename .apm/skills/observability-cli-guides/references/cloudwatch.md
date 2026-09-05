@@ -124,7 +124,11 @@ call, they share the SSO credential cache without contention — a
 their data in 11.0 s against 13.0 s serial, the slowest call
 (`get-trace-summaries` over six hours, ~40 K summaries) bounding both
 (verified 2026-09-04, aws-cli 2.36.37, an account carrying real logs,
-metrics and traces).
+metrics and traces). The batch and its waits run under `bash -c` or
+from a `#!/bin/bash` helper file, never as bare lines in the host's
+shell, which may be zsh: there an unquoted `$A` holding
+`--profile <p> --region <r>` reaches `aws` as one word, and every
+call answers with its usage text and exit 252.
 
 ## Planning notes
 
