@@ -64,6 +64,17 @@ repository: github.com/example-org/checkout  # optional: the repository revision
   in it (the repository, or a path inside it) and does not change.
   Absent on a report that predates the field; a consumer then reads
   the report as investigating the repository it is stored in.
+- The body's sections are the agent's contract — five, numbered, and
+  read by number. One subsection is optional, named here so the
+  recall, the synthesis and a reader find it: a service whose
+  manifest names a model SDK carries a **GenAI approach** under a
+  `### GenAI approach` heading in section 3 — prose, never a table:
+  the instrumentation library the plan adopts, what it emits, what
+  stays hand-coded (cost, the agent loop) and the content-capture
+  switch with its direction — and two entries in section 4, prompt
+  and completion content capture and cost attribution, open like every
+  other decision there. Absent on a service that calls no model; a
+  report predating the subsection simply lacks it.
 
 ## Recall: reading the memory
 
@@ -82,11 +93,13 @@ the matching rules are this reference's:
 2. A report matches when its `project` covers the mission's scope
    (equal to it, or a parent path of it) and its `stack` is the
    mission's when one is named.
-3. The first match — the first line printed — is the baseline: its stack
-   inventory, per-service decisions and pinned versions are the sections
-   the new investigation diffs against (new services, changed
-   frameworks, moved pins). What the comparison must report belongs to
-   the calling agent's contract, not to this reference.
+3. The first match — the first line printed — is the baseline: its
+   stack inventory, per-service decisions (their GenAI approach with
+   them, when a service carries one) and pinned versions are the
+   sections the new investigation diffs against (new services, changed
+   frameworks, moved pins, a model SDK added or dropped). What the
+   comparison must report belongs to the calling agent's contract, not
+   to this reference.
 
 ## Rules
 

@@ -17,3 +17,12 @@ Links ending in `index.md` return the page as raw markdown; links without it are
 - Signal status per the docs index: Traces = Beta, Metrics = Beta, Logs = Beta — all three signals are still pre-stable; verify current maturity against the fetched index page before committing to an approach.
 - The official index lists no dedicated Traces, Metrics, Logs, Resources, Sampling, Propagation, or zero-code/automatic-instrumentation sections as separate top-level pages; that content is folded into Getting Started, Using instrumentation libraries, and the API reference. There is no Rust equivalent of Python's `opentelemetry-instrument` zero-code agent — instrumentation is done in code via the `opentelemetry` / `opentelemetry-sdk` crates.
 - OpenTelemetry publishes multiple crates (core `opentelemetry`, `opentelemetry-sdk`, plus exporter and vendor-integration crates); check the Registry and Exporters pages to avoid hand-rolling something an existing crate already provides.
+
+## Profiling
+
+Cross-language facts — the signal status (Alpha), why a vendor SDK bypasses the Collector, how profiles correlate with traces — live in [profiling.md](profiling.md); this section carries only what is particular to this language. Verified 2026-09-05 against the linked pages.
+
+| Profiler | What it is | What to do with it |
+| --- | --- | --- |
+| [Pyroscope Rust](https://grafana.com/docs/pyroscope/latest/configure-client/language-sdks/rust/) | The `pyroscope` crate with the `backend-pprof-rs` feature (`PyroscopeAgentBuilder`), built on [pprof-rs](https://github.com/tikv/pprof-rs), a sampling CPU profiler; sample rate 100 Hz by default. | **The trap**: CPU only, per the [profile types table](https://grafana.com/docs/pyroscope/latest/configure-client/profile-types/), and Rust is not among the span-profiles packages — no trace correlation known (2026-09-05). |
+| [OpenTelemetry eBPF profiler](https://github.com/open-telemetry/opentelemetry-ebpf-profiler) / Alloy `pyroscope.ebpf` | Native Rust binaries are unwound without frame pointers or debug symbols on the host. | The no-code alternative on a privileged Linux host. |

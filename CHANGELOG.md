@@ -1,3 +1,37 @@
+## [1.11.2] - 2026-09-05
+
+### 🚀 Features
+
+- *(mcp)* Odd_config_get returns the installed oddyssey-mcp version (#397)
+- *(skill)* Otel-guides genai reference - the gen_ai semantic conventions and the per-ecosystem instrumentation libraries mapped to their official docs (#398)
+- *(skill)* Get-status orders the screen's judgment list by what settling an item changes, the per-lineage boundary first, before the count cap applies (#399)
+- *(hooks)* Refuse edits to a stored report and the ruling ledgers with a PreToolUse hook - the .odd/ append-only rule made deterministic (#400)
+- *(hooks)* Check a stored report's frontmatter at write time with a PostToolUse hook - the memory invariant of get-status shifted left (#403)
+- *(agents)* GenAI first-class - the instrumentation expert detects and proposes, observe-run reads per-model and agent-loop telemetry, run-scenario confirms a paid model call (#406)
+
+### 🐛 Bug Fixes
+
+- *(readme)* Pin apm-cli 0.28.0 in the install and update commands (#383)
+- *(mcp)* Add --refresh-package oddyssey-mcp to the shipped uvx args so a new pin resolves after a version bump (#384)
+- *(hooks)* Guard_default_branch follows a git switch or checkout earlier on the same line, so the contract's switch-then-commit sequence passes (#385)
+- *(hooks)* Scan_odd_identifiers treats a GUID the report declares as an OTel service.instance.id as evidence, not as an identifier (#386)
+- *(prompts)* /odd-observe and /odd-verify know custom stacks - a custom stack named in the arguments switches to it instead of reading as a deployment-environment expectation (#389)
+- *(prompts)* /odd-verify resolves the execution mode by walking the verifies chain, so a verification of a verification replays in an execution mode (#390)
+- *(hooks)* Guard_default_branch resolves a remote-only branch, a branch homonymous with a directory, and a commit that runs only after || (#401)
+- *(agents)* Shell recipes run a block under bash -c and name the zsh traps of an inline line, a bounded wait through the platform's blocking primitive where the host blocks sleep (#404)
+- *(agent,skill)* Observe-run writes section 5 as one bullet per gap, and get-status splits a legacy paragraph on its fate markers instead of reporting a truncation (#405)
+
+### 📚 Documentation
+
+- *(agents)* The no-secrets rule names a remote stack's persisted stack_config values as identifiers, the way the hook already reads them (#391)
+- *(skill)* Cloudwatch reference - the edge diff is for cumulative fields only, Duration is the root segment's, TracesProcessedCount is per page, sort takes no bin(), and the User-Agent identity is not readable on X-Ray (#392)
+- *(skill)* Grafana reference - traces labels is limited, a TraceQL metrics query runs as a search, increase() under two exports is empty, and Tempo drops the trace id's leading zero (#393)
+- *(skill)* Azure-monitor reference - resolve the component name from the persisted appId, and three query-output traps (#394)
+- *(skill)* Otel-guides - profiling coverage across the 12 languages, and the python reference's zero-code extension points, default resource detectors and pin-rule source (#402)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(apm)* Build-marketplace.sh stops passing the deprecated --target flag to apm pack - the bundle is target-agnostic and the generated trees are identical (#396)
 ## [1.11.1] - 2026-09-05
 
 ### 🚀 Features
