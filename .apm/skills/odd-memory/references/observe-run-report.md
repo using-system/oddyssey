@@ -101,8 +101,8 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   mission parameters and execution context alike, defaults applied,
   not as requested. One exception: a verification or re-measure run
   records `mode: verify` / `mode: re-measure` even though it executes
-  in the replayed report's mode — that execution mode stays reachable
-  through `verifies`.
+  in the mode the `verifies` chain resolves to — that execution mode
+  stays reachable through the chain.
 - `window` is the observed interval as `start/end` in UTC; in drive mode
   it is the scenario's own start and end.
 - `depth` is how far the mission went — `quick` (the agent's bounded
@@ -139,8 +139,9 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   whether a fix is being ruled on, never how the run executed. Plain
   observation reports (drive, observe, post-hoc) never carry `verifies`
   and record their execution mode — the mode a verification or
-  re-measure replayed is the replayed report's, reachable through
-  `verifies`, so it is not repeated. In both modes `verifies` names the
+  re-measure replayed is the first execution mode the `verifies` chain
+  reaches (an instrumentation report at its end means `drive`), so it
+  is not repeated. In both modes `verifies` names the
   report **whose protocol was actually replayed** — a verification
   report is a legal value only when its own updated protocol is the
   one replayed. The exact
