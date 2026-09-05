@@ -84,7 +84,13 @@ and never in only one of them:
   (`customDimensions['user_agent.original']` in KQL,
   `span.user_agent.original` in TraceQL) — this is the identity a
   latency question reads, and it survives a service that ignores
-  `traceparent`.
+  `traceparent`. One store reads it on no row: an X-Ray trace summary
+  carries no user agent when its root segment is a client's own span
+  (an instrumented load generator — `Http.UserAgent` `null` on every
+  summary, verified 2026-09-05; the filter empty over a range holding
+  the run's traces, 2026-09-04) — there the trace-id prefix below
+  identifies the run, and its latency reads from the server segment
+  through `batch-get-traces`, never from a summary's `Duration`.
 - `traceparent: 00-<trace id>-<span id>-01`, the trace id being
   **32 hex in three parts**: a fixed 8-hex prefix shared by every run
   of the protocol (`0ddc0ffe` unless the protocol records another),
