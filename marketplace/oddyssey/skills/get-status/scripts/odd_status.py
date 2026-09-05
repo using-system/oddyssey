@@ -4,7 +4,7 @@
 The get-status skill reasons on the fact sheet this script prints
 instead of parsing every stored report and running git turn by turn.
 The script computes facts only - frontmatters, commit boundaries,
-tree-anchor diffs, the lifted tables, the decisions ledger - and never
+tree-anchor diffs, the lifted tables, the ruling ledgers - and never
 rules on their meaning: the chain, the trends, and the recommendation
 stay with the skill.
 
@@ -16,6 +16,7 @@ backend, never starts the stack. JSON on stdout, diagnostics on stderr.
                           [--runtime NAME ...] [--section-texts 3,5]
                           [--table-sections 2,3,5] [--max-cell N]
                           [--max-text N] [--max-commits N]
+    python3 odd_status.py --render [--full] [--ruled REPORT/ID=STATE ...] ...
 """
 
 from __future__ import annotations
@@ -33,17 +34,21 @@ SCHEMA = "odd-status-facts/1"
 OBSERVATION_DIR = ".odd/observe-run-reports"
 INSTRUMENTATION_DIR = ".odd/otel-instrumentation-reports"
 LEDGER_PATH = ".odd/decisions.md"
+CLASSIFICATIONS_PATH = ".odd/entry-classifications.md"
+CLASSES = ("runtime", "non-runtime")
 BENCHMARKS_DIR = ".odd/benchmarks"
 
 # The loop's own memory: a commit touching nothing else is never a fix.
-MEMORY_PATHS = (OBSERVATION_DIR, INSTRUMENTATION_DIR, LEDGER_PATH)
+MEMORY_PATHS = (OBSERVATION_DIR, INSTRUMENTATION_DIR, LEDGER_PATH, CLASSIFICATIONS_PATH)
 
 # Top-level tree entries that cannot change a service's runtime behavior
 # in any repository: editor and CI configuration, and the documentation
 # files every project carries. Conservative on purpose - a directory a
 # service could live in (agents/, assets/, marketplace/, ...) is never
 # listed, and anything not listed is reported as unclassified for the
-# skill to decide. Matched on the lower-cased name.
+# skill to decide. Matched on the lower-cased name. The repository's own
+# rulings (.odd/entry-classifications.md) come before this list, and a
+# flag given for one run comes before both.
 NON_RUNTIME_NAMES = {
     ".editorconfig",
     ".gitattributes",
@@ -110,6 +115,93 @@ def git(root: Path, *args: str) -> str | None:
 def git_root(path: Path) -> Path | None:
     top = git(path, "rev-parse", "--show-toplevel")
     return Path(top) if top else None
+
+
+REMOTE_RE = re.compile(
+    r"^(?P<scheme>[a-z][a-z0-9+.-]*://)?(?P<user>[^@/]+@)?(?P<host>[^:/@]+)"
+    r"(?::\d+)?[:/](?P<path>.+)$",
+    re.IGNORECASE,
+)
+
+
+def normalize_remote(url: str | None) -> str | None:
+    """A remote URL as the memory contract writes ``repository``: the host
+    lower-cased, then the remote's path as it is; scheme, user info and port
+    dropped, one trailing ``/`` and one trailing ``.git`` stripped, the SSH
+    form read the same way. None for anything that is not a remote (a local
+    path, a bare word)."""
+    text = (url or "").strip().split("#", 1)[0].split("?", 1)[0]
+    match = REMOTE_RE.match(text)
+    if not match:
+        return None
+    host, path = match.group("host").lower(), match.group("path")
+    # a bare word before a slash is a local path unless a scheme or a user
+    # marks it as a remote (an intranet host without a dot)
+    remote_marked = bool(match.group("scheme") or match.group("user"))
+    if host.startswith(".") or (
+        "." not in host and host != "localhost" and not remote_marked
+    ):
+        return None
+    # the SSH form may carry an absolute path (git@host:/srv/git/repo.git),
+    # the same repository ssh://host/srv/git/repo.git names: one identity
+    path = path.lstrip("/").removesuffix("/")
+    if path.lower().endswith(".git"):
+        path = path[:-4]
+    if not path:
+        return None
+    return f"{host}/{path}"
+
+
+def repo_identity(root: Path) -> str | None:
+    """The repository's own identity: its origin remote, normalized."""
+    return normalize_remote(git(root, "remote", "get-url", "origin"))
+
+
+def report_repositories(frontmatter: dict) -> tuple[list[str], list[str]]:
+    """The identities a report's ``repository`` field names, normalized -
+    one, several (a per-service map spanning repositories), or none - and
+    the raw values the normalization could not read."""
+    value = frontmatter.get("repository")
+    values = [v for v in (value.values() if isinstance(value, dict) else [value]) if v]
+    found: set[str] = set()
+    unrecognized: list[str] = []
+    for raw in values:
+        identity = normalize_remote(str(raw))
+        if identity:
+            found.add(identity)
+        else:
+            unrecognized.append(str(raw))
+    return sorted(found), unrecognized
+
+
+def resolve_root(root: Path, frontmatter: dict, opts: dict) -> dict:
+    """Where a report's revision and tree anchor resolve: the store's own
+    repository when the report names none or the store's identity, a clone
+    the caller named, or nowhere - unreachable, unrecognized, or spanning
+    several. A value present but unreadable is never read as the store's."""
+    identities, unrecognized = report_repositories(frontmatter)
+    where: dict = {"identities": identities, "identity": None, "root": None}
+    if unrecognized:
+        # a value the rules cannot read: unknown alone, and still spanning
+        # when readable ones sit beside it - one anchor covers neither
+        source = "spans" if identities else "unrecognized"
+        return {**where, "source": source, "raw": unrecognized}
+    if not identities:
+        return {**where, "source": "store", "root": root}
+    if len(identities) > 1:
+        return {**where, "source": "spans"}
+    [identity] = identities
+    where["identity"] = identity
+    if opts.get("identity") and identity == opts["identity"]:
+        return {**where, "source": "store", "root": root}
+    clone = opts.get("clones", {}).get(identity)
+    if clone is not None:
+        return {**where, "source": "clone", "root": clone}
+    return {
+        **where,
+        "source": "unreachable",
+        "store_identity_unknown": opts.get("identity") is None,
+    }
 
 
 def head_facts(root: Path) -> dict | None:
@@ -379,8 +471,8 @@ def paragraphs(lines: list[str]) -> list[str]:
     return out
 
 
-def cap(text: str, limit: int) -> tuple[str, bool]:
-    if len(text) <= limit:
+def cap(text: str, limit: int | None) -> tuple[str, bool]:
+    if limit is None or len(text) <= limit:
         return text, False
     return text[:limit] + ELLIPSIS, True
 
@@ -486,7 +578,9 @@ def cell_at(row: list[str], index: int | None) -> str | None:
     return row[index].strip() or None
 
 
-def findings_at_a_glance(sections: list[dict], replay: bool) -> list[dict]:
+def findings_at_a_glance(
+    sections: list[dict], replay: bool, max_title: int | None = MAX_FINDING_TITLE
+) -> list[dict]:
     """The findings a report names, reduced to id, title, severity, ruling.
 
     Section 3's rows always; on a replay, the rows of every other table
@@ -510,7 +604,7 @@ def findings_at_a_glance(sections: list[dict], replay: bool) -> list[dict]:
                 out.append(
                     {
                         "id": row[0].split()[0].strip("*`"),
-                        "title": cap(title, MAX_FINDING_TITLE)[0] if title else None,
+                        "title": cap(title, max_title)[0] if title else None,
                         "severity": cell_at(row, severity),
                         "ruling": cell_at(row, ruling),
                         "section": number,
@@ -586,10 +680,21 @@ def benchmark_mentions(sections: list[dict], body: str) -> list[dict]:
 # --- tree anchor --------------------------------------------------------------
 
 
-def is_non_runtime(name: str, extra: set[str], runtime: set[str]) -> bool:
-    if name.lower() in runtime:
-        return False
-    return name.lower() in extra or name.lower() in NON_RUNTIME_NAMES
+def classify_entry(name: str, opts: dict) -> tuple[str, str | None]:
+    """An entry's class and the source that settled it - a flag for this run,
+    the repository's classification ledger, the built-in list - or
+    ``("unclassified", None)`` when none does."""
+    low = name.lower()
+    if low in opts["runtime"]:
+        return "runtime", "flag"
+    if low in opts["non_runtime"]:
+        return "non-runtime", "flag"
+    ruling = opts.get("classifications", {}).get(low)
+    if ruling:
+        return ruling["class"], "file"
+    if low in NON_RUNTIME_NAMES:
+        return "non-runtime", "built-in"
+    return "unclassified", None
 
 
 def tree_anchor_diff(
@@ -603,11 +708,13 @@ def tree_anchor_diff(
         return None
     diff: dict[str, Any] = {
         "candidate": "HEAD",
+        "root": str(root),
         "ignored": [],
         "unchanged": 0,
         "runtime": [],
         "non_runtime": [],
         "unclassified": [],
+        "classified_by": {},
         "only_in_anchor": [],
         "only_at_candidate": sorted(set(candidate) - set(anchor) - {".odd"}),
         "changed_paths": None,
@@ -624,12 +731,15 @@ def tree_anchor_diff(
             diff["unchanged"] += 1
         else:
             differing.append(name)
-            if name.lower() in opts["runtime"]:
+            klass, source = classify_entry(name, opts)
+            if klass == "runtime":
                 diff["runtime"].append(name)
-            elif is_non_runtime(name, opts["non_runtime"], opts["runtime"]):
+            elif klass == "non-runtime":
                 diff["non_runtime"].append(name)
             else:
                 diff["unclassified"].append(name)
+            if source:
+                diff["classified_by"][name] = source
     if revision and revision["resolves"]:
         diff["changed_paths"] = {
             name: changed_paths(root, revision["sha"], name) for name in differing
@@ -740,21 +850,59 @@ def enrich_report(root: Path, report: dict, opts: dict) -> dict:
     full = report["detail"] == "full"
     kind = report["kind"]
     commit = file_commit(root, report["path"])
-    revision = resolve_revision(root, frontmatter.get("revision"))
-    boundary = report_boundary(revision, commit)
+    where = resolve_root(root, frontmatter, opts)
+    target = where["root"]
+    if target is None:
+        # no repository to resolve in: the revision is a fact the report
+        # states, the boundary is unknown - never the store's commit date,
+        # which is a fact about the store, not about the service
+        text = frontmatter.get("revision")
+        revision = (
+            None
+            if text is None
+            else {"value": str(text), "resolves": False, "sha": None}
+        )
+        boundary = {"kind": "unreachable"}
+    else:
+        revision = resolve_revision(target, frontmatter.get("revision"))
+        boundary = report_boundary(revision, commit)
     own_sha = commit["sha"] if commit else None
+    report["repository"] = {
+        "identities": where["identities"],
+        "identity": where["identity"],
+        "source": where["source"],
+        "root": None if target is None else str(target),
+        "foreign": where["source"] != "store",
+        **({"raw": where["raw"]} if "raw" in where else {}),
+        **(
+            {"store_identity_unknown": True}
+            if where.get("store_identity_unknown")
+            else {}
+        ),
+    }
+    trees = opts.setdefault("head_trees", {str(root): opts["head_tree"]})
+    candidate = None
+    if target is not None:
+        if str(target) not in trees:
+            trees[str(target)] = ls_tree(target, "HEAD")
+        candidate = trees[str(target)]
+    # a benchmark lives in the store: its leg counts store commits from a
+    # store-local boundary, never from a revision that only the clone knows
+    bench_boundary = (
+        boundary if where["source"] == "store" else report_boundary(None, commit)
+    )
 
     anchor = frontmatter.get("tree_anchor")
     if isinstance(anchor, dict):
         frontmatter["tree_anchor"] = f"{len(anchor)} entries, see tree_anchor_diff"
 
     scope = (
-        project_scope(root, frontmatter.get("project"))
+        project_scope(target or root, frontmatter.get("project"))
         if kind == "instrumentation"
         else None
     )
     pathspec = [scope or "."] + [f":(exclude){p}" for p in MEMORY_PATHS]
-    commits = commits_after(root, boundary, pathspec, own_sha)
+    commits = commits_after(target or root, boundary, pathspec, own_sha)
 
     benchmarks = []
     for mention in benchmark_mentions(sections, body):
@@ -762,7 +910,7 @@ def enrich_report(root: Path, report: dict, opts: dict) -> dict:
             {
                 **mention,
                 "commits_since": commits_after(
-                    root, boundary, [mention["path"]], own_sha
+                    root, bench_boundary, [mention["path"]], own_sha
                 ),
             }
         )
@@ -781,8 +929,12 @@ def enrich_report(root: Path, report: dict, opts: dict) -> dict:
         {
             "commit": commit,
             "revision": revision,
-            "tree_anchor_diff": tree_anchor_diff(
-                root, anchor, opts["head_tree"], revision if full else None, opts
+            "tree_anchor_diff": (
+                None
+                if target is None
+                else tree_anchor_diff(
+                    target, anchor, candidate, revision if full else None, opts
+                )
             ),
             "commits_since": {
                 "boundary": boundary["kind"],
@@ -802,7 +954,7 @@ def enrich_report(root: Path, report: dict, opts: dict) -> dict:
             "scenario_record": record_text,
             "scenario_record_truncated": record_truncated,
             "finding_ids": report.pop("_ids"),
-            "findings": findings_at_a_glance(sections, replay),
+            "findings": findings_at_a_glance(sections, replay, opts["max_title"]),
             "sections": capped_sections(sections, opts, table_sections) if full else [],
         }
     )
@@ -892,6 +1044,56 @@ def load_ledger(root: Path, reports: list[dict]) -> dict:
                 "line": number,
                 "date": date,
                 "verdict": verdict,
+                "rationale": rationale,
+            }
+        rows.append(row)
+    return {"present": True, "rows": rows, "effective": effective}
+
+
+def load_classifications(root: Path, head_tree: dict[str, str] | None) -> dict:
+    """The entry-classification ledger, read the way the finding ledger is:
+    every row reported, a bad one skipped with its reason, the latest row
+    for an entry winning. Keyed on the lower-cased entry."""
+    path = root / CLASSIFICATIONS_PATH
+    if not path.is_file():
+        return {"present": False, "rows": [], "effective": {}}
+    known = {name.lower() for name in (head_tree or {})}
+    rows: list[dict] = []
+    effective: dict[str, dict] = {}
+    for number, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        if not line.lstrip().startswith("|") or is_separator_row(line):
+            continue
+        cells = split_cells(line)
+        if cells and cells[0].lower() == "date":
+            continue
+        row: dict[str, Any] = {"line": number}
+        if len(cells) != 4:
+            row.update(
+                status="skipped",
+                reason=f"expected 4 columns, got {len(cells)}",
+                raw=line.strip(),
+            )
+            rows.append(row)
+            continue
+        date, entry, klass, rationale = cells
+        row.update(date=date, entry=entry, **{"class": klass}, rationale=rationale)
+        if klass.lower() not in CLASSES:
+            row.update(
+                status="skipped",
+                reason=f"class is neither runtime nor non-runtime: {klass}",
+            )
+        elif not entry or entry.lower() not in known:
+            row.update(
+                status="skipped", reason=f"no top-level entry named {entry} at HEAD"
+            )
+        else:
+            row["status"] = "ok"
+            effective[entry.lower()] = {
+                "line": number,
+                "date": date,
+                "class": klass.lower(),
                 "rationale": rationale,
             }
         rows.append(row)
@@ -1044,20 +1246,30 @@ def build_facts(
     non_runtime: tuple[str, ...] = (),
     runtime: tuple[str, ...] = (),
     recent: int | None = DEFAULT_RECENT,
+    max_title: int | None = MAX_FINDING_TITLE,
+    clones: dict[str, Path] | None = None,
 ) -> dict:
     root = Path(root)
     services = list(services or [])
     opts = {
+        "identity": repo_identity(root),
+        "clones": {k: Path(v) for k, v in (clones or {}).items()},
         "section_texts": tuple(section_texts),
         "table_sections": None if table_sections is None else tuple(table_sections),
         "max_cell": max_cell,
         "max_text": max_text,
         "max_record": max_record,
         "max_commits": max_commits,
+        "max_title": max_title,
         "non_runtime": {n.lower() for n in non_runtime},
         "runtime": {n.lower() for n in runtime},
         "head_tree": ls_tree(root, "HEAD"),
     }
+    known_tree: dict[str, str] = dict(opts["head_tree"] or {})
+    for clone in opts["clones"].values():
+        known_tree.update(ls_tree(clone, "HEAD") or {})
+    classifications = load_classifications(root, known_tree)
+    opts["classifications"] = classifications["effective"]
     reports = [parse_report(root, rel, kind) for rel, kind in list_reports(root)]
     assign_detail(reports, recent)
     readable = [r for r in reports if "unreadable" not in r]
@@ -1081,6 +1293,7 @@ def build_facts(
                 if r["kind"] == "observation" and r["frontmatter"].get("environment")
             }
         ),
+        "repositories": sorted(repositories_named(readable)),
     }
     matched = [r for r in reports if matches(r, services, stack, environment)]
     ledger = load_ledger(root, reports)
@@ -1097,8 +1310,24 @@ def build_facts(
         "matched": len(matched),
         "reports": matched,
         "ledger": ledger,
+        "classifications": classifications,
+        "repository": {
+            "identity": opts["identity"],
+            "clones": {k: str(v) for k, v in opts["clones"].items()},
+        },
         "invariant": invariant,
     }
+
+
+def repositories_named(reports: list[dict]) -> set[str]:
+    """The distinct ``repository`` values the reports carry - a scalar, or
+    the values of a per-service map."""
+    found: set[str] = set()
+    for report in reports:
+        value = report["frontmatter"].get("repository")
+        values = value.values() if isinstance(value, dict) else [value]
+        found.update(normalize_remote(str(v)) or str(v) for v in values if v)
+    return found
 
 
 def parse_section_texts(text: str) -> tuple[int, ...]:
@@ -1130,18 +1359,45 @@ def main(argv: list[str] | None = None) -> int:
         "--today",
         help="the date the cadence rules count from, YYYY-MM-DD (default: today; with --render)",
     )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="render the working tables whole instead of the one-screen synthesis "
+        "(implied by a scope: --service, --stack or --env; with --render)",
+    )
+    parser.add_argument(
+        "--ruled",
+        action="append",
+        default=[],
+        metavar="REPORT/ID=STATE",
+        help="a ruling on a finding applied before rendering, STATE one of open, "
+        "fixed, regressed (repeatable; with --render; never persisted)",
+    )
     parser.add_argument("--env", help="restrict to this deployment environment")
     parser.add_argument(
         "--non-runtime",
         action="append",
         default=[],
-        help="a top-level tree entry that cannot change the service's runtime (repeatable)",
+        help="a top-level tree entry that cannot change the service's runtime, for "
+        "this run only - the repository's own rulings live in "
+        ".odd/entry-classifications.md (repeatable)",
     )
     parser.add_argument(
         "--runtime",
         action="append",
         default=[],
-        help="a top-level tree entry to keep out of non_runtime whatever its name (repeatable)",
+        help="a top-level tree entry to keep out of non_runtime whatever its name or "
+        "ruling, for this run only (repeatable)",
+    )
+    parser.add_argument(
+        "--repository",
+        action="append",
+        default=[],
+        metavar="IDENTITY=PATH",
+        help="where a repository a report names is cloned (its identity as the "
+        "report's repository field writes it, a path inside the clone; repeatable) - "
+        "a report naming another repository resolves its revision and tree anchor "
+        "there, or has an unknown boundary",
     )
     parser.add_argument(
         "--section-texts",
@@ -1199,6 +1455,10 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.today and not args.render:
         parser.error("--today only applies with --render")
+    if args.full and not args.render:
+        parser.error("--full only applies with --render")
+    if args.ruled and not args.render:
+        parser.error("--ruled only applies with --render")
     if args.recent is None:
         recent = DEFAULT_RECENT
     else:
@@ -1207,6 +1467,18 @@ def main(argv: list[str] | None = None) -> int:
     if root is None:
         print(f"not a git repository: {Path(args.repo).resolve()}", file=sys.stderr)
         return 2
+    clones: dict[str, Path] = {}
+    for pair in args.repository:
+        identity, sep, path = pair.partition("=")
+        normalized = normalize_remote(identity)
+        if not sep or not normalized:
+            parser.error(f"--repository takes IDENTITY=PATH, got {pair!r}")
+        clone = git_root(Path(path))
+        if clone is None:
+            parser.error(
+                f"--repository {pair!r}: {path} is not inside a git repository"
+            )
+        clones[normalized] = clone
     facts = build_facts(
         root,
         services=args.service,
@@ -1226,6 +1498,9 @@ def main(argv: list[str] | None = None) -> int:
         runtime=tuple(args.runtime),
         # the renderer applies the rules to every report: no window
         recent=None if args.render else recent,
+        # the rendering references a finding by its key and its whole title
+        max_title=None if args.render else MAX_FINDING_TITLE,
+        clones=clones,
     )
     if args.render:
         # the renderer lives next to this file; never leave bytecode in the skill
@@ -1233,7 +1508,10 @@ def main(argv: list[str] | None = None) -> int:
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         import odd_render
 
-        sys.stdout.write(odd_render.render(facts, today=args.today))
+        full = args.full or bool(args.service or args.stack or args.env)
+        sys.stdout.write(
+            odd_render.render(facts, today=args.today, full=full, ruled=args.ruled)
+        )
         return 0
     json.dump(facts, sys.stdout, ensure_ascii=False, separators=(",", ":"))
     sys.stdout.write("\n")

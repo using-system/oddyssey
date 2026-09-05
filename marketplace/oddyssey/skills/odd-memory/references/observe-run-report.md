@@ -68,6 +68,7 @@ run_name: checkout-latency-sweep
 date: 2026-08-22
 revision: 2299d4c             # optional: commit of the observed repo at run time
 tree_anchor: {src: "5ea231f…", tests: "8e29aac…"}  # optional: FULL top-level entry map at revision (git ls-tree) - the squash-proof anchor
+repository: github.com/example-org/checkout  # optional: the repository revision was taken from - its origin remote, normalized; a per-service map when the run spans several
 workload: repo-under-analysis # optional: the input that shaped this run
 instance: {checkout: af6070c1}   # optional: per service, the identity the numbers belong to
 process_restarted: true       # optional: restarted before the window (or per-service map)
@@ -154,9 +155,11 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   always names a sibling observation report. The deliverable stays an
   observation report in this directory either way.
 - `revision` (`git rev-parse --short HEAD` in the observed repo) is what
-  makes a before/after honest — omitted, with `tree_anchor`, when the
-  observed service lives outside the repository the report is stored
-  in, and section 1 says so: a report is a before-value for a fix
+  makes a before/after honest — taken in the observed service's own
+  repository, which `repository` below names when it is not the one
+  the report is stored in, and section 1 says which; omitted, with
+  `tree_anchor` and `repository`, only when the observed code is in no
+  repository the run can reach: a report is a before-value for a fix
   wave, and the fix is a diff against some revision. In a squash-merge
   repository that commit never joins the merged history — a fresh
   clone cannot even resolve it — so record `tree_anchor` alongside it:
@@ -171,6 +174,26 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   report written, not because everything under it is memory:
   consumers test `.odd/benchmarks/` separately, by path, since a
   benchmark is living source and a change to it is a code change.
+- `repository` names the repository `revision` and `tree_anchor` were
+  taken from, taken at the same moment, in a form that survives a
+  move of the report to another store: the `origin` remote (`git remote get-url origin` in that
+  repository) normalized so that two agents on the same repository
+  always write the same value: the host lower-cased, then the remote's
+  path as it is (its case kept, any depth — `gitlab.com/group/subgroup/project`
+  is as valid as `github.com/org/repo`); the scheme, the user info
+  and the port dropped, one trailing `/` and one trailing `.git`
+  stripped; the SSH form `git@host:owner/name.git` read as
+  `host/owner/name`. A token in the remote URL is a secret: it never
+  reaches the report, the run record or the reply. Record it even when
+  the observed code is the repository the report is committed into:
+  the value is cheap and makes the report portable. No remote, no
+  value — never a local path (a home-directory path is an identifier:
+  the no-secrets rule). When the run spans repositories, a per-service
+  map,
+  `{checkout: github.com/example-org/checkout, payment: github.com/example-org/payment}`,
+  the shape `instance` uses. Absent on a report that predates the
+  field; a consumer then reads the report as observing the repository
+  it is stored in.
 - `workload` names the input that shaped the run when the runtime
   profile depends on what was processed, not only on the service (an
   analysis service run against two different repositories produces
@@ -194,10 +217,22 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
 ## Recall: reading the memory
 
 Before a new run, load the baseline, per the memory contract's recall
-(newest first, frontmatter only at this stage, the baseline by
-section) — the matching rules are this reference's:
+(the script first, newest first, the baseline by section; frontmatter
+only, by hand, when the script cannot run) — the matching rules are
+this reference's:
 
-1. List `.odd/observe-run-reports/` in the observed repo.
+1. Run the recall script in the observed repo:
+   `python3 <this skill's directory>/scripts/odd_recall.py --repo
+   <path> --service <name>... --stack <stack> --env <detected
+   environment> --depth <quick|full>` (`--mode` to restrict to one
+   mode; `--env` omitted while the environment is still provisional)
+   — it lists `.odd/observe-run-reports/` newest first and prints the
+   matches by the rules below, one tab-separated line each: filename,
+   kind, services, stack, environment, mode, depth, `verifies`,
+   `workload`, `repository` (`-` when absent). A `workload` that
+   differs from the mission's is the warning of rule 2, read off that
+   column; a report the frontmatter contract flags is named on stderr,
+   matched or not.
 2. A report matches when its `services` intersect the mission's,
    its `stack` is the mission's, and its `environment` is the one the
    run detects — an `unknown` environment matches only another
@@ -215,28 +250,30 @@ section) — the matching rules are this reference's:
    and section 1 names it ("newer quick report skipped: <path>") so the
    skip is visible; a **`quick`** mission takes the newest match of
    either depth (a full report carries more than a quick run needs).
-3. The first match is the baseline. Read it **by section, never
-   whole** — the same partial read applies when the mission names the
-   baseline itself: the frontmatter; section 1's scenario record block
-   (`Scenario:` through `Not reproducible:`) together with the replay
-   notes around it — deviations, false starts, anything the report
-   flags as mattering for a replay — but not section 1's mission
-   restatement or its recalled-baseline line; section 2 (the
-   per-operation numbers and their deltas); section 3 (the findings
-   the new run rules on); and section 7 (the protocol's checks and
+   The script applies this: `--depth full` drops the quick matches and
+   names the skipped newer ones on stderr.
+3. The first match — the first line printed — is the baseline. Read it
+   **by section, never whole** — the same partial read applies when the
+   mission names the baseline itself: the frontmatter; section 1's
+   scenario record block (`Scenario:` through `Not reproducible:`)
+   together with the replay notes around it — deviations, false starts,
+   anything the report flags as mattering for a replay — but not section
+   1's mission restatement or its recalled-baseline line; section 2 (the
+   per-operation numbers and their deltas); section 3 (the findings the
+   new run rules on); and section 7 (the protocol's checks and
    before-values). A **verification** or **re-measure** run also reads
-   section 5 (every gap it must rule filled or still missing).
-   Sections 4 and 6 are never part of the recall: a stored report runs
-   300 to 500 lines, and the new run re-derives those from live
-   telemetry. An **instrumentation report** baseline
+   section 5 (every gap it must rule filled or still missing). Sections
+   4 and 6 are never part of the recall: a stored report runs 300 to 500
+   lines, and the new run re-derives those from live telemetry. An
+   **instrumentation report** baseline
    (`.odd/otel-instrumentation-reports/`, the
-   `otel-instrumentation-report` reference) is read the same
-   way: its frontmatter, its summary table, its per-service decisions,
-   and its verification protocol — never its stack inventory or its
-   open decisions. Reading beyond that set is the exception — for a
-   stated need (a finding's detail, a gap's discovery query) — and the
-   calling agent's run record says so. What the comparison must report
-   belongs to the calling agent's contract, not to this reference.
+   `otel-instrumentation-report` reference) is read the same way: its
+   frontmatter, its summary table, its per-service decisions, and its
+   verification protocol — never its stack inventory or its open
+   decisions. Reading beyond that set is the exception — for a stated
+   need (a finding's detail, a gap's discovery query) — and the calling
+   agent's run record says so. What the comparison must report belongs
+   to the calling agent's contract, not to this reference.
 4. Older matches are history: only when a trend matters (a number
    degrading run after run), read at most the few most recent matches,
    and only the numbers in question — never the full files.
@@ -395,7 +432,8 @@ conversation's memory of the mission.
    line: the stack file's path, its commit and the one-line reason.
 3. **Run block** — compact `key: value` lines: services, stack, mode,
    depth (`full` when the frontmatter has none), window, detected
-   environment (all from the frontmatter), and the baseline report
+   environment, `repository` when present (all from the frontmatter),
+   and the baseline report
    used — `verifies` when present, else section 1's recalled
    baseline, or "none" when the report names none.
 4. **The core, by kind** — tables, capped at ~10 rows with a

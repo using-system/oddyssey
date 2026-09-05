@@ -3,7 +3,7 @@
 Environment variables are the container's **only** configuration surface,
 and `odd_stack_up` / `odd_stack_reset` (`env` parameter) are how they
 reach it. This catalog is built from the pinned image's own tag —
-**`grafana/otel-lgtm:0.31.0`** (its README and `docker/run-*.sh`
+**`grafana/otel-lgtm:0.32.1`** (its README and `docker/run-*.sh`
 scripts) — and must be re-validated on every pin bump; when the pin and
 this file disagree, trust the tag.
 

@@ -109,6 +109,12 @@ this order:
 
 Then build the mission block from that report:
 
+- `Skills: <directory>` - not from the report: the parent directory of
+  this package's installed skills, the base directory the host prints
+  when one of them is invoked (`backend-configuration` in the preflight
+  above), minus that skill's own directory name. The agent opens the
+  skills' files there, by section, and never searches for them.
+  Derived at run time, always carried, never guessed;
 - services and stack come from its frontmatter; the mode is the
   frontmatter's mode, **never inferred from whether the report records
   a scenario or a benchmark** — an `observe`-mode report backed by a

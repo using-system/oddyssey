@@ -115,11 +115,12 @@ the whole setup.
 | Logs | Loki | `loki` | `gcx logs labels/series/query` | LogQL |
 | Profiles | Pyroscope | `pyroscope` | `gcx profiles list-profile-types/labels/query -d pyroscope` | profile selector |
 
-This table holds for **gcx v1.0.0 or newer** (verified against v1.0.0
-and Grafana 13.1.3) — package managers may ship older builds, so check
-`gcx --version` before trusting it. The gcx
-command surface moves between versions, so when a documented command
-errors, trust `gcx <group> --help` over this table.
+This table holds for **gcx v1.0.0 or newer** (verified against gcx
+v1.0.0 with Grafana 13.1.3, then gcx v1.2.0 with Grafana 13.2.0, all
+four signals round-tripped) — package managers may ship older builds,
+so check `gcx --version` before trusting it. The gcx command surface
+moves between versions, so when a documented command errors, trust
+`gcx <group> --help` over this table.
 
 gcx is the stack's mandatory **query** CLI — explore and measure
 through it. Recording raw datasource-proxy HTTP in a report

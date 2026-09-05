@@ -1,3 +1,27 @@
+## [1.11.1] - 2026-09-05
+
+### 🚀 Features
+
+- *(skill)* Get-status renders a one-screen synthesis by default, the full tables behind --full, and applies the caller's rulings before rendering (#365)
+- *(skill)* Odd-memory - the finding ledger is written by a script the skill carries, every rule of the decisions reference checked before the row lands (#367)
+- *(skill)* Get-status - the runtime / non-runtime classification of tree entries recorded once in .odd/entry-classifications.md, read by the script before the built-in list, instead of retyped as flags (#368)
+- *(skill)* Odd-memory - a recall script the skill carries lists the stored reports a mission considers, so a recall reads one frontmatter instead of every one (#370)
+- *(skill)* Odd-memory - a repository frontmatter field records which repository a report observed, so a central .odd/ store can tell services of several repositories apart (#373)
+- *(skill)* Get-status resolves a report's revision and tree_anchor in the repository the report names, and rules the boundary unknown when that clone is not reachable (#374)
+
+### 📚 Documentation
+
+- *(readme)* Multi-repo strategies - a dedicated observability repository drives the loop when the system spans several repositories (#357)
+- *(odd)* Classify this repository's top-level tree entries once, so the status settles a report's code boundary without flags (#372)
+
+### ⚡ Performance
+
+- *(agent)* The mission block carries the skills' directory, and an agent never searches the filesystem for a skill (#369)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(apm)* Bump apm-cli to 0.29.0 in the install commands, the CI workflows and the marketplace build (#377)
+- *(mcp)* Bump the local stack image to grafana/otel-lgtm 0.32.1 - Grafana 13.2.0, Loki 3.7.7, Pyroscope 2.3.0, OBI 0.12.2 (#379)
 ## [1.11.0] - 2026-09-04
 
 ### 🚀 Features
