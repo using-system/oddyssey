@@ -19,7 +19,7 @@ from . import config, telemetry
 # forwarding, OBI, GF_*) is cataloged in the setup-local-stack skill's
 # otel-lgtm-env reference, built from this exact tag - re-validate it on
 # every pin bump.
-IMAGE = "grafana/otel-lgtm:0.31.0"
+IMAGE = "grafana/otel-lgtm:0.32.1"
 CONTAINER_NAME = "oddyssey-lgtm"
 
 # Part of the embedded definition, not an option (issue #34): CLI coding
