@@ -10,9 +10,11 @@ Two renderings of the same rules. The default is one screen, the
 memory contract's synthesis: one line of inventory, one of memory
 invariant (violations only), the burn-down per lineage with the
 recommended action and its evidence, what the screen dropped, and the
-judgment list with its items capped. ``full`` renders the working
-tables whole. A caller's rulings on findings (``ruled``) are applied
-before either rendering, never after it: one burn-down, one truth.
+judgment list ordered by what settling an item changes - a lineage's
+boundary first, memory hygiene last - then its items capped. ``full``
+renders the working tables whole, the judgment list in the same
+order. A caller's rulings on findings (``ruled``) are applied before
+either rendering, never after it: one burn-down, one truth.
 
 Standard library only. Imported by odd_status.py for ``--render``.
 """
@@ -21,6 +23,7 @@ from __future__ import annotations
 
 import re
 import statistics
+from collections.abc import Iterator
 from datetime import date, datetime, timezone
 from itertools import pairwise
 from pathlib import Path
@@ -62,13 +65,23 @@ PACKAGING_FILE_RE = re.compile(
     r"pnpm-lock\.yaml|yarn\.lock|Cargo\.lock|go\.sum|CHANGELOG\.md|VERSION)$",
     re.IGNORECASE,
 )
-NO_GAP_RE = re.compile(r"^\**(no handoff|gaps do not dominate|no gap)", re.IGNORECASE)
-NOT_QUERIED_RE = re.compile(r"^\**Not queried \(quick\)", re.IGNORECASE)
+NO_GAP_RE = re.compile(
+    r"^\**(no (?:`[^`]*` )?handoff|gaps do not dominate|no gap)", re.IGNORECASE
+)
+NOT_QUERIED_RE = re.compile(r"^\**Not queried \([^)]*\)", re.IGNORECASE)
 NOT_QUERIED_NONE_RE = re.compile(
-    r"^\**Not queried \(quick\):\**\s*\**none\b", re.IGNORECASE
+    r"^\**Not queried \([^)]*\):\**\s*\**none\b", re.IGNORECASE
 )
 GAP_STATE_RE = re.compile(r"state|status|fate|ruling", re.IGNORECASE)
 MIXED_GAPS = "gaps mixed into the not-queried list - see Judgment needed"
+# a gap's fate, the way a legacy one-paragraph section 5 wrote it after the gap
+FATE_MARKER_RE = re.compile(
+    r"\s—\s\**(?:still missing|still the case|filled|new)\**(?=[\s,.;:)]|$)",
+    re.IGNORECASE,
+)
+NOT_QUERIED_LEAD_RE = re.compile(r"^\**Not queried \(", re.IGNORECASE)
+# a period, then a capitalized word or a backticked identifier
+SENTENCE_END_RE = re.compile(r"\.\s+\**(?:[A-Z]|`)")
 
 TREND_THRESHOLD = (
     0.10  # relative change on the latency metric below which a pair is stable
@@ -450,6 +463,13 @@ def parse_ruling(text: str) -> tuple[str, str] | str:
     if normalized is None:
         return f"ruling {key}: unknown state '{state.strip()}'"
     return key, normalized
+
+
+# The problems apply_rulings returns for a ruling it refused - a key no
+# report carries, a finding the ledger declined - as opposed to a flag it
+# could not parse. Anchored at the end: a caller's text embedding the words
+# renders as a parse problem, whose suffix is the form the flag missed.
+RULING_REFUSED_RE = re.compile(r": (no such finding|declined by the ledger \(.*\))$")
 
 
 def apply_rulings(
@@ -1022,8 +1042,78 @@ def gap_section(report: dict) -> dict | None:
     )
 
 
-def gap_items(section: dict) -> list[str]:
-    """The gaps a section records: its bullets, its table rows, else its paragraphs."""
+def top_level_chars(text: str) -> Iterator[tuple[int, str]]:
+    """The characters of ``text`` outside backticks and parentheses, with their index."""
+    depth, quoted = 0, False
+    for i, ch in enumerate(text):
+        if ch == "`":
+            quoted = not quoted
+        elif quoted:
+            continue
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(depth - 1, 0)
+        elif depth == 0:
+            yield i, ch
+
+
+def split_legacy_gaps(paragraph: str) -> list[str]:
+    """A section 5 written as one paragraph before the one-bullet-per-gap
+    contract, read back as one item per gap.
+
+    The legacy shape: the not-queried statement spliced in front, up to a
+    colon; then the gaps, separated by a top-level semicolon (one inside
+    parentheses or backticks separates nothing); a ruled gap ends with its
+    fate marker (``— **still missing**``, ``— filled``, ``— new``, ...) and
+    the qualifier that follows it, up to the end of its sentence - a
+    period followed by a capitalized word, so an abbreviation (``e.g.``,
+    ``vs.``) cuts nothing. Without a fate marker there is no legacy shape
+    to read: the paragraph stays one item. A piece carrying neither a fate
+    marker nor a query (backticks) is the prose around the gaps, not one of
+    them, and is dropped; closing prose that quotes a name in backticks
+    survives the split, and the no-gap / no-handoff statements among it
+    are the row rule's to drop (``NO_GAP_RE``).
+    """
+    markers = [m.end() for m in FATE_MARKER_RE.finditer(paragraph)]
+    if not markers:
+        return [paragraph]
+    pending = iter(markers)
+    marker = next(pending, None)
+    pieces, start, ruled = [], 0, False
+    for i, ch in top_level_chars(paragraph):
+        while marker is not None and i >= marker:
+            ruled = True  # inside a ruled gap's qualifier: its sentence end cuts too
+            marker = next(pending, None)
+        if ch == ";":
+            pieces.append(paragraph[start:i])
+            start, ruled = i + 1, False
+        elif ruled and ch == "." and SENTENCE_END_RE.match(paragraph, i):
+            pieces.append(paragraph[start : i + 1])
+            start, ruled = i + 1, False
+    pieces.append(paragraph[start:])
+    if NOT_QUERIED_LEAD_RE.match(pieces[0]):
+        first = pieces[0]
+        limit = min(markers[0], len(first))
+        colon = max(
+            (
+                i
+                for i, ch in top_level_chars(first[:limit])
+                if ch == ":" and first[i + 1 : i + 2] == " "
+            ),
+            default=None,
+        )
+        if colon is not None:
+            pieces[0] = first[colon + 1 :]
+    return [
+        piece.strip()
+        for piece in pieces
+        if piece.strip() and (FATE_MARKER_RE.search(piece) or "`" in piece)
+    ]
+
+
+def structured_gap_items(section: dict) -> list[str]:
+    """The gaps a section records by shape: its bullets, then its table rows."""
     bullets = [
         t[2:].strip() for t in section["text"].splitlines() if t.startswith("- ")
     ]
@@ -1036,7 +1126,25 @@ def gap_items(section: dict) -> list[str]:
                 if state is not None and state < len(row) and row[state].strip():
                     text += f" ({row[state].strip()})"
                 from_tables.append(text)
-    return bullets + from_tables or paragraphs(section["text"].splitlines())[:3]
+    return bullets + from_tables
+
+
+def gap_items_by_shape(section: dict) -> tuple[list[str], bool]:
+    """The gaps a section records and whether its shape gave them: its
+    bullets and table rows (structured), else its paragraphs - a legacy
+    paragraph split on its fate markers."""
+    structured = structured_gap_items(section)
+    if structured:
+        return structured, True
+    return [
+        item
+        for paragraph in paragraphs(section["text"].splitlines())[:3]
+        for item in split_legacy_gaps(paragraph)
+    ], False
+
+
+def gap_items(section: dict) -> list[str]:
+    return gap_items_by_shape(section)[0]
 
 
 def is_not_queried_item(item: str) -> bool:
@@ -1044,6 +1152,21 @@ def is_not_queried_item(item: str) -> bool:
     return (
         NOT_QUERIED_RE.match(item) is not None
         and NOT_QUERIED_NONE_RE.match(item) is None
+    )
+
+
+def is_not_queried_none(item: str) -> bool:
+    """The ``Not queried (<depth>): none`` statement on its own: never a gap."""
+    return NOT_QUERIED_NONE_RE.match(item) is not None and "`" not in item
+
+
+def is_no_gap_statement(item: str) -> bool:
+    """A no-gap / no-handoff statement on its own - one carrying a query or a
+    fate marker may name a gap after its opening words, and settles nothing."""
+    return (
+        NO_GAP_RE.match(item) is not None
+        and "`" not in item
+        and FATE_MARKER_RE.search(item) is None
     )
 
 
@@ -1057,14 +1180,18 @@ def newest_observations(facts: dict) -> dict[str, dict]:
 
 
 def mixed_not_queried(facts: dict) -> list[str]:
-    """Quick reports whose gaps section opens an item with its not-queried list:
-    the item is not a gap, and the gaps it carries cannot be told apart."""
+    """Reports whose gaps section opens an item with its not-queried list:
+    the item is not a gap, and the gaps it carries cannot be told apart -
+    unless the section states it carries none."""
     out = []
     for newest in newest_observations(facts).values():
         section = gap_section(newest)
-        if section is None or section["text"] is None or not is_quick(newest):
+        if section is None or section["text"] is None:
             continue
-        if any(is_not_queried_item(item) for item in gap_items(section)):
+        items = gap_items(section)
+        if any(is_no_gap_statement(item) for item in items):
+            continue
+        if any(is_not_queried_item(item) for item in items):
             out.append(name_of(newest))
     return out
 
@@ -1072,8 +1199,15 @@ def mixed_not_queried(facts: dict) -> list[str]:
 def gap_rows(facts: dict) -> list[dict]:
     """The newest observation of each lineage, its telemetry-gaps section as recorded.
 
-    A quick report's ``Not queried (quick)`` item is a statement about
-    that mission, never a gap: the item is dropped whole and deferred.
+    A ``Not queried (<depth>)`` item is a statement about that mission,
+    never a gap, at either depth: a ``none`` list on its own is skipped,
+    a list of signals is dropped whole and deferred - unless the section
+    states it carries no gap.
+
+    ``truncated`` says the section's text was cut by the lift (gaps beyond
+    the cap unlisted); ``cut`` carries an item's whole length when the row
+    caps it, else 0; ``paragraph`` marks a section that yielded one
+    paragraph item the split could not cut.
     """
     rows = []
     for label, newest in newest_observations(facts).items():
@@ -1085,19 +1219,26 @@ def gap_rows(facts: dict) -> list[dict]:
                     "gap": "(section 5 not lifted)",
                     "recorded_by": name_of(newest),
                     "truncated": False,
+                    "cut": 0,
+                    "paragraph": False,
                 }
             )
             continue
         quick = is_quick(newest)
         before = len(rows)
-        dropped = False
-        for item in gap_items(section):
-            if not item or NO_GAP_RE.match(item):
+        dropped = no_gap = False
+        items, structured = gap_items_by_shape(section)
+        paragraph = len(items) == 1 and not structured
+        for item in items:
+            if not item or is_not_queried_none(item):
                 continue
-            if quick and is_not_queried_item(item):
+            if NO_GAP_RE.match(item):
+                no_gap = no_gap or is_no_gap_statement(item)
+                continue
+            if is_not_queried_item(item):
                 dropped = True
                 continue
-            gap, truncated = cap(item, MAX_GAP_LENGTH)
+            gap, capped = cap(item, MAX_GAP_LENGTH)
             if quick:
                 gap = f"(quick report) {gap}"
             rows.append(
@@ -1105,16 +1246,20 @@ def gap_rows(facts: dict) -> list[dict]:
                     "lineage": label,
                     "gap": gap,
                     "recorded_by": name_of(newest),
-                    "truncated": truncated or bool(section["text_truncated"]),
+                    "truncated": bool(section["text_truncated"]),
+                    "cut": len(item) if capped else 0,
+                    "paragraph": paragraph,
                 }
             )
-        if dropped and len(rows) == before:
+        if dropped and not no_gap and len(rows) == before:
             rows.append(
                 {
                     "lineage": label,
-                    "gap": f"(quick report) {MIXED_GAPS}",
+                    "gap": f"{'(quick report) ' if quick else ''}{MIXED_GAPS}",
                     "recorded_by": name_of(newest),
                     "truncated": False,
+                    "cut": 0,
+                    "paragraph": False,
                 }
             )
     return rows
@@ -1369,76 +1514,109 @@ def render(
             out.append(f"{plural(len(ruled), 'ruling')} not applied: nothing to rule.")
         return "\n".join(out) + "\n"
 
-    judgment: list[str] = []
+    # The judgment list, in five groups by what settling an item changes -
+    # the order the screen's cap applies to, the full rendering's order too.
+    # A lineage's boundary (settled with --runtime / --non-runtime, it flips
+    # the action), the rulings the rules could not read and the ones outside
+    # their chain (settled with --ruled, they move a finding between burn-down
+    # columns), the verdict problems, the gap notes, and the memory hygiene
+    # last: the reports, ledger rows and flags the run could not read, most
+    # of them already counted on the invariant line, none of them a store
+    # item to settle. A --ruled flag the renderer refused (no such finding,
+    # declined by the ledger) is a ruling to correct, so it rides with the
+    # rulings, not with the flags it could not parse.
+    hygiene: list[str] = []
     for report in facts["reports"]:
         if "unreadable" in report:
-            judgment.append(
+            hygiene.append(
                 f"unreadable report {report['path']}: {report['unreadable']}"
             )
     for report in readable(facts):
         for error in report.get("frontmatter_errors", []):
-            judgment.append(f"frontmatter of {name_of(report)}: {error}")
+            hygiene.append(f"frontmatter of {name_of(report)}: {error}")
     for row in facts["ledger"]["rows"]:
         if row["status"] == "skipped":
-            judgment.append(f"ledger line {row['line']} skipped: {row['reason']}")
+            hygiene.append(f"ledger line {row['line']} skipped: {row['reason']}")
     for row in (facts.get("classifications") or {"rows": []})["rows"]:
         if row["status"] == "skipped":
-            judgment.append(
+            hygiene.append(
                 f"classification line {row['line']} skipped: {row['reason']}"
             )
+    verdicts: list[str] = []
     for report in readable(facts):
         if is_verify(report):
             label = verdict_label(report)
             if label == "no verdict stated":
-                judgment.append(
+                verdicts.append(
                     f"{name_of(report)} states no verdict and rules on nothing"
                 )
             elif label.startswith("no verdict stated"):
-                judgment.append(f"{name_of(report)} states two verdicts {label[18:]}")
+                verdicts.append(f"{name_of(report)} states two verdicts {label[18:]}")
             coverage = quick_coverage(report)
             if coverage and coverage[0] < coverage[1]:
-                judgment.append(
+                verdicts.append(
                     f"quick verification {name_of(report)} ruled {coverage[0]} of "
                     f"{coverage[1]}: verified only for those items, never for the service"
                 )
 
     rows = finding_rows(facts)
     problems, ruled_keys = apply_rulings(rows, ruled)
-    judgment += problems
+    hygiene += [p for p in problems if not RULING_REFUSED_RE.search(p)]
     counts = burn_down(rows)
+    rulings: list[str] = []
     for r in rows:
         if r["state"] == "unknown":
-            judgment.append(
+            rulings.append(
                 f"finding {Path(r['report']).name} / {r['id']}: "
                 f"ruling not readable by rule ({r['ruled_by']})"
             )
-    judgment += out_of_chain_rulings(facts, ruled_keys)
+    rulings += out_of_chain_rulings(facts, ruled_keys)
+    rulings += [p for p in problems if RULING_REFUSED_RE.search(p)]
 
     trends, apart = trend_rows(facts)
     gaps = gap_rows(facts)
+    gap_notes: list[str] = []
     for g in gaps:
         if g["gap"].startswith("(section 5 not lifted)"):
-            judgment.append(
+            gap_notes.append(
                 f"gaps of {g['recorded_by']}: section 5 not lifted, open the body"
             )
     for name in sorted({g["recorded_by"] for g in gaps if g["truncated"]}):
-        judgment.append(
+        gap_notes.append(
             f"section 5 of {name} truncated: the gaps beyond the cap are unlisted"
         )
+    for g in gaps:
+        if g["cut"] and g["paragraph"]:
+            gap_notes.append(
+                f"section 5 of {g['recorded_by']} is one paragraph: {g['cut']} "
+                f"characters, cut at {MAX_GAP_LENGTH}, open the body for the gaps "
+                "it carries"
+            )
+    cut_gaps: dict[str, int] = {}
+    for g in gaps:
+        if g["cut"] and not g["paragraph"]:
+            cut_gaps[g["recorded_by"]] = cut_gaps.get(g["recorded_by"], 0) + 1
+    for name, count in sorted(cut_gaps.items()):
+        gap_notes.append(
+            f"section 5 of {name}: {plural(count, 'gap')} cut at {MAX_GAP_LENGTH} "
+            f"characters, open the body for the rest of {'it' if count == 1 else 'them'}"
+        )
     for name in mixed_not_queried(facts):
-        judgment.append(
+        gap_notes.append(
             f"section 5 of {name} mixes a not-queried list with its gaps: open the body "
             "for the gaps it carries"
         )
     recs = recommendations(facts, today)
+    boundaries: list[str] = []
     for r in recs:
         if r["action"] == "judgment needed":
             # the screen's row already carries the evidence: point at it
-            judgment.append(
+            boundaries.append(
                 f"{r['lineage']}: {r['evidence']}"
                 if full
                 else f"{r['lineage']}: judgment needed - see its evidence under Loop state"
             )
+    judgment = boundaries + rulings + verdicts + gap_notes + hygiene
 
     if full:
         out += inventory_lines(facts)

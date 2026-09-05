@@ -17,7 +17,12 @@ call (`Read`/`Grep`/`Bash`, doc fetches, skills) — never call the `Agent`,
 `Task`, or `Workflow` tool (or any equivalent delegation/subagent tool your
 runtime exposes) to delegate any part of the mission, including to another
 instance of yourself. A mission you cannot complete directly is a
-stop-and-report, never a delegation.
+stop-and-report, never a delegation. A shell block of more than one
+command — a batched read of several files, say — runs under `bash -c`
+or from a `#!/bin/bash` helper file, never as bare lines: the host's
+shell may be zsh, which reads bash idioms differently (a bare
+`echo ====` separator fails there with `=== not found` — write
+`echo "----- $f"`).
 
 The skills live under the `Skills:` directory of the mission block:
 `<Skills>/<skill-name>/SKILL.md`, its references beside it as
@@ -69,6 +74,19 @@ yours.
    instrumentation is experimental and needs CORS on the OTLP endpoint),
    mobile clients, serverless functions, batch/cron workers. A service you
    did not find is a hole in the spec. One service = one row of findings.
+   While enumerating the manifests, **detect GenAI usage**: a dependency
+   the `otel-guides` skill's generative AI reference lists in its
+   detection section (`openai`, `anthropic`, `langchain`, `ai`, and the
+   rest of that list — the reference owns it, never memory) means the
+   service makes model calls, whatever its HTTP surface looks like.
+   Record the SDK among the service's frameworks in its section 1 row
+   and route the service to that reference's instrumentation table in
+   steps 3 and 4: the library that emits the `gen_ai.*` spans and
+   metrics is picked there — library first, never hand-coded `gen_ai`
+   attributes, and hand-coded only what no library covers (cost; the
+   agent loop when the framework has no instrumentation). Detection is
+   yours: the mission never announces it, and nothing about it is
+   asked before the report.
 2. **Assess what already exists**: any OpenTelemetry or vendor
    instrumentation already present (SDK deps, `OTEL_*` env vars, exporter
    config, homegrown metrics/logging), and anything that will interact with
@@ -140,6 +158,19 @@ return it along with its stored path:
    service runs, and the OTLP protocol — `grpc` on `:4317` or
    `http/protobuf` on `:4318` — matching the exporter package recommended.
    Every entry carries its rationale; nothing here is an unlabeled default.
+   For a service step 1 detected as calling a model, a **GenAI
+   approach** under its own `### GenAI approach` heading — prose,
+   never a table, since a table row in section 3 reads as a finding
+   to the status renderer: the
+   instrumentation library the plan adopts — the row of the
+   `otel-guides` skill's generative AI reference it comes from, pinned
+   and doc-linked like every package — what it emits (the `gen_ai.*`
+   spans, the token and duration metrics), what stays hand-coded
+   because no library covers it (cost, the agent loop), and the
+   content-capture switch that library exposes with the direction the
+   plan sets it — the convention's default records nothing, and two
+   libraries the reference names record content by default, so the
+   switch is named here even when the plan leaves the default alone.
 4. **Decisions the spec must settle** — sampling strategy; **Collector
    topology**: direct OTLP export vs an OpenTelemetry Collector (agent /
    sidecar vs central gateway — see the `otel-guides` skill's Collector
@@ -152,6 +183,21 @@ return it along with its stored path:
    custom spans/metrics; what NOT to instrument. Anything you decided belongs
    in section 3 with its rationale — anything you did not belongs here, stated
    as an open question.
+
+   For a service that calls a model, two more:
+   - **content capture** — whether prompts and completions go into the
+     telemetry: a privacy and volume decision the user takes, off by
+     default per the convention. Ask it as *which switch, in which
+     direction* for the library the plan picked — the generative AI
+     reference names each library's switch and which libraries invert
+     the default — and, when on, where the content lands (span
+     attributes, events, or references to external storage); never a
+     bare yes/no whose default differs by library.
+   - **cost attribution** — no convention attribute exists for it:
+     whether cost is derived from the token usage and a price per model
+     kept outside the repository, recorded under an application
+     namespace, or not attributed at all — and who owns the price
+     table.
 5. **Verification protocol** — how to prove instrumentation works once
    implemented: start the export stack — `odd_stack_up` for the local
    one; for a remote stack, name the backend and the preflight it
@@ -221,8 +267,12 @@ return it along with its stored path:
    non-empty or redacted flag the backend exposes, the resource
    identity the secret binds to (a workspace id, an ingestion mode) —
    never the value; and a resource identity that carries a real
-   subscription, resource group, workspace or account name goes into
-   the report as an obviously fake placeholder, never the real one.
+   subscription, resource group, workspace or account name — or any
+   value persisted under a remote stack's `stack_config`, regions
+   excepted — goes into
+   the report as an obviously fake placeholder (for a `stack_config`
+   value, the field's name in angle brackets, `<log_group>`), never
+   the real one.
 
 ## Rules
 
@@ -233,16 +283,35 @@ return it along with its stored path:
 - The registry pages render client-side, so a text fetch of them often
   returns nothing. Fall back in order: the language's contrib repository on
   GitHub (`opentelemetry-<lang>-contrib` — for Java it is `opentelemetry-java-instrumentation` — whose README lists the
-  instrumentation packages), then the package index search (`pip index`,
-  `npm search @opentelemetry`, Maven Central, NuGet, crates.io). If a page
+  instrumentation packages), then the package index — the JSON API
+  endpoints the pinning rule below names, never a CLI search. If a page
   cannot be fetched at all, mark every recommendation derived from it
   **UNVERIFIED — from model memory** in the report; never present an
   unfetched claim as sourced.
 - Always check the latest version of every SDK and instrumentation package
-  you recommend against the package index itself (`pip index versions`,
-  `npm view <pkg> version`, Maven Central, NuGet, crates.io,
-  `go list -m -versions`) and **pin exact versions** in the report, stating
-  where each version came from — never "latest".
+  you recommend against the package index itself and **pin exact versions**
+  in the report, stating where each version came from — never "latest".
+  The index JSON API is the primary source, it needs no tool in the
+  project's environment: `https://pypi.org/pypi/<pkg>/json`
+  (`.info.version`), `https://registry.npmjs.org/<pkg>/latest`
+  (`.version`),
+  `https://repo1.maven.org/maven2/<group/as/path>/<artifact>/maven-metadata.xml`
+  (the `<latest>` element — the repository itself; the
+  `search.maven.org` solr index lags it by releases and answers
+  `numFound 0` for newer artifacts, never use it),
+  `https://crates.io/api/v1/crates/<crate>` (`.crate.max_stable_version`,
+  send a `User-Agent`),
+  `https://api.nuget.org/v3-flatcontainer/<pkg-lowercase>/index.json`
+  (`.versions` lists pre-releases interleaved with stable ones — take the
+  last entry without a `-`), `https://proxy.golang.org/<module>/@latest`
+  (`.Version`). Fall back to the CLI only when the environment has one:
+  `pip index versions --pre <pkg>` (a uv-managed project has no `pip`, so
+  `uv run --frozen pip ...` prints nothing), `npm view <pkg> version`,
+  `go list -m -versions`. The whole OpenTelemetry Python contrib line
+  (`opentelemetry-distro`, `opentelemetry-instrumentation-*`) is
+  pre-release only (`0.xxb0`), and `pip index versions` hides
+  pre-releases without `--pre`: `ERROR: No matching distribution found`
+  from the bare command is expected there, never "package gone".
 - Configure through the standard `OTEL_*` environment variables, never
   hardcoded in code, so the same build moves across environments. Set the
   environment via `OTEL_RESOURCE_ATTRIBUTES` (`deployment.environment.name`

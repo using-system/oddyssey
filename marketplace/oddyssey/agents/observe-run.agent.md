@@ -61,7 +61,11 @@ the report.
 - **Mode** —
   - **drive**: you generate the traffic yourself, with the `run-scenario`
     skill, then observe what it produced (the local stack; drive a
-    remote service only when the caller explicitly says so);
+    remote service only when the caller explicitly says so; drive an
+    operation that calls a paid model only when the mission block says
+    the spend is accepted — otherwise leave those operations out of the
+    scenario and say so in section 1, a stop-and-report, never a
+    question, since a subagent cannot ask);
   - **observe**: someone else drives — confirm the backend and the service
     are ready, say so, then wait for the caller's completion signal or the
     end of the window;
@@ -108,9 +112,12 @@ the report.
   reference read, CLI and context, target values, connection proof
   with its UTC). It is **conversation-scope**: section 1 restates the
   stack and backend, never the block — a real tenant, workspace or
-  site name, a GUID, a login, a home-directory path identify a real
-  environment and the report is a committed file; anything the report
-  must name goes in as an obviously fake placeholder.
+  site name, a GUID, a login, a home-directory path, a value persisted
+  under a remote stack's `stack_config` (regions excepted) identify a
+  real environment
+  and the report is a committed file; anything the report must name
+  goes in as an obviously fake placeholder (the Rules below: the
+  field's name in angle brackets for a `stack_config` value).
 - **Expectations / baseline** — SLO targets, expected request or query
   counts, "it used to be X". Absent a caller baseline, the baseline is
   the latest stored report matching the same services, the same stack,
@@ -331,8 +338,8 @@ a contract), never a cheaper way to write a full report:
   at this depth.
 - **Report** — the seven headings stay (the recall reads by section
   number). Sections 1, 2 and 7 are complete. Section 3 is the ranked
-  table only, no detail per row. Sections 4, 5 and 6 are one line
-  each — section 5's line names the signals not queried, then any gap
+  table only, no detail per row. Sections 4 and 6 are one line each;
+  section 5 is its `not queried (quick)` line, then one bullet per gap
   the queried signals showed. Section 7 carries the checks this run
   measured, and only those: a quick report is a legal baseline for a
   later verify, on exactly what it measured.
@@ -366,9 +373,16 @@ stage boundaries that carve the steady-state sub-window. Drive the
 scenario to completion **inside your turn** — the skill owns the wait
 method (one blocking foreground command, the platform's blocking wait
 primitive, or its detached poller for a run longer than a tool call —
-the job detaches, the wait never does): as a subagent, never end your
-turn while the scenario is running — ending the turn terminates the
-mission and returns an unfinished result, with no later wake-up. On
+the job detaches, the wait never does; where the host blocks a
+foreground `sleep`, a bounded wait — the flush wait of that skill's
+step 5 included — runs through the platform's blocking wait primitive,
+a Monitor-style until-condition tool, with the elapsed time or the
+poll's `until` condition as that primitive's condition, inside the
+turn: the scenario may have to run as a background job, the wait never
+does, and no turn ends to wait for a completion notification): as a
+subagent, never end your turn while the scenario is running — ending
+the turn terminates the mission and returns an unfinished result, with
+no later wake-up. On
 the local stack, when the mission asks for a clean base — or isolating
 the run matters — restart the observed process, **then** call
 `odd_stack_reset` before the scenario (`run-scenario`'s `run-identity.md`: a clean
@@ -416,6 +430,33 @@ the serial cost of a phase that needs one, and whether a host runs
 several tool calls of one turn together is the host's choice, while
 one shell call is one round trip on every host. The per-file capture
 is what lets the report quote each query and its result verbatim.
+
+Any such block — a batched read, a backgrounded batch with its waits,
+a bounded poll (its `until` condition being the primitive's, where the
+host blocks a foreground `sleep`): anything of more than one command
+— runs as
+`bash -c '...'` or from a `#!/bin/bash` helper file written to the
+scratchpad, never as bare lines handed to the host's shell, which may
+be zsh and reads bash idioms differently. A single command that stays
+inline in the host's shell dodges four zsh traps, each proven in one
+line: no `${!var}` — zsh answers `bad substitution` where bash
+resolves the indirection; it only arises in a loop over captured
+PIDs, a block that belongs under `bash -c` anyway — inline, write the
+waits out (`wait "$p1"; wait "$p2"`); no unquoted variable holding
+several flags — zsh does not word-split it, `A="-a -b"; printf
+"%s\n" $A` prints one word `-a -b` where bash prints two, so a CLI
+reads one unknown flag — write the flags literally, or use an array
+(`"${A[@]}"` expands the same in both shells; only indexing differs,
+zsh counting from 1 and bash from 0); brace every variable followed
+by `[` — zsh reads `$var[...]` as a subscript: `CD=customDimensions;
+echo "tostring($CD['user_agent.original'])"` aborts the whole line
+with `bad math expression: operand expected`, exit 1, so the CLI
+never runs, and `"tostring($CD[1])"` prints `tostring(c)`, one
+character of the scalar, where bash prints both as written — write
+`${CD}[...]`, or the literal name; no word starting with `=` — zsh
+looks up a command named `===` for `echo ====` and fails with
+`=== not found` where bash prints it — write `echo "----- $f"`.
+
 Then query per signal from what came back:
 
 - **Metrics** — discover what the service exports (metric names, labels or
@@ -525,6 +566,68 @@ Then go from aggregates to explanations:
   `confirmed` are cross-confirmed; the others are `suspected` by
   construction).
 
+## When `gen_ai.*` spans exist in the window
+
+The trace discovery above says whether the service calls a model: an
+attribute under the `gen_ai.*` prefix on any span of the service in
+the window — or one of the retired names an older instrumentation
+still emits (`gen_ai.system`, the `prompt_tokens` / `completion_tokens`
+usage pair), read as their replacements and said so. Nothing in the
+mission announces it, and nothing about it is asked. When it holds,
+read `<Skills>/otel-guides/references/genai.md`, its `## Hard facts`
+section only — by section like every setup file — and add the GenAI
+reading below on the attribute and metric names that section pins.
+The queries stay the backend's: compose them from the reference file's
+generic trace and metric rows on those names, as for any signal, never
+from memory, and every number carries its query and a sample like the
+rest of section 2.
+
+- **Per-model table** — the GenAI counterpart of the per-operation
+  table, one row per requested model (the answering model next to it
+  when it differs), split by operation and provider — the pivot the
+  reference's planning notes name:
+
+  | Model | Operation | Calls | Tokens in | Tokens out | p50 | p99 | Error % | Cost |
+
+  Calls and latency from the spans, or from the client duration
+  histogram when the instrumentation emits it; tokens from the usage
+  attributes, or from the token-usage histogram by token type; errors
+  from `error.type`. **Cost only when the mission hands a price per
+  model** — in its focus or expectations, as the caller phrased it: the
+  package ships no price table, so without one the cell reads `no price
+  given`, never an estimate; with one, the row states the price applied
+  and the token counts it multiplied, so the verify run recomputes it
+  the same way. A call that reports no usage (a streaming call whose
+  SDK returns none) is a `-` in the token cells and a gap below, never
+  a zero. With a recalled baseline that carries the subsection, follow
+  the table with one delta line per model — calls, tokens, p50/p99:
+  improved / regressed / unchanged / new — the way section 2 does per
+  operation.
+- **Agent-loop reading** — pivot on the conversation id: spans per
+  conversation, the chain of agent invocation → model calls → tool
+  executions as the trace nests them (or the per-invocation inference
+  and tool-call histograms when the framework emits them), the tools
+  called and how often, and the iteration count per conversation
+  against its siblings. An abnormal count — one conversation at 40
+  model calls where the median is 3, a tool called in a loop with the
+  same arguments — is a finding for section 3 with its trace ID as the
+  exemplar, ranked and cross-confirmed like any other. Without a
+  conversation id, group by trace and say the grouping is weaker.
+- **GenAI telemetry gaps** — into section 5 with the classic gaps, each
+  with the discovery query that came back empty: model calls with no
+  token usage, spans without the requested-model attribute, an LLM call
+  visible only as an outbound HTTP span to the provider's host (the
+  `gen_ai` instrumentation is missing — a handoff line to the
+  `otel-instrumentation-expert` agent), no conversation id on an agent
+  loop; content on span attributes where the mission said it must stay
+  off is a finding for section 3, not a gap.
+
+At `quick` depth the per-model table comes from the traces the run
+already reads; the agent-loop reading runs only when the focus asks for
+it, and when it does not, section 5's not-queried statement names it
+with the signals — `not queried (quick): ..., the agent loop` — a
+statement about the mission, never a gap of the service.
+
 ## What the run teaches a custom stack file
 
 A custom stack's file starts from documentation and the user's word;
@@ -611,6 +714,12 @@ from your reply, without re-reading the file:
    is section 3's first finding (`run-scenario`'s `benchmark-replay.md` — the
    benchmark did not exercise what it measures).
 
+   When `gen_ai.*` spans exist in the window (the section of that name
+   above), follow it with the **GenAI** subsection under its own
+   `### GenAI` heading: the per-model table, then the agent-loop
+   reading — numbers only; its abnormal loops are section 3's findings
+   and its gaps section 5's, with the others.
+
    Then the narrative: what the service actually does, in its own
    vocabulary — request rates, latency distribution, error rates, query
    volumes, hottest spans, notable log lines — every number carrying the
@@ -631,10 +740,16 @@ from your reply, without re-reading the file:
    ~52 to ~2 per request") and the query that will prove it landed.
 5. **Telemetry gaps** — what the service should emit but does not: missing
    latency histograms, logs without trace IDs, absent database or
-   downstream spans, missing resource attributes. Each gap carries the
-   discovery query that came back empty as evidence. When gaps dominate the
-   picture, add a one-line handoff to the `otel-instrumentation-expert`
-   agent.
+   downstream spans, missing resource attributes. The `not queried
+   (<depth>)` statement, when the section carries one (Depth section),
+   is its own first line, never spliced into a gap; then one bullet per
+   gap — `- <gap> — <filled | still missing | new | not ruled (quick)>
+   — <discovery query>` — the fate ruled against the baseline (`new`
+   when no baseline carries the gap, `not ruled (quick)` when a quick
+   replay left it unqueried) and the discovery query that came back
+   empty as evidence; never several gaps in one paragraph. When gaps
+   dominate the picture, add a one-line handoff to the
+   `otel-instrumentation-expert` agent.
 6. **Decisions the spec must settle** — the open questions telemetry cannot
    answer (intended behavior, acceptable trade-offs, priorities). Anything
    you actually concluded belongs in section 3 with its evidence, not here.
@@ -687,9 +802,13 @@ from your reply, without re-reading the file:
 - Never invent, echo, or store credentials; refer to them by variable or
   secret name only. The same for real identifiers — tenant, workspace,
   subscription, resource-group or site names and GUIDs, logins,
-  home-directory paths: the report names them by an obviously fake
-  placeholder, never by the real value a preflight or a tool result
-  showed for one of those — ports, URLs on `localhost`, service and
+  home-directory paths, and every value persisted under a remote
+  stack's `stack_config` (a log group, a profile name, whatever the
+  field holds — regions and the `local` stack excepted): the report
+  names them by an obviously fake placeholder, never by the real value
+  a preflight or a tool result showed for one of those. For a
+  `stack_config` value the placeholder is the field's name in angle
+  brackets (`<log_group>`). Ports, URLs on `localhost`, service and
   operation names, the CLI's version and the proof's UTC stay the
   evidence they are, restated in section 1's run record. When a **replayed
   protocol query** projects a credential-bearing field (a connection

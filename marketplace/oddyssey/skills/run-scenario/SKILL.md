@@ -116,6 +116,12 @@ reads (60 s when it reads traces), then run every query against the
 window recorded in step 4. Never interleave requests, waits, and
 queries outside the query points the record declares: a wait after
 every request batch turns a 3-minute scenario into 4 minutes of sleep.
+Where the host blocks a foreground `sleep`, the wait — a fixed sleep or
+a bounded poll — runs through the platform's blocking wait primitive
+(a Monitor-style until-condition tool, `references/long-scenarios.md`)
+with the elapsed time or the poll's `until` condition as that
+primitive's condition, inside the turn — never a background job whose
+completion notification the turn waits for, never a turn ended to wait.
 
 A mission that must read the store at several points — each reset
 wipes it, so a lifecycle test whose subject is the reset has one store
@@ -144,3 +150,17 @@ after a fix.
   something differed between the two runs, say so next to the numbers.
 - A failed or partial run is data: record the failures and their counts
   rather than retrying silently until the numbers look clean.
+- A driven request that calls a paid model spends money — every warmup
+  and every iteration of it. Like a drive at a remote target, it is
+  confirmed by the caller before the first such request goes out: the
+  operation, the model when known, and the request count with the
+  warmup included; the mission block saying the spend is accepted is
+  that confirmation, a stored benchmark's manifest never is — it
+  authorizes the load's shape, not the bill. No confirmation, no
+  drive: leave the model-calling operations out, or stop, and say
+  which in the record. An operation calls a paid model when the
+  mission says so, when the stack's traces already show `gen_ai.*`
+  spans under it, or when the service's own contract names a model;
+  an operation you cannot rule either way is left out too, named in
+  the record as unruled — a stop-and-report, never a question the
+  drive waits on.

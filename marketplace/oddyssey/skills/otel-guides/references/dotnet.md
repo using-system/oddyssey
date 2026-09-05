@@ -28,3 +28,13 @@ Links ending in `index.md` return the page as raw markdown; links without it are
 - All three signals — traces, metrics, and logs — are marked Stable.
 - .NET Framework (the legacy, Windows-only runtime) has its own configuration page separate from modern .NET, since setup and supported features differ; confirm which runtime the target app uses before following the general instrumentation guide.
 - The Tracing Shim exists specifically to ease migration from pre-existing tracing APIs (e.g., OpenTracing) without a full rewrite.
+
+## Profiling
+
+Cross-language facts — the signal status (Alpha), why a vendor SDK bypasses the Collector, how profiles correlate with traces — live in [profiling.md](profiling.md); this section carries only what is particular to this language. Verified 2026-09-05 against the linked pages.
+
+| Profiler | What it is | What to do with it |
+| --- | --- | --- |
+| [Pyroscope .NET](https://grafana.com/docs/pyroscope/latest/configure-client/language-sdks/dotnet/) | A CLR profiler (`Pyroscope.Profiler.Native.so` + `Pyroscope.Linux.ApiWrapper.x64.so`) attached through `CORECLR_ENABLE_PROFILING=1`, `CORECLR_PROFILER={BD1A650D-...}`, `CORECLR_PROFILER_PATH` and `LD_PRELOAD`; the `Pyroscope` NuGet package adds labels. Linux glibc and musl (x86_64, aarch64); Windows public preview; .NET Framework 4.8 through `COR_*`. CPU, wall, allocation, lock, exception, heap (7.0+) profiles. | **The trap**: OpenTelemetry .NET automatic instrumentation is itself a CLR profiler set through the same `CORECLR_PROFILER*` variables ([its config reference](https://github.com/open-telemetry/opentelemetry-dotnet-instrumentation/blob/main/docs/config.md#net-clr-profiler)) — required on .NET Framework, only needed for bytecode instrumentation on .NET. A plan that combines both must decide which one owns the CLR profiler slot and say what the other loses; neither page documents the combination. |
+| [`Pyroscope.OpenTelemetry`](https://grafana.com/docs/pyroscope/latest/configure-client/trace-span-profiles/dotnet-span-profiles/) | `PyroscopeSpanProcessor`, added to the tracer provider, tags samples with span IDs. | The trace correlation package; its page: "Only CPU profiling is supported at the moment". |
+| [`dotnet-trace`](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-trace) | The platform's own trace/CPU sampling tool. | On-demand diagnosis, not continuous profiling; eBPF through Alloy also lists .NET for a no-code CPU profile. |

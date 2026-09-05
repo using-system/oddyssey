@@ -23,3 +23,12 @@ Links ending in `index.md` return the page as raw markdown; links without it are
 - Auto-instrumentation requires PHP 8.0+; below that, only manual instrumentation via the API/SDK is available, which is worth checking early against the target app's PHP version.
 - The SDK is distributed as multiple Composer packages (minimum: `API`, `Context`, `SDK`, plus an exporter) — application/library code should depend only on the `API` package, per official guidance, so a plan should distinguish "app" dependencies from "library" dependencies accordingly.
 - Several optional PHP extensions affect capability and performance: `ext-grpc` (gRPC OTLP transport), `ext-protobuf` (significantly faster OTLP/protobuf export), `ext-zlib` (export compression), `ext-mbstring` (performance), and `ext-ffi` (enables Fiber-based context storage via `OTEL_PHP_FIBERS_ENABLED`) — a thorough plan should check which of these are installed/needed on the target environment.
+
+## Profiling
+
+Cross-language facts — the signal status (Alpha), why a vendor SDK bypasses the Collector, how profiles correlate with traces — live in [profiling.md](profiling.md); this section carries only what is particular to this language. Verified 2026-09-05 against the linked pages.
+
+| Profiler | What it is | What to do with it |
+| --- | --- | --- |
+| [Alloy `pyroscope.ebpf`](https://grafana.com/docs/alloy/latest/reference/components/pyroscope/pyroscope.ebpf/) | PHP is one of the high-level languages the eBPF collector unwinds (`php_enabled`, default `true`); CPU profiles only, Linux, root. The [OTel eBPF profiler](https://github.com/open-telemetry/opentelemetry-ebpf-profiler) lists PHP too. | The continuous option: there is no Pyroscope PHP SDK (searched the SDK list 2026-09-05) and the `opentelemetry-php` README says nothing about profiling. **The trap**: no in-process SDK means no code-level labels and no span correlation. |
+| [Excimer](https://github.com/wikimedia/mediawiki-php-excimer) | A PHP 7.1+ extension providing "a low-overhead interrupting timer and sampling profiler" ([mediawiki.org](https://www.mediawiki.org/wiki/Excimer)). | The in-process sampler when the host cannot run eBPF; the README documents no push to a profiling backend, so shipping its output is the plan's own work. |

@@ -72,9 +72,10 @@ renderings of the same rules:
   fixed-and-verified, regressed, declined, unknown) and the next
   recommended action, then one line of evidence per lineage under the
   table. Then one line saying what the screen dropped, and the
-  **Judgment needed** list, capped in length and in count (`+N more`),
-  a lineage's item pointing at its evidence line rather than
-  repeating it.
+  **Judgment needed** list, ordered by what settling an item changes
+  — a lineage's boundary first, memory hygiene last — then capped in
+  length and in count (`+N more`), a lineage's item pointing at its
+  evidence line rather than repeating it.
 - **The full rendering** — `--full`, and whenever the caller scoped
   the status to a service, a stack or an environment: everything the
   screen carries, the inventory and the memory invariant as sections,
