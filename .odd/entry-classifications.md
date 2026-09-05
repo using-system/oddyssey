@@ -16,3 +16,4 @@ persists nothing.
 | 2026-09-05 | apm.yml | non-runtime | the package manifest, never read by the MCP server |
 | 2026-09-05 | scripts | non-runtime | build and release helpers, never on the request path |
 | 2026-09-05 | integration-tests | non-runtime | tests, never shipped |
+| 2026-09-05 | tests | non-runtime | tests, never shipped |
