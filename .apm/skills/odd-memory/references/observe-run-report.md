@@ -214,6 +214,24 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   that qualifies them is the per-run profiler tag, or, absent one,
   `process.runtime.version` plus application frames — `instance` says
   which holds for the profiles.
+- The body's sections are the agent's contract — seven, numbered, and
+  read by number by the recall and `## Show`. One subsection is
+  optional, named here so the recall, the synthesis and a reader find
+  it: when `gen_ai.*` spans existed in the window, section 2 carries a
+  **GenAI** subsection under a `### GenAI` heading, after the
+  per-operation (and threshold) tables — the per-model table, one row
+  per requested model and operation (model, operation, calls, tokens
+  in, tokens out, p50, p99, error %, cost), the cost cell computed
+  only from a price per model the mission handed over (the price
+  stated in the row) and `no price given` otherwise — then, with a
+  recalled baseline that carries the subsection, one delta line per
+  model (calls, tokens, p50/p99) the way section 2 carries one per
+  operation — then the agent-loop reading: spans per conversation,
+  tool-call chains, iteration counts. The subsection carries numbers,
+  never findings: an abnormal loop is section 3's, and the GenAI
+  telemetry gaps go into section 5 with the others. Absent when the
+  window held no `gen_ai.*` span; a report predating the subsection
+  simply lacks it.
 
 ## Recall: reading the memory
 
@@ -260,7 +278,8 @@ this reference's:
    together with the replay notes around it — deviations, false starts,
    anything the report flags as mattering for a replay — but not section
    1's mission restatement or its recalled-baseline line; section 2 (the
-   per-operation numbers and their deltas); section 3 (the findings the
+   per-operation numbers and their deltas, its GenAI subsection with
+   them when the report carries one); section 3 (the findings the
    new run rules on); and section 7 (the protocol's checks and
    before-values). A **verification** or **re-measure** run also reads
    section 5 (every gap it must rule filled or still missing). Sections
@@ -316,8 +335,9 @@ caller closing the mission:
     or "no previous report" — with the line that names a dropped
     baseline or a provisional environment when the report carries one;
   - from section 2, when a baseline was recalled, the delta lines —
-    one per operation (improved, regressed, unchanged, new), never
-    the per-operation or threshold tables; for a verify or
+    one per operation (improved, regressed, unchanged, new), and the
+    GenAI subsection's one per model when it carries them, never
+    the per-operation, per-model or threshold tables; for a verify or
     re-measure, every check's ruling instead — its name, before-value,
     after-value and pass/fail cells, not the row's narrative — and
     every check that reads `not ruled (quick)`; for an instrumentation

@@ -138,7 +138,9 @@ Preflights in the main conversation - the stack through
 `backend-configuration`'s `## Check`, `k6` through `k6-guides` when a
 benchmark is named - then dispatches `observe-run` and closes with
 the `observe-run-report` reference's `## Show` synthesis
-(`odd-memory`). `otel-instrumentation-expert`
+(`odd-memory`). `observe-run` reads `otel-guides`' generative AI
+reference when the traces carry `gen_ai.*` spans.
+`otel-instrumentation-expert`
 is a boundary node, recommended when a service emits no telemetry.
 
 ```mermaid
@@ -155,6 +157,7 @@ flowchart LR
   subgraph Skills
     bc[backend-configuration]
     ocg[observability-cli-guides]
+    og[otel-guides]
     sls[setup-local-stack]
     rs[run-scenario]
     kg[k6-guides]
@@ -187,6 +190,7 @@ flowchart LR
   mem --> stackdir
 
   runner --> ocg
+  runner --> og
   runner --> sls
   runner --> rs
   runner --> mem
@@ -214,7 +218,7 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class observe prompt
   class runner,expert agent
-  class bc,ocg,sls,rs,kg,mem skill
+  class bc,ocg,og,sls,rs,kg,mem skill
   class cfgget,cfgset,stack mcp
   class obsdir,benchdir,stackdir store
 ```
@@ -227,7 +231,9 @@ the `observe-run-report` reference's verification rules
 (`odd-memory`), ensures `k6` when a
 drive replay carries a benchmark, dispatches `observe-run`, and closes
 with the `observe-run-report` reference's `## Show` synthesis
-(`odd-memory`). `otel-instrumentation-expert`
+(`odd-memory`). `observe-run` reads `otel-guides`' generative AI
+reference when the traces carry `gen_ai.*` spans, as in `/odd-observe`.
+`otel-instrumentation-expert`
 is the same boundary node as in `/odd-observe`.
 
 ```mermaid
@@ -244,6 +250,7 @@ flowchart LR
   subgraph Skills
     bc[backend-configuration]
     ocg[observability-cli-guides]
+    og[otel-guides]
     sls[setup-local-stack]
     rs[run-scenario]
     kg[k6-guides]
@@ -272,6 +279,7 @@ flowchart LR
   mem --> obsdir
 
   runner --> ocg
+  runner --> og
   runner --> sls
   runner --> rs
   runner --> mem
@@ -299,7 +307,7 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class verify prompt
   class runner,expert agent
-  class bc,ocg,sls,rs,kg,mem skill
+  class bc,ocg,og,sls,rs,kg,mem skill
   class cfgget,stack mcp
   class obsdir,insdir,benchdir store
 ```
@@ -438,8 +446,8 @@ the code, and persist through the create skills that own the stores.
 
 | Agent | Role | Invokes |
 | --- | --- | --- |
-| [`otel-instrumentation-expert`](../../.apm/agents/otel-instrumentation-expert.agent.md) | Investigate a codebase and hand back every input for a spec-driven plan to implement OpenTelemetry | `otel-guides`; `observability-cli-guides` (the export stack's query surface, for the protocol's queries); routes to `setup-local-stack` to validate a query on the local stack; `odd-memory` (the `otel-instrumentation-report` reference; the `observability-stack` reference when a form check corrects a custom stack file); `odd_config_get`; hands the confirmation of landed signals off to `observe-run` |
-| [`observe-run`](../../.apm/agents/observe-run.agent.md) | Observe a running service through its telemetry, on the local stack, a remote backend or a custom stack, and hand back every input for a plan of fixes | `observability-cli-guides`; `setup-local-stack`; `run-scenario` (ad-hoc requests, or a stored benchmark run unmodified); `odd-memory` (the `observe-run-report` reference; the `observability-stack` reference when a run corrects a custom stack file); `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset`; recommends `otel-instrumentation-expert` when a named service emits no telemetry at all |
+| [`otel-instrumentation-expert`](../../.apm/agents/otel-instrumentation-expert.agent.md) | Investigate a codebase and hand back every input for a spec-driven plan to implement OpenTelemetry | `otel-guides` (the language references; the generative AI reference when a manifest names a model SDK); `observability-cli-guides` (the export stack's query surface, for the protocol's queries); routes to `setup-local-stack` to validate a query on the local stack; `odd-memory` (the `otel-instrumentation-report` reference; the `observability-stack` reference when a form check corrects a custom stack file); `odd_config_get`; hands the confirmation of landed signals off to `observe-run` |
+| [`observe-run`](../../.apm/agents/observe-run.agent.md) | Observe a running service through its telemetry, on the local stack, a remote backend or a custom stack, and hand back every input for a plan of fixes | `observability-cli-guides`; `otel-guides` (the generative AI reference's hard facts, when the traces carry `gen_ai.*` spans); `setup-local-stack`; `run-scenario` (ad-hoc requests, or a stored benchmark run unmodified); `odd-memory` (the `observe-run-report` reference; the `observability-stack` reference when a run corrects a custom stack file); `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset`; recommends `otel-instrumentation-expert` when a named service emits no telemetry at all |
 | [`k6-benchmark-expert`](../../.apm/agents/k6-benchmark-expert.agent.md) | Investigate a service and author its k6 benchmark as reviewed code, validated but never run as a benchmark | `k6-guides` (`scripting.md`, `running-tests.md`); `odd-memory` (the `benchmark` reference); reads `.odd/observe-run-reports/` for the service's hot operations |
 
 ## Skills
@@ -451,7 +459,7 @@ each other.
 
 | Skill | Role | Invokes |
 | --- | --- | --- |
-| [`otel-guides`](../../.apm/skills/otel-guides/SKILL.md) | Curated map of the official OpenTelemetry docs: every supported language plus the cross-language guides (SDK configuration, semantic conventions, generative AI conventions and instrumentation libraries, Collector deployment, profiling) | Nothing |
+| [`otel-guides`](../../.apm/skills/otel-guides/SKILL.md) | Curated map of the official OpenTelemetry docs: every supported language plus the cross-language guides (SDK configuration, semantic conventions, generative AI conventions and instrumentation libraries, Collector deployment, profiling) | Nothing - read by `otel-instrumentation-expert`, and by `observe-run` for the generative AI reference |
 | [`k6-guides`](../../.apm/skills/k6-guides/SKILL.md) | Curated map of the official k6 docs: install, running a script, scripting (checks, thresholds, scenarios), test types, protocols - and which of a benchmark's inputs a human must decide rather than an agent | Nothing |
 | [`odd-memory`](../../.apm/skills/odd-memory/SKILL.md) | The `.odd/` memory: the contract every kind shares, and one reference per kind - observation reports, instrumentation reports, the maintainer-ruling ledgers, benchmarks, custom stack files - saying how to persist, recall and show it; owns the five stores, the script that lists the stored reports a recall considers (`scripts/odd_recall.py`: the mission's scope in, the matches newest first out, one line each), and the script that writes the two ruling ledgers (`scripts/odd_ledger.py`: resolve a finding, record a decision or its reversal, classify a tree entry, checked before the row lands - it reads the global configuration's `stack_config` values, read-only and failing open, so a rationale never carries one) | Nothing - read by the three agents at persist and recall time, by the prompts at show time, by `get-status`, by `backend-configuration` for a custom stack; never invoked on its own |
 | [`observability-cli-guides`](../../.apm/skills/observability-cli-guides/SKILL.md) | One reference per stack - query surface, configuration display, what to persist - plus the built-in stack list: the local stack, Grafana (gcx), Datadog (Pup), Dynatrace (dtctl), Azure Monitor (az), CloudWatch (aws); the reference contract every stack file follows, with the script that checks a file against it | Routes the local-stack case to `setup-local-stack` |
