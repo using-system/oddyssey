@@ -6,6 +6,14 @@ recommended action - every row citing its inputs. What a rule cannot
 decide is not guessed: it lands under "Judgment needed", for the skill
 to rule on from the fact sheet and, when it names one, a report body.
 
+Two renderings of the same rules. The default is one screen, the
+memory contract's synthesis: one line of inventory, one of memory
+invariant (violations only), the burn-down per lineage with the
+recommended action and its evidence, what the screen dropped, and the
+judgment list with its items capped. ``full`` renders the working
+tables whole. A caller's rulings on findings (``ruled``) are applied
+before either rendering, never after it: one burn-down, one truth.
+
 Standard library only. Imported by odd_status.py for ``--render``.
 """
 
@@ -72,7 +80,16 @@ OVERDUE_FACTOR = 2  # observation overdue past this many median intervals
 MAX_GAP_LENGTH = 500
 MAX_RULED_BY = 160
 MAX_EVIDENCE_COMMITS = 3
+MAX_SCREEN_EVIDENCE = 200  # characters of evidence per lineage on the screen
+MAX_SCREEN_ITEM = 240  # characters per judgment item on the screen
+MAX_SCREEN_ITEMS = 8  # judgment items on the screen, the rest behind --full
 ELLIPSIS = "…"
+RULED_STATES = {
+    "open": "open",
+    "fixed": "fixed-and-verified",
+    "fixed-and-verified": "fixed-and-verified",
+    "regressed": "regressed",
+}
 
 STATES = ("open", "fixed-and-verified", "regressed", "declined", "unknown")
 
@@ -80,8 +97,8 @@ STATES = ("open", "fixed-and-verified", "regressed", "declined", "unknown")
 # --- small helpers ------------------------------------------------------------
 
 
-def cap(text: str, limit: int) -> tuple[str, bool]:
-    if len(text) <= limit:
+def cap(text: str, limit: int | None) -> tuple[str, bool]:
+    if limit is None or len(text) <= limit:
         return text, False
     return text[:limit] + ELLIPSIS, True
 
@@ -203,11 +220,35 @@ def verdict_label(report: dict) -> str:
 
 
 def lineage_label(report: dict) -> str:
+    """A lineage: a service set on a stack and an environment, or a plan on
+    a stack. The repository a report names is never part of the key - a
+    field arriving on a later report must not split a chain - it is stated
+    in the row's evidence instead."""
     fm = report["frontmatter"]
     if report["kind"] == "instrumentation":
         return f"{fm.get('project')} (plan) / {fm.get('stack')}"
     services = ", ".join(report["services"]) or "?"
     return f"{services} / {fm.get('stack')} / {fm.get('environment')}"
+
+
+def repository_note(report: dict, facts: dict) -> str | None:
+    """``repository <identity>`` for the evidence of a row whose last report
+    names a repository other than the store's, or when the store holds
+    reports of several - so a central store's rows say whose code they
+    judge; nothing for a single-repository store."""
+    where = report.get("repository") or {}
+    several = len(facts.get("inventory", {}).get("repositories") or []) > 1
+    source = where.get("source")
+    if source == "store" and not several:
+        return None
+    if source == "store":
+        if where.get("identity"):
+            return f"repository {where['identity']}"
+        own = facts.get("repository", {}).get("identity") or "the store"
+        return f"repository {own} (the report names none)"
+    if source == "unrecognized":
+        return f"repository unrecognized ({', '.join(where.get('raw') or [])})"
+    return f"repository {', '.join(where.get('identities') or [])}"
 
 
 def lineages(facts: dict) -> dict[str, list[dict]]:
@@ -358,9 +399,12 @@ def finding_rows(facts: dict) -> list[dict]:
     return rows
 
 
-def out_of_chain_rulings(facts: dict) -> list[str]:
+def out_of_chain_rulings(facts: dict, ruled: frozenset[str] = frozenset()) -> list[str]:
     """Rulings a verification carries on an id no report in its chain defines,
-    while another report does - the same finding, or a homonym: a judgment."""
+    while another report does - the same finding, or a homonym: a judgment.
+
+    An item is settled, and dropped, once the caller ruled every finding
+    it names (``ruled`` holds their ledger keys)."""
     by_name = {name_of(r): r for r in readable(facts)}
     definers: dict[tuple[str, str], list[str]] = {}
     for report in readable(facts):
@@ -378,6 +422,8 @@ def out_of_chain_rulings(facts: dict) -> list[str]:
         for row in rulings_of(verification):
             defined = definers.get((lineage_label(verification), row["id"]), [])
             if defined and not any(d in in_chain for d in defined):
+                if all(f"{d} / {row['id']}" in ruled for d in defined):
+                    continue
                 out.append(
                     f"{name_of(verification)} rules {row['id']} "
                     f"({cap(row['ruling'], MAX_RULED_BY)[0]}), an id of "
@@ -389,6 +435,162 @@ def out_of_chain_rulings(facts: dict) -> list[str]:
 
 def burn_down(rows: list[dict]) -> dict[str, int]:
     return {state: sum(r["state"] == state for r in rows) for state in STATES}
+
+
+def parse_ruling(text: str) -> tuple[str, str] | str:
+    """``<report>/<id>=<state>`` as (key, state); a problem string otherwise."""
+    if "=" not in text:
+        return f"ruling {text}: not <report>/<id>=<state>"
+    ref, _, state = text.rpartition("=")
+    if "/" not in ref:
+        return f"ruling {text}: not <report>/<id>=<state>"
+    report, _, finding_id = ref.rpartition("/")
+    key = f"{Path(report.strip()).name} / {finding_id.strip()}"
+    normalized = RULED_STATES.get(state.strip().lower())
+    if normalized is None:
+        return f"ruling {key}: unknown state '{state.strip()}'"
+    return key, normalized
+
+
+def apply_rulings(
+    rows: list[dict], ruled: list[str] | tuple[str, ...]
+) -> tuple[list[str], frozenset[str]]:
+    """The caller's rulings applied to the finding rows.
+
+    Returns the problems (deferred) and the keys of the findings ruled.
+    A ruling names a finding by its ledger key; it never overrides the
+    ledger itself - a declined finding stays declined and the ruling is
+    deferred - and a key no report carries is deferred too.
+    """
+    problems: list[str] = []
+    applied: set[str] = set()
+    by_key = {f"{Path(r['report']).name} / {r['id']}": r for r in rows}
+    for text in ruled:
+        parsed = parse_ruling(text)
+        if isinstance(parsed, str):
+            problems.append(parsed)
+            continue
+        key, state = parsed
+        row = by_key.get(key)
+        if row is None:
+            problems.append(f"ruling {key}: no such finding")
+        elif row["state"] == "declined":
+            verdict = row["ruled_by"].split(": ", 1)[0]
+            problems.append(f"ruling {key}: declined by the ledger ({verdict})")
+        else:
+            row["state"] = state
+            row["ruled_by"] = f"ruled by the caller ({row['ruled_by']})"
+            applied.add(key)
+    return problems, frozenset(applied)
+
+
+def plural(count: int, noun: str) -> str:
+    return f"{count} {noun}" + ("" if count == 1 else "s")
+
+
+def last_report_label(report: dict) -> str:
+    slug = Path(report["path"]).stem[len("YYYY-MM-DD-HHmm-") :]
+    kind = "plan" if report["kind"] == "instrumentation" else mode_of(report)
+    return f"{date_of(report)} {slug} ({kind})"
+
+
+def loop_state_rows(
+    facts: dict, rows: list[dict], recs: list[dict], evidence_cap: int | None
+) -> tuple[list[list[str]], list[str]]:
+    """One row per lineage - the last report, the burn-down, the action - and
+    one evidence line per lineage, kept out of the table so it stays narrow."""
+    by_name = {name_of(r): r for r in readable(facts)}
+    counts: dict[str, dict[str, int]] = {}
+    for r in rows:
+        label = lineage_label(by_name[Path(r["report"]).name])
+        counts.setdefault(label, {s: 0 for s in STATES})[r["state"]] += 1
+    actions = {r["lineage"]: r for r in recs}
+    table, evidence = [], []
+    for label, line in lineages(facts).items():
+        c = counts.get(label, {s: 0 for s in STATES})
+        rec = actions.get(label, {"action": "?", "evidence": ""})
+        table.append(
+            [
+                label,
+                last_report_label(line[-1]),
+                *(str(c[s]) for s in STATES),
+                rec["action"],
+            ]
+        )
+        evidence.append(f"- {label}: {cap(rec['evidence'], evidence_cap)[0]}")
+    return table, evidence
+
+
+def screen_lines(facts: dict) -> list[str]:
+    """The inventory and the memory invariant, one line each."""
+    inventory = facts["inventory"]
+    reports = readable(facts)
+    kinds = {
+        k: sum(r["kind"] == k for r in reports)
+        for k in ("observation", "instrumentation")
+    }
+    ledger = facts["ledger"]
+    skipped = [r for r in ledger["rows"] if r["status"] == "skipped"]
+    ledger_text = (
+        f"ledger: {sum(r['status'] == 'ok' for r in ledger['rows'])} row(s)"
+        + (f", {len(skipped)} skipped" if skipped else "")
+        if ledger["present"]
+        else "ledger: absent"
+    )
+    classifications = facts.get("classifications") or {"present": False, "rows": []}
+    skipped_classes = [r for r in classifications["rows"] if r["status"] == "skipped"]
+    classifications_text = (
+        f"classifications: "
+        f"{sum(r['status'] == 'ok' for r in classifications['rows'])} row(s)"
+        + (f", {len(skipped_classes)} skipped" if skipped_classes else "")
+        if classifications["present"]
+        else "classifications: absent"
+    )
+    head = facts["head"] or {}
+    repositories = repositories_of(facts)
+    invariant = facts.get("invariant") or {
+        "checked": 0,
+        "violations": [],
+        "legacy": [],
+    }
+    violations = invariant["violations"]
+    legacy = invariant.get("legacy", [])
+    if not violations and not skipped and not skipped_classes:
+        status = (
+            f"clean ({invariant['checked']} of {invariant['checked']}"
+            + (f"; {len(legacy)} predate `depth`, read as full" if legacy else "")
+            + ")"
+        )
+    else:
+        problems = (
+            [f"{Path(v['path']).name} - {p}" for v in violations for p in v["problems"]]
+            + [f"decisions.md line {r['line']} - {r['reason']}" for r in skipped]
+            + [
+                f"entry-classifications.md line {r['line']} - {r['reason']}"
+                for r in skipped_classes
+            ]
+        )
+        status = (
+            f"{plural(len(violations), 'violation')}, "
+            f"{plural(len(skipped) + len(skipped_classes), 'ledger row')} skipped"
+            + (f", {len(legacy)} predate `depth`" if legacy else "")
+            + ": "
+            + "; ".join(problems)
+        )
+    return [
+        (
+            f"- {facts['matched']} matched of {inventory['report_count']} stored "
+            f"({kinds['observation']} observation, {kinds['instrumentation']} "
+            f"instrumentation) · services: {', '.join(inventory['services']) or 'none'} "
+            f"· stacks: {', '.join(inventory['stacks']) or 'none'} · environments: "
+            f"{', '.join(inventory['environments']) or 'none'}"
+            + (f" · repositories: {', '.join(repositories)}" if repositories else "")
+            + f" · {ledger_text} · {classifications_text} · HEAD "
+            f"{str(head.get('sha', '?'))[:7]} ({str(head.get('date', '?'))[:10]})"
+        ),
+        f"- memory invariant: {status}",
+        "",
+    ]
 
 
 # --- trends ------------------------------------------------------------------------
@@ -562,6 +764,39 @@ def boundary(report: dict) -> dict:
 
     ``changed`` is True, False, or None when the rules cannot tell.
     """
+    where = report.get("repository") or {}
+    if where.get("source") == "unreachable":
+        identity = where["identity"]
+        hint = (
+            " (the store's own identity is unknown: no origin remote to compare with)"
+            if where.get("store_identity_unknown")
+            else ""
+        )
+        return {
+            "changed": None,
+            "evidence": (
+                f"boundary unknown: {identity} is not reachable from here - "
+                f"pass --repository {identity}=<path to its clone>{hint}"
+            ),
+        }
+    if where.get("source") == "unrecognized":
+        return {
+            "changed": None,
+            "evidence": (
+                "boundary unknown: the report's repository value is not a remote "
+                f"the rules can read ({', '.join(where.get('raw') or [])}) - never "
+                "read as the store's own"
+            ),
+        }
+    if where.get("source") == "spans":
+        return {
+            "changed": None,
+            "evidence": (
+                "boundary unknown: the report spans repositories "
+                f"{', '.join(where['identities'])} - one revision and one anchor "
+                "cannot cover both"
+            ),
+        }
     diff = report.get("tree_anchor_diff")
     since = report["commits_since"]
     if diff is not None:
@@ -718,6 +953,7 @@ def recommendations(facts: dict, today: str | date | None = None) -> list[dict]:
     out = []
     for label, line in lineages(facts).items():
         last = line[-1]
+        note = repository_note(last, facts)
         if last["kind"] == "instrumentation":
             covering = verification_chain(name_of(last), by_target)
             if covering:
@@ -732,12 +968,16 @@ def recommendations(facts: dict, today: str | date | None = None) -> list[dict]:
                 evidence = (
                     f"no report verifies {name_of(last)}; {boundary(last)['evidence']}"
                 )
+            if note:
+                evidence = f"{note}; {evidence}"
             out.append({"lineage": label, "action": action, "evidence": evidence})
             continue
         bound = boundary(last)
         observations = [r for r in line if mode_of(r) in OBSERVATION_MODES]
         rhythm = cadence(observations, day)
         evidence = [f"last report {name_of(last)} ({mode_of(last)})"]
+        if note:
+            evidence.append(note)
         if is_verify(last):
             evidence.append(f"verdict {verdict_label(last)}")
         evidence.append(bound["evidence"])
@@ -904,10 +1144,12 @@ def scope_statement(facts: dict) -> str:
     if filters["environment"]:
         searched.append(f"environment `{filters['environment']}`")
     inventory = facts["inventory"]
+    repositories = repositories_of(facts)
     exists = (
         f"services: {', '.join(inventory['services']) or 'none'}; "
         f"stacks: {', '.join(inventory['stacks']) or 'none'}; "
         f"environments: {', '.join(inventory['environments']) or 'none'}"
+        + (f"; repositories: {', '.join(repositories)}" if repositories else "")
     )
     return (
         f"No report matches the scope searched ({', '.join(searched)}). "
@@ -915,9 +1157,16 @@ def scope_statement(facts: dict) -> str:
     )
 
 
+def repositories_of(facts: dict) -> list[str]:
+    """The distinct repositories the stored reports name (the whole store,
+    like the inventory's services and stacks); empty when none carries one."""
+    return list(facts["inventory"].get("repositories") or [])
+
+
 def inventory_lines(facts: dict) -> list[str]:
     inventory = facts["inventory"]
     reports = readable(facts)
+    repositories = repositories_of(facts)
     kinds = {
         k: sum(r["kind"] == k for r in reports)
         for k in ("observation", "instrumentation")
@@ -928,6 +1177,13 @@ def inventory_lines(facts: dict) -> list[str]:
         f"{sum(r['status'] == 'skipped' for r in ledger['rows'])} skipped"
         if ledger["present"]
         else "absent (no decision recorded yet)"
+    )
+    classifications = facts.get("classifications") or {"present": False, "rows": []}
+    classifications_line = (
+        f"present, {sum(r['status'] == 'ok' for r in classifications['rows'])} row(s) read, "
+        f"{sum(r['status'] == 'skipped' for r in classifications['rows'])} skipped"
+        if classifications["present"]
+        else "absent (no entry classified yet)"
     )
     head = facts["head"] or {}
     return [
@@ -941,8 +1197,10 @@ def inventory_lines(facts: dict) -> list[str]:
             f"- Services: {', '.join(inventory['services']) or 'none'}; "
             f"stacks: {', '.join(inventory['stacks']) or 'none'}; "
             f"environments: {', '.join(inventory['environments']) or 'none'}"
+            + (f"; repositories: {', '.join(repositories)}" if repositories else "")
         ),
         f"- Decisions ledger: {ledger_line}",
+        f"- Entry classifications: {classifications_line}",
         f"- HEAD: {str(head.get('sha', '?'))[:7]} ({str(head.get('date', '?'))[:10]})",
         "",
     ]
@@ -957,6 +1215,8 @@ def invariant_section(facts: dict) -> list[str]:
     }
     ledger = facts["ledger"]
     skipped = [r for r in ledger["rows"] if r["status"] == "skipped"]
+    classifications = facts.get("classifications") or {"present": False, "rows": []}
+    skipped_classes = [r for r in classifications["rows"] if r["status"] == "skipped"]
     checked = invariant["checked"]
     legacy = invariant.get("legacy", [])
     clean = checked - len(invariant["violations"])
@@ -991,6 +1251,18 @@ def invariant_section(facts: dict) -> list[str]:
                 )
             )
         ),
+        (
+            f"- Classifications: {len(skipped_classes)} row(s) skipped"
+            + (
+                ""
+                if skipped_classes
+                else (
+                    " - every ruling names a top-level entry of HEAD and a class"
+                    if classifications["present"]
+                    else " (no entry classified yet)"
+                )
+            )
+        ),
         "",
     ]
     rows: list[list[str]] = []
@@ -999,6 +1271,8 @@ def invariant_section(facts: dict) -> list[str]:
             rows.append([violation["path"], problem])
     for row in skipped:
         rows.append([f"decisions.md line {row['line']}", row["reason"]])
+    for row in skipped_classes:
+        rows.append([f"entry-classifications.md line {row['line']}", row["reason"]])
     if rows:
         out += [
             md_table(["File", "Violation"], rows),
@@ -1060,22 +1334,42 @@ def state_rows(facts: dict) -> list[list[str]]:
     return rows
 
 
-def render(facts: dict, today: str | date | None = None) -> str:
+LOOP_STATE_HEADER = [
+    "Lineage",
+    "Last report",
+    "Open",
+    "Verified",
+    "Regr.",
+    "Decl.",
+    "Unkn.",
+    "Action",
+]
+
+
+def render(
+    facts: dict,
+    today: str | date | None = None,
+    *,
+    full: bool = False,
+    ruled: list[str] | tuple[str, ...] = (),
+) -> str:
     out = ["# ODD loop status", ""]
     if not facts["loop_started"]:
-        out.append(
+        message = (
             "The loop has not started here: no report under `.odd/`. "
             "Start with `/odd-instrument-otel` or `/odd-observe`."
         )
-        return "\n".join(out) + "\n"
-    if facts["matched"] == 0:
-        out.append(scope_statement(facts))
+    elif facts["matched"] == 0:
+        message = scope_statement(facts)
+    else:
+        message = None
+    if message is not None:
+        out.append(message)
+        if ruled:
+            out.append(f"{plural(len(ruled), 'ruling')} not applied: nothing to rule.")
         return "\n".join(out) + "\n"
 
     judgment: list[str] = []
-    out += inventory_lines(facts)
-    out += invariant_section(facts)
-
     for report in facts["reports"]:
         if "unreadable" in report:
             judgment.append(
@@ -1087,22 +1381,11 @@ def render(facts: dict, today: str | date | None = None) -> str:
     for row in facts["ledger"]["rows"]:
         if row["status"] == "skipped":
             judgment.append(f"ledger line {row['line']} skipped: {row['reason']}")
-
-    out += [
-        "## Per-service loop state",
-        "",
-        md_table(
-            [
-                "Lineage",
-                "Last observation",
-                "Last verification",
-                "Chain",
-                "Code since last report",
-            ],
-            state_rows(facts),
-        ),
-        "",
-    ]
+    for row in (facts.get("classifications") or {"rows": []})["rows"]:
+        if row["status"] == "skipped":
+            judgment.append(
+                f"classification line {row['line']} skipped: {row['reason']}"
+            )
     for report in readable(facts):
         if is_verify(report):
             label = verdict_label(report)
@@ -1120,7 +1403,105 @@ def render(facts: dict, today: str | date | None = None) -> str:
                 )
 
     rows = finding_rows(facts)
+    problems, ruled_keys = apply_rulings(rows, ruled)
+    judgment += problems
     counts = burn_down(rows)
+    for r in rows:
+        if r["state"] == "unknown":
+            judgment.append(
+                f"finding {Path(r['report']).name} / {r['id']}: "
+                f"ruling not readable by rule ({r['ruled_by']})"
+            )
+    judgment += out_of_chain_rulings(facts, ruled_keys)
+
+    trends, apart = trend_rows(facts)
+    gaps = gap_rows(facts)
+    for g in gaps:
+        if g["gap"].startswith("(section 5 not lifted)"):
+            judgment.append(
+                f"gaps of {g['recorded_by']}: section 5 not lifted, open the body"
+            )
+    for name in sorted({g["recorded_by"] for g in gaps if g["truncated"]}):
+        judgment.append(
+            f"section 5 of {name} truncated: the gaps beyond the cap are unlisted"
+        )
+    for name in mixed_not_queried(facts):
+        judgment.append(
+            f"section 5 of {name} mixes a not-queried list with its gaps: open the body "
+            "for the gaps it carries"
+        )
+    recs = recommendations(facts, today)
+    for r in recs:
+        if r["action"] == "judgment needed":
+            # the screen's row already carries the evidence: point at it
+            judgment.append(
+                f"{r['lineage']}: {r['evidence']}"
+                if full
+                else f"{r['lineage']}: judgment needed - see its evidence under Loop state"
+            )
+
+    if full:
+        out += inventory_lines(facts)
+        out += invariant_section(facts)
+    else:
+        out += screen_lines(facts)
+    table, evidence = loop_state_rows(
+        facts, rows, recs, None if full else MAX_SCREEN_EVIDENCE
+    )
+    out += ["## Loop state", "", md_table(LOOP_STATE_HEADER, table), "", *evidence, ""]
+    if full:
+        out += full_sections(facts, rows, counts, trends, apart, gaps, recs)
+    else:
+        pairs = len({t["pair"] for t in trends})
+        out += [
+            (
+                f"Not on this screen: {plural(len(rows), 'finding')}, "
+                f"{plural(pairs, 'trend pair')}"
+                + (f" (+{len(apart)} listed apart)" if apart else "")
+                + f", {plural(len(gaps), 'gap')}, the loop state's chain and "
+                "code boundary, whole items and evidence - `--full` renders them."
+            ),
+            "",
+        ]
+
+    out += ["## Judgment needed", ""]
+    if judgment:
+        items = judgment
+        if not full:
+            items = [cap(i, MAX_SCREEN_ITEM)[0] for i in judgment[:MAX_SCREEN_ITEMS]]
+            if len(judgment) > MAX_SCREEN_ITEMS:
+                items.append(f"+{len(judgment) - MAX_SCREEN_ITEMS} more - `--full`")
+        out += [f"- {item}" for item in items]
+    else:
+        out.append("- nothing deferred: every row above follows from a rule")
+    return "\n".join(out) + "\n"
+
+
+def full_sections(
+    facts: dict,
+    rows: list[dict],
+    counts: dict[str, int],
+    trends: list[dict],
+    apart: list[dict],
+    gaps: list[dict],
+    recs: list[dict],
+) -> list[str]:
+    """The working tables: loop state, ledger, trends, gaps, next action."""
+    out = [
+        "## Per-service loop state",
+        "",
+        md_table(
+            [
+                "Lineage",
+                "Last observation",
+                "Last verification",
+                "Chain",
+                "Code since last report",
+            ],
+            state_rows(facts),
+        ),
+        "",
+    ]
     burn = " · ".join(f"{s} {counts[s]}" for s in STATES[:4])
     if counts["unknown"]:
         burn += f" · unknown {counts['unknown']}"
@@ -1139,15 +1520,7 @@ def render(facts: dict, today: str | date | None = None) -> str:
         ]
     else:
         out += ["No finding recorded.", ""]
-    for r in rows:
-        if r["state"] == "unknown":
-            judgment.append(
-                f"finding {Path(r['report']).name} / {r['id']}: "
-                f"ruling not readable by rule ({r['ruled_by']})"
-            )
-    judgment += out_of_chain_rulings(facts)
 
-    trends, apart = trend_rows(facts)
     out += [
         "## Trends",
         "",
@@ -1192,7 +1565,6 @@ def render(facts: dict, today: str | date | None = None) -> str:
         ]
         out.append("")
 
-    gaps = gap_rows(facts)
     out += ["## Open telemetry gaps", ""]
     if gaps:
         out += [
@@ -1206,22 +1578,7 @@ def render(facts: dict, today: str | date | None = None) -> str:
         out += ["No gap listed by rule - see Judgment needed.", ""]
     else:
         out += ["No gap recorded.", ""]
-    for g in gaps:
-        if g["gap"].startswith("(section 5 not lifted)"):
-            judgment.append(
-                f"gaps of {g['recorded_by']}: section 5 not lifted, open the body"
-            )
-    for name in sorted({g["recorded_by"] for g in gaps if g["truncated"]}):
-        judgment.append(
-            f"section 5 of {name} truncated: the gaps beyond the cap are unlisted"
-        )
-    for name in mixed_not_queried(facts):
-        judgment.append(
-            f"section 5 of {name} mixes a not-queried list with its gaps: open the body "
-            "for the gaps it carries"
-        )
 
-    recs = recommendations(facts, today)
     out += [
         "## Next recommended action",
         "",
@@ -1231,13 +1588,4 @@ def render(facts: dict, today: str | date | None = None) -> str:
         ),
         "",
     ]
-    for r in recs:
-        if r["action"] == "judgment needed":
-            judgment.append(f"{r['lineage']}: {r['evidence']}")
-
-    out += ["## Judgment needed", ""]
-    if judgment:
-        out += [f"- {item}" for item in judgment]
-    else:
-        out.append("- nothing deferred: every row above follows from a rule")
-    return "\n".join(out) + "\n"
+    return out

@@ -62,6 +62,12 @@ steps needing the user cannot happen inside a subagent):
 Build the mission block from the arguments below, applying the agent's own
 defaults for every field not specified:
 
+- `Skills: <directory>` - the parent directory of this package's
+  installed skills: the base directory the host prints when one of
+  them is invoked (`backend-configuration` in the preflight above),
+  minus that skill's own directory name. The agent opens the skills'
+  files there, by section, and never searches for them. Derived at run
+  time, always carried, never guessed.
 - Arguments: $ARGUMENTS
 - Expected fields (any order, free-form): service name(s), stack
   (defaults to the configured one - the preflight resolved it), mode
