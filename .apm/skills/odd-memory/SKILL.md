@@ -17,7 +17,7 @@ stored one is shown):
 | --- | --- | --- |
 | Observation reports | `.odd/observe-run-reports/` | [references/observe-run-report.md](references/observe-run-report.md) |
 | Instrumentation reports | `.odd/otel-instrumentation-reports/` | [references/otel-instrumentation-report.md](references/otel-instrumentation-report.md) |
-| Finding decisions | `.odd/decisions.md` | [references/decisions.md](references/decisions.md) |
+| Finding decisions | `.odd/decisions.md`, written by `scripts/odd_ledger.py` | [references/decisions.md](references/decisions.md) |
 | Benchmarks | `.odd/benchmarks/<name>/` | [references/benchmark.md](references/benchmark.md) |
 | Custom stacks | `.odd/observability-stacks/<name>.md` | [references/observability-stack.md](references/observability-stack.md) |
 
@@ -67,7 +67,10 @@ the caller, and what `## Show` renders from.
   "update" it, a new run writes a new file and the diff lives there; a
   decision is a row appended, never rewritten, and the latest row for a
   finding wins. A report is never modified to carry a decision: the
-  ledger is the decision's only home.
+  ledger is the decision's only home — and a ledger is written by the
+  script its reference names, which checks the row before it lands,
+  never by a file tool; the reference's prose steps are the fallback
+  where the script cannot run.
 - A **benchmark is living source**, not a run record: it is updated in
   place through reviewed diffs, and git history, not file accumulation,
   is its memory. It is never overwritten silently — an update is a diff
