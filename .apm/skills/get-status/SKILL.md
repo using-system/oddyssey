@@ -313,8 +313,9 @@ and no stored report matches, say exactly two things and stop:
 - **what was searched**: each filter and its value, kept distinct (a
   stack scope is not an environment scope);
 - **what exists instead**: the distinct services, stacks, and
-  environments present across the stored frontmatters — the inventory
-  of step 1, which is already read.
+  environments present across the stored frontmatters, and the
+  repositories when any report names one — the inventory of step 1,
+  which is already read.
 
 Example: "no report with environment `prod` — all 4 stored reports are
 `environment: local`." That IS the status, not a failure: it names the

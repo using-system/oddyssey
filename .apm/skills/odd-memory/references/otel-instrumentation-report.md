@@ -33,6 +33,7 @@ run_name: mcp-server-python
 date: 2026-08-23
 revision: 2299d4c             # optional: commit of the investigated repo
 tree_anchor: {src: "5ea231f…", tests: "8e29aac…"}  # optional: FULL top-level entry map at revision (git ls-tree) - the squash-proof anchor
+repository: github.com/example-org/checkout  # optional: the repository revision was taken from - its origin remote, normalized
 ---
 
 <the investigation report, verbatim and complete>
@@ -48,6 +49,21 @@ tree_anchor: {src: "5ea231f…", tests: "8e29aac…"}  # optional: FULL top-leve
   top-level entry map of `git ls-tree <revision>`, one
   `name: object-hash` pair per entry — the squash-proof,
   clone-resolvable form of "which code the findings hold for".
+  `repository` names the repository both were taken from, taken at
+  the same moment: the `origin` remote (`git remote get-url origin` in that
+  repository) normalized so that two agents on the same repository
+  always write the same value: the host lower-cased, then the remote's
+  path as it is (its case kept, any depth — `gitlab.com/group/subgroup/project`
+  is as valid as `github.com/org/repo`); the scheme, the user info
+  and the port dropped, one trailing `/` and one trailing `.git`
+  stripped; the SSH form `git@host:owner/name.git` read as
+  `host/owner/name`. A token in the remote URL is a secret: it never
+  reaches the report, the run record or the reply. No remote, no value — never a local
+  path (the no-secrets rule). A plan investigates one repository, so
+  the value is a scalar; `project` keeps naming what was investigated
+  in it (the repository, or a path inside it) and does not change.
+  Absent on a report that predates the field; a consumer then reads
+  the report as investigating the repository it is stored in.
 
 ## Recall: reading the memory
 

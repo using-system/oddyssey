@@ -1157,6 +1157,7 @@ def build_facts(
                 if r["kind"] == "observation" and r["frontmatter"].get("environment")
             }
         ),
+        "repositories": sorted(repositories_named(readable)),
     }
     matched = [r for r in reports if matches(r, services, stack, environment)]
     ledger = load_ledger(root, reports)
@@ -1176,6 +1177,19 @@ def build_facts(
         "classifications": classifications,
         "invariant": invariant,
     }
+
+
+def repositories_named(reports: list[dict]) -> set[str]:
+    """The distinct ``repository`` values the reports carry - a scalar, or
+    the values of a per-service map."""
+    found: set[str] = set()
+    for report in reports:
+        value = report["frontmatter"].get("repository")
+        if isinstance(value, dict):
+            found.update(str(v) for v in value.values() if v)
+        elif value:
+            found.add(str(value))
+    return found
 
 
 def parse_section_texts(text: str) -> tuple[int, ...]:

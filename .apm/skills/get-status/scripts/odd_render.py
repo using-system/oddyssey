@@ -523,6 +523,7 @@ def screen_lines(facts: dict) -> list[str]:
         else "classifications: absent"
     )
     head = facts["head"] or {}
+    repositories = repositories_of(facts)
     invariant = facts.get("invariant") or {
         "checked": 0,
         "violations": [],
@@ -558,8 +559,9 @@ def screen_lines(facts: dict) -> list[str]:
             f"({kinds['observation']} observation, {kinds['instrumentation']} "
             f"instrumentation) · services: {', '.join(inventory['services']) or 'none'} "
             f"· stacks: {', '.join(inventory['stacks']) or 'none'} · environments: "
-            f"{', '.join(inventory['environments']) or 'none'} · {ledger_text} · "
-            f"{classifications_text} · HEAD "
+            f"{', '.join(inventory['environments']) or 'none'}"
+            + (f" · repositories: {', '.join(repositories)}" if repositories else "")
+            + f" · {ledger_text} · {classifications_text} · HEAD "
             f"{str(head.get('sha', '?'))[:7]} ({str(head.get('date', '?'))[:10]})"
         ),
         f"- memory invariant: {status}",
@@ -1080,10 +1082,12 @@ def scope_statement(facts: dict) -> str:
     if filters["environment"]:
         searched.append(f"environment `{filters['environment']}`")
     inventory = facts["inventory"]
+    repositories = repositories_of(facts)
     exists = (
         f"services: {', '.join(inventory['services']) or 'none'}; "
         f"stacks: {', '.join(inventory['stacks']) or 'none'}; "
         f"environments: {', '.join(inventory['environments']) or 'none'}"
+        + (f"; repositories: {', '.join(repositories)}" if repositories else "")
     )
     return (
         f"No report matches the scope searched ({', '.join(searched)}). "
@@ -1091,9 +1095,16 @@ def scope_statement(facts: dict) -> str:
     )
 
 
+def repositories_of(facts: dict) -> list[str]:
+    """The distinct repositories the stored reports name (the whole store,
+    like the inventory's services and stacks); empty when none carries one."""
+    return list(facts["inventory"].get("repositories") or [])
+
+
 def inventory_lines(facts: dict) -> list[str]:
     inventory = facts["inventory"]
     reports = readable(facts)
+    repositories = repositories_of(facts)
     kinds = {
         k: sum(r["kind"] == k for r in reports)
         for k in ("observation", "instrumentation")
@@ -1124,6 +1135,7 @@ def inventory_lines(facts: dict) -> list[str]:
             f"- Services: {', '.join(inventory['services']) or 'none'}; "
             f"stacks: {', '.join(inventory['stacks']) or 'none'}; "
             f"environments: {', '.join(inventory['environments']) or 'none'}"
+            + (f"; repositories: {', '.join(repositories)}" if repositories else "")
         ),
         f"- Decisions ledger: {ledger_line}",
         f"- Entry classifications: {classifications_line}",

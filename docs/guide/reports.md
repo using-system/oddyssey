@@ -62,6 +62,7 @@ process_restarted: true
 | `verifies` | verify, re-measure | The report whose protocol was replayed | its exact filename; the repo-relative path for an instrumentation report |
 | `revision` | optional | The observed repo's commit at run time | short SHA |
 | `tree_anchor` | optional | The top-level tree hashes at `revision`, so "code unchanged since" survives squash merges and fresh clones | entry name to hash |
+| `repository` | optional | The repository `revision` was taken from, so a report moved to a central store still says where its code lives | the `origin` remote as host then path (`github.com/org/repo`); service to repository when the run spans several |
 | `workload` | optional | The input that shaped the run, when the service alone does not | free-form |
 | `instance` | optional | Which process the numbers belong to | service to identity |
 | `process_restarted` | optional | Whether the process restarted before the window | boolean, or per service |
@@ -128,6 +129,7 @@ revision: 2299d4c
 | `date` | yes | The investigation's UTC date | `YYYY-MM-DD` |
 | `revision` | optional | Which code the findings hold for | short SHA |
 | `tree_anchor` | optional | The top-level tree hashes at `revision` | entry name to hash |
+| `repository` | optional | The repository `revision` was taken from | the `origin` remote as host then path (`github.com/org/repo`) |
 
 No `services`, `mode`, or `environment`: the services live in the
 plan, and an investigation reads code, not telemetry — beyond
