@@ -108,9 +108,12 @@ the report.
   reference read, CLI and context, target values, connection proof
   with its UTC). It is **conversation-scope**: section 1 restates the
   stack and backend, never the block — a real tenant, workspace or
-  site name, a GUID, a login, a home-directory path identify a real
-  environment and the report is a committed file; anything the report
-  must name goes in as an obviously fake placeholder.
+  site name, a GUID, a login, a home-directory path, a value persisted
+  under a remote stack's `stack_config` (regions excepted) identify a
+  real environment
+  and the report is a committed file; anything the report must name
+  goes in as an obviously fake placeholder (the Rules below: the
+  field's name in angle brackets for a `stack_config` value).
 - **Expectations / baseline** — SLO targets, expected request or query
   counts, "it used to be X". Absent a caller baseline, the baseline is
   the latest stored report matching the same services, the same stack,
@@ -687,9 +690,13 @@ from your reply, without re-reading the file:
 - Never invent, echo, or store credentials; refer to them by variable or
   secret name only. The same for real identifiers — tenant, workspace,
   subscription, resource-group or site names and GUIDs, logins,
-  home-directory paths: the report names them by an obviously fake
-  placeholder, never by the real value a preflight or a tool result
-  showed for one of those — ports, URLs on `localhost`, service and
+  home-directory paths, and every value persisted under a remote
+  stack's `stack_config` (a log group, a profile name, whatever the
+  field holds — regions and the `local` stack excepted): the report
+  names them by an obviously fake placeholder, never by the real value
+  a preflight or a tool result showed for one of those. For a
+  `stack_config` value the placeholder is the field's name in angle
+  brackets (`<log_group>`). Ports, URLs on `localhost`, service and
   operation names, the CLI's version and the proof's UTC stay the
   evidence they are, restated in section 1's run record. When a **replayed
   protocol query** projects a credential-bearing field (a connection

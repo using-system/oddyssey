@@ -118,7 +118,11 @@ refer to access material by variable or secret name only. The same for
 **real identifiers** that carry no access on their own: tenant,
 workspace, subscription, resource-group or site names and GUIDs,
 account or login names, home-directory paths — anything that identifies
-a real customer, tenant or environment. A live CLI excerpt, a
+a real customer, tenant or environment — and **every value persisted
+under a remote stack's `stack_config`**, regions and the `local` stack
+excepted: a log group or a profile name reads like a plain path and
+identifies an account all the same; write the field's name in angle
+brackets instead (`<log_group>`). A live CLI excerpt, a
 configuration display, or a mission block's preflight handoff is the
 likeliest source: every such value lands in the file as an obviously
 fake placeholder (`Contoso`, a zeroed or patterned GUID,

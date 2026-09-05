@@ -40,8 +40,11 @@ obviously fake.
 The same rule covers real identifiers and account/login names copied
 from a live system, even when they carry no access on their own:
 subscription/tenant/resource-group/workspace names and GUIDs (Azure,
-AWS, GCP, ...), account or login names, and anything else that
-identifies a real customer, tenant, or environment. A bug repro or log
+AWS, GCP, ...), account or login names, every value persisted under a
+remote stack's `stack_config` (a log group, a profile name — regions
+excepted; the field's name in angle brackets stands in for it), and
+anything else that identifies a real customer, tenant, or
+environment. A bug repro or log
 excerpt pasted straight from a live `odd_config_get`/CLI output is the
 likeliest place for one to slip in — replace it with an obviously fake
 placeholder (`Contoso`, a patterned or zeroed GUID, `example-user`)
