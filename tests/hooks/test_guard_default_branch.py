@@ -4,7 +4,8 @@ The hook is loaded from its packaged location so the tests exercise the
 very file apm deploys. It reads one JSON payload on stdin, the shape
 each host gives its pre-tool hook, and blocks - exit 2, one line on
 stderr - a ``git commit`` or a ``git push`` aimed at the repository's
-default branch while that branch is checked out. Everything else, and
+default branch - the one checked out, or the one a ``git switch`` or
+``git checkout`` earlier on the same line moves to. Everything else, and
 every payload it does not understand, passes with exit 0: a hook that
 fails open never breaks a host on a shape nobody foresaw.
 """
@@ -189,6 +190,56 @@ def test_a_command_after_a_heredoc_is_still_read(guard):
     assert guard.git_operations(command) == [("commit", (), None)]
 
 
+@pytest.mark.parametrize(
+    "command, expected",
+    [
+        ("git switch -c docs/x", [("switch", ("docs/x",), None)]),
+        ("git switch -C docs/x", [("switch", ("docs/x",), None)]),
+        ("git switch --create docs/x", [("switch", ("docs/x",), None)]),
+        ("git switch docs/x", [("unresolved", ("docs/x",), None)]),
+        ("git switch -c docs/x main", [("switch", ("docs/x",), None)]),
+        ("git checkout -b docs/x", [("switch", ("docs/x",), None)]),
+        ("git checkout -B docs/x origin/main", [("switch", ("docs/x",), None)]),
+        ("git checkout --orphan docs/x", [("switch", ("docs/x",), None)]),
+        ("git checkout -q -b docs/x", [("switch", ("docs/x",), None)]),
+        ("git switch -cdocs/x", [("switch", ("docs/x",), None)]),
+        ("git checkout -bdocs/x", [("switch", ("docs/x",), None)]),
+        ("git switch --create=docs/x", [("switch", ("docs/x",), None)]),
+        ("git checkout --orphan=docs/x", [("switch", ("docs/x",), None)]),
+        ("git switch -", [("switch", (), None)]),
+        ("git switch --detach", [("switch", (), None)]),
+        ("git checkout --detach HEAD~1", [("switch", (), None)]),
+        ("git checkout -t origin/docs/x", [("switch", (), None)]),
+        ("git switch --track=origin/docs/x", [("switch", (), None)]),
+        ("git checkout -torigin/docs/x", [("switch", (), None)]),
+        ("git checkout docs/x", [("unresolved", ("docs/x",), None)]),
+        ("git switch -qc docs/x", [("switch", ("docs/x",), None)]),
+        ("git checkout -qb docs/x", [("switch", ("docs/x",), None)]),
+        ("git checkout -qbdocs/x", [("switch", ("docs/x",), None)]),
+        ("git branch docs/x", [("branch", ("docs/x",), None)]),
+        ("git branch docs/x main", [("branch", ("docs/x",), None)]),
+        ("git branch -d docs/x", []),
+        ("git branch -m docs/x docs/y", []),
+        ("git branch --list", []),
+        ("git branch", []),
+        ("git checkout -- README.md", []),
+        ("git checkout main -- README.md", []),
+        ("git checkout", []),
+        ("git switch", []),
+        (
+            "git -C /r switch -c docs/x && git -C /r commit -m x",
+            [("switch", ("docs/x",), "/r"), ("commit", (), "/r")],
+        ),
+        (
+            "git switch -c docs/x && git add -A && git commit -m x",
+            [("switch", ("docs/x",), None), ("commit", (), None)],
+        ),
+    ],
+)
+def test_detects_a_branch_switch_before_a_commit(guard, command, expected):
+    assert guard.git_operations(command) == expected
+
+
 def test_reads_the_repository_from_git_dash_c_per_invocation(guard):
     assert guard.git_operations("git -C /some/where commit -m x") == [
         ("commit", (), "/some/where")
@@ -251,6 +302,130 @@ def test_allows_a_commit_on_a_work_branch(tmp_path):
     result = run_hook(claude_payload("git commit -m x", repo.root))
     assert result.returncode == 0
     assert result.stderr == ""
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git switch -c docs/odd-stack-seq && git add .odd && git commit -m x",
+        "git checkout -b docs/x && git add -A && git commit -q -m x",
+        "git switch docs/x ; git commit -m x",
+        "git switch -c docs/x && git commit -m x && git push -u origin docs/x",
+        "git switch -c docs/x\ngit add -A\ngit commit -m x",
+        "git -C . switch -c docs/x && git -C . commit -m x",
+    ],
+)
+def test_allows_a_commit_after_a_switch_to_a_work_branch_on_the_same_line(
+    tmp_path, command
+):
+    repo = Repo(tmp_path)
+    repo.git("branch", "docs/x")  # the plain `git switch docs/x` form needs it
+    result = run_hook(claude_payload(command, repo.root))
+    assert result.returncode == 0, command
+    assert result.stderr == ""
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git commit -m x && git switch -c docs/x",
+        "git switch -c docs/x && git commit -m x && git switch main && git commit -m y",
+        "git switch -c docs/x && git commit -m x && git push origin main",
+        "git checkout README.md && git commit -m x",
+        "git checkout -- README.md && git commit -m x",
+        "git switch no-such-branch ; git commit -m x",
+        'git switch "$branch" && git commit -m x',
+        "git checkout $branch && git commit -m x",
+    ],
+)
+def test_still_blocks_a_commit_that_lands_on_the_default_branch(tmp_path, command):
+    repo = Repo(tmp_path)
+    result = run_hook(claude_payload(command, repo.root))
+    assert result.returncode == 2, command
+    assert "default branch" in result.stderr
+
+
+def test_a_branch_created_earlier_on_the_line_is_a_valid_destination(tmp_path):
+    repo = Repo(tmp_path)
+    for command in (
+        "git branch docs/x && git switch docs/x && git commit -m x",
+        "git branch docs/x main && git checkout docs/x && git add -A && git commit -m x",
+    ):
+        assert run_hook(claude_payload(command, repo.root)).returncode == 0, command
+    command = "git branch docs/x && git commit -m x"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 2
+
+
+def test_a_detaching_checkout_lets_the_commit_through(tmp_path):
+    repo = Repo(tmp_path)
+    repo.git("tag", "v1")
+    sha = repo.git("rev-parse", "HEAD")
+    for command in (
+        "git checkout v1 && git commit -m x",
+        f"git checkout {sha} && git commit -m x",
+        "git switch --detach v1 && git commit -m x",
+    ):
+        assert run_hook(claude_payload(command, repo.root)).returncode == 0, command
+    command = "git checkout v1 && git push origin main"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 2
+
+
+def test_restoring_a_deleted_file_is_not_a_branch_switch(tmp_path):
+    repo = Repo(tmp_path)
+    (repo.root / "README.md").unlink()
+    command = "git checkout README.md && git commit -m x"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 2
+
+
+def test_a_switch_in_another_repository_does_not_move_this_one(tmp_path):
+    repo = Repo(tmp_path / "repo")
+    other = Repo(tmp_path / "other")
+    command = f"git -C {other.root} switch -c docs/x && git commit -m x"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 2
+    command = f"git switch -c docs/x && git -C {other.root} commit -m x"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 2
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git switch --detach && git push origin main",
+        "git switch - && git push origin main",
+        "git checkout -t origin/docs/x && git push origin HEAD:main",
+        "git switch -c docs/x && git push origin main",
+        "git switch -c docs/x && git push --force origin main",
+    ],
+)
+def test_a_push_whose_refspec_names_the_default_branch_blocks_after_any_switch(
+    tmp_path, command
+):
+    repo = Repo(tmp_path)
+    result = run_hook(claude_payload(command, repo.root))
+    assert result.returncode == 2, command
+    assert "never push" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git switch - && git commit -m x",
+        "git switch --detach && git commit -m x",
+        "git checkout -t origin/docs/x && git commit -m x",
+    ],
+)
+def test_a_switch_only_git_can_resolve_lets_the_commit_through(tmp_path, command):
+    repo = Repo(tmp_path)
+    assert run_hook(claude_payload(command, repo.root)).returncode == 0, command
+
+
+def test_a_switch_back_to_the_default_branch_blocks_the_commit_after_it(tmp_path):
+    repo = Repo(tmp_path)
+    repo.git("checkout", "-q", "-b", "docs/x")
+    assert run_hook(claude_payload("git commit -m x", repo.root)).returncode == 0
+    command = "git switch main && git commit -m x"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 2
+    command = "git checkout main && git commit -m x"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 2
 
 
 def test_blocks_a_push_of_the_default_branch(tmp_path):
