@@ -220,6 +220,20 @@ def test_recall_lists_the_matches_newest_first_with_the_frontmatter_columns(repo
     assert proc.stderr == ""
 
 
+def test_a_per_service_repository_map_prints_as_service_equals_repository(repo):
+    repo.write(
+        f"{OBS}/2026-08-10-1000-a.md",
+        observation(
+            services="[checkout, payment]",
+            extra="repository: {checkout: github.com/example-org/checkout, payment: gitlab.com/example-group/payment, cart: }",
+        ),
+    )
+    repo.commit("docs(odd): report")
+    assert lines(run(repo))[0][9] == (
+        "checkout=github.com/example-org/checkout,payment=gitlab.com/example-group/payment,cart=-"
+    )
+
+
 def test_services_intersect_and_stack_and_environment_filter(repo):
     store(repo)
     assert [l[0] for l in lines(run(repo, "--service", "payment"))] == [

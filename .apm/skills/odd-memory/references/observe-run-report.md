@@ -68,6 +68,7 @@ run_name: checkout-latency-sweep
 date: 2026-08-22
 revision: 2299d4c             # optional: commit of the observed repo at run time
 tree_anchor: {src: "5ea231f…", tests: "8e29aac…"}  # optional: FULL top-level entry map at revision (git ls-tree) - the squash-proof anchor
+repository: github.com/example-org/checkout  # optional: the repository revision was taken from - its origin remote, normalized; a per-service map when the run spans several
 workload: repo-under-analysis # optional: the input that shaped this run
 instance: {checkout: af6070c1}   # optional: per service, the identity the numbers belong to
 process_restarted: true       # optional: restarted before the window (or per-service map)
@@ -154,9 +155,11 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   always names a sibling observation report. The deliverable stays an
   observation report in this directory either way.
 - `revision` (`git rev-parse --short HEAD` in the observed repo) is what
-  makes a before/after honest — omitted, with `tree_anchor`, when the
-  observed service lives outside the repository the report is stored
-  in, and section 1 says so: a report is a before-value for a fix
+  makes a before/after honest — taken in the observed service's own
+  repository, which `repository` below names when it is not the one
+  the report is stored in, and section 1 says which; omitted, with
+  `tree_anchor` and `repository`, only when the observed code is in no
+  repository the run can reach: a report is a before-value for a fix
   wave, and the fix is a diff against some revision. In a squash-merge
   repository that commit never joins the merged history — a fresh
   clone cannot even resolve it — so record `tree_anchor` alongside it:
@@ -171,6 +174,26 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   report written, not because everything under it is memory:
   consumers test `.odd/benchmarks/` separately, by path, since a
   benchmark is living source and a change to it is a code change.
+- `repository` names the repository `revision` and `tree_anchor` were
+  taken from, taken at the same moment, in a form that survives a
+  move of the report to another store: the `origin` remote (`git remote get-url origin` in that
+  repository) normalized so that two agents on the same repository
+  always write the same value: the host lower-cased, then the remote's
+  path as it is (its case kept, any depth — `gitlab.com/group/subgroup/project`
+  is as valid as `github.com/org/repo`); the scheme, the user info
+  and the port dropped, one trailing `/` and one trailing `.git`
+  stripped; the SSH form `git@host:owner/name.git` read as
+  `host/owner/name`. A token in the remote URL is a secret: it never
+  reaches the report, the run record or the reply. Record it even when
+  the observed code is the repository the report is committed into:
+  the value is cheap and makes the report portable. No remote, no
+  value — never a local path (a home-directory path is an identifier:
+  the no-secrets rule). When the run spans repositories, a per-service
+  map,
+  `{checkout: github.com/example-org/checkout, payment: github.com/example-org/payment}`,
+  the shape `instance` uses. Absent on a report that predates the
+  field; a consumer then reads the report as observing the repository
+  it is stored in.
 - `workload` names the input that shaped the run when the runtime
   profile depends on what was processed, not only on the service (an
   analysis service run against two different repositories produces
@@ -409,7 +432,8 @@ conversation's memory of the mission.
    line: the stack file's path, its commit and the one-line reason.
 3. **Run block** — compact `key: value` lines: services, stack, mode,
    depth (`full` when the frontmatter has none), window, detected
-   environment (all from the frontmatter), and the baseline report
+   environment, `repository` when present (all from the frontmatter),
+   and the baseline report
    used — `verifies` when present, else section 1's recalled
    baseline, or "none" when the report names none.
 4. **The core, by kind** — tables, capped at ~10 rows with a

@@ -1752,3 +1752,89 @@ def test_a_ruling_never_settles_an_entry_present_on_one_side_only(
     [rec] = odd_render.recommendations(facts, today="2026-08-15")
     assert rec["action"] == "judgment needed"
     assert "only at HEAD: vendor" in rec["evidence"]
+
+
+# --- the repository field ------------------------------------------------------------
+
+
+def test_the_inventory_names_the_repositories_the_reports_carry(
+    repo, odd_status, odd_render
+):
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(
+            run_name="a",
+            extra_frontmatter="repository: github.com/example-org/checkout",
+        ),
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-11-1000-b.md",
+        observation(
+            services="[checkout, payment]",
+            run_name="b",
+            date="2026-08-11",
+            extra_frontmatter=(
+                "repository: {checkout: github.com/example-org/checkout, "
+                "payment: gitlab.com/example-group/payment}"
+            ),
+        ),
+    )
+    repo.commit("docs(odd): reports")
+    text = screen(repo, odd_status, odd_render)
+    assert (
+        "· repositories: github.com/example-org/checkout, gitlab.com/example-group/payment ·"
+        in text
+    )
+    full = rendered(repo, odd_status, odd_render)
+    assert (
+        "; repositories: github.com/example-org/checkout, gitlab.com/example-group/payment"
+        in full.split("## Inventory")[1].split("## ")[0]
+    )
+
+
+def test_the_repositories_come_from_the_whole_store_even_under_a_scope(
+    repo, odd_status, odd_render
+):
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(
+            run_name="a",
+            extra_frontmatter="repository: github.com/example-org/checkout",
+        ),
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-11-1000-p.md",
+        observation(
+            services="[payment]",
+            run_name="p",
+            date="2026-08-11",
+            extra_frontmatter="repository: {payment: gitlab.com/example-group/payment, cart: }",
+        ),
+    )
+    (repo.root / ".odd/observe-run-reports/2026-08-12-1000-bad.md").write_bytes(
+        b"---\n\xff\xfe\n---\n"
+    )
+    repo.commit("docs(odd): reports")
+    facts = odd_status.build_facts(repo.root, recent=None, services=["payment"])
+    # the inventory is the whole readable store, an empty map value dropped
+    assert facts["inventory"]["repositories"] == [
+        "github.com/example-org/checkout",
+        "gitlab.com/example-group/payment",
+    ]
+    text = odd_render.render(facts, today="2026-08-13")
+    assert (
+        "repositories: github.com/example-org/checkout, gitlab.com/example-group/payment"
+        in text
+    )
+    nothing = odd_status.build_facts(repo.root, recent=None, services=["orders"])
+    assert "repositories: github.com/example-org/checkout" in odd_render.render(nothing)
+
+
+def test_reports_without_a_repository_render_as_before(repo, odd_status, odd_render):
+    baseline_and_verification(repo)
+    assert "repositories:" not in screen(
+        repo, odd_status, odd_render, today="2026-08-13"
+    )
+    assert "repositories:" not in rendered(
+        repo, odd_status, odd_render, today="2026-08-13"
+    )

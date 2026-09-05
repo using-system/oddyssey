@@ -304,6 +304,8 @@ def cell(value: Any) -> str:
         return "-"
     if isinstance(value, list):
         return ",".join(str(v) for v in value)
+    if isinstance(value, dict):
+        return ",".join(f"{k}={cell(v)}" for k, v in value.items())
     return str(value).replace("\t", " ")
 
 

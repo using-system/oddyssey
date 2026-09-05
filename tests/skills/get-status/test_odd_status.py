@@ -308,6 +308,7 @@ def test_no_odd_directory_means_the_loop_has_not_started(repo):
         "services": [],
         "stacks": [],
         "environments": [],
+        "repositories": [],
     }
 
 
@@ -334,6 +335,7 @@ def test_inventory_lists_distinct_services_stacks_and_environments(repo):
         "services": ["checkout", "payment"],
         "stacks": ["grafana", "local"],
         "environments": ["local", "prod"],
+        "repositories": [],
     }
     assert [r["kind"] for r in out["reports"]] == ["observation", "observation"]
 
