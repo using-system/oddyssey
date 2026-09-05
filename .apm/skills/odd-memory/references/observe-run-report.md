@@ -194,10 +194,22 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
 ## Recall: reading the memory
 
 Before a new run, load the baseline, per the memory contract's recall
-(newest first, frontmatter only at this stage, the baseline by
-section) — the matching rules are this reference's:
+(the script first, newest first, the baseline by section; frontmatter
+only, by hand, when the script cannot run) — the matching rules are
+this reference's:
 
-1. List `.odd/observe-run-reports/` in the observed repo.
+1. Run the recall script in the observed repo:
+   `python3 <this skill's directory>/scripts/odd_recall.py --repo
+   <path> --service <name>... --stack <stack> --env <detected
+   environment> --depth <quick|full>` (`--mode` to restrict to one
+   mode; `--env` omitted while the environment is still provisional)
+   — it lists `.odd/observe-run-reports/` newest first and prints the
+   matches by the rules below, one tab-separated line each: filename,
+   kind, services, stack, environment, mode, depth, `verifies`,
+   `workload`, `repository` (`-` when absent). A `workload` that
+   differs from the mission's is the warning of rule 2, read off that
+   column; a report the frontmatter contract flags is named on stderr,
+   matched or not.
 2. A report matches when its `services` intersect the mission's,
    its `stack` is the mission's, and its `environment` is the one the
    run detects — an `unknown` environment matches only another
@@ -215,28 +227,30 @@ section) — the matching rules are this reference's:
    and section 1 names it ("newer quick report skipped: <path>") so the
    skip is visible; a **`quick`** mission takes the newest match of
    either depth (a full report carries more than a quick run needs).
-3. The first match is the baseline. Read it **by section, never
-   whole** — the same partial read applies when the mission names the
-   baseline itself: the frontmatter; section 1's scenario record block
-   (`Scenario:` through `Not reproducible:`) together with the replay
-   notes around it — deviations, false starts, anything the report
-   flags as mattering for a replay — but not section 1's mission
-   restatement or its recalled-baseline line; section 2 (the
-   per-operation numbers and their deltas); section 3 (the findings
-   the new run rules on); and section 7 (the protocol's checks and
+   The script applies this: `--depth full` drops the quick matches and
+   names the skipped newer ones on stderr.
+3. The first match — the first line printed — is the baseline. Read it
+   **by section, never whole** — the same partial read applies when the
+   mission names the baseline itself: the frontmatter; section 1's
+   scenario record block (`Scenario:` through `Not reproducible:`)
+   together with the replay notes around it — deviations, false starts,
+   anything the report flags as mattering for a replay — but not section
+   1's mission restatement or its recalled-baseline line; section 2 (the
+   per-operation numbers and their deltas); section 3 (the findings the
+   new run rules on); and section 7 (the protocol's checks and
    before-values). A **verification** or **re-measure** run also reads
-   section 5 (every gap it must rule filled or still missing).
-   Sections 4 and 6 are never part of the recall: a stored report runs
-   300 to 500 lines, and the new run re-derives those from live
-   telemetry. An **instrumentation report** baseline
+   section 5 (every gap it must rule filled or still missing). Sections
+   4 and 6 are never part of the recall: a stored report runs 300 to 500
+   lines, and the new run re-derives those from live telemetry. An
+   **instrumentation report** baseline
    (`.odd/otel-instrumentation-reports/`, the
-   `otel-instrumentation-report` reference) is read the same
-   way: its frontmatter, its summary table, its per-service decisions,
-   and its verification protocol — never its stack inventory or its
-   open decisions. Reading beyond that set is the exception — for a
-   stated need (a finding's detail, a gap's discovery query) — and the
-   calling agent's run record says so. What the comparison must report
-   belongs to the calling agent's contract, not to this reference.
+   `otel-instrumentation-report` reference) is read the same way: its
+   frontmatter, its summary table, its per-service decisions, and its
+   verification protocol — never its stack inventory or its open
+   decisions. Reading beyond that set is the exception — for a stated
+   need (a finding's detail, a gap's discovery query) — and the calling
+   agent's run record says so. What the comparison must report belongs
+   to the calling agent's contract, not to this reference.
 4. Older matches are history: only when a trend matters (a number
    degrading run after run), read at most the few most recent matches,
    and only the numbers in question — never the full files.

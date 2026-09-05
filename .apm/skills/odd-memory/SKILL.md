@@ -90,11 +90,20 @@ For the two report stores — a benchmark is recalled by service and by
 name, a custom stack by name, each ledger is one file; their references
 own that:
 
-- List the store newest first (the filenames sort chronologically). A
-  missing or empty store is a first run — say so, never fail.
-- At that stage read **frontmatter blocks only**, never whole files;
-  the kind's reference owns the matching rules.
-- The first match is the baseline: read it **by section, never
+- Run the recall script this skill carries,
+  `python3 <this skill's directory>/scripts/odd_recall.py --repo <path>`
+  with the mission's scope as flags — the kind's reference says which:
+  it reads every stored frontmatter in Python and prints the matches
+  newest first, one line each, nothing else; a report the frontmatter
+  contract flags is listed and reported, never skipped silently. No
+  frontmatter reaches the conversation until the baseline is chosen.
+  A missing or empty store is a first run — the script says so, never
+  fails. **By hand, only when the script cannot run**: list the store
+  newest first (the filenames sort chronologically) and read
+  **frontmatter blocks only**, never whole files, applying the kind's
+  matching rules yourself; a missing or empty store is a first run
+  then too — say so, never fail.
+- The first line printed is the baseline: read it **by section, never
   whole** — the kind's reference names the sections a mission needs.
   Reading beyond that set is the exception, for a stated need that the
   calling agent records.
