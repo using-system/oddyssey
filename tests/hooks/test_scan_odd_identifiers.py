@@ -6,8 +6,10 @@ scans that file for what AGENTS.md's no-secrets rule keeps out of a
 committed report - GUIDs, home-directory paths, and the identifiers the
 global configuration's ``stack_config`` carries - and exits 2 with one
 stderr line per finding so the agent replaces them before persisting.
-Obviously fake placeholders pass, and so does everything the hook does
-not understand: it fails open.
+Obviously fake placeholders pass, and so does a GUID the report declares
+as an OTel ``service.instance.id`` - on the frontmatter ``instance:``
+field, cited from it, or written after the key - and everything the hook
+does not understand: it fails open.
 """
 
 from __future__ import annotations
@@ -177,6 +179,122 @@ def test_finds_a_real_guid_and_passes_a_patterned_one(scan):
     assert [(f.line, f.kind) for f in findings] == [(1, "GUID")]
 
 
+INSTANCE_ID = "e8a2c4f1-7b3d-4e9a-9c1f-2d5b8a7e6f03"
+OTHER_INSTANCE_ID = "0e89b1c2-3d4e-4f50-8a6b-7c8d9e0f1a2b"
+
+
+def test_the_frontmatter_instance_line_is_evidence_not_an_identifier(scan):
+    text = (
+        "---\nkind: observe-run-report\n"
+        f"instance: {{orders-api: {INSTANCE_ID}, load-generator: [{OTHER_INSTANCE_ID}]}}\n"
+        "---\n"
+    )
+    assert scan.scan_text(text, forbidden=[]) == []
+
+
+def test_a_multiline_instance_mapping_in_the_frontmatter_passes(scan):
+    text = (
+        "---\nkind: observe-run-report\n"
+        f"instance:\n  orders-api: {INSTANCE_ID}\n  load-generator:\n    - {OTHER_INSTANCE_ID}\n"
+        f"services: [orders-api]\n---\nworkspace {REAL_GUID}\n"
+    )
+    findings = scan.scan_text(text, forbidden=[])
+    assert [(f.line, f.kind) for f in findings] == [(9, "GUID")]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        f"- `orders-api`: `service.instance.id={INSTANCE_ID}`",
+        f"Instance: orders-api service_instance_id={INSTANCE_ID}",
+        f'resource.service.instance.id: "{INSTANCE_ID}"',
+        f"service.instance.id: '{INSTANCE_ID}'",
+        f"| orders-api | service.instance.id = {INSTANCE_ID} |",
+        f"resource.service_instance_id=`{INSTANCE_ID}`",
+    ],
+)
+def test_a_guid_named_as_a_service_instance_id_passes(scan, line):
+    assert scan.scan_text(line + "\n", forbidden=[]) == []
+
+
+def test_the_frontmatter_instance_ids_pass_wherever_the_body_cites_them(scan):
+    text = (
+        f"---\ninstance: {{orders-api: [{INSTANCE_ID}, {OTHER_INSTANCE_ID}]}}\n---\n"
+        f"| trace | {INSTANCE_ID} | 200 |\n"
+        f'{{service_instance_id="{OTHER_INSTANCE_ID.upper()}"}}\n'
+        f"an unrelated {REAL_GUID} next to {INSTANCE_ID}\n"
+    )
+    findings = scan.scan_text(text, forbidden=[])
+    assert [(f.line, f.kind) for f in findings] == [(6, "GUID")]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        f"**plus `service.instance.id`\n{INSTANCE_ID}**\n",
+        f'the `service_instance_id`:\n"{INSTANCE_ID}"\n',
+        f"| resource.service.instance.id =\n| `{INSTANCE_ID}` |\n",
+    ],
+)
+def test_a_value_markdown_wrapped_under_its_key_passes(scan, text):
+    assert scan.scan_text(text, forbidden=[]) == []
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        f"myservice_instance_id={INSTANCE_ID}",
+        f"foo.service.instance.id: {INSTANCE_ID}",
+        f"service.instance.id was rotated; new tenant {INSTANCE_ID}",
+    ],
+)
+def test_a_lookalike_key_does_not_exempt(scan, line):
+    assert [f.kind for f in scan.scan_text(line + "\n", forbidden=[])] == ["GUID"]
+
+
+@pytest.mark.parametrize(
+    "previous",
+    [
+        "service.instance.id is stable across restarts",
+        "the `service_instance_id` label value",
+    ],
+)
+def test_a_wrapped_value_needs_the_key_closing_the_previous_line(scan, previous):
+    text = f"{previous}\n{INSTANCE_ID}\n"
+    assert [f.line for f in scan.scan_text(text, forbidden=[])] == [2]
+
+
+def test_a_crlf_report_declares_its_instance_ids_too(scan):
+    text = f"---\r\ninstance: {{orders-api: {INSTANCE_ID}}}\r\n---\r\ncites {INSTANCE_ID}\r\n"
+    assert scan.scan_text(text, forbidden=[]) == []
+
+
+def test_a_frontmatter_without_instance_declares_nothing(scan):
+    text = f"---\nkind: observe-run-report\nservices: [x]\n---\nid {INSTANCE_ID}\n"
+    assert [f.line for f in scan.scan_text(text, forbidden=[])] == [5]
+
+
+def test_an_instance_line_outside_the_frontmatter_is_not_a_declaration(scan):
+    text = f"body\ninstance: {{orders-api: {INSTANCE_ID}}}\n"
+    findings = scan.scan_text(text, forbidden=[])
+    assert [(f.line, f.kind) for f in findings] == [(2, "GUID")]
+
+
+def test_a_stack_config_guid_stays_flagged_whatever_its_context(scan):
+    forbidden = scan.forbidden_values(FAKE_CONFIG)
+    text = (
+        f"---\ninstance: {{orders-api: {REAL_GUID}}}\n---\n"
+        f"service.instance.id={REAL_GUID}\n"
+        f"cited plainly {REAL_GUID}\n"
+    )
+    findings = scan.scan_text(text, forbidden=forbidden)
+    assert [(f.line, f.kind) for f in findings] == [
+        (2, "stack_config value"),
+        (4, "stack_config value"),
+        (5, "stack_config value"),
+    ]
+
+
 def test_finds_home_directory_paths(scan):
     text = "a /Users/someone/Repos/x\nb /home/someone/x\nc C:\\Users\\someone\\x\nd <scratchpad>/x\n"
     text += "e /home/runner/work/x\nf /Users/<user>/x\ng /root/x\n"
@@ -246,6 +364,22 @@ def test_flags_the_live_stack_config_values(tmp_path, home):
     assert result.returncode == 2
     assert "stack_config value" in result.stderr
     assert "Contoso-Prod" not in result.stderr
+
+
+def test_a_report_carrying_its_instance_ids_passes_end_to_end(tmp_path, home):
+    report = tmp_path / ".odd" / "observe-run-reports" / "r.md"
+    report.parent.mkdir(parents=True)
+    report.write_text(
+        "---\nkind: observe-run-report\n"
+        f"instance: {{orders-api: {INSTANCE_ID}, load-generator: [{OTHER_INSTANCE_ID}]}}\n"
+        "---\n"
+        f"- `orders-api`: `service.instance.id={INSTANCE_ID}`\n"
+        f"Instance: load-generator service_instance_id={OTHER_INSTANCE_ID}\n"
+        f"trace list cites {OTHER_INSTANCE_ID} in a table\n"
+    )
+    result = run_hook(write_payload(report, tmp_path), tmp_path, home)
+    assert result.returncode == 0
+    assert result.stderr == ""
 
 
 def test_a_clean_report_passes(tmp_path, home):

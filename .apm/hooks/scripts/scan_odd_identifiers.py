@@ -11,6 +11,16 @@ configuration's ``stack_config`` carries, and exits 2 with one stderr
 line per finding - file, line, kind, never the value - so the agent
 replaces them with an obviously fake placeholder before persisting.
 
+An OpenTelemetry ``service.instance.id`` is a GUID by SDK default and
+the observation report contract records it, so a GUID is evidence, not
+an identifier, when the report declares it on the frontmatter
+``instance:`` field, cites one of those declared ids in its body, or
+writes it right after ``service.instance.id=`` (or the ``_`` and
+``resource.`` spellings, ``=`` or ``:``, the key closing the previous
+line when markdown wrapped the value). A ``stack_config`` value is
+flagged whatever its context: a cloud identifier never becomes evidence
+by standing next to ``instance:``.
+
 On most hosts a post-tool hook cannot undo the write: the message
 reaches the model, and the rule in the persistence skills stays the
 enforcement. It fails open on anything it does not understand.
@@ -75,6 +85,15 @@ GUID_RE = re.compile(
     r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
 )
 HOME_PATH_RE = re.compile(r"(?:/Users/|/home/|[A-Za-z]:\\Users\\)([^\s/\\'\"`]+)")
+# What precedes a GUID that names an OTel instance identity: the key
+# with its separator on the same line, or the key closing the previous
+# line when markdown wrapped the value onto the next one.
+INSTANCE_KEY = r"(?<![\w.])(?:resource[._])?service[._]instance[._]id"
+INSTANCE_KEY_RE = re.compile(INSTANCE_KEY + r"\s*[=:]\s*[\"'`]?$")
+WRAPPED_KEY_RE = re.compile(INSTANCE_KEY + r"[`'\"*]*\s*[=:]?\s*[`'\"*]*\s*$")
+WRAPPED_LEAD_RE = re.compile(r"^[\s`'\"*|-]*$")
+FRONTMATTER_FENCE = "---"
+INSTANCE_FIELD = "instance:"
 
 # stack_config keys and stacks whose values identify nothing by
 # themselves: a region names a datacenter, the local stack carries the
@@ -230,16 +249,65 @@ def load_config(path: Path = CONFIG_PATH) -> object:
         return None
 
 
+def _declared_instance_ids(lines: list[str]) -> tuple[set[int], set[str]]:
+    """The frontmatter ``instance:`` field's line numbers and the GUIDs it holds."""
+    numbers: set[int] = set()
+    ids: set[str] = set()
+    if not lines or lines[0].strip() != FRONTMATTER_FENCE:
+        return numbers, ids
+    inside = False
+    for number, line in enumerate(lines[1:], 2):
+        if line.strip() == FRONTMATTER_FENCE:
+            break
+        if line.startswith(INSTANCE_FIELD):
+            inside = True
+        elif inside and not (line[:1].isspace() or line.startswith("-")):
+            inside = False
+        if inside:
+            numbers.add(number)
+            ids.update(m.group(0).lower() for m in GUID_RE.finditer(line))
+    return numbers, ids
+
+
+def _is_instance_id(
+    line: str,
+    match: re.Match,
+    declared_here: bool,
+    declared: set[str],
+    previous: str,
+) -> bool:
+    """True when the report says this GUID is an OTel service.instance.id."""
+    lead = line[: match.start()]
+    return (
+        declared_here
+        or match.group(0).lower() in declared
+        or INSTANCE_KEY_RE.search(lead) is not None
+        or (
+            WRAPPED_LEAD_RE.match(lead) is not None
+            and WRAPPED_KEY_RE.search(previous) is not None
+        )
+    )
+
+
 def scan_text(text: str, forbidden: list[str]) -> list[Finding]:
     """Return one finding per line and kind, never the matched value."""
     patterns = [
         re.compile(r"(?<![\w/.-])" + re.escape(value) + r"(?![\w-])")
         for value in forbidden
     ]
+    lines = text.splitlines()
+    instance_lines, instance_ids = _declared_instance_ids(lines)
     findings: list[Finding] = []
-    for number, line in enumerate(text.splitlines(), 1):
+    for number, line in enumerate(lines, 1):
         kinds: list[str] = []
-        if any(not _is_placeholder_guid(m.group(0)) for m in GUID_RE.finditer(line)):
+        previous = lines[number - 2] if number > 1 else ""
+        if any(
+            not _is_placeholder_guid(m.group(0))
+            and not _is_instance_id(
+                line, m, number in instance_lines, instance_ids, previous
+            )
+            for m in GUID_RE.finditer(line)
+        ):
             kinds.append("GUID")
         if any(_is_personal_home_path(m) for m in HOME_PATH_RE.finditer(line)):
             kinds.append("home path")
@@ -280,7 +348,9 @@ def decide(payload: object, process_cwd: str) -> tuple[int, list[str]]:
         "never carry (AGENTS.md's no-secrets rule) - replace each value with an "
         "obviously fake placeholder (a zeroed or 1234-patterned GUID passes) "
         "before persisting or committing; a GUID that is an OTel "
-        "service.instance.id is evidence and stays, a cloud identifier does not:"
+        "service.instance.id is evidence and stays once the report says so "
+        "(the frontmatter instance: field, or service.instance.id= before it), "
+        "a cloud identifier does not:"
     )
     lines = [header]
     lines.extend(f"  {f.path}:{f.line}: {f.kind}" for f in findings[:MAX_LINES])
