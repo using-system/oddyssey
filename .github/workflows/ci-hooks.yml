@@ -136,6 +136,33 @@ jobs:
           printf 'new\n' > "$probe/.odd/observe-run-reports/new.md"
           echo "$new" | python3 "$guard" PreToolUse
           echo "the guard refuses an edit and a sed -i of a committed report and a write to a ledger, and passes a report not committed yet"
+      - name: Run the deployed report check against a report without a window
+        run: |
+          probe="$(mktemp -d)"
+          mkdir -p "$probe/.odd/observe-run-reports"
+          report="$probe/.odd/observe-run-reports/2026-08-10-1000-checkout-sweep.md"
+          printf -- '---\nservices: [checkout]\nstack: local\nenvironment: local\nmode: drive\ndepth: full\nrun_name: checkout-sweep\ndate: 2026-08-10\n---\n' > "$report"
+          payload='{"tool_name":"Write","tool_input":{"file_path":"'"$report"'"},"cwd":"'"$probe"'"}'
+          set +e
+          echo "$payload" | python3 .claude/hooks/oddyssey/scripts/check_report_frontmatter.py PostToolUse
+          rc=$?
+          set -e
+          if [ "$rc" -ne 2 ]; then
+            echo "the report check answered $rc on a report without a window, expected 2" >&2; exit 1
+          fi
+          printf -- '---\nservices: [checkout]\nstack: local\nenvironment: local\nmode: drive\ndepth: full\nwindow: 2026-08-10T10:00:00Z/2026-08-10T10:05:00Z\nrun_name: checkout-sweep\ndate: 2026-08-10\n---\n' > "$report"
+          echo "$payload" | python3 .claude/hooks/oddyssey/scripts/check_report_frontmatter.py PostToolUse
+          replay="$probe/.odd/observe-run-reports/2026-08-12-1000-verify-checkout-sweep.md"
+          printf -- '---\nservices: [checkout]\nstack: local\nenvironment: local\nmode: verify\ndepth: quick\nwindow: 2026-08-12T10:00:00Z/2026-08-12T10:05:00Z\nrun_name: checkout-sweep\nverifies: 2026-08-01-1000-ghost.md\ndate: 2026-08-12\n---\n' > "$replay"
+          payload='{"tool_name":"Write","tool_input":{"file_path":"'"$replay"'"},"cwd":"'"$probe"'"}'
+          set +e
+          message="$(echo "$payload" | python3 .claude/hooks/oddyssey/scripts/check_report_frontmatter.py PostToolUse 2>&1)"
+          rc=$?
+          set -e
+          if [ "$rc" -ne 2 ] || ! printf '%s' "$message" | grep -qF "verifies names no stored report: 2026-08-01-1000-ghost.md"; then
+            echo "the report check answered $rc on a dangling verifies, expected 2 naming the file: $message" >&2; exit 1
+          fi
+          echo "the report check names the missing window, refuses a dangling verifies, and passes a well-formed report"
       - name: Deploy for Codex and assert the hook landed
         run: |
           uvx --from apm-cli=="$APM_CLI_VERSION" apm install --target codex
@@ -164,7 +191,7 @@ jobs:
           bash scripts/build-marketplace.sh
           test -f marketplace/oddyssey/hooks/hooks.json
           test ! -e marketplace/oddyssey/hooks.json
-          for script in guard_default_branch guard_append_only scan_odd_identifiers; do
+          for script in guard_default_branch guard_append_only scan_odd_identifiers check_report_frontmatter; do
             grep -qF "\\\"\${CLAUDE_PLUGIN_ROOT}\\\"/hooks/scripts/${script}.py" marketplace/oddyssey/hooks/hooks.json
             test -f "marketplace/oddyssey/hooks/scripts/${script}.py"
           done
