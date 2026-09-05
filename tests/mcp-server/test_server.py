@@ -1,4 +1,5 @@
 import asyncio
+from importlib import metadata as importlib_metadata
 
 from oddyssey_mcp import config as config_module
 from oddyssey_mcp import server, stack
@@ -252,3 +253,46 @@ def test_config_set_description_states_the_custom_stack_declaration():
     description = tools["odd_config_set"].description
     assert "custom" in description
     assert "stack_config_fields" in description
+
+
+def test_config_get_returns_the_installed_version():
+    # Issue #395: the server is the one component that knows the installed
+    # oddyssey version for certain - read from the distribution metadata,
+    # never from a constant, exactly like the telemetry resource does.
+    result = server.odd_config_get()
+
+    assert result["version"] == importlib_metadata.version("oddyssey-mcp")
+    assert result["stack"] == "local"
+
+
+def test_config_get_version_is_null_when_the_distribution_is_absent(monkeypatch):
+    # A source checkout not installed as a distribution: the field is null
+    # and the tool answers all the same - a version never breaks a tool.
+    def missing(name):
+        raise importlib_metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(config_module.importlib_metadata, "version", missing)
+
+    result = server.odd_config_get()
+
+    assert result["version"] is None
+    assert result["stack"] == "local"
+    assert result["stack_config"] == {}
+
+
+def test_config_get_description_states_the_version():
+    tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
+
+    assert "version" in tools["odd_config_get"].description
+
+
+def test_config_set_config_block_carries_no_version(monkeypatch):
+    # The version is not configuration: odd_config_set echoes the effective
+    # configuration it wrote (what config.load returns), and only
+    # odd_config_get carries the installed version next to it.
+    monkeypatch.setattr(stack, "_container_state", lambda: "absent")
+
+    result = server.odd_config_set({"stack": "datadog"})
+
+    assert result["config"]["stack"] == "datadog"
+    assert "version" not in result["config"]

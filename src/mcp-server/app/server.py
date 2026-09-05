@@ -99,8 +99,8 @@ def odd_stack_reset(env: dict[str, str] | None = None) -> dict:
 @mcp.tool()
 @telemetry.traced_tool
 def odd_config_get() -> dict:
-    """Read the global oddyssey configuration: the configured stack (local, or a remote backend) and the local stack host ports (defaults applied; invalid stored values are listed in invalid_ignored). Also returns stack_config: per-stack non-secret targeting values (identifiers, names, regions) persisted for each backend."""
-    return config_ops.load()
+    """Read the global oddyssey configuration: the configured stack (local, or a remote backend) and the local stack host ports (defaults applied; invalid stored values are listed in invalid_ignored). Also returns stack_config: per-stack non-secret targeting values (identifiers, names, regions) persisted for each backend, and version (read-only, never accepted by odd_config_set): the installed oddyssey-mcp package version (null when the server runs from a source checkout that is not installed as a distribution)."""
+    return {**config_ops.load(), "version": config_ops.installed_version()}
 
 
 @mcp.tool()

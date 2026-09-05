@@ -4,7 +4,8 @@
 # stack_config contract holds through a real MCP client (merge, null
 # deletion of a key and of a whole entry), a custom stack declared by
 # the caller (#228) is accepted, validated and removed, and the tolerant read lists
-# hand-edited invalid values in invalid_ignored instead of crashing.
+# hand-edited invalid values in invalid_ignored instead of crashing,
+# and the read carries the installed oddyssey-mcp version (#395).
 # Pure configuration - no stack container is booted, reset, or wiped.
 # The config file is backed up/restored so a developer machine is left
 # untouched.
@@ -47,6 +48,17 @@ assert_result_contains "$workdir/defaults.json" '"stack": "local"'
 assert_result_contains "$workdir/defaults.json" '"grafana_port": 3000'
 assert_result_contains "$workdir/defaults.json" '"pyroscope_port": 4040'
 assert_result_contains "$workdir/defaults.json" '"stack_config": {}'
+
+step "the read carries the installed oddyssey-mcp version (#395)"
+# The value the server must answer is the one the distribution it runs
+# from declares - read through the same interpreter, never hard-coded.
+server_python="$(dirname "$SERVER_BIN")/python"
+[ -x "$server_python" ] || { echo "ASSERTION FAILED: no interpreter beside SERVER_BIN at $server_python" >&2; exit 1; }
+expected_version=$("$server_python" -c \
+  'import importlib.metadata as m; print(m.version("oddyssey-mcp"))')
+jq -e --arg v "$expected_version" '.content[0].text | fromjson | .version == $v' \
+  "$workdir/defaults.json" > /dev/null \
+  || { echo "ASSERTION FAILED: version is not the installed $expected_version" >&2; cat "$workdir/defaults.json" >&2; exit 1; }
 
 step "the stack switch round-trips through every allowed value"
 # The six values of config.STACKS, ending back on the default so the
