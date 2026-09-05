@@ -74,6 +74,21 @@ class Repo:
         ).stdout.strip()
 
 
+def remote_only_branch(repo: Repo, remote: str, branch: str) -> None:
+    """Publish ``branch`` on a new bare ``remote`` and drop the local copy: the
+    state a fresh clone is in before ``git switch <branch>`` guesses it."""
+    bare = repo.root.parent / f"{remote}.git"
+    subprocess.run(
+        ["git", "init", "-q", "--bare", str(bare)],
+        check=True,
+        env={**os.environ, **GIT_ENV},
+    )
+    repo.git("remote", "add", remote, str(bare))
+    repo.git("branch", branch)
+    repo.git("push", "-q", remote, branch)
+    repo.git("branch", "-q", "-D", branch)
+
+
 def run_hook(payload, cwd: Path | None = None) -> subprocess.CompletedProcess:
     """Run the hook as a host would: JSON on stdin, exit code and stderr out."""
     stdin = payload if isinstance(payload, str) else json.dumps(payload)
@@ -196,7 +211,7 @@ def test_a_command_after_a_heredoc_is_still_read(guard):
         ("git switch -c docs/x", [("switch", ("docs/x",), None)]),
         ("git switch -C docs/x", [("switch", ("docs/x",), None)]),
         ("git switch --create docs/x", [("switch", ("docs/x",), None)]),
-        ("git switch docs/x", [("unresolved", ("docs/x",), None)]),
+        ("git switch docs/x", [("unresolved", ("docs/x", "switch"), None)]),
         ("git switch -c docs/x main", [("switch", ("docs/x",), None)]),
         ("git checkout -b docs/x", [("switch", ("docs/x",), None)]),
         ("git checkout -B docs/x origin/main", [("switch", ("docs/x",), None)]),
@@ -212,7 +227,19 @@ def test_a_command_after_a_heredoc_is_still_read(guard):
         ("git checkout -t origin/docs/x", [("switch", (), None)]),
         ("git switch --track=origin/docs/x", [("switch", (), None)]),
         ("git checkout -torigin/docs/x", [("switch", (), None)]),
-        ("git checkout docs/x", [("unresolved", ("docs/x",), None)]),
+        ("git checkout docs/x", [("unresolved", ("docs/x", "checkout"), None)]),
+        (
+            "git switch --no-guess docs/x",
+            [("unresolved", ("docs/x", "switch", "--no-guess"), None)],
+        ),
+        (
+            "git checkout --no-guess docs/x",
+            [("unresolved", ("docs/x", "checkout", "--no-guess"), None)],
+        ),
+        (
+            "git switch --no-guess --guess docs/x",
+            [("unresolved", ("docs/x", "switch"), None)],
+        ),
         ("git switch -qc docs/x", [("switch", ("docs/x",), None)]),
         ("git checkout -qb docs/x", [("switch", ("docs/x",), None)]),
         ("git checkout -qbdocs/x", [("switch", ("docs/x",), None)]),
@@ -234,6 +261,65 @@ def test_a_command_after_a_heredoc_is_still_read(guard):
             "git switch -c docs/x && git add -A && git commit -m x",
             [("switch", ("docs/x",), None), ("commit", (), None)],
         ),
+        (
+            "git switch -c docs/x || git commit -m x",
+            [("switch", ("docs/x",), None), ("||", (), None), ("commit", (), None)],
+        ),
+        (
+            "git switch -c docs/x || \\\n  git commit -m x",
+            [("switch", ("docs/x",), None), ("||", (), None), ("commit", (), None)],
+        ),
+        (
+            "git switch -c docs/x || true && git commit -m x",
+            [("switch", ("docs/x",), None), ("||", (), None), ("commit", (), None)],
+        ),
+        (
+            "git switch docs/x || git switch -c docs/x; git commit -m x",
+            [
+                ("unresolved", ("docs/x", "switch"), None),
+                ("||", (), None),
+                ("switch", ("docs/x",), None),
+                ("commit", (), None),
+            ],
+        ),
+        (
+            "git switch -c docs/x || git switch -c docs/y; git commit -m x",
+            [("switch", ("docs/x",), None), ("||", (), None), ("commit", (), None)],
+        ),
+        (
+            "git branch docs/x || git switch -c docs/x",
+            [("branch", ("docs/x",), None), ("||", (), None)],
+        ),
+        (
+            "git switch -c docs/x || exit 1; git commit -m x",
+            [("switch", ("docs/x",), None), ("commit", (), None)],
+        ),
+        (
+            "git switch -c docs/x || return 1\ngit commit -m x",
+            [("switch", ("docs/x",), None), ("||", (), None), ("commit", (), None)],
+        ),
+        (
+            "git switch -c docs/x || (exit 1); git commit -m x",
+            [("switch", ("docs/x",), None), ("||", (), None), ("commit", (), None)],
+        ),
+        (
+            "git switch -c docs/x ||(exit 1); git commit -m x",
+            [("switch", ("docs/x",), None), ("||", (), None), ("commit", (), None)],
+        ),
+        (
+            "(git switch -c docs/x || exit 1); git commit -m x",
+            [("switch", ("docs/x",), None), ("||", (), None), ("commit", (), None)],
+        ),
+        (
+            "git switch -c docs/x || { exit 1; }; git commit -m x",
+            [("switch", ("docs/x",), None), ("||", (), None), ("commit", (), None)],
+        ),
+        (
+            "git fetch || git switch -c docs/x && git commit -m x",
+            [("||", (), None), ("commit", (), None)],
+        ),
+        ("git fetch || git status", [("||", (), None)]),
+        ("git fetch || exit 1", []),
     ],
 )
 def test_detects_a_branch_switch_before_a_commit(guard, command, expected):
@@ -416,6 +502,145 @@ def test_a_push_whose_refspec_names_the_default_branch_blocks_after_any_switch(
 def test_a_switch_only_git_can_resolve_lets_the_commit_through(tmp_path, command):
     repo = Repo(tmp_path)
     assert run_hook(claude_payload(command, repo.root)).returncode == 0, command
+
+
+def test_a_branch_only_one_remote_carries_is_a_valid_destination(tmp_path):
+    repo = Repo(tmp_path / "repo")
+    remote_only_branch(repo, "origin", "feature")
+    for command in (
+        "git switch feature && git commit -m x",
+        "git checkout feature && git add -A && git commit -m x",
+        "git switch --no-guess feature || git switch feature && git commit -m x",
+    ):
+        assert run_hook(claude_payload(command, repo.root)).returncode == 0, command
+    for command in (
+        "git switch --no-guess feature && git commit -m x",
+        "git checkout --no-guess feature && git commit -m x",
+        "git switch feature && git push origin main",
+    ):
+        assert run_hook(claude_payload(command, repo.root)).returncode == 2, command
+
+
+def test_a_branch_several_remotes_carry_moves_nowhere_without_a_default_remote(
+    tmp_path,
+):
+    repo = Repo(tmp_path / "repo")
+    remote_only_branch(repo, "origin", "feature")
+    remote_only_branch(repo, "second", "feature")
+    command = "git switch feature && git commit -m x"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 2
+    repo.git("config", "checkout.defaultRemote", "second")
+    assert run_hook(claude_payload(command, repo.root)).returncode == 0
+
+
+def test_a_remote_tracking_ref_of_no_configured_remote_is_not_a_destination(
+    tmp_path,
+):
+    repo = Repo(tmp_path)
+    repo.git("update-ref", "refs/remotes/nowhere/ghost", "HEAD")
+    command = "git switch ghost && git commit -m x"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 2
+
+
+def test_a_branch_homonymous_with_a_directory_is_still_a_branch(tmp_path):
+    repo = Repo(tmp_path)
+    repo.git("branch", "docs")
+    (repo.root / "docs").mkdir()
+    (repo.root / "docs" / "guide.md").write_text("probe\n")
+    for command in (
+        "git switch docs && git commit -m x",
+        "git checkout docs && git commit -m x",
+    ):
+        assert run_hook(claude_payload(command, repo.root)).returncode == 0, command
+
+
+def test_the_default_branch_homonymous_with_a_file_still_blocks(tmp_path):
+    repo = Repo(tmp_path)
+    repo.git("checkout", "-q", "-b", "docs/x")
+    (repo.root / "main").write_text("probe\n")
+    for command in (
+        "git checkout main && git commit -m x",
+        "git switch main && git commit -m x",
+    ):
+        assert run_hook(claude_payload(command, repo.root)).returncode == 2, command
+
+
+def test_a_remote_only_branch_homonymous_with_a_path_moves_nowhere_under_checkout(
+    tmp_path,
+):
+    repo = Repo(tmp_path / "repo")
+    remote_only_branch(repo, "origin", "only")
+    (repo.root / "only").mkdir()
+    command = "git checkout only && git commit -m x"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 2
+    command = "git switch only && git commit -m x"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 0
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git switch -c work || git commit -m x",
+        "git switch docs/x || git commit -m x",
+        "git switch -c work || git add -A || git commit -m x",
+        "git fetch -q || git switch -c work; git commit -m x",
+        "git switch -c work && git switch main || git commit -m x",
+        "git switch -c work || \\\n  git commit -m x",
+        "git switch -c work || \\\n  git push",
+        "git switch -c work || true && git commit -m x",
+        "git switch -c work || git status && git commit -m x",
+        "git switch -c work || echo failed; git commit -m x",
+        "git switch -c work || git switch -c other; git commit -m x",
+        "git switch -c work || { exit 1; }; git commit -m x",
+        "git switch -c work && git commit -m a || git commit -m b",
+        "git switch work || git branch work; git commit -m x",
+        "git branch work || git switch -c work; git commit -m x",
+        "git switch -c work || return 1; git commit -m x",
+        "git switch -c work || (exit 1); git commit -m x",
+        "(git switch -c work || exit 1); git commit -m x",
+        "git switch feature || git checkout feature; git commit -m x",
+        "git checkout docs || git checkout docs; git commit -m x",
+        "git switch --no-guess feature || git switch feature; git commit -m x",
+        "git switch nosuch || git switch nosuch; git commit -m x",
+    ],
+)
+def test_a_commit_that_runs_only_if_the_switch_failed_is_judged_where_it_lands(
+    tmp_path, command
+):
+    repo = Repo(tmp_path)
+    repo.git("branch", "docs/x")
+    (repo.root / "docs").mkdir()  # a directory, and no branch or remote `docs`
+    result = run_hook(claude_payload(command, repo.root))
+    assert result.returncode == 2, command
+    assert "default branch" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git switch -c work || exit 1; git commit -m x",
+        "git switch -c work || exit 1\ngit add -A\ngit commit -m x",
+        "git switch -c work || git switch work && git commit -m x",
+        "git switch docs/x || git switch -c docs/x; git commit -m x",
+        "git switch -c work || true; git switch -c other && git commit -m x",
+    ],
+)
+def test_a_switch_guarded_by_an_or_exit_still_moves_the_commit(tmp_path, command):
+    repo = Repo(tmp_path)
+    repo.git("branch", "docs/x")
+    assert run_hook(claude_payload(command, repo.root)).returncode == 0, command
+
+
+def test_a_switch_recovered_by_creating_the_same_branch_lands_on_it_either_way(
+    tmp_path,
+):
+    repo = Repo(tmp_path)
+    command = "git switch docs/x || git switch -c docs/x; git commit -m x"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 0  # absent
+    repo.git("branch", "docs/x")
+    assert run_hook(claude_payload(command, repo.root)).returncode == 0  # present
+    command = "git switch main || git switch -c main; git commit -m x"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 2
 
 
 def test_a_switch_back_to_the_default_branch_blocks_the_commit_after_it(tmp_path):
