@@ -334,8 +334,8 @@ a contract), never a cheaper way to write a full report:
   at this depth.
 - **Report** — the seven headings stay (the recall reads by section
   number). Sections 1, 2 and 7 are complete. Section 3 is the ranked
-  table only, no detail per row. Sections 4, 5 and 6 are one line
-  each — section 5's line names the signals not queried, then any gap
+  table only, no detail per row. Sections 4 and 6 are one line each;
+  section 5 is its `not queried (quick)` line, then one bullet per gap
   the queried signals showed. Section 7 carries the checks this run
   measured, and only those: a quick report is a legal baseline for a
   later verify, on exactly what it measured.
@@ -634,10 +634,16 @@ from your reply, without re-reading the file:
    ~52 to ~2 per request") and the query that will prove it landed.
 5. **Telemetry gaps** — what the service should emit but does not: missing
    latency histograms, logs without trace IDs, absent database or
-   downstream spans, missing resource attributes. Each gap carries the
-   discovery query that came back empty as evidence. When gaps dominate the
-   picture, add a one-line handoff to the `otel-instrumentation-expert`
-   agent.
+   downstream spans, missing resource attributes. The `not queried
+   (<depth>)` statement, when the section carries one (Depth section),
+   is its own first line, never spliced into a gap; then one bullet per
+   gap — `- <gap> — <filled | still missing | new | not ruled (quick)>
+   — <discovery query>` — the fate ruled against the baseline (`new`
+   when no baseline carries the gap, `not ruled (quick)` when a quick
+   replay left it unqueried) and the discovery query that came back
+   empty as evidence; never several gaps in one paragraph. When gaps
+   dominate the picture, add a one-line handoff to the
+   `otel-instrumentation-expert` agent.
 6. **Decisions the spec must settle** — the open questions telemetry cannot
    answer (intended behavior, acceptable trade-offs, priorities). Anything
    you actually concluded belongs in section 3 with its evidence, not here.

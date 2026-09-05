@@ -1177,6 +1177,296 @@ def test_gaps_recorded_as_a_table_are_read(repo, odd_status, odd_render):
     ]
 
 
+# A section 5 written before the one-bullet-per-gap contract: one paragraph,
+# the not-queried statement spliced in front, the ruled gaps comma-spliced
+# with their fate markers, the new gaps after them without one.
+LEGACY_GAPS_PARAGRAPH = (
+    "**Not queried (full): none** — all four signals queried. Baseline gaps,\n"
+    "ruled: `traces_spanmetrics_*` still carry no `service_instance_id`\n"
+    "(`gcx metrics series 'traces_spanmetrics_calls_total{service=\"checkout\"}'"
+    " --since 15m --jq '[.data[] | keys[]] | unique'`\n"
+    "→ `__metrics_gen_instance, __name__, service, span_kind, span_name,\n"
+    "status_code`) — **still missing**, by Tempo's generator design; no\n"
+    "process/runtime metrics (`process_*`, `python_*` absent from the 13-name\n"
+    "series list) — **still missing**; client spans of the simulated upstreams\n"
+    "carry only `peer.service` (+ `error.type` on failure; fetched span attrs\n"
+    '`["peer.service", "error.type"]`) — **still the case**, acceptable for an\n'
+    "in-process simulation. New at full depth: no allocation profiles for the\n"
+    "service — `gcx profiles exemplars profile '{service_name=\"checkout\"}'"
+    " --profile-type memory:alloc_space:bytes:space:bytes --from … --to …`\n"
+    "→ 0 exemplars (the pyroscope-io Python SDK pushes CPU only; the listed\n"
+    "`memory:*` types are Pyroscope's self-profile) — informational; profiles\n"
+    "carry no `service.instance.id` resource attribute (SDK design), mitigated\n"
+    "by the `service_instance_id` tag the distro sets. Logs: no gap — every\n"
+    "request line carries `trace_id`, the 4 trace-less lines are startup.\n"
+    "None of the gaps was in the fix wave's scope; no handoff to the\n"
+    "`otel-instrumentation-expert` agent is needed."
+)
+
+
+def test_a_legacy_paragraph_is_split_on_its_fate_markers(odd_render):
+    paragraph = " ".join(line.strip() for line in LEGACY_GAPS_PARAGRAPH.splitlines())
+    pieces = odd_render.split_legacy_gaps(paragraph)
+    assert [p[:40] for p in pieces] == [
+        "`traces_spanmetrics_*` still carry no `s",
+        "no process/runtime metrics (`process_*`,",
+        "client spans of the simulated upstreams ",
+        "New at full depth: no allocation profile",
+        "profiles carry no `service.instance.id` ",
+        "no handoff to the `otel-instrumentation-",
+    ]
+    # each ruled gap keeps its fate and the qualifier that follows it
+    assert pieces[0].endswith("— **still missing**, by Tempo's generator design")
+    assert pieces[1].endswith("— **still missing**")
+    assert pieces[2].endswith(
+        "— **still the case**, acceptable for an in-process simulation."
+    )
+    # a semicolon inside parentheses or backticks separates nothing
+    assert "fetched span attrs" in pieces[2]
+    assert "pushes CPU only; the listed" in pieces[3]
+    assert pieces[3].endswith("— informational")
+    # an unruled gap runs to the next top-level semicolon, sentences included
+    assert pieces[4].endswith("None of the gaps was in the fix wave's scope")
+
+
+def test_a_legacy_quick_paragraph_drops_its_lead_in_and_closing_prose(odd_render):
+    paragraph = (
+        "**Not queried (quick): none** (logs and profiles for C4/C5 only). Baseline "
+        "gaps, ruled: `traces_spanmetrics_*` still carry no `service_instance_id` "
+        "(`gcx metrics series 'x' --jq '[.data[] | keys[]] | unique'` → `service`) "
+        "— **still missing**, by Tempo's generator design; no process/runtime "
+        "metrics (the 13-name series list holds no `process_*`/`python_*`) — "
+        "**still missing**; client spans carry only `peer.service` (+ `error.type` "
+        'on failures; fetched span attrs `["peer.service"]`) — **still the '
+        "case**, acceptable for an in-process simulation. Nothing filled, nothing "
+        "new; none of the three was in the fix wave's scope."
+    )
+    pieces = odd_render.split_legacy_gaps(paragraph)
+    assert len(pieces) == 3
+    assert pieces[0].startswith("`traces_spanmetrics_*` still carry")
+    assert pieces[2].endswith("acceptable for an in-process simulation.")
+
+
+def test_the_sentence_cut_after_a_marker_skips_abbreviations(odd_render):
+    paragraph = (
+        "`a` gone — **filled**, cf. the fix vs. the baseline. Then `b` — **new**."
+    )
+    assert odd_render.split_legacy_gaps(paragraph) == [
+        "`a` gone — **filled**, cf. the fix vs. the baseline.",
+        "Then `b` — **new**.",
+    ]
+
+
+def test_the_closing_handoff_phrase_with_a_backtick_is_not_a_gap(
+    repo, odd_status, odd_render
+):
+    paragraph = LEGACY_GAPS_PARAGRAPH.replace(
+        "None of the gaps was in the fix wave's scope; no handoff to the\n"
+        "`otel-instrumentation-expert` agent is needed.",
+        "None of the gaps was in the fix wave's scope; No\n"
+        "`otel-instrumentation-expert` handoff needed.",
+    )
+    assert paragraph != LEGACY_GAPS_PARAGRAPH
+    body = DEFAULT_BODY.replace(
+        "- **Logs: absent for checkout** - no log stream carries the service.",
+        paragraph,
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", body=body),
+    )
+    repo.commit("docs(odd): report")
+    rows = odd_render.gap_rows(odd_status.build_facts(repo.root, recent=None))
+    assert len(rows) == 5
+    assert not any("handoff" in r["gap"] for r in rows)
+
+
+def test_a_quick_report_with_no_gap_is_not_mixed(repo, odd_status, odd_render):
+    body = DEFAULT_BODY.replace(
+        "- **Logs: absent for checkout** - no log stream carries the service.",
+        "not queried (quick): logs, profiles\n\nNo gap the queried signals showed.",
+    )
+    text = observation(run_name="a", body=body).replace("depth: full", "depth: quick")
+    repo.write(".odd/observe-run-reports/2026-08-10-1000-a.md", text)
+    repo.commit("docs(odd): report")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    assert odd_render.gap_rows(facts) == []
+    assert odd_render.mixed_not_queried(facts) == []
+    text = odd_render.render(facts, full=True, today="2026-08-11")
+    assert "No gap recorded" in text
+    assert "section 5 of" not in text.split("## Judgment needed")[1]
+
+
+def test_a_not_queried_none_line_alone_is_not_a_gap(repo, odd_status, odd_render):
+    body = DEFAULT_BODY.replace(
+        "- **Logs: absent for checkout** - no log stream carries the service.",
+        "**Not queried (full): none** — all four signals queried.",
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", body=body),
+    )
+    repo.commit("docs(odd): report")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    assert odd_render.gap_rows(facts) == []
+    assert odd_render.mixed_not_queried(facts) == []
+    assert (
+        "section 5 of"
+        not in odd_render.render(facts, today="2026-08-11").split("## Judgment needed")[
+            1
+        ]
+    )
+
+
+def test_the_sentence_cut_after_a_marker_takes_a_backticked_opening(odd_render):
+    paragraph = (
+        "`a` — **filled**, by design. `b` gone — **still missing**. `c` — **new**."
+    )
+    assert odd_render.split_legacy_gaps(paragraph) == [
+        "`a` — **filled**, by design.",
+        "`b` gone — **still missing**.",
+        "`c` — **new**.",
+    ]
+
+
+def test_a_full_report_not_queried_list_is_deferred_without_the_quick_prefix(
+    repo, odd_status, odd_render
+):
+    body = DEFAULT_BODY.replace(
+        "- **Logs: absent for checkout** - no log stream carries the service.",
+        "Not queried (full): profiles — the profiler was down for the window; on\n"
+        "the queried signals the baseline gaps stand: no startup span (F3).",
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", body=body),
+    )
+    repo.commit("docs(odd): report")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    [row] = odd_render.gap_rows(facts)
+    assert row["gap"] == "gaps mixed into the not-queried list - see Judgment needed"
+    assert odd_render.mixed_not_queried(facts) == ["2026-08-10-1000-a.md"]
+    judgment = odd_render.render(facts, full=True, today="2026-08-11").split(
+        "## Judgment needed"
+    )[1]
+    assert "section 5 of 2026-08-10-1000-a.md mixes a not-queried list" in judgment
+
+
+def test_a_no_gap_opening_that_carries_a_query_does_not_settle_the_section(
+    repo, odd_status, odd_render
+):
+    body = DEFAULT_BODY.replace(
+        "- **Logs: absent for checkout** - no log stream carries the service.",
+        "not queried (quick): logs, profiles\n\n"
+        "No gaps in logs; three in traces: no startup span (F3) — "
+        "`gcx traces search --name startup` → none.",
+    )
+    text = observation(run_name="a", body=body).replace("depth: full", "depth: quick")
+    repo.write(".odd/observe-run-reports/2026-08-10-1000-a.md", text)
+    repo.commit("docs(odd): report")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    [row] = odd_render.gap_rows(facts)
+    assert row["gap"].endswith(
+        "gaps mixed into the not-queried list - see Judgment needed"
+    )
+    assert odd_render.mixed_not_queried(facts) == ["2026-08-10-1000-a.md"]
+    text = odd_render.render(facts, full=True, today="2026-08-11")
+    assert "No gap recorded" not in text
+
+
+def test_a_paragraph_without_a_fate_marker_is_not_split(odd_render):
+    paragraph = (
+        "Not queried (quick): logs, profiles — the probes (`gcx logs; labels`) "
+        "showed nothing; the baseline's gaps stand: no startup span (F3)."
+    )
+    assert odd_render.split_legacy_gaps(paragraph) == [paragraph]
+
+
+def test_a_legacy_paragraph_yields_one_row_per_gap(repo, odd_status, odd_render):
+    body = DEFAULT_BODY.replace(
+        "- **Logs: absent for checkout** - no log stream carries the service.",
+        LEGACY_GAPS_PARAGRAPH,
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", body=body),
+    )
+    repo.commit("docs(odd): report")
+    facts = odd_status.build_facts(repo.root, recent=None, max_title=None)
+    rows = odd_render.gap_rows(facts)
+    assert len(rows) == 5  # three ruled, two new; the no-handoff line is dropped
+    assert [r["gap"][:25] for r in rows] == [
+        "`traces_spanmetrics_*` st",
+        "no process/runtime metric",
+        "client spans of the simul",
+        "New at full depth: no all",
+        "profiles carry no `servic",
+    ]
+    assert not any(r["truncated"] or r["cut"] for r in rows)
+    text = odd_render.render(facts, today="2026-08-11")
+    assert "5 gaps" in text
+    judgment = text.split("## Judgment needed")[1]
+    assert "section 5 of" not in judgment
+    assert "gaps of" not in judgment
+
+
+def test_a_paragraph_the_split_cannot_cut_is_named_as_one_paragraph(
+    repo, odd_status, odd_render
+):
+    gaps = "; ".join(
+        f"the `{signal}` signal of checkout carries no instance identity "
+        "(`gcx metrics series 'x' --jq '.data[] | keys'` → nothing)"
+        for signal in ("traces", "metrics", "logs", "profiles", "spans", "events")
+    )
+    paragraph = f"Gaps the queried signals showed: {gaps}."
+    assert len(paragraph) > odd_render.MAX_GAP_LENGTH
+    body = DEFAULT_BODY.replace(
+        "- **Logs: absent for checkout** - no log stream carries the service.",
+        paragraph,
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", body=body),
+    )
+    repo.commit("docs(odd): report")
+    facts = odd_status.build_facts(repo.root, recent=None, max_title=None)
+    [row] = odd_render.gap_rows(facts)
+    assert row["cut"] == len(paragraph) and row["truncated"] is False
+    assert row["gap"].endswith(odd_render.ELLIPSIS)
+    judgment = odd_render.render(facts, today="2026-08-11").split("## Judgment needed")[
+        1
+    ]
+    assert (
+        f"section 5 of 2026-08-10-1000-a.md is one paragraph: {len(paragraph)} "
+        "characters, cut at 500, open the body for the gaps it carries"
+    ) in judgment
+    assert "beyond the cap" not in judgment
+
+
+def test_a_bullet_cut_at_the_cap_is_named_as_a_cut_gap(repo, odd_status, odd_render):
+    bullet = "- **Logs: absent for checkout** — " + "no log stream carries it, " * 30
+    body = DEFAULT_BODY.replace(
+        "- **Logs: absent for checkout** - no log stream carries the service.",
+        bullet.rstrip(", "),
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", body=body),
+    )
+    repo.commit("docs(odd): report")
+    facts = odd_status.build_facts(repo.root, recent=None, max_title=None)
+    [row] = odd_render.gap_rows(facts)
+    assert row["cut"] > odd_render.MAX_GAP_LENGTH and row["truncated"] is False
+    judgment = odd_render.render(facts, today="2026-08-11").split("## Judgment needed")[
+        1
+    ]
+    assert (
+        "section 5 of 2026-08-10-1000-a.md: 1 gap cut at 500 characters, "
+        "open the body for the rest of it"
+    ) in judgment
+    assert "beyond the cap" not in judgment
+
+
 def test_two_verdict_words_are_deferred_as_two_verdicts(repo, odd_status, odd_render):
     body = VERIFY_BODY.replace(
         "**Verdict: 2/2 checks PASS** on unchanged criteria.",

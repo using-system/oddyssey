@@ -83,7 +83,10 @@ rather than guessing.
    `confirmed` or `suspected`, with evidence and expected gain.
 4. **Improvement opportunities** — each with a measurable gain and the
    query that will prove it landed.
-5. **Telemetry gaps** — what the service should emit but does not.
+5. **Telemetry gaps** — what the service should emit but does not:
+   the `not queried` line first when the run has one, then one bullet
+   per gap carrying its fate (`filled`, `still missing`, `new`,
+   `not ruled (quick)`) and the discovery query that came back empty.
 6. **Decisions the spec must settle** — what telemetry cannot answer.
 7. **Measurement protocol for the fix** — the scenario to replay and
    every check with its before-value, its pass criterion, and how its
