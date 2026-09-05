@@ -58,7 +58,14 @@ def repo(tmp_path: Path) -> Repo:
 
 
 def rendered(repo: Repo, odd_status, odd_render, today="2026-08-20", **kwargs) -> str:
-    facts = odd_status.build_facts(repo.root, recent=None, **kwargs)
+    """The full rendering - the working data most rules are asserted on."""
+    facts = odd_status.build_facts(repo.root, recent=None, max_title=None, **kwargs)
+    return odd_render.render(facts, today=today, full=True)
+
+
+def screen(repo: Repo, odd_status, odd_render, today="2026-08-20", **kwargs) -> str:
+    """The default rendering - one screen."""
+    facts = odd_status.build_facts(repo.root, recent=None, max_title=None, **kwargs)
     return odd_render.render(facts, today=today)
 
 
@@ -394,7 +401,9 @@ def test_verifications_that_disagree_are_deferred(repo, odd_status, odd_render):
     assert "disagree" in rows["F1"]["ruled_by"]
     assert (
         "F1"
-        in odd_render.render(facts, today="2026-08-15").split("## Judgment needed")[1]
+        in odd_render.render(facts, full=True, today="2026-08-15").split(
+            "## Judgment needed"
+        )[1]
     )
 
 
@@ -409,7 +418,7 @@ def test_instrumentation_reports_contribute_no_findings_and_no_gaps(
     facts = odd_status.build_facts(repo.root, recent=None)
     assert odd_render.finding_rows(facts) == []
     assert odd_render.gap_rows(facts) == []
-    text = odd_render.render(facts, today="2026-08-13")
+    text = odd_render.render(facts, full=True, today="2026-08-13")
     assert "No finding recorded" in text
     assert "No gap recorded" in text
 
@@ -432,7 +441,7 @@ def test_a_ruling_the_rules_cannot_read_is_unknown_and_deferred(
     rows = own_rows(odd_render, facts)
     assert rows["F1"]["state"] == "unknown"
     assert rows["F1"]["ruled_by"] == "2026-08-12-1000-verify-a.md: mostly, see below"
-    text = odd_render.render(facts, today="2026-08-20")
+    text = odd_render.render(facts, full=True, today="2026-08-20")
     assert "## Judgment needed" in text
     assert "mostly, see below" in text.split("## Judgment needed")[1]
 
@@ -558,7 +567,7 @@ def test_runs_that_are_not_a_verifies_pair_are_listed_apart(
         }
     ]
     # listed apart is information, not a deferral
-    text = odd_render.render(facts, today="2026-08-12")
+    text = odd_render.render(facts, full=True, today="2026-08-12")
     assert "Listed apart" in text
     assert "listed apart" not in text.split("## Judgment needed")[1]
 
@@ -592,7 +601,9 @@ def test_unclassified_entries_defer_and_a_runtime_flag_settles_them(
     assert "src (src/app.py)" in rec["evidence"]
     assert (
         "src (src/app.py)"
-        in odd_render.render(facts, today="2026-08-15").split("## Judgment needed")[1]
+        in odd_render.render(facts, full=True, today="2026-08-15").split(
+            "## Judgment needed"
+        )[1]
     )
     settled = odd_status.build_facts(repo.root, recent=None, runtime=["src"])
     [rec] = odd_render.recommendations(settled, today="2026-08-15")
@@ -603,7 +614,9 @@ def test_unclassified_entries_defer_and_a_runtime_flag_settles_them(
     )
     assert (
         "- nothing deferred"
-        in odd_render.render(settled, today="2026-08-15").split("## Judgment needed")[1]
+        in odd_render.render(settled, full=True, today="2026-08-15").split(
+            "## Judgment needed"
+        )[1]
     )
 
 
@@ -649,7 +662,7 @@ def test_the_chain_says_fixed_only_when_the_boundary_says_code_moved(
     repo.write("docs/guide.md", "# v2\n")
     repo.commit("docs: wording", date="2026-08-11T12:00:00Z")
     text = odd_render.render(
-        odd_status.build_facts(repo.root, recent=None), today="2026-08-12"
+        odd_status.build_facts(repo.root, recent=None), full=True, today="2026-08-12"
     )
     state = text.split("## Per-service loop state")[1].split("## Findings")[0]
     assert "observed 2026-08-10 (a) |" in state
@@ -729,7 +742,7 @@ def test_a_quick_verification_states_its_coverage_and_defers_the_rest(
     repo.write(".odd/observe-run-reports/2026-08-12-1000-verify-a.md", text)
     repo.commit("docs(odd): quick verification", date="2026-08-12T12:00:00Z")
     facts = odd_status.build_facts(repo.root, recent=None)
-    rendered_text = odd_render.render(facts, today="2026-08-13")
+    rendered_text = odd_render.render(facts, full=True, today="2026-08-13")
     assert "PASS (quick, 3 of 4 ruled)" in rendered_text
     judgment = rendered_text.split("## Judgment needed")[1]
     assert "quick verification 2026-08-12-1000-verify-a.md ruled 3 of 4" in judgment
@@ -810,9 +823,9 @@ def test_degradations_reach_the_judgment_list(repo, odd_status, odd_render):
     repo.write(".odd/decisions.md", LEDGER_HEAD + "| 2026-08-13 | garbage |\n")
     repo.commit("docs(odd): degraded memory")
     facts = odd_status.build_facts(repo.root, recent=None, max_text=40)
-    judgment = odd_render.render(facts, today="2026-08-14").split("## Judgment needed")[
-        1
-    ]
+    judgment = odd_render.render(facts, full=True, today="2026-08-14").split(
+        "## Judgment needed"
+    )[1]
     assert "frontmatter of 2026-08-10-1000-a.md: services: block-style" in judgment
     assert "2026-08-12-1000-verify-a.md states no verdict" in judgment
     assert "unreadable report" in judgment
@@ -856,13 +869,15 @@ def test_a_plan_lineage_shows_the_verification_that_covers_it(
     )
     repo.commit("docs(odd): plan and verification")
     facts = odd_status.build_facts(repo.root, recent=None)
-    text = odd_render.render(facts, today="2026-08-13")
+    text = odd_render.render(facts, full=True, today="2026-08-13")
+    state = text.split("## Per-service loop state")[1].split("## Findings")[0]
     plan_row = next(
         line
-        for line in text.splitlines()
+        for line in state.splitlines()
         if line.startswith("| myrepo/src (plan) / local |")
     )
     assert "2026-08-12-1000-verify-app-python.md: PASS" in plan_row
+    assert "| myrepo/src (plan) / local | 2026-08-09 app-python (plan) | 0 |" in text
     assert "planned 2026-08-09 -> verified 2026-08-12 (PASS)" in plan_row
     _, apart = odd_render.trend_rows(facts)
     assert apart == []
@@ -889,7 +904,7 @@ def test_the_chain_starts_from_the_newest_observation_whatever_its_mode(
     )
     repo.commit("docs(odd): reports")
     text = odd_render.render(
-        odd_status.build_facts(repo.root, recent=None), today="2026-08-13"
+        odd_status.build_facts(repo.root, recent=None), full=True, today="2026-08-13"
     )
     assert "observed 2026-08-12 (b)" in text
 
@@ -913,14 +928,21 @@ def test_cli_render_prints_markdown(repo):
     assert proc.returncode == 0, proc.stderr
     assert proc.stderr == ""
     assert proc.stdout.startswith("# ODD loop status")
+    assert "## Loop state" in proc.stdout
+    assert "## Findings ledger" not in proc.stdout
     with pytest.raises(json.JSONDecodeError):
         json.loads(proc.stdout)
     # importing the renderer must not leave bytecode in the packaged skill
     assert not (SCRIPT.parent / "__pycache__").exists()
 
 
-def test_cli_rejects_recent_with_render_and_today_without_it(repo):
-    for args in (["--render", "--recent", "1"], ["--today", "2026-08-20"]):
+def test_cli_rejects_render_only_flags_without_render(repo):
+    for args in (
+        ["--render", "--recent", "1"],
+        ["--today", "2026-08-20"],
+        ["--full"],
+        ["--ruled", "2026-08-10-1000-a.md/F1=fixed"],
+    ):
         proc = subprocess.run(
             [sys.executable, str(SCRIPT), "--repo", str(repo.root), *args],
             capture_output=True,
@@ -974,9 +996,9 @@ def test_a_ruling_beyond_the_direct_verification_defers_when_an_intermediate_def
     assert rows["F1"]["state"] == "unknown"
     assert "also defines" in rows["F1"]["ruled_by"]
     assert "2026-08-13-1000-verify-a.md" in rows["F1"]["ruled_by"]
-    judgment = odd_render.render(facts, today="2026-08-15").split("## Judgment needed")[
-        1
-    ]
+    judgment = odd_render.render(facts, full=True, today="2026-08-15").split(
+        "## Judgment needed"
+    )[1]
     assert "F1" in judgment and "same finding" in judgment
 
 
@@ -1057,9 +1079,9 @@ def test_a_ruling_on_an_id_outside_the_chain_is_deferred_not_ignored(
     facts = odd_status.build_facts(repo.root, recent=None)
     rows = own_rows(odd_render, facts)
     assert rows["F2"]["state"] == "open"
-    judgment = odd_render.render(facts, today="2026-08-13").split("## Judgment needed")[
-        1
-    ]
+    judgment = odd_render.render(facts, full=True, today="2026-08-13").split(
+        "## Judgment needed"
+    )[1]
     assert "2026-08-12-1000-verify-b.md rules F2" in judgment
     assert "outside its chain" in judgment
 
@@ -1112,7 +1134,7 @@ def test_a_not_queried_item_is_dropped_whole_and_deferred(repo, odd_status, odd_
         row["gap"]
         == "(quick report) gaps mixed into the not-queried list - see Judgment needed"
     )
-    text = odd_render.render(facts, today="2026-08-11")
+    text = odd_render.render(facts, full=True, today="2026-08-11")
     assert "No gap recorded" not in text
     judgment = text.split("## Judgment needed")[1]
     assert (
@@ -1311,3 +1333,310 @@ def test_memory_invariant_note_caps_the_legacy_names(repo, odd_status, odd_rende
     assert "5 predate the `depth` field" in section
     assert "2026-08-12-1000-r12.md, +2 more)" in section
     assert "r13.md" not in section
+
+
+# --- the one-screen rendering --------------------------------------------------
+
+
+def test_the_default_rendering_is_one_screen(repo, odd_status, odd_render):
+    baseline_and_verification(repo)
+    text = screen(repo, odd_status, odd_render, today="2026-08-13")
+    assert text.startswith("# ODD loop status")
+    # one line of inventory, one of invariant - no sections for them
+    assert "## Inventory" not in text and "## Memory invariant" not in text
+    assert "1 matched of 2 stored" not in text  # counts read from the reports
+    assert "2 matched of 2 stored (2 observation, 0 instrumentation)" in text
+    assert "memory invariant: clean" in text
+    # the burn-down per lineage carries the action and its evidence
+    assert "## Loop state" in text
+    assert (
+        "| checkout / local / local | 2026-08-12 verify-a (verify) "
+        "| 2 | 1 | 0 | 0 | 0 | loop can rest |"
+    ) in text
+    # the evidence sits under the table, one line per lineage, so the table stays narrow
+    assert (
+        "- checkout / local / local: last report 2026-08-12-1000-verify-a.md "
+        "(verify); verdict PASS; tree anchor equals HEAD"
+    ) in text.split("## Loop state")[1].split("Not on this screen")[0]
+    # the working tables stay behind --full, and the screen says what it dropped
+    for heading in (
+        "## Per-service loop state",
+        "## Findings ledger",
+        "## Trends",
+        "## Open telemetry gaps",
+        "## Next recommended action",
+    ):
+        assert heading not in text, heading
+    assert "| POST /checkout |" not in text
+    assert "3 findings, 1 trend pair, 1 gap" in text and "--full" in text
+    assert "- nothing deferred" in text.split("## Judgment needed")[1]
+
+
+def test_the_full_rendering_keeps_every_section_and_whole_titles(
+    repo, odd_status, odd_render
+):
+    long_title = "N+1 on cart lines, " + "one extra round trip per line " * 4
+    rev = repo.git("rev-parse", "--short", "HEAD")
+    body = DEFAULT_BODY.replace("N+1 on cart lines", long_title.rstrip())
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", revision=rev, body=body),
+    )
+    repo.commit("docs(odd): report")
+    full = rendered(repo, odd_status, odd_render)
+    assert "## Loop state" in full and "## Findings ledger" in full
+    ledger = full.split("## Findings ledger")[1].split("## Trends")[0]
+    assert long_title.rstrip() in ledger  # the exact key and the whole title, no cut
+    assert "…" not in ledger
+
+
+def test_a_named_scope_or_full_renders_the_working_tables_from_the_cli(repo):
+    baseline_and_verification(repo)
+    base = [sys.executable, str(SCRIPT), "--render", "--today", "2026-08-13"]
+    for extra in (["--full"], ["--service", "checkout"], ["--stack", "local"]):
+        proc = subprocess.run(
+            [*base, *extra],
+            cwd=repo.root,
+            capture_output=True,
+            text=True,
+            env={**os.environ, **GIT_ENV},
+            check=False,
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert "## Findings ledger" in proc.stdout, extra
+        assert "## Loop state" in proc.stdout, extra
+
+
+def test_a_caller_ruling_is_applied_before_the_rendering(repo, odd_status, odd_render):
+    body = VERIFY_BODY.replace(
+        "| F1 | N+1 on cart lines | FIXED |",
+        "| F1 | N+1 on cart lines | mostly, see below |",
+    )
+    rev = repo.git("rev-parse", "--short", "HEAD")
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", revision=rev),
+    )
+    write_verify(repo, "2026-08-12-1000-verify-a.md", "2026-08-10-1000-a.md", body)
+    repo.commit("docs(odd): reports")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    before = odd_render.render(facts, today="2026-08-20")
+    assert (
+        "| 2 | 0 | 0 | 0 | 1 |" in before
+    )  # open, fixed, regressed, declined, unknown
+    assert "mostly, see below" in before.split("## Judgment needed")[1]
+
+    ruled = ["2026-08-10-1000-a.md/F1=fixed"]
+    after = odd_render.render(facts, today="2026-08-20", ruled=ruled)
+    assert "| 2 | 1 | 0 | 0 | 0 |" in after
+    assert "mostly, see below" not in after.split("## Judgment needed")[1]
+    full = odd_render.render(facts, today="2026-08-20", full=True, ruled=ruled)
+    assert (
+        "| 2026-08-10-1000-a.md / F1 | N+1 on cart lines | high | fixed-and-verified "
+        "| ruled by the caller (2026-08-12-1000-verify-a.md: mostly, see below) |"
+    ) in full
+    # the same key with spaces around the slash, and the long state name, both read
+    assert "| 2 | 1 | 0 | 0 | 0 |" in odd_render.render(
+        facts,
+        today="2026-08-20",
+        ruled=["2026-08-10-1000-a.md / F1=fixed-and-verified"],
+    )
+
+
+def test_a_ruling_on_an_unknown_key_or_a_declined_finding_is_deferred(
+    repo, odd_status, odd_render
+):
+    baseline_and_verification(repo)
+    repo.write(
+        ".odd/decisions.md",
+        LEDGER_HEAD
+        + "| 2026-08-13 | 2026-08-10-1000-a.md / F2 | wontfix | Cold start is rare |\n",
+    )
+    repo.commit("docs(odd): decision")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    text = odd_render.render(
+        facts,
+        today="2026-08-13",
+        ruled=[
+            "2026-08-10-1000-a.md/F9=fixed",
+            "2026-08-10-1000-a.md/F2=open",
+            "2026-08-10-1000-a.md/F1=maybe",
+            "no-equals-sign",
+        ],
+    )
+    judgment = text.split("## Judgment needed")[1]
+    assert "ruling 2026-08-10-1000-a.md / F9: no such finding" in judgment
+    assert (
+        "ruling 2026-08-10-1000-a.md / F2: declined by the ledger (wontfix 2026-08-13)"
+        in judgment
+    )
+    assert "ruling 2026-08-10-1000-a.md / F1: unknown state 'maybe'" in judgment
+    assert "ruling no-equals-sign: not <report>/<id>=<state>" in judgment
+    # the ledger's row stands: F2 stays declined, F1 stays as the verification ruled
+    assert "| 1 | 1 | 0 | 1 | 0 |" in text
+
+
+def test_the_screen_caps_evidence_and_judgment_items(repo, odd_status, odd_render):
+    baseline_and_verification(repo)
+    for n in range(16):
+        repo.write(f"top-level-directory-{n:02d}/file.py", "print('x')\n")
+    repo.commit("feat: many entries", date="2026-08-14T12:00:00Z")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    text = odd_render.render(facts, today="2026-08-15")
+    assert "| judgment needed |" in text
+    prefix = "- checkout / local / local: "
+    line = next(
+        line
+        for line in text.split("## Loop state")[1].splitlines()
+        if line.startswith(prefix)
+    )
+    evidence = line[len(prefix) :]
+    assert evidence.endswith("…")
+    assert len(evidence) <= odd_render.MAX_SCREEN_EVIDENCE + 1
+    assert "whole items and evidence" in text and "--full" in text
+    # the lineage's item points at the row instead of repeating the evidence
+    judgment = text.split("## Judgment needed")[1]
+    assert (
+        "checkout / local / local: judgment needed - see its evidence under Loop state"
+        in judgment
+    )
+    assert "boundary uncertain" not in judgment
+    full = odd_render.render(facts, today="2026-08-15", full=True)
+    assert "top-level-directory-15" in full.split("## Judgment needed")[1]
+    assert "see its evidence under" not in full
+
+
+def test_the_screen_lists_the_invariant_violations_only(repo, odd_status, odd_render):
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a").replace("mode: drive", "mode: drove"),
+    )
+    repo.write(
+        ".odd/decisions.md",
+        LEDGER_HEAD
+        + "| 2026-08-13 | 2026-08-10-1000-a.md / F9 | wontfix | no such finding |\n",
+    )
+    repo.commit("docs(odd): report and decision")
+    text = screen(repo, odd_status, odd_render)
+    line = next(l for l in text.splitlines() if "memory invariant" in l)
+    assert "1 violation" in line and "mode 'drove'" in line
+    assert "1 ledger row skipped" in line and "carries no finding F9" in line
+    assert "append-only" not in text
+
+
+def test_a_ruling_settles_the_out_of_chain_item_it_names(repo, odd_status, odd_render):
+    # a second verification of the same lineage rules F1 of a report outside
+    # its chain: the rules defer; the caller's ruling on that finding settles it
+    baseline_and_verification(repo)
+    # b defines F3 only; its verification rules F1, which only a defines
+    body_b = DEFAULT_BODY.replace("| F1 | N+1 on cart lines", "| F3 | Lock contention")
+    body_b = body_b.replace(
+        "| F2 | Cold start | low | suspected | first call 400 ms | none |\n", ""
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-13-1000-b.md",
+        observation(run_name="b", date="2026-08-13", body=body_b),
+    )
+    write_verify(
+        repo, "2026-08-14-1000-verify-b.md", "2026-08-13-1000-b.md", VERIFY_BODY
+    )
+    repo.commit("docs(odd): reports")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    before = odd_render.render(facts, today="2026-08-15", full=True)
+    f1_item = "2026-08-14-1000-verify-b.md rules F1"
+    f2_item = "2026-08-14-1000-verify-b.md rules F2"
+    judgment = before.split("## Judgment needed")[1]
+    assert f1_item in judgment and f2_item in judgment
+    after = odd_render.render(
+        facts, today="2026-08-15", full=True, ruled=["2026-08-10-1000-a.md/F1=fixed"]
+    )
+    judgment = after.split("## Judgment needed")[1]
+    assert f1_item not in judgment  # settled: every finding it names is ruled
+    assert f2_item in judgment  # untouched
+
+
+def test_the_burn_down_is_attributed_per_lineage(repo, odd_status, odd_render):
+    baseline_and_verification(repo)  # checkout: F1 fixed, F2 open, V1 open
+    repo.write(
+        ".odd/observe-run-reports/2026-08-13-1000-p.md",
+        observation(
+            services="[payment]", run_name="p", date="2026-08-13", body=DEFAULT_BODY
+        ),
+    )
+    repo.commit("docs(odd): payment report")
+    text = odd_render.render(
+        odd_status.build_facts(repo.root, recent=None), today="2026-08-14", full=True
+    )
+    loop = text.split("## Loop state")[1].split("## Per-service loop state")[0]
+    checkout = next(l for l in loop.splitlines() if l.startswith("| checkout /"))
+    payment = next(l for l in loop.splitlines() if l.startswith("| payment /"))
+    assert "| 2 | 1 | 0 | 0 | 0 |" in checkout
+    assert "| 2 | 0 | 0 | 0 | 0 |" in payment
+    assert (
+        "Burn-down: open 4 · fixed-and-verified 1 · regressed 0 · declined 0." in text
+    )
+
+
+def test_the_screen_caps_the_judgment_items_in_length_and_in_count(
+    repo, odd_status, odd_render
+):
+    # twelve findings, each ruled in words the rules cannot read, at length
+    findings = "".join(
+        f"| F{n} | Finding {n} | low | suspected | evidence | none |\n"
+        for n in range(1, 13)
+    )
+    body = DEFAULT_BODY.replace(
+        "| F1 | N+1 on cart lines | high | confirmed | 30 spans per call | p95 -60 ms |\n"
+        "| F2 | Cold start | low | suspected | first call 400 ms | none |\n",
+        findings,
+    )
+    rulings = "".join(
+        f"| F{n} | Finding {n} | mostly, see the long note {'x' * 200} | - |\n"
+        for n in range(1, 13)
+    )
+    verify_body = VERIFY_BODY.replace(
+        "| F1 | N+1 on cart lines | FIXED | 1 span per call |\n"
+        "| F2 | Cold start | still present | 390 ms |\n",
+        rulings,
+    )
+    rev = repo.git("rev-parse", "--short", "HEAD")
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", revision=rev, body=body),
+    )
+    write_verify(
+        repo, "2026-08-12-1000-verify-a.md", "2026-08-10-1000-a.md", verify_body
+    )
+    repo.commit("docs(odd): reports")
+    text = screen(repo, odd_status, odd_render, today="2026-08-13")
+    items = [
+        line
+        for line in text.split("## Judgment needed")[1].splitlines()
+        if line.startswith("- ")
+    ]
+    assert len(items) == odd_render.MAX_SCREEN_ITEMS + 1
+    assert items[-1] == f"- +{12 - odd_render.MAX_SCREEN_ITEMS} more - `--full`"
+    for item in items[:-1]:
+        assert item.endswith("…") and len(item) <= odd_render.MAX_SCREEN_ITEM + 3
+    full = rendered(repo, odd_status, odd_render, today="2026-08-13")
+    full_items = [
+        line
+        for line in full.split("## Judgment needed")[1].splitlines()
+        if line.startswith("- ")
+    ]
+    assert len(full_items) == 12 and "more - `--full`" not in full
+    assert not any(i.endswith("…") for i in full_items)
+
+
+def test_a_ruling_with_nothing_to_rule_is_said(repo, odd_status, odd_render):
+    facts = odd_status.build_facts(repo.root, recent=None)
+    text = odd_render.render(facts, ruled=["x/F1=fixed"])
+    assert "has not started" in text and "1 ruling not applied" in text
+    assert "ruling" not in odd_render.render(facts)
+
+
+def test_a_ruling_key_may_carry_the_report_path(repo, odd_status, odd_render):
+    assert odd_render.parse_ruling(".odd/observe-run-reports/a.md/F1=fixed") == (
+        "a.md / F1",
+        "fixed-and-verified",
+    )

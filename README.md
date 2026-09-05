@@ -193,16 +193,18 @@ body structure — are documented in
 
 ```text
 /odd-status
+/odd-status full picture, every finding and every trend
 /odd-status where is the loop for my service XXX
 /odd-status what was observed on prod for my service XXX
 /odd-status wontfix F4 of my last XXX report - port-move is rare, 14.5s accepted
 ```
 
-Answers "where is the loop?" for this repository — per service, where
-the last observation and verification stand, which findings are still
-open, and what to do next — from the committed `.odd/` history and git
-alone: no backend query, nothing written. Scope it to a service, a
-stack, or an environment when the picture is wide. It also records
+Answers "where is the loop?" for this repository — one screen, per
+service and stack: the last report, how many findings are open, fixed,
+or declined, and what to do next — from the committed `.odd/` history and
+git alone: no backend query, nothing written. Ask for the full picture,
+or scope it to a service, a stack, or an environment, to get every
+finding, trend, and gap. It also records
 your decision on a finding no fix will ever address: name the finding
 and give a one-sentence reason, and the decision lands in
 `.odd/decisions.md`, the committed ledger next to the reports, so the
