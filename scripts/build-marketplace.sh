@@ -10,7 +10,7 @@
 # always carry the released version and the matching oddyssey-mcp pin.
 set -euo pipefail
 
-APM_CLI_VERSION="${APM_CLI_VERSION:-0.28.0}"
+APM_CLI_VERSION="${APM_CLI_VERSION:-0.29.0}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
@@ -35,7 +35,7 @@ mkdir -p marketplace/oddyssey/.claude-plugin
 cp -R "$TMP"/oddyssey-*/. marketplace/oddyssey/
 mv marketplace/oddyssey/plugin.json marketplace/oddyssey/.claude-plugin/plugin.json
 
-# apm-cli 0.28.0's plugin.json synthesis carries name/version/description/
+# apm-cli's plugin.json synthesis carries name/version/description/
 # license/homepage/repository/author/keywords from apm.yml's root, but drops
 # displayName (undocumented in its synthesizer); inject it by hand so the
 # `/plugin` picker shows a human-readable name instead of the package slug.
