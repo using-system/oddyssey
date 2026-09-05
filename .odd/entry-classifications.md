@@ -17,3 +17,4 @@ persists nothing.
 | 2026-09-05 | scripts | non-runtime | build and release helpers, never on the request path |
 | 2026-09-05 | integration-tests | non-runtime | tests, never shipped |
 | 2026-09-05 | tests | non-runtime | tests, never shipped |
+| 2026-09-05 | src | runtime | the MCP server, the observed service |
