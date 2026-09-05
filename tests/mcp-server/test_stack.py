@@ -25,7 +25,7 @@ def test_run_args_build_the_pinned_container():
 
     assert args[:2] == ["docker", "run"]
     assert args[-1] == IMAGE
-    assert IMAGE == "grafana/otel-lgtm:0.31.0"
+    assert IMAGE == "grafana/otel-lgtm:0.32.1"
     assert CONTAINER_NAME in args
     for mapping in ("3000:3000", "4317:4317", "4318:4318", "4040:4040"):
         assert mapping in args
@@ -165,7 +165,7 @@ def test_stack_status_carries_container_identity(monkeypatch):
     # no docker inspect on the caller's side.
     _identity_docker(
         monkeypatch,
-        inspect_json='{"image": "grafana/otel-lgtm:0.31.0",'
+        inspect_json='{"image": "grafana/otel-lgtm:0.32.1",'
         ' "created": "2026-08-29T08:12:03.1Z",'
         ' "started": "2026-08-29T08:12:04.5Z"}',
     )
@@ -176,7 +176,7 @@ def test_stack_status_carries_container_identity(monkeypatch):
 
     status = stack_status(transport=httpx.MockTransport(handler))
     assert status["running"] is True
-    assert status["image"] == "grafana/otel-lgtm:0.31.0"
+    assert status["image"] == "grafana/otel-lgtm:0.32.1"
     assert status["created"] == "2026-08-29T08:12:03.1Z"
     assert status["started"] == "2026-08-29T08:12:04.5Z"
     assert status["env"] == {"GF_LOG_LEVEL": "debug"}
