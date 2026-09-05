@@ -263,7 +263,8 @@ this reference's:
    per-operation numbers and their deltas); section 3 (the findings the
    new run rules on); and section 7 (the protocol's checks and
    before-values). A **verification** or **re-measure** run also reads
-   section 5 (every gap it must rule filled or still missing). Sections
+   section 5 (every gap it must rule filled, still missing or, at
+   quick depth, not ruled). Sections
    4 and 6 are never part of the recall: a stored report runs 300 to 500
    lines, and the new run re-derives those from live telemetry. An
    **instrumentation report** baseline
@@ -328,9 +329,10 @@ caller closing the mission:
     confidence cells the table carries, never the evidence or the
     detail per row; in a verify or re-measure, each baseline anomaly's
     fate with it (fixed, still present, worse);
-  - section 5's telemetry gaps, one line each (at quick depth, its
-    single line); in a verify or re-measure, each baseline gap's fate
-    with it (filled, still missing);
+  - section 5's telemetry gaps — its `not queried (<depth>)` line when
+    it carries one, then its bullets, one per gap, each carrying the
+    gap's fate (filled, still missing, new, not ruled (quick)) and its
+    discovery query;
   - section 6's open decisions, one line each, or that there are none.
 
 Never the report body (the memory contract says why);
@@ -440,11 +442,13 @@ conversation's memory of the mission.
 4. **The core, by kind** — tables, capped at ~10 rows with a
    `+N more in the report` marker:
    - observation / re-measure: the findings table (severity |
-     confidence | one-line anomaly), then the telemetry gaps, one
-     line each;
+     confidence | one-line anomaly), then section 5's not-queried line
+     when it carries one and the telemetry gaps, one line per bullet;
    - verification: the verdict table first (check | before | after |
      pass/fail), then the anomalies ruled fixed / still present /
-     worse and the gaps ruled filled / still missing, one line each —
+     worse, one line each, and the gaps ruled filled / still missing /
+     not ruled (quick), one line per bullet of section 5, the fate the
+     bullet carries —
      for an instrumentation baseline, the presence rulings instead
      (planned item | closed / present, unattributed / still missing),
      and nothing else to rule.
