@@ -1,5 +1,6 @@
 import json
 import re
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 
 import pytest
@@ -701,3 +702,23 @@ def test_load_flags_an_undeclared_key_of_a_custom_stack(tmp_path):
     result = config.load(path)
     assert result["stack_config"] == {"seq": {"base_url": "u"}}
     assert result["invalid_ignored"] == ["stack_config.seq.api_key"]
+
+
+def test_installed_version_reads_the_distribution_metadata():
+    # Issue #395: the distribution's version, never a constant.
+    assert config.installed_version() == importlib_metadata.version("oddyssey-mcp")
+
+
+def test_installed_version_is_none_when_the_distribution_is_absent(monkeypatch):
+    def missing(name):
+        raise importlib_metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(config.importlib_metadata, "version", missing)
+
+    assert config.installed_version() is None
+
+
+def test_load_carries_no_version(tmp_path):
+    # The version is not configuration: load stays the file's effective
+    # shape, odd_config_get adds the installed version next to it.
+    assert "version" not in config.load(tmp_path / "config.json")

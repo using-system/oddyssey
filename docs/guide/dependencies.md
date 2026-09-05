@@ -474,7 +474,8 @@ hooks setting).
 ## MCP tools
 
 `odd_config_get` / `odd_config_set` read and write the global
-configuration (stack, local ports, per-stack `stack_config`);
+configuration (stack, local ports, per-stack `stack_config`) -
+`odd_config_get` also answers the installed `oddyssey-mcp` version;
 `odd_stack_status` / `odd_stack_up` / `odd_stack_reset` pilot the
 local otel-lgtm container. They are the only components with machine
 state - every prompt, agent, and skill above is a prose contract.

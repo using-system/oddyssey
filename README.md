@@ -370,7 +370,7 @@ than the local otel-lgtm container.
 | `odd_stack_down` | Destroy it — stored telemetry does not survive | — |
 | `odd_stack_status` | Probe whether it is up — and get the container's identity too: `image`, `created`/`started` timestamps, and its user-set `env` (credential-named values redacted to `null`; all four `null` when there is no container) | — |
 | `odd_stack_reset` | Wipe all stored telemetry and return a fresh, ready stack — the next run starts from a clean slate | `env` (optional) — always applies, the container is recreated; persisted/reapplied like `odd_stack_up` |
-| `odd_config_get` | Read the global configuration — stack backend, local host ports, per-stack targeting values, custom stack declarations | — |
+| `odd_config_get` | Read the global configuration — stack backend, local host ports, per-stack targeting values, custom stack declarations — and the installed `oddyssey-mcp` version | — |
 | `odd_config_set` | Update it — a port change resets the stack so the new value applies right away | `config` — partial merge, e.g. `{"local": {"grafana_port": 3300}}`; inside `stack_config` and `custom`, `null` deletes a key or a stack's entry; a stack outside the built-in list needs a `custom` declaration |
 
 The server is instrumented with OpenTelemetry and, by default, exports its

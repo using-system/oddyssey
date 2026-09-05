@@ -13,6 +13,7 @@ import json
 import os
 import re
 import tempfile
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 
 CONFIG_PATH = Path.home() / ".oddyssey" / "config.json"
@@ -115,6 +116,18 @@ def _allowed_fields(
 def _stack_config_key_allowed(stack_key: str, key: str, custom: dict) -> bool:
     fields = _allowed_fields(stack_key, custom)
     return fields is None or (fields is not False and key in fields)
+
+
+def installed_version() -> str | None:
+    """The installed oddyssey-mcp distribution's version, read from its
+    metadata like the telemetry resource's service.version - never a
+    constant. None when the distribution is absent (a source checkout not
+    installed as a distribution): a version never breaks a tool.
+    """
+    try:
+        return importlib_metadata.version("oddyssey-mcp")
+    except Exception:  # noqa: BLE001 - a version never breaks a tool
+        return None
 
 
 def load(path: Path | None = None) -> dict:
