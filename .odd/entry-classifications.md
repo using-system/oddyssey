@@ -1,0 +1,13 @@
+# ODD entry classifications
+
+Rulings the maintainer took on the repository's top-level tree entries
+— whether a change under one can alter the observed services' runtime
+behavior — the committed memory that lets `/odd-status` settle a
+report's code boundary without asking again. Rows are appended, never
+rewritten; a later row for the same entry supersedes the earlier one.
+A flag given to the status script overrides a row for one run and
+persists nothing.
+
+| Date | Entry | Class | Rationale |
+|---|---|---|---|
+| 2026-09-05 | .apm | non-runtime | the package's prompts, agents and skills - never on the MCP server's request path |
