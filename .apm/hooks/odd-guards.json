@@ -29,6 +29,15 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ./scripts/check_report_frontmatter.py PostToolUse",
+            "timeout": 10
+          }
+        ]
       }
     ]
   }
