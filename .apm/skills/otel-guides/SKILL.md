@@ -1,6 +1,6 @@
 ---
 name: otel-guides
-description: Curated map of the official OpenTelemetry documentation by language. Use when planning or implementing OpenTelemetry instrumentation for a codebase - pick the language, open its reference file, and follow the linked official docs for traces, metrics, logs, instrumentation libraries, exporters, and SDK configuration. Covers C++, .NET, Erlang/Elixir, Go, Java, JavaScript, Kotlin, PHP, Python, Ruby, Rust, Swift, and other community SDKs, plus the cross-language references for SDK configuration, semantic conventions, and the Collector.
+description: Curated map of the official OpenTelemetry documentation by language. Use when planning or implementing OpenTelemetry instrumentation for a codebase - pick the language, open its reference file, and follow the linked official docs for traces, metrics, logs, instrumentation libraries, exporters, and SDK configuration. Covers C++, .NET, Erlang/Elixir, Go, Java, JavaScript, Kotlin, PHP, Python, Ruby, Rust, Swift, and other community SDKs, plus the cross-language references for SDK configuration, semantic conventions, generative AI (the gen_ai conventions and the instrumentation library per LLM SDK or agent framework), and the Collector.
 ---
 
 # OpenTelemetry Language Guides
@@ -38,21 +38,27 @@ API references, registry).
 
 ## Cross-language references
 
-Three things are the same whatever the language: the environment variables
+Four things are the same whatever the language: the environment variables
 that configure the SDK (`OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`,
 `OTEL_RESOURCE_ATTRIBUTES`, ...), the conventions that name what you emit
-(resource, HTTP, database, messaging, RPC, ...), and the option of putting
-a Collector between the app and the backend (agent, gateway, or neither).
+(resource, HTTP, database, messaging, RPC, ...), the generative AI
+conventions (`gen_ai.*` spans, token and duration metrics, content capture)
+with the instrumentation library that emits them per SDK or framework, and
+the option of putting a Collector between the app and the backend (agent,
+gateway, or neither).
 
 | Topic | Reference |
 | --- | --- |
 | SDK configuration | [references/sdk-configuration.md](references/sdk-configuration.md) |
 | Semantic conventions | [references/semconv.md](references/semconv.md) |
+| Generative AI | [references/genai.md](references/genai.md) |
 | Collector | [references/collector.md](references/collector.md) |
 
 Open the semantic conventions reference for every domain you name things
-in, and the Collector reference before deciding between direct OTLP export
-and a Collector.
+in, the generative AI reference whenever the code calls a model, an agent
+framework, or an MCP server (its detection section lists the manifest names
+that mean it does), and the Collector reference before deciding between
+direct OTLP export and a Collector.
 
 ## Rules
 
