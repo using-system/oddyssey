@@ -1,6 +1,6 @@
 ---
 name: odd-memory
-description: The .odd/ memory - its contract and one reference per kind. The contract states what every kind shares (where the memory lives, the frontmatter and the whole body, append-only reports versus living-source benchmarks, recall by frontmatter then by section, the no-secrets rule, the work branch and the lone commit, the reply that carries a synthesis and never the artifact); each reference says how to persist, recall and show its kind - observation reports, instrumentation reports, benchmarks, the finding-decision ledger, custom stack files. Read when a report, a benchmark, a custom stack file or a decision is persisted, recalled, shown or inventoried, or when a finding is declined (wontfix) or such a decision reversed; never invoked on its own.
+description: The .odd/ memory - its contract and one reference per kind. The contract states what every kind shares (where the memory lives, the frontmatter and the whole body, append-only reports versus living-source benchmarks, recall by frontmatter then by section, the no-secrets rule, the work branch and the lone commit, the reply that carries a synthesis and never the artifact); each reference says how to persist, recall and show its kind - observation reports, instrumentation reports, benchmarks, the maintainer-ruling ledgers (finding decisions, tree-entry classifications), custom stack files. Read when a report, a benchmark, a custom stack file or a decision is persisted, recalled, shown or inventoried, or when a finding is declined (wontfix) or such a decision reversed, or a tree entry is ruled runtime or non-runtime; never invoked on its own.
 ---
 
 # The `.odd/` memory contract
@@ -17,7 +17,7 @@ stored one is shown):
 | --- | --- | --- |
 | Observation reports | `.odd/observe-run-reports/` | [references/observe-run-report.md](references/observe-run-report.md) |
 | Instrumentation reports | `.odd/otel-instrumentation-reports/` | [references/otel-instrumentation-report.md](references/otel-instrumentation-report.md) |
-| Finding decisions | `.odd/decisions.md`, written by `scripts/odd_ledger.py` | [references/decisions.md](references/decisions.md) |
+| Maintainer rulings | `.odd/decisions.md` (findings) and `.odd/entry-classifications.md` (tree entries), written by `scripts/odd_ledger.py` | [references/decisions.md](references/decisions.md) |
 | Benchmarks | `.odd/benchmarks/<name>/` | [references/benchmark.md](references/benchmark.md) |
 | Custom stacks | `.odd/observability-stacks/<name>.md` | [references/observability-stack.md](references/observability-stack.md) |
 
@@ -32,9 +32,11 @@ needs, never whole. To **persist** an artifact, read its naming and
 format sections and its `## Rules`; to **recall** the baseline before
 a run, its `## Recall`; to **show** a stored artifact at the end of a
 mission, its `## Show` and nothing else; to **record** a decision, the
-ledger reference's `## Recording a decision` and `## Rules`. The
-`## Return value` of a report reference is what the persistence hands
-the caller, and what `## Show` renders from.
+ledger reference's `## Recording a decision` and `## Rules`, and to
+record a tree-entry classification, its
+`## The entry-classification ledger`. The `## Return value` of a
+report reference is what the persistence hands the caller, and what
+`## Show` renders from.
 
 ## Where the memory lives
 
@@ -62,29 +64,30 @@ the caller, and what `## Show` renders from.
 
 ## Append-only, with one exception
 
-- The report stores and the decision ledger are **append-only
+- The report stores and the ruling ledgers are **append-only
   evidence**: one run, one file — never edit a stored report to
   "update" it, a new run writes a new file and the diff lives there; a
   decision is a row appended, never rewritten, and the latest row for a
-  finding wins. A report is never modified to carry a decision: the
-  ledger is the decision's only home — and a ledger is written by the
-  script its reference names, which checks the row before it lands,
-  never by a file tool; the reference's prose steps are the fallback
-  where the script cannot run.
+  finding wins, as does the latest row for a tree entry. A report is
+  never modified to carry a decision: the ledger is the decision's only
+  home — and a ledger is written by the script its reference names,
+  which checks the row before it lands, never by a file tool; the
+  reference's prose steps are the fallback where the script cannot
+  run.
 - A **benchmark is living source**, not a run record: it is updated in
   place through reviewed diffs, and git history, not file accumulation,
   is its memory. It is never overwritten silently — an update is a diff
   the maintainer reviews like any other committed change. A **custom
   stack file** is living source the same way.
 - The consumers keep the two apart: `/odd-verify` and `/odd-status`
-  treat a commit that touches only the report stores or the ledger as
+  treat a commit that touches only the report stores or a ledger as
   memory, not code, while a commit that changes a benchmark or a custom
   stack file is a code change.
 
 ## Recall: reading the memory
 
 For the two report stores — a benchmark is recalled by service and by
-name, a custom stack by name, the ledger is one file; their references
+name, a custom stack by name, each ledger is one file; their references
 own that:
 
 - List the store newest first (the filenames sort chronologically). A

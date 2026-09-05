@@ -327,8 +327,9 @@ Across all of them:
 Answers "where is the loop?" from the committed `.odd/` history and
 git alone — no backend query, nothing written. Arguments: **service
 name(s)**, a **stack**, and/or a **deployment environment** to
-restrict the picture to, **full** for the whole tables, or a
-**decision on a finding**.
+restrict the picture to, **full** for the whole tables, a
+**decision on a finding**, or a **classification of a top-level
+directory or file** as runtime or not.
 
 ```text
 /odd-status
@@ -378,12 +379,22 @@ finding, "wontfix" the verdict, the rest a one-sentence rationale,
 recorded as one row in `.odd/decisions.md`; the finding then renders
 as declined, and "reopen F4: ..." reverses it.
 
+```text
+/odd-status .apm is non-runtime - it is the package's prompts, never on the request path
+```
+
+A classification of a top-level tree entry: ".apm" is the entry,
+"non-runtime" the class, the rest the rationale, recorded as one row
+in `.odd/entry-classifications.md`; the status then settles that
+entry by itself on every later run instead of asking.
+
 Across all of them:
 
 - a scope matching nothing says what was searched and what exists
   instead, never an error;
-- for a decision, the prompt asks when the finding reference is
-  ambiguous or the rationale missing.
+- for a decision or a classification, the prompt asks when the
+  finding reference is ambiguous or the rationale missing, and
+  records nothing you did not ask for.
 
 ## /odd-config
 

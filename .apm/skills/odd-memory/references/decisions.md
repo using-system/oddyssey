@@ -1,15 +1,18 @@
-# Finding decisions
+# Maintainer rulings
 
 A finding no verification ever ruled on stays open forever — the status
 has no other verdict for it, however deliberately the maintainer decided
 to live with it. The decision is real, it is just homeless: it was taken
 between runs, and the only artifacts that could carry it are past
 evidence that must never be rewritten. This reference gives it a committed
-home of its own, next to the reports and never inside them. What every
-kind of memory shares is the contract in `SKILL.md`; this reference
-states what is specific to the ledger.
+home of its own, next to the reports and never inside them. The same
+holds for a second ruling the status needs and cannot make alone —
+whether a top-level tree entry of the repository can change the
+observed services' runtime — which gets a ledger of its own below.
+What every kind of memory shares is the contract in `SKILL.md`; this
+reference states what is specific to the two ledgers.
 
-## The ledger
+## The finding ledger
 
 Path: `<repo-root>/.odd/decisions.md`, committed. Created on first
 decision with this exact skeleton:
@@ -128,3 +131,79 @@ in the reply that the row was written by hand.
   and that a decision on a work branch reaches `/odd-status` on the
   default branch only once that branch is merged, so it is not
   recorded a second time from there.
+
+## The entry-classification ledger
+
+`/odd-status` decides whether the commits since a report changed the
+observed service's runtime by comparing the report's tree anchor with
+HEAD, entry by entry. It knows a built-in list of names that cannot
+change any service's runtime in any repository (`.github`, `docs`,
+`README.md`, ...) and defers every other entry it cannot classify —
+`.apm`, `src`, a `marketplace` directory — to a judgment that is the
+same on every run of the same repository. This ledger records that
+judgment once.
+
+Path: `<repo-root>/.odd/entry-classifications.md`, committed. Created
+on first ruling with this exact skeleton:
+
+```markdown
+# ODD entry classifications
+
+Rulings the maintainer took on the repository's top-level tree entries
+— whether a change under one can alter the observed services' runtime
+behavior — the committed memory that lets `/odd-status` settle a
+report's code boundary without asking again. Rows are appended, never
+rewritten; a later row for the same entry supersedes the earlier one.
+A flag given to the status script overrides a row for one run and
+persists nothing.
+
+| Date | Entry | Class | Rationale |
+|---|---|---|---|
+```
+
+One row per ruling:
+
+```markdown
+| 2026-09-05 | .apm | non-runtime | the package's prompts, agents and skills - never on the request path |
+```
+
+- `Date` — the ruling's UTC date, `YYYY-MM-DD`.
+- `Entry` — a top-level path of the repository exactly as
+  `git ls-tree HEAD` names it (`src`, `.apm`, `apm.yml`); the script
+  checks the exact name, the status reads it case-insensitively, as
+  it reads the flags and the built-in list. Never `.odd`: the tree
+  anchor always ignores it.
+- `Class` — `runtime` or `non-runtime`.
+- `Rationale` — one sentence, required. No secrets.
+
+**Recording a classification** — `classify <entry> <runtime|non-runtime>
+--rationale "<sentence>"` with the script above: it checks that the
+entry is a top-level entry of HEAD, requires the rationale under the
+same rules as a decision's, appends the row (the skeleton when the
+file is absent) and leaves the rows above untouched; it prints the
+path, the row, the work branch
+`docs/odd-entry-classification-<entry>-<class>` (both values
+normalized as a decision's branch is) and the commit subject
+`docs(odd): entry classification <entry> <class>`. The commit carries
+`.odd/entry-classifications.md` alone, on that branch, under the
+memory contract; the reply states the appended row with the path and
+the commit, and that a ruling on a work branch reaches `/odd-status`
+on the default branch only once that branch is merged. A change of
+mind is a new row, never a rewrite. By hand, only when the script
+cannot run: the same steps, and say so.
+
+**Not recorded**: an entry that is runtime for one lineage and not
+for another — the ledger holds for the whole repository, so the
+deferral stays and the status says so; and an entry the built-in list
+already settles, unless the repository contradicts it (a `docs`
+directory the service serves is a `runtime` row).
+
+**How the status reads it** — precedence, the same the flags always
+had: a `--runtime` / `--non-runtime` flag for one run, then the
+latest row of this ledger for the entry, then the built-in list. A
+ruling settles an entry whose hash differs from the anchor's; an
+entry present on one side only — added or removed since the anchor —
+stays uncertain whatever its ruling. A row naming no top-level entry
+of HEAD, or a class the rule does not know, is reported and skipped
+by the memory invariant, never fatal — a new row supersedes it. A
+commit that touches only this ledger is memory, not code.

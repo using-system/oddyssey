@@ -1682,3 +1682,109 @@ def test_invariant_covers_every_stored_report_even_when_the_status_is_filtered(r
     assert result["matched"] == 1
     assert result["invariant"]["checked"] == 2
     assert "2026-08-10-1000-checkout-sweep.md" in _violations(result)
+
+
+# --- the entry-classification ledger ------------------------------------------------
+
+
+CLASSIFICATIONS_HEAD = (
+    "# ODD entry classifications\n\nRows are appended, never rewritten.\n\n"
+    "| Date | Entry | Class | Rationale |\n|---|---|---|---|\n"
+)
+
+
+def _anchored_report(repo: Repo) -> None:
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(
+            run_name="a", extra_frontmatter=f"tree_anchor: {repo.tree_anchor()}"
+        ),
+    )
+    repo.commit("docs(odd): report")
+
+
+def test_classifications_absent_is_a_fact(repo):
+    _anchored_report(repo)
+    assert facts(repo)["classifications"] == {
+        "present": False,
+        "rows": [],
+        "effective": {},
+    }
+
+
+def test_classification_rows_are_read_latest_wins_and_bad_rows_are_reported(repo):
+    _anchored_report(repo)
+    repo.write(
+        ".odd/entry-classifications.md",
+        CLASSIFICATIONS_HEAD
+        + "| 2026-08-11 | src | non-runtime | first thought |\n"
+        + "| 2026-08-12 | src | runtime | the service |\n"
+        + "| 2026-08-12 | Docs | runtime | served by the service |\n"
+        + "| 2026-08-12 | nope | runtime | no such entry |\n"
+        + "| 2026-08-12 | src | maybe | no such class |\n"
+        + "| 2026-08-12 | src | runtime |\n",
+    )
+    repo.commit("docs(odd): classifications")
+    ledger = facts(repo)["classifications"]
+    assert ledger["present"] is True
+    assert [(r["line"], r["status"]) for r in ledger["rows"]] == [
+        (7, "ok"),
+        (8, "ok"),
+        (9, "ok"),
+        (10, "skipped"),
+        (11, "skipped"),
+        (12, "skipped"),
+    ]
+    reasons = {
+        r["line"]: r["reason"] for r in ledger["rows"] if r["status"] == "skipped"
+    }
+    assert reasons[10] == "no top-level entry named nope at HEAD"
+    assert reasons[11] == "class is neither runtime nor non-runtime: maybe"
+    assert reasons[12] == "expected 4 columns, got 3"
+    assert ledger["effective"]["src"]["class"] == "runtime"
+    assert ledger["effective"]["src"]["line"] == 8
+    assert ledger["effective"]["docs"]["class"] == "runtime"
+
+
+def test_classification_precedence_is_flag_then_file_then_built_in(repo):
+    _anchored_report(repo)
+    repo.write(
+        ".odd/entry-classifications.md",
+        CLASSIFICATIONS_HEAD
+        + "| 2026-08-12 | src | non-runtime | a vendored mirror, never run |\n"
+        + "| 2026-08-12 | docs | runtime | served by the service |\n",
+    )
+    repo.commit("docs(odd): classifications")
+    repo.write("src/app.py", "print('v2')\n")
+    repo.write("docs/guide.md", "# v2\n")
+    repo.write("README.md", "# v2\n")
+    repo.commit("feat: change everything")
+    # the file settles src and docs, the built-in list settles README.md
+    diff = facts(repo)["reports"][0]["tree_anchor_diff"]
+    assert diff["non_runtime"] == ["README.md", "src"]
+    assert diff["runtime"] == ["docs"]
+    assert diff["unclassified"] == []
+    assert diff["classified_by"] == {
+        "README.md": "built-in",
+        "src": "file",
+        "docs": "file",
+    }
+    # a flag overrides the file for one run, in both directions
+    diff = facts(repo, runtime=["src"], non_runtime=["docs"])["reports"][0][
+        "tree_anchor_diff"
+    ]
+    assert diff["runtime"] == ["src"] and "docs" in diff["non_runtime"]
+    assert diff["classified_by"]["src"] == "flag"
+    assert diff["classified_by"]["docs"] == "flag"
+
+
+def test_a_classifications_only_commit_is_memory_not_code(repo):
+    rev = repo.git("rev-parse", "--short", "HEAD")
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", revision=rev),
+    )
+    repo.commit("docs(odd): report")
+    repo.write(".odd/entry-classifications.md", CLASSIFICATIONS_HEAD)
+    repo.commit("docs(odd): entry classification src runtime")
+    assert facts(repo)["reports"][0]["commits_since"]["count"] == 0

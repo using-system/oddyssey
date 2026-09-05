@@ -513,6 +513,15 @@ def screen_lines(facts: dict) -> list[str]:
         if ledger["present"]
         else "ledger: absent"
     )
+    classifications = facts.get("classifications") or {"present": False, "rows": []}
+    skipped_classes = [r for r in classifications["rows"] if r["status"] == "skipped"]
+    classifications_text = (
+        f"classifications: "
+        f"{sum(r['status'] == 'ok' for r in classifications['rows'])} row(s)"
+        + (f", {len(skipped_classes)} skipped" if skipped_classes else "")
+        if classifications["present"]
+        else "classifications: absent"
+    )
     head = facts["head"] or {}
     invariant = facts.get("invariant") or {
         "checked": 0,
@@ -521,19 +530,24 @@ def screen_lines(facts: dict) -> list[str]:
     }
     violations = invariant["violations"]
     legacy = invariant.get("legacy", [])
-    if not violations and not skipped:
+    if not violations and not skipped and not skipped_classes:
         status = (
             f"clean ({invariant['checked']} of {invariant['checked']}"
             + (f"; {len(legacy)} predate `depth`, read as full" if legacy else "")
             + ")"
         )
     else:
-        problems = [
-            f"{Path(v['path']).name} - {p}" for v in violations for p in v["problems"]
-        ] + [f"decisions.md line {r['line']} - {r['reason']}" for r in skipped]
+        problems = (
+            [f"{Path(v['path']).name} - {p}" for v in violations for p in v["problems"]]
+            + [f"decisions.md line {r['line']} - {r['reason']}" for r in skipped]
+            + [
+                f"entry-classifications.md line {r['line']} - {r['reason']}"
+                for r in skipped_classes
+            ]
+        )
         status = (
             f"{plural(len(violations), 'violation')}, "
-            f"{plural(len(skipped), 'ledger row')} skipped"
+            f"{plural(len(skipped) + len(skipped_classes), 'ledger row')} skipped"
             + (f", {len(legacy)} predate `depth`" if legacy else "")
             + ": "
             + "; ".join(problems)
@@ -544,7 +558,8 @@ def screen_lines(facts: dict) -> list[str]:
             f"({kinds['observation']} observation, {kinds['instrumentation']} "
             f"instrumentation) · services: {', '.join(inventory['services']) or 'none'} "
             f"· stacks: {', '.join(inventory['stacks']) or 'none'} · environments: "
-            f"{', '.join(inventory['environments']) or 'none'} · {ledger_text} · HEAD "
+            f"{', '.join(inventory['environments']) or 'none'} · {ledger_text} · "
+            f"{classifications_text} · HEAD "
             f"{str(head.get('sha', '?'))[:7]} ({str(head.get('date', '?'))[:10]})"
         ),
         f"- memory invariant: {status}",
@@ -1090,6 +1105,13 @@ def inventory_lines(facts: dict) -> list[str]:
         if ledger["present"]
         else "absent (no decision recorded yet)"
     )
+    classifications = facts.get("classifications") or {"present": False, "rows": []}
+    classifications_line = (
+        f"present, {sum(r['status'] == 'ok' for r in classifications['rows'])} row(s) read, "
+        f"{sum(r['status'] == 'skipped' for r in classifications['rows'])} skipped"
+        if classifications["present"]
+        else "absent (no entry classified yet)"
+    )
     head = facts["head"] or {}
     return [
         "## Inventory",
@@ -1104,6 +1126,7 @@ def inventory_lines(facts: dict) -> list[str]:
             f"environments: {', '.join(inventory['environments']) or 'none'}"
         ),
         f"- Decisions ledger: {ledger_line}",
+        f"- Entry classifications: {classifications_line}",
         f"- HEAD: {str(head.get('sha', '?'))[:7]} ({str(head.get('date', '?'))[:10]})",
         "",
     ]
@@ -1118,6 +1141,8 @@ def invariant_section(facts: dict) -> list[str]:
     }
     ledger = facts["ledger"]
     skipped = [r for r in ledger["rows"] if r["status"] == "skipped"]
+    classifications = facts.get("classifications") or {"present": False, "rows": []}
+    skipped_classes = [r for r in classifications["rows"] if r["status"] == "skipped"]
     checked = invariant["checked"]
     legacy = invariant.get("legacy", [])
     clean = checked - len(invariant["violations"])
@@ -1152,6 +1177,18 @@ def invariant_section(facts: dict) -> list[str]:
                 )
             )
         ),
+        (
+            f"- Classifications: {len(skipped_classes)} row(s) skipped"
+            + (
+                ""
+                if skipped_classes
+                else (
+                    " - every ruling names a top-level entry of HEAD and a class"
+                    if classifications["present"]
+                    else " (no entry classified yet)"
+                )
+            )
+        ),
         "",
     ]
     rows: list[list[str]] = []
@@ -1160,6 +1197,8 @@ def invariant_section(facts: dict) -> list[str]:
             rows.append([violation["path"], problem])
     for row in skipped:
         rows.append([f"decisions.md line {row['line']}", row["reason"]])
+    for row in skipped_classes:
+        rows.append([f"entry-classifications.md line {row['line']}", row["reason"]])
     if rows:
         out += [
             md_table(["File", "Violation"], rows),
@@ -1268,6 +1307,11 @@ def render(
     for row in facts["ledger"]["rows"]:
         if row["status"] == "skipped":
             judgment.append(f"ledger line {row['line']} skipped: {row['reason']}")
+    for row in (facts.get("classifications") or {"rows": []})["rows"]:
+        if row["status"] == "skipped":
+            judgment.append(
+                f"classification line {row['line']} skipped: {row['reason']}"
+            )
     for report in readable(facts):
         if is_verify(report):
             label = verdict_label(report)

@@ -57,7 +57,7 @@ new.
 ## Lifecycle notes
 
 - **Not inventoried by `/odd-status`.** `get-status` inventories the
-  two report directories and the decisions ledger; benchmarks are not
+  two report directories and the ruling ledgers; benchmarks are not
   loop state and never appear in its inventory (its commit test is a
   different matter - next bullet).
 - **Visible to the verify-vs-re-measure boundary** (the memory

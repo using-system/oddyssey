@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Write the maintainer-ruling ledgers of the ODD memory, validated first.
 
-The finding ledger ``.odd/decisions.md`` is append-only evidence: a row
-names a stored report and a finding it carries, a verdict, a rationale,
-and the day it was taken. This script is the ledger's only writer - it
-checks every rule the odd-memory ``decisions`` reference states before
-one row lands, and never touches the rows above. The commit stays the
-agent's: the script prints the work branch and the commit subject the
-reference mandates, and writes the file alone.
+The finding ledger ``.odd/decisions.md`` and the entry-classification
+ledger ``.odd/entry-classifications.md`` are append-only evidence: a
+row names what was ruled on - a stored report's finding, or a top-level
+tree entry - the ruling, a rationale, and the day it was taken. This
+script is the ledgers' only writer - it checks every rule the
+odd-memory ``decisions`` reference states before one row lands, and
+never touches the rows above. The commit stays the agent's: the script
+prints the work branch and the commit subject the reference mandates,
+and writes the file alone.
 
 Standard library and git only; it imports no other skill's script.
 Refusals are one stderr line and exit 2; nothing is written then.
@@ -15,6 +17,7 @@ Refusals are one stderr line and exit 2; nothing is written then.
     python3 odd_ledger.py [--repo PATH] resolve <ID> [--service S ...] [--stack S] [--env E]
     python3 odd_ledger.py [--repo PATH] decide <report>/<ID> <verdict> --rationale TEXT [--today YYYY-MM-DD]
     python3 odd_ledger.py [--repo PATH] reopen <report>/<ID> --rationale TEXT [--today YYYY-MM-DD]
+    python3 odd_ledger.py [--repo PATH] classify <entry> runtime|non-runtime --rationale TEXT [--today YYYY-MM-DD]
 
 ``resolve`` prints ``<report> / <ID>\\t<title>`` per stored report that
 carries the ID, newest first: exit 0 for one, 3 for several (ask, never
@@ -34,6 +37,8 @@ from typing import NoReturn
 
 OBSERVATION_DIR = ".odd/observe-run-reports"
 LEDGER_PATH = ".odd/decisions.md"
+CLASSIFICATIONS_PATH = ".odd/entry-classifications.md"
+CLASSES = ("runtime", "non-runtime")
 CONFIG_PATH = Path.home() / ".oddyssey" / "config.json"
 
 SKELETON = """\
@@ -47,6 +52,21 @@ the earlier one. Reports themselves are never edited — this ledger is
 the only place a decision lives.
 
 | Date | Finding | Verdict | Rationale |
+|---|---|---|---|
+"""
+
+CLASSIFICATIONS_SKELETON = """\
+# ODD entry classifications
+
+Rulings the maintainer took on the repository's top-level tree entries
+— whether a change under one can alter the observed services' runtime
+behavior — the committed memory that lets `/odd-status` settle a
+report's code boundary without asking again. Rows are appended, never
+rewritten; a later row for the same entry supersedes the earlier one.
+A flag given to the status script overrides a row for one run and
+persists nothing.
+
+| Date | Entry | Class | Rationale |
 |---|---|---|---|
 """
 
@@ -233,6 +253,45 @@ def branch_name(finding_id: str, verdict: str) -> str:
     return f"docs/odd-finding-decision-{normalize(finding_id)}-{normalize(verdict)}"
 
 
+def classification_branch_name(entry: str, klass: str) -> str:
+    return f"docs/odd-entry-classification-{normalize(entry)}-{normalize(klass)}"
+
+
+def top_level_entries(root: Path) -> list[str]:
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "ls-tree", "--name-only", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise Refusal(f"git is not available: {exc}") from exc
+    if proc.returncode != 0:
+        raise Refusal("the repository has no HEAD commit to classify entries of")
+    return proc.stdout.splitlines()
+
+
+def check_entry(root: Path, text: str) -> str:
+    entry = text.strip().strip("/")
+    if entry == ".odd":
+        raise Refusal("the tree anchor always ignores .odd - nothing to classify")
+    entries = top_level_entries(root)
+    if entry not in entries:
+        raise Refusal(
+            f"{text.strip()!r} is not a top-level entry of HEAD (git ls-tree HEAD "
+            "names them)"
+        )
+    return entry
+
+
+def check_class(text: str) -> str:
+    klass = text.strip().lower()
+    if klass not in CLASSES:
+        raise Refusal("the class is runtime or non-runtime")
+    return klass
+
+
 def parse_key(text: str) -> tuple[str, str]:
     """``<report>/<ID>`` or ``<report> / <ID>``, the report a name or a path."""
     ref = text.strip().replace(" / ", "/")
@@ -337,16 +396,16 @@ def stored_report(root: Path, name: str) -> str:
 # --- the write ---------------------------------------------------------------------
 
 
-def append_row(root: Path, row: str) -> str:
-    path = root / LEDGER_PATH
+def append_row(root: Path, rel: str, skeleton: str, row: str) -> str:
+    path = root / rel
     current = read_text(path) if path.is_file() else ""
     if not current.strip():
         path.parent.mkdir(parents=True, exist_ok=True)
-        current = SKELETON
+        current = skeleton
     elif not current.endswith("\n"):
         current += "\n"
     path.write_text(current + row + "\n", encoding="utf-8")
-    return LEDGER_PATH
+    return rel
 
 
 def record(
@@ -364,13 +423,37 @@ def record(
     if not finding_in_report(text, finding_id):
         raise Refusal(f"{name} carries no finding {finding_id}")
     row = f"| {day} | {name} / {finding_id} | {verdict} | {rationale} |"
-    path = append_row(root, row)
+    path = append_row(root, LEDGER_PATH, SKELETON, row)
     return "\n".join(
         [
             f"path: {path}",
             f"row: {row}",
             f"branch: {branch_name(finding_id, verdict)}",
             f"subject: docs(odd): finding decision {finding_id} {verdict}",
+        ]
+    )
+
+
+def classify(
+    root: Path,
+    entry: str,
+    klass: str,
+    rationale: str,
+    today: str | None,
+    config_path: Path = CONFIG_PATH,
+) -> str:
+    klass = check_class(klass)
+    rationale = check_rationale(rationale, forbidden_values(load_config(config_path)))
+    day = check_date(today)
+    entry = check_entry(root, entry)
+    row = f"| {day} | {entry} | {klass} | {rationale} |"
+    path = append_row(root, CLASSIFICATIONS_PATH, CLASSIFICATIONS_SKELETON, row)
+    return "\n".join(
+        [
+            f"path: {path}",
+            f"row: {row}",
+            f"branch: {classification_branch_name(entry, klass)}",
+            f"subject: docs(odd): entry classification {entry} {klass}",
         ]
     )
 
@@ -439,9 +522,16 @@ def main(argv: list[str] | None = None) -> int:
     for name, doc in (
         ("decide", "append a decision on a finding"),
         ("reopen", "append the reversal of a decision (verdict open)"),
+        ("classify", "append a runtime / non-runtime ruling on a top-level tree entry"),
     ):
         p = sub.add_parser(name, help=doc)
-        p.add_argument("key", metavar="REPORT/ID")
+        if name == "classify":
+            p.add_argument(
+                "entry", help="a top-level entry of HEAD, as git ls-tree names it"
+            )
+            p.add_argument("klass", metavar="CLASS", help="runtime or non-runtime")
+        else:
+            p.add_argument("key", metavar="REPORT/ID")
         if name == "decide":
             p.add_argument("verdict")
         p.add_argument("--rationale", required=True)
@@ -458,6 +548,19 @@ def main(argv: list[str] | None = None) -> int:
             lines, code = resolve(root, args.id, args.service, args.stack, args.env)
             sys.stdout.write("\n".join(lines) + "\n")
             return code
+        if args.command == "classify":
+            sys.stdout.write(
+                classify(
+                    root,
+                    args.entry,
+                    args.klass,
+                    args.rationale,
+                    args.today,
+                    config_path=Path(args.config),
+                )
+                + "\n"
+            )
+            return 0
         verdict = check_verdict(args.verdict) if args.command == "decide" else "open"
         sys.stdout.write(
             record(
