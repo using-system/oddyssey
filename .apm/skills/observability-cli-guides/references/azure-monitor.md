@@ -96,6 +96,19 @@ Two independent traps, one per command:
   self-sufficient and takes no resource group (nor any subscription);
   the name is meaningless without one.
 
+**The persisted value is the GUID, and every ARM read wants the name.**
+`stack_config.app_insights_app` is the appId `query` takes; `component
+show` — retention, sampling, `workspaceResourceId` — refuses it (row 2).
+Resolve the name once from the persisted value, never guess it:
+`az monitor app-insights component show --query
+"[?appId=='<app_insights_app>'].{name:name, rg:resourceGroup}" -o tsv`
+(`--subscription <subscription>` when the persisted one is not az's
+active one — an ARM read, unlike the data-plane `query` probe below,
+does take it) — subscription-wide on purpose: the component may sit
+outside the workspace's `resource_group`, and a `-g`-scoped listing
+then answers an empty tsv — and reuse the name and group for every
+later `show` of the run (verified 2026-09-05, az 2.89.1).
+
 Exit codes on both commands: 0 success, **3 only for a resource that
 does not exist**, **2 when az cannot parse the command** (argparse
 fails before any handler runs — a mistyped flag, or `component list`),
@@ -111,8 +124,8 @@ banner: the `ERROR:` line is the diagnosis, not the stack below it.
 
 | Signal | How | Link | Notes |
 | --- | --- | --- | --- |
-| Logs (Log Analytics workspace) | `az monitor log-analytics query --workspace <workspace-GUID> --analytics-query "<KQL>" --timespan P3DT12H` | [az monitor log-analytics query](https://learn.microsoft.com/en-us/cli/azure/monitor/log-analytics#az-monitor-log-analytics-query) | `--workspace`/`-w` takes the workspace's *customer ID* GUID, not its resource name — get it from `workspace show`. `--timespan` is an ISO 8601 duration/interval; omitted, it queries all available data. `--workspaces` unions extra workspaces into one cross-workspace query. Extension command (auto-installs on first use), GA — the live command index lists `az monitor log-analytics query` as `Extension` / `GA` while the `workspace` and `cluster` subgroups are `Core` / `GA`. |
-| Logs (Application Insights) | `az monitor app-insights query --app <appId-GUID> --analytics-query "requests \| summarize count() by bin(timestamp, 1h)" --offset 1h30m` | [az monitor app-insights query](https://learn.microsoft.com/en-us/cli/azure/monitor/app-insights#az-monitor-app-insights-query) | Part of the `application-insights` CLI extension (auto-installs on first use). `--app` takes the appId GUID **without** `-g`, or the resource name **with** `-g` — never a GUID and `-g` together, which fails: see the `--app` table above. `--offset` (default `1h`) sets the window ending at `--end-time` (default now) unless `--start-time`/`--end-time` are given explicitly. Also queryable: `az monitor app-insights events show` (single-event lookup by type/ID) and `az monitor app-insights metrics show` (one named metric's value). Under `-o json`, `customDimensions` comes back double-JSON-encoded as a string, not a nested object (verified on az 2.89.1, 2026-08, and again 2026-09-04: a `tostring(customDimensions['user_agent.original']) != ''` filter matched 6666 rows) — project the specific keys you need via KQL (`tostring(customDimensions['x'])`) rather than dumping the whole column. `--offset` also bounds a query that carries its **own** `timestamp between (...)` filter: a window older than the offset returns 0 rows with no error (verified 2026-09-04: a 3h-to-2h-ago window gave 0 rows under the default `1h`, 6766 with `--offset 4h` or with `--start-time`/`--end-time`) — make the offset cover the window, or pass the pair. |
+| Logs (Log Analytics workspace) | `az monitor log-analytics query --workspace <workspace-GUID> --analytics-query "<KQL>" --timespan P3DT12H` | [az monitor log-analytics query](https://learn.microsoft.com/en-us/cli/azure/monitor/log-analytics#az-monitor-log-analytics-query) | `--workspace`/`-w` takes the workspace's *customer ID* GUID, not its resource name — get it from `workspace show`. `--timespan` is an ISO 8601 duration/interval; omitted, it queries all available data. `--workspaces` unions extra workspaces into one cross-workspace query. `-o json` returns a **flat list of row objects** carrying a `TableName` key, with the values stringified (`"n": "484782"`) — unlike `app-insights query`'s `{"tables": [{"columns": [...], "rows": [[484786]]}]}` with typed values; one parser does not fit both (verified 2026-09-05). Aliases: never `first`/`last` (`BadArgumentError`), `earliest`/`latest` — the reserved-word trap of the Planning notes. Extension command (auto-installs on first use), GA — the live command index lists `az monitor log-analytics query` as `Extension` / `GA` while the `workspace` and `cluster` subgroups are `Core` / `GA`. |
+| Logs (Application Insights) | `az monitor app-insights query --app <appId-GUID> --analytics-query "requests \| summarize count() by bin(timestamp, 1h)" --offset 1h30m` | [az monitor app-insights query](https://learn.microsoft.com/en-us/cli/azure/monitor/app-insights#az-monitor-app-insights-query) | Part of the `application-insights` CLI extension (auto-installs on first use). `--app` takes the appId GUID **without** `-g`, or the resource name **with** `-g` — never a GUID and `-g` together, which fails: see the `--app` table above. `--offset` (default `1h`) sets the window ending at `--end-time` (default now) unless `--start-time`/`--end-time` are given explicitly. Also queryable: `az monitor app-insights events show` (single-event lookup by type/ID) and `az monitor app-insights metrics show` (one named metric's value). Under `-o json`, `customDimensions` comes back double-JSON-encoded as a string, not a nested object (verified on az 2.89.1, 2026-08, and again 2026-09-04: a `tostring(customDimensions['user_agent.original']) != ''` filter matched 6666 rows) — project the specific keys you need via KQL (`tostring(customDimensions['x'])`) rather than dumping the whole column. `--offset` also bounds a query that carries its **own** `timestamp between (...)` filter: a window older than the offset returns 0 rows with no error (verified 2026-09-04: a 3h-to-2h-ago window gave 0 rows under the default `1h`, 6766 with `--offset 4h` or with `--start-time`/`--end-time`) — make the offset cover the window, or pass the pair. `-o json` is `{"tables": [{"columns": [...], "rows": [[...]]}]}` with typed values — not the flat, stringified list `log-analytics query` returns (see that row above). Aliases: never `first`/`last` (`BadArgumentError`), `earliest`/`latest`. `\| count` read under `-o tsv` prints **1** whatever the count — the number of result rows, never the value (verified 2026-09-05: `1` for 113 rows and `1` for 0) — read it with `-o json` at `tables[0].rows[0][0]`, or `summarize n=count()` through `--query 'tables[0].rows[0][0]' -o tsv`. |
 | Traces / distributed tracing | KQL against `requests` and `dependencies` tables (Application Insights) or `AppRequests`/`AppDependencies` (Log Analytics) | [Telemetry data model](https://learn.microsoft.com/en-us/azure/azure-monitor/app/data-model-complete) | Read the surprise below — spans live in `requests`/`dependencies`, not `traces`. `operation_Id` (App Insights) / `OperationId` (Log Analytics) correlates a request with its dependency calls into one trace; join or filter on it to reconstruct a call chain. |
 | Metrics (Azure Monitor platform metrics) | `az monitor metrics list --resource <name-or-id> --metric "Percentage CPU" --aggregation Average --interval PT1H --start-time <ISO> --end-time <ISO>` | [az monitor metrics list](https://learn.microsoft.com/en-us/cli/azure/monitor/metrics#az-monitor-metrics-list) | `--aggregation` accepts `Average, Count, Maximum, Minimum, None, Total`; `--dimension` splits the series (e.g. by `ApiName`); `--filter` is an OData-style dimension filter (`"ApiName eq '*' and GeoType eq '*'"`). Discover valid metric names/aggregations first with `az monitor metrics list-definitions --resource <id>`, and namespaces with `az monitor metrics list-namespaces` (preview). |
 | Profiles | Not readable from `az` — Application Insights Profiler is enabled from the CLI (`az monitor app-insights component connect-webapp -g <rg> -a <app> --web-app <name> --enable-profiler`) but its traces are viewed only in the Azure portal. | [az monitor app-insights component](https://learn.microsoft.com/en-us/cli/azure/monitor/app-insights/component), [View Profiler data](https://learn.microsoft.com/en-us/azure/azure-monitor/profiler/profiler-data) | `--enable-profiler` is documented as "Enable collecting profiling traces that help you see where time is spent in code. Currently it is only supported for .NET/.NET Core Web Apps" — configuration, not a read. Reading is portal-only: **Investigate > Performance > Profiler** (`Profile Now` for an on-demand session), then **Drill into… > Profiler traces** for the profile tree / flame graph. No `az` subcommand and no KQL table return profiler traces, so a terminal-only run cannot see them. |
@@ -177,7 +190,22 @@ workspace and an Application Insights resource carrying real data).
   run-identity count — `requests | where timestamp between (<start> ..
   <end>) and tostring(customDimensions['user_agent.original']) ==
   '<identity>' | count` every ~20 s, capped at ~3 min — until it
-  reaches the request count, then query.
+  reaches the request count, then query. Read that count in `-o json`
+  (`tables[0].rows[0][0]`), never in `-o tsv`, which prints `1` — one
+  result row — whatever the value (verified 2026-09-05): a poll read
+  that way "succeeds" on absent rows.
+- **`has 'error'` on collector console lines matches info-level
+  lines**: the collector's `info` `Exporting failed. Will retry the
+  request after interval.` lines carry a JSON `"error": ...` field and
+  match the term (verified 2026-09-05: 17 such `info` lines over 7
+  days, the collector's levels being `info` and `warn` only). Rule
+  collector health on the level column, scoped to the collector's
+  container — the level is the second whitespace-separated field of
+  its console line; on Azure Container Apps the table is
+  `ContainerAppConsoleLogs_CL` and `ContainerName_s` its container
+  column — another host substitutes its own:
+  `ContainerAppConsoleLogs_CL | where ContainerName_s == '<collector>' | extend lvl=extract(@'^\S+\s+(\w+)\s', 1, Log_s) | where lvl == 'error'`
+  — next to the term grep, never instead of it.
 - **KQL aliases that are reserved words fail without naming the
   word**: `summarize first=min(timestamp), last=max(timestamp)` is
   refused (`BadArgumentError: The request had some invalid
