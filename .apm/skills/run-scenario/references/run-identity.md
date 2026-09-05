@@ -104,7 +104,10 @@ and never in only one of them:
   the sequence alone is the **same set of ids on every replay**, and
   the backend merges the runs under them (observed: one trace id, two
   instances, two User-Agents). Two runs may share a prefix, never an
-  id.
+  id. A trace store may print the id **without its leading zeros** —
+  Tempo does (`0ddc0ffe…` reads `ddc0ffe…` in `gcx traces` output,
+  while Loki keeps the 32 hex; verified 2026-09-05) — so a prefix
+  check on such output strips them on both sides (`sub("^0+"; "")`).
 
 Then **read the instance from the run's own rows** —
 `service.instance.id` (or the backend's equivalent) on the requests
