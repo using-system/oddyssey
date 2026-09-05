@@ -221,8 +221,12 @@ return it along with its stored path:
    non-empty or redacted flag the backend exposes, the resource
    identity the secret binds to (a workspace id, an ingestion mode) —
    never the value; and a resource identity that carries a real
-   subscription, resource group, workspace or account name goes into
-   the report as an obviously fake placeholder, never the real one.
+   subscription, resource group, workspace or account name — or any
+   value persisted under a remote stack's `stack_config`, regions
+   excepted — goes into
+   the report as an obviously fake placeholder (for a `stack_config`
+   value, the field's name in angle brackets, `<log_group>`), never
+   the real one.
 
 ## Rules
 

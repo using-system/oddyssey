@@ -168,8 +168,11 @@ frontmatters alone.
   (`docs(odd): observation report <run_name>`, and the verification,
   re-measure, and instrumentation variants).
 - **No secrets, ever.** No tokens, credentials, connection strings, or
-  real tenant, workspace, or account identifiers — placeholders and
-  variable names only. A verification check whose query would return
+  real tenant, workspace, or account identifiers, nor a value persisted
+  under a remote stack's `stack_config`, regions excepted (a log group,
+  a profile name: the field's name in angle brackets instead) —
+  placeholders and variable names only. A verification check whose
+  query would return
   one on replay counts as a secret in the report.
 
 These rules cover the report stores and the two ruling ledgers,
