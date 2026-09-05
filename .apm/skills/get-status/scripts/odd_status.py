@@ -117,6 +117,93 @@ def git_root(path: Path) -> Path | None:
     return Path(top) if top else None
 
 
+REMOTE_RE = re.compile(
+    r"^(?P<scheme>[a-z][a-z0-9+.-]*://)?(?P<user>[^@/]+@)?(?P<host>[^:/@]+)"
+    r"(?::\d+)?[:/](?P<path>.+)$",
+    re.IGNORECASE,
+)
+
+
+def normalize_remote(url: str | None) -> str | None:
+    """A remote URL as the memory contract writes ``repository``: the host
+    lower-cased, then the remote's path as it is; scheme, user info and port
+    dropped, one trailing ``/`` and one trailing ``.git`` stripped, the SSH
+    form read the same way. None for anything that is not a remote (a local
+    path, a bare word)."""
+    text = (url or "").strip().split("#", 1)[0].split("?", 1)[0]
+    match = REMOTE_RE.match(text)
+    if not match:
+        return None
+    host, path = match.group("host").lower(), match.group("path")
+    # a bare word before a slash is a local path unless a scheme or a user
+    # marks it as a remote (an intranet host without a dot)
+    remote_marked = bool(match.group("scheme") or match.group("user"))
+    if host.startswith(".") or (
+        "." not in host and host != "localhost" and not remote_marked
+    ):
+        return None
+    # the SSH form may carry an absolute path (git@host:/srv/git/repo.git),
+    # the same repository ssh://host/srv/git/repo.git names: one identity
+    path = path.lstrip("/").removesuffix("/")
+    if path.lower().endswith(".git"):
+        path = path[:-4]
+    if not path:
+        return None
+    return f"{host}/{path}"
+
+
+def repo_identity(root: Path) -> str | None:
+    """The repository's own identity: its origin remote, normalized."""
+    return normalize_remote(git(root, "remote", "get-url", "origin"))
+
+
+def report_repositories(frontmatter: dict) -> tuple[list[str], list[str]]:
+    """The identities a report's ``repository`` field names, normalized -
+    one, several (a per-service map spanning repositories), or none - and
+    the raw values the normalization could not read."""
+    value = frontmatter.get("repository")
+    values = [v for v in (value.values() if isinstance(value, dict) else [value]) if v]
+    found: set[str] = set()
+    unrecognized: list[str] = []
+    for raw in values:
+        identity = normalize_remote(str(raw))
+        if identity:
+            found.add(identity)
+        else:
+            unrecognized.append(str(raw))
+    return sorted(found), unrecognized
+
+
+def resolve_root(root: Path, frontmatter: dict, opts: dict) -> dict:
+    """Where a report's revision and tree anchor resolve: the store's own
+    repository when the report names none or the store's identity, a clone
+    the caller named, or nowhere - unreachable, unrecognized, or spanning
+    several. A value present but unreadable is never read as the store's."""
+    identities, unrecognized = report_repositories(frontmatter)
+    where: dict = {"identities": identities, "identity": None, "root": None}
+    if unrecognized:
+        # a value the rules cannot read: unknown alone, and still spanning
+        # when readable ones sit beside it - one anchor covers neither
+        source = "spans" if identities else "unrecognized"
+        return {**where, "source": source, "raw": unrecognized}
+    if not identities:
+        return {**where, "source": "store", "root": root}
+    if len(identities) > 1:
+        return {**where, "source": "spans"}
+    [identity] = identities
+    where["identity"] = identity
+    if opts.get("identity") and identity == opts["identity"]:
+        return {**where, "source": "store", "root": root}
+    clone = opts.get("clones", {}).get(identity)
+    if clone is not None:
+        return {**where, "source": "clone", "root": clone}
+    return {
+        **where,
+        "source": "unreachable",
+        "store_identity_unknown": opts.get("identity") is None,
+    }
+
+
 def head_facts(root: Path) -> dict | None:
     line = git(root, "log", "-1", "--format=%H%x1f%cI")
     if not line:
@@ -621,6 +708,7 @@ def tree_anchor_diff(
         return None
     diff: dict[str, Any] = {
         "candidate": "HEAD",
+        "root": str(root),
         "ignored": [],
         "unchanged": 0,
         "runtime": [],
@@ -762,21 +850,59 @@ def enrich_report(root: Path, report: dict, opts: dict) -> dict:
     full = report["detail"] == "full"
     kind = report["kind"]
     commit = file_commit(root, report["path"])
-    revision = resolve_revision(root, frontmatter.get("revision"))
-    boundary = report_boundary(revision, commit)
+    where = resolve_root(root, frontmatter, opts)
+    target = where["root"]
+    if target is None:
+        # no repository to resolve in: the revision is a fact the report
+        # states, the boundary is unknown - never the store's commit date,
+        # which is a fact about the store, not about the service
+        text = frontmatter.get("revision")
+        revision = (
+            None
+            if text is None
+            else {"value": str(text), "resolves": False, "sha": None}
+        )
+        boundary = {"kind": "unreachable"}
+    else:
+        revision = resolve_revision(target, frontmatter.get("revision"))
+        boundary = report_boundary(revision, commit)
     own_sha = commit["sha"] if commit else None
+    report["repository"] = {
+        "identities": where["identities"],
+        "identity": where["identity"],
+        "source": where["source"],
+        "root": None if target is None else str(target),
+        "foreign": where["source"] != "store",
+        **({"raw": where["raw"]} if "raw" in where else {}),
+        **(
+            {"store_identity_unknown": True}
+            if where.get("store_identity_unknown")
+            else {}
+        ),
+    }
+    trees = opts.setdefault("head_trees", {str(root): opts["head_tree"]})
+    candidate = None
+    if target is not None:
+        if str(target) not in trees:
+            trees[str(target)] = ls_tree(target, "HEAD")
+        candidate = trees[str(target)]
+    # a benchmark lives in the store: its leg counts store commits from a
+    # store-local boundary, never from a revision that only the clone knows
+    bench_boundary = (
+        boundary if where["source"] == "store" else report_boundary(None, commit)
+    )
 
     anchor = frontmatter.get("tree_anchor")
     if isinstance(anchor, dict):
         frontmatter["tree_anchor"] = f"{len(anchor)} entries, see tree_anchor_diff"
 
     scope = (
-        project_scope(root, frontmatter.get("project"))
+        project_scope(target or root, frontmatter.get("project"))
         if kind == "instrumentation"
         else None
     )
     pathspec = [scope or "."] + [f":(exclude){p}" for p in MEMORY_PATHS]
-    commits = commits_after(root, boundary, pathspec, own_sha)
+    commits = commits_after(target or root, boundary, pathspec, own_sha)
 
     benchmarks = []
     for mention in benchmark_mentions(sections, body):
@@ -784,7 +910,7 @@ def enrich_report(root: Path, report: dict, opts: dict) -> dict:
             {
                 **mention,
                 "commits_since": commits_after(
-                    root, boundary, [mention["path"]], own_sha
+                    root, bench_boundary, [mention["path"]], own_sha
                 ),
             }
         )
@@ -803,8 +929,12 @@ def enrich_report(root: Path, report: dict, opts: dict) -> dict:
         {
             "commit": commit,
             "revision": revision,
-            "tree_anchor_diff": tree_anchor_diff(
-                root, anchor, opts["head_tree"], revision if full else None, opts
+            "tree_anchor_diff": (
+                None
+                if target is None
+                else tree_anchor_diff(
+                    target, anchor, candidate, revision if full else None, opts
+                )
             ),
             "commits_since": {
                 "boundary": boundary["kind"],
@@ -1117,10 +1247,13 @@ def build_facts(
     runtime: tuple[str, ...] = (),
     recent: int | None = DEFAULT_RECENT,
     max_title: int | None = MAX_FINDING_TITLE,
+    clones: dict[str, Path] | None = None,
 ) -> dict:
     root = Path(root)
     services = list(services or [])
     opts = {
+        "identity": repo_identity(root),
+        "clones": {k: Path(v) for k, v in (clones or {}).items()},
         "section_texts": tuple(section_texts),
         "table_sections": None if table_sections is None else tuple(table_sections),
         "max_cell": max_cell,
@@ -1132,7 +1265,10 @@ def build_facts(
         "runtime": {n.lower() for n in runtime},
         "head_tree": ls_tree(root, "HEAD"),
     }
-    classifications = load_classifications(root, opts["head_tree"])
+    known_tree: dict[str, str] = dict(opts["head_tree"] or {})
+    for clone in opts["clones"].values():
+        known_tree.update(ls_tree(clone, "HEAD") or {})
+    classifications = load_classifications(root, known_tree)
     opts["classifications"] = classifications["effective"]
     reports = [parse_report(root, rel, kind) for rel, kind in list_reports(root)]
     assign_detail(reports, recent)
@@ -1175,6 +1311,10 @@ def build_facts(
         "reports": matched,
         "ledger": ledger,
         "classifications": classifications,
+        "repository": {
+            "identity": opts["identity"],
+            "clones": {k: str(v) for k, v in opts["clones"].items()},
+        },
         "invariant": invariant,
     }
 
@@ -1185,10 +1325,8 @@ def repositories_named(reports: list[dict]) -> set[str]:
     found: set[str] = set()
     for report in reports:
         value = report["frontmatter"].get("repository")
-        if isinstance(value, dict):
-            found.update(str(v) for v in value.values() if v)
-        elif value:
-            found.add(str(value))
+        values = value.values() if isinstance(value, dict) else [value]
+        found.update(normalize_remote(str(v)) or str(v) for v in values if v)
     return found
 
 
@@ -1250,6 +1388,16 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help="a top-level tree entry to keep out of non_runtime whatever its name or "
         "ruling, for this run only (repeatable)",
+    )
+    parser.add_argument(
+        "--repository",
+        action="append",
+        default=[],
+        metavar="IDENTITY=PATH",
+        help="where a repository a report names is cloned (its identity as the "
+        "report's repository field writes it, a path inside the clone; repeatable) - "
+        "a report naming another repository resolves its revision and tree anchor "
+        "there, or has an unknown boundary",
     )
     parser.add_argument(
         "--section-texts",
@@ -1319,6 +1467,18 @@ def main(argv: list[str] | None = None) -> int:
     if root is None:
         print(f"not a git repository: {Path(args.repo).resolve()}", file=sys.stderr)
         return 2
+    clones: dict[str, Path] = {}
+    for pair in args.repository:
+        identity, sep, path = pair.partition("=")
+        normalized = normalize_remote(identity)
+        if not sep or not normalized:
+            parser.error(f"--repository takes IDENTITY=PATH, got {pair!r}")
+        clone = git_root(Path(path))
+        if clone is None:
+            parser.error(
+                f"--repository {pair!r}: {path} is not inside a git repository"
+            )
+        clones[normalized] = clone
     facts = build_facts(
         root,
         services=args.service,
@@ -1340,6 +1500,7 @@ def main(argv: list[str] | None = None) -> int:
         recent=None if args.render else recent,
         # the rendering references a finding by its key and its whole title
         max_title=None if args.render else MAX_FINDING_TITLE,
+        clones=clones,
     )
     if args.render:
         # the renderer lives next to this file; never leave bytecode in the skill

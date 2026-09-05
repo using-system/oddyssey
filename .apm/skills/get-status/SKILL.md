@@ -18,7 +18,10 @@ itself.
   structured tables or a verification's rulings;
 - git metadata about the repository and those files: report commit
   dates, and each report's `revision` and `tree_anchor` fields against
-  the commits that came after it;
+  the commits that came after it — resolved in the repository the
+  report's `repository` field names: the store's own when the field is
+  absent or names the store, otherwise the clone the caller named
+  (`--repository <identity>=<path>`), and nowhere when none is named;
 - `.odd/decisions.md`, the findings decision ledger, and
   `.odd/entry-classifications.md`, the tree-entry classification
   ledger — both read through the ledger contract `odd-memory`'s
@@ -119,6 +122,14 @@ ruling back to the script as a flag and run it again:
   reads it before the built-in list on every later run; a flag
   overrides both for one run and never persists. When an entry is
   runtime for one lineage only, leave the deferral and say so.
+- `--repository <identity>=<path>`, repeatable, for a report naming
+  another repository than the store's: where that repository is
+  cloned, the identity as the report's `repository` field writes it —
+  or the clone's own `git remote get-url origin`, which the script
+  normalizes the same way, when the caller gives only a path. From
+  the caller, or from where you cloned or found the repository in
+  this session — never guessed: without a pair the boundary stays
+  unknown, which is a fact to state, and the reply asks for it.
 - `--today YYYY-MM-DD` sets the date the cadence rule counts from;
   `--help` lists the rest.
 
@@ -155,9 +166,14 @@ status.
    at all: say the loop has not started here, point at
    `/odd-instrument-otel` or `/odd-observe`, and stop — that IS the
    status, not a failure.
-2. **Per-service loop state.** One row per service (`services` for
-   observation reports; an instrumentation report contributes to the
-   services its plan covers, `project` names its scope): last
+2. **Per-service loop state.** One row per lineage — a service set
+   (`services` for observation reports; an instrumentation report
+   contributes to the services its plan covers, `project` names its
+   scope) on a stack and an environment. The repository a report names
+   is never part of that key — the field arriving on a later report
+   must not split a chain — but the row's evidence states it whenever
+   the last report names another repository than the store's, or the
+   store holds reports of several. Per lineage: last
    observation (date, `stack`, `environment`, mode, `depth` — `full`
    when the frontmatter has none — `workload` when present), last
    verification (`mode: verify` reports — their `verifies` value names
@@ -213,7 +229,21 @@ status.
    are ones you cannot classify, the boundary is uncertain — say so,
    never rule "code changed". When a report carries neither an anchor
    nor a `revision`, its commit date — already a source — is the
-   substitute boundary.
+   substitute boundary. A report naming another repository resolves
+   its `revision` and anchor in that repository's clone, the one the
+   caller named; when none is named, when the report spans
+   repositories (a per-service map with several values), or when its
+   value is not a remote the rules can read, the boundary is
+   **unknown** — `judgment needed`, never "no code change", and never
+   the report's commit date, a fact about the store rather than the
+   service. A benchmark lives in the store, so its commits are counted
+   there from the report's own commit date when the report's revision
+   belongs to a clone. The classification ledger holds for every
+   repository the store holds reports of: a row may name an entry
+   present only in a clone the caller named, and a store ruling on
+   `src` applies to a clone's `src` too — say so when that reading is
+   doubtful. Never echo a filesystem path from the fact sheet into a
+   stored report or a ledger row.
    Pre-convention reports (no `verifies` field) leave the chain
    "unknown (pre-convention)" — state it, never reconstruct it from
    prose.
@@ -272,9 +302,12 @@ status.
    verification covers them), a **new observation is due or overdue**
    (the cadence of past observation dates has lapsed, or recent verdicts
    keep churning), or the **loop can rest** (recent verification, stable
-   verdicts, no unverified change). Every recommendation cites its
-   inputs — dates, verdicts, revisions — evidence over impressions
-   applies to the meta-loop too.
+   verdicts, no unverified change) — or the **boundary is unknown**
+   (`judgment needed`: the report's repository is not reachable, or
+   the report spans repositories) and the reply says what would
+   settle it. Every recommendation cites its inputs — dates, verdicts,
+   revisions — evidence over impressions applies to the meta-loop
+   too.
 
 ## The memory invariant
 

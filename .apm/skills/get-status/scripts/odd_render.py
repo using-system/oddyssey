@@ -220,11 +220,35 @@ def verdict_label(report: dict) -> str:
 
 
 def lineage_label(report: dict) -> str:
+    """A lineage: a service set on a stack and an environment, or a plan on
+    a stack. The repository a report names is never part of the key - a
+    field arriving on a later report must not split a chain - it is stated
+    in the row's evidence instead."""
     fm = report["frontmatter"]
     if report["kind"] == "instrumentation":
         return f"{fm.get('project')} (plan) / {fm.get('stack')}"
     services = ", ".join(report["services"]) or "?"
     return f"{services} / {fm.get('stack')} / {fm.get('environment')}"
+
+
+def repository_note(report: dict, facts: dict) -> str | None:
+    """``repository <identity>`` for the evidence of a row whose last report
+    names a repository other than the store's, or when the store holds
+    reports of several - so a central store's rows say whose code they
+    judge; nothing for a single-repository store."""
+    where = report.get("repository") or {}
+    several = len(facts.get("inventory", {}).get("repositories") or []) > 1
+    source = where.get("source")
+    if source == "store" and not several:
+        return None
+    if source == "store":
+        if where.get("identity"):
+            return f"repository {where['identity']}"
+        own = facts.get("repository", {}).get("identity") or "the store"
+        return f"repository {own} (the report names none)"
+    if source == "unrecognized":
+        return f"repository unrecognized ({', '.join(where.get('raw') or [])})"
+    return f"repository {', '.join(where.get('identities') or [])}"
 
 
 def lineages(facts: dict) -> dict[str, list[dict]]:
@@ -740,6 +764,39 @@ def boundary(report: dict) -> dict:
 
     ``changed`` is True, False, or None when the rules cannot tell.
     """
+    where = report.get("repository") or {}
+    if where.get("source") == "unreachable":
+        identity = where["identity"]
+        hint = (
+            " (the store's own identity is unknown: no origin remote to compare with)"
+            if where.get("store_identity_unknown")
+            else ""
+        )
+        return {
+            "changed": None,
+            "evidence": (
+                f"boundary unknown: {identity} is not reachable from here - "
+                f"pass --repository {identity}=<path to its clone>{hint}"
+            ),
+        }
+    if where.get("source") == "unrecognized":
+        return {
+            "changed": None,
+            "evidence": (
+                "boundary unknown: the report's repository value is not a remote "
+                f"the rules can read ({', '.join(where.get('raw') or [])}) - never "
+                "read as the store's own"
+            ),
+        }
+    if where.get("source") == "spans":
+        return {
+            "changed": None,
+            "evidence": (
+                "boundary unknown: the report spans repositories "
+                f"{', '.join(where['identities'])} - one revision and one anchor "
+                "cannot cover both"
+            ),
+        }
     diff = report.get("tree_anchor_diff")
     since = report["commits_since"]
     if diff is not None:
@@ -896,6 +953,7 @@ def recommendations(facts: dict, today: str | date | None = None) -> list[dict]:
     out = []
     for label, line in lineages(facts).items():
         last = line[-1]
+        note = repository_note(last, facts)
         if last["kind"] == "instrumentation":
             covering = verification_chain(name_of(last), by_target)
             if covering:
@@ -910,12 +968,16 @@ def recommendations(facts: dict, today: str | date | None = None) -> list[dict]:
                 evidence = (
                     f"no report verifies {name_of(last)}; {boundary(last)['evidence']}"
                 )
+            if note:
+                evidence = f"{note}; {evidence}"
             out.append({"lineage": label, "action": action, "evidence": evidence})
             continue
         bound = boundary(last)
         observations = [r for r in line if mode_of(r) in OBSERVATION_MODES]
         rhythm = cadence(observations, day)
         evidence = [f"last report {name_of(last)} ({mode_of(last)})"]
+        if note:
+            evidence.append(note)
         if is_verify(last):
             evidence.append(f"verdict {verdict_label(last)}")
         evidence.append(bound["evidence"])
