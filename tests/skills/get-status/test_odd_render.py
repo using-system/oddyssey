@@ -1838,3 +1838,153 @@ def test_reports_without_a_repository_render_as_before(repo, odd_status, odd_ren
     assert "repositories:" not in rendered(
         repo, odd_status, odd_render, today="2026-08-13"
     )
+
+
+# --- the repository a report names --------------------------------------------------
+
+
+IDENTITY_B = "gitlab.com/example-group/checkout"
+
+
+def _service_repo(tmp_path: Path) -> Repo:
+    (tmp_path / "checkout").mkdir()
+    b = Repo(tmp_path / "checkout")
+    b.git("remote", "add", "origin", "git@gitlab.com:example-group/checkout.git")
+    b.write("src/app.py", "print('v1')\n")
+    b.commit("feat: initial", date="2026-08-01T10:00:00Z")
+    return b
+
+
+def _foreign_report(store: Repo, service: Repo) -> None:
+    store.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(
+            run_name="a",
+            revision=service.git("rev-parse", "--short", "HEAD"),
+            extra_frontmatter=(
+                f"tree_anchor: {service.tree_anchor()}\nrepository: {IDENTITY_B}"
+            ),
+        ),
+    )
+    store.commit("docs(odd): report", date="2026-08-10T12:00:00Z")
+
+
+def test_an_unreachable_repository_is_a_judgment_never_no_code_change(
+    repo, odd_status, odd_render, tmp_path
+):
+    service = _service_repo(tmp_path)
+    _foreign_report(repo, service)
+    facts = odd_status.build_facts(repo.root, recent=None)
+    [rec] = odd_render.recommendations(facts, today="2026-08-11")
+    assert rec["lineage"] == "checkout / local / local"
+    assert rec["action"] == "judgment needed"
+    assert f"repository {IDENTITY_B}" in rec["evidence"]
+    assert (
+        f"boundary unknown: {IDENTITY_B} is not reachable from here - "
+        f"pass --repository {IDENTITY_B}=<path to its clone> (the store's own "
+        "identity is unknown: no origin remote to compare with)"
+    ) in rec["evidence"]
+    text = odd_render.render(facts, today="2026-08-11")
+    assert "| checkout / local / local |" in text
+    assert "no code change" not in text and "commit-date boundary" not in text
+
+
+def test_a_clone_settles_the_boundary_and_the_row_names_the_repository(
+    repo, odd_status, odd_render, tmp_path
+):
+    service = _service_repo(tmp_path)
+    _foreign_report(repo, service)
+    clones = {IDENTITY_B: service.root}
+    [rec] = odd_render.recommendations(
+        odd_status.build_facts(repo.root, recent=None, clones=clones),
+        today="2026-08-11",
+    )
+    assert (
+        rec["action"] == "fix pending" and "tree anchor equals HEAD" in rec["evidence"]
+    )
+    service.write("src/app.py", "print('v2')\n")
+    service.commit("fix: batch the query", date="2026-08-12T10:00:00Z")
+    facts = odd_status.build_facts(
+        repo.root, recent=None, clones=clones, runtime=["src"]
+    )
+    [rec] = odd_render.recommendations(facts, today="2026-08-13")
+    assert rec["lineage"] == "checkout / local / local"
+    assert rec["action"] == "verification due"
+    assert f"repository {IDENTITY_B}" in rec["evidence"]
+    assert (
+        "runtime entries differ since the tree anchor: src (src/app.py)"
+        in rec["evidence"]
+    )
+
+
+def test_a_verification_carrying_the_field_stays_in_its_baselines_lineage(
+    repo, odd_status, odd_render, tmp_path
+):
+    # a central store: the baseline predates the field, the verification carries it
+    service = _service_repo(tmp_path)
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", revision=service.git("rev-parse", "--short", "HEAD")),
+    )
+    repo.commit("docs(odd): baseline", date="2026-08-10T12:00:00Z")
+    repo.write(
+        ".odd/observe-run-reports/2026-08-12-1000-verify-a.md",
+        observation(
+            run_name="a",
+            mode="verify",
+            date="2026-08-12",
+            revision=service.git("rev-parse", "--short", "HEAD"),
+            extra_frontmatter=(
+                "verifies: 2026-08-10-1000-a.md\n"
+                f"tree_anchor: {service.tree_anchor()}\nrepository: {IDENTITY_B}"
+            ),
+            body=VERIFY_BODY.replace(
+                "| F2 | Cold start | still present | 390 ms |\n", ""
+            ),
+        ),
+    )
+    repo.commit("docs(odd): verification", date="2026-08-12T12:00:00Z")
+    facts = odd_status.build_facts(
+        repo.root, recent=None, clones={IDENTITY_B: service.root}
+    )
+    assert list(odd_render.lineages(facts)) == ["checkout / local / local"]
+    [rec] = odd_render.recommendations(facts, today="2026-08-13")
+    assert rec["action"] == "loop can rest"
+    assert f"repository {IDENTITY_B}" in rec["evidence"]
+
+
+def test_a_foreign_plan_awaits_verification_with_an_unknown_boundary(
+    repo, odd_status, odd_render, tmp_path
+):
+    _service_repo(tmp_path)
+    text = INSTRUMENTATION_TEXT.replace(
+        "stack: local", f"stack: local\nrepository: {IDENTITY_B}", 1
+    )
+    repo.write(".odd/otel-instrumentation-reports/2026-08-09-1000-app-python.md", text)
+    repo.commit("docs(odd): plan", date="2026-08-09T12:00:00Z")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    [rec] = odd_render.recommendations(facts, today="2026-08-10")
+    assert rec["action"] == "plan awaits verification"
+    assert rec["evidence"].startswith(f"repository {IDENTITY_B}; ")
+    assert f"boundary unknown: {IDENTITY_B} is not reachable" in rec["evidence"]
+    text = odd_render.render(facts, today="2026-08-10", full=True)
+    assert "(the store's own identity is unknown: no origin remote" in text
+
+
+def test_the_stores_own_reports_never_carry_a_repository_prefix(
+    repo, odd_status, odd_render
+):
+    repo.git("remote", "add", "origin", "https://github.com/example-org/store.git")
+    baseline_and_verification(repo)
+    repo.write(
+        ".odd/observe-run-reports/2026-08-13-1000-c.md",
+        observation(
+            run_name="c",
+            date="2026-08-13",
+            extra_frontmatter="repository: github.com/example-org/store",
+        ),
+    )
+    repo.commit("docs(odd): report c")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    # one lineage: the field arriving on the newest report never splits the chain
+    assert list(odd_render.lineages(facts)) == ["checkout / local / local"]

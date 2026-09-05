@@ -1790,3 +1790,309 @@ def test_a_classifications_only_commit_is_memory_not_code(repo):
     repo.write(".odd/entry-classifications.md", CLASSIFICATIONS_HEAD)
     repo.commit("docs(odd): entry classification src runtime")
     assert facts(repo)["reports"][0]["commits_since"]["count"] == 0
+
+
+# --- the repository a report names --------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("https://github.com/example-org/repo.git", "github.com/example-org/repo"),
+        (
+            "https://user:token@GitHub.com/Example-Org/Repo.git/",
+            "github.com/Example-Org/Repo",
+        ),
+        (
+            "git@gitlab.com:example-group/sub/repo.git",
+            "gitlab.com/example-group/sub/repo",
+        ),
+        (
+            "ssh://git@gitlab.example.com:2222/group/repo.git",
+            "gitlab.example.com/group/repo",
+        ),
+        ("github.com/example-org/repo", "github.com/example-org/repo"),
+        (
+            "https://github.com/example-org/repo.GIT#readme",
+            "github.com/example-org/repo",
+        ),
+        ("https://github.com/example-org/repo?ref=main", "github.com/example-org/repo"),
+        ("https://git-internal:8443/team/repo.git", "git-internal/team/repo"),
+        ("git@gitserver:team/repo.git", "gitserver/team/repo"),
+        ("gitserver/team/repo", None),
+        ("git@host.example.com:/srv/git/repo.git", "host.example.com/srv/git/repo"),
+        ("ssh://host.example.com/srv/git/repo.git", "host.example.com/srv/git/repo"),
+        ("/Users/example-user/repo", None),
+        ("../repo", None),
+        ("file:///srv/repo.git", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_normalize_remote_reads_every_remote_form_and_no_local_path(
+    odd_status, url, expected
+):
+    assert odd_status.normalize_remote(url) == expected
+
+
+IDENTITY_B = "gitlab.com/example-group/checkout"
+
+
+def _service_repo(tmp_path: Path) -> Repo:
+    (tmp_path / "checkout").mkdir()
+    b = Repo(tmp_path / "checkout")
+    b.git("remote", "add", "origin", "git@gitlab.com:example-group/checkout.git")
+    b.write("src/app.py", "print('v1')\n")
+    b.write("README.md", "# checkout\n")
+    b.commit("feat: initial", date="2026-08-01T10:00:00Z")
+    return b
+
+
+def _foreign_report(store: Repo, service: Repo, repository: str = IDENTITY_B) -> None:
+    store.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(
+            run_name="a",
+            revision=service.git("rev-parse", "--short", "HEAD"),
+            extra_frontmatter=(
+                f"tree_anchor: {service.tree_anchor()}\nrepository: {repository}"
+            ),
+        ),
+    )
+    store.commit("docs(odd): report", date="2026-08-10T12:00:00Z")
+
+
+def test_a_report_naming_no_repository_or_the_stores_own_resolves_in_the_store(
+    repo, tmp_path
+):
+    repo.git("remote", "add", "origin", "https://github.com/example-org/store.git")
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", revision=repo.git("rev-parse", "--short", "HEAD")),
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-11-1000-b.md",
+        observation(
+            run_name="b",
+            date="2026-08-11",
+            revision=repo.git("rev-parse", "--short", "HEAD"),
+            extra_frontmatter="repository: https://github.com/example-org/store.git",
+        ),
+    )
+    repo.commit("docs(odd): reports")
+    out = facts(repo)
+    assert out["repository"] == {
+        "identity": "github.com/example-org/store",
+        "clones": {},
+    }
+    for report in out["reports"]:
+        assert report["repository"]["source"] == "store"
+        assert report["repository"]["foreign"] is False
+        assert report["revision"]["resolves"] is True
+        assert report["commits_since"]["boundary"] == "revision"
+
+
+def test_a_report_naming_another_repository_has_an_unknown_boundary_without_its_clone(
+    repo, tmp_path
+):
+    service = _service_repo(tmp_path)
+    _foreign_report(repo, service)
+    [report] = facts(repo)["reports"]
+    assert report["repository"] == {
+        "identities": [IDENTITY_B],
+        "identity": IDENTITY_B,
+        "source": "unreachable",
+        "root": None,
+        "foreign": True,
+        "store_identity_unknown": True,
+    }
+    assert report["revision"]["resolves"] is False
+    assert report["tree_anchor_diff"] is None
+    # never the store's commit date: that is a fact about the store
+    assert report["commits_since"] == {
+        "boundary": "unreachable",
+        "scope": "repo-wide",
+        "count": None,
+        "commits": [],
+        "truncated": False,
+    }
+
+
+def test_a_report_naming_another_repository_resolves_in_the_clone_the_caller_names(
+    repo, tmp_path
+):
+    service = _service_repo(tmp_path)
+    _foreign_report(repo, service)
+    clones = {IDENTITY_B: service.root}
+    [report] = facts(repo, clones=clones)["reports"]
+    assert report["repository"]["source"] == "clone"
+    assert report["repository"]["root"] == str(service.root)
+    assert report["revision"]["resolves"] is True
+    diff = report["tree_anchor_diff"]
+    assert diff["root"] == str(service.root)
+    assert (
+        diff["unchanged"] == 2 and diff["runtime"] == [] and diff["unclassified"] == []
+    )
+    assert report["commits_since"] == {
+        "boundary": "revision",
+        "scope": "repo-wide",
+        "count": 0,
+        "commits": [],
+        "truncated": False,
+    }
+    # a commit in the service's clone moves the boundary; one in the store does not
+    service.write("src/app.py", "print('v2')\n")
+    service.commit("fix: batch the query", date="2026-08-12T10:00:00Z")
+    repo.write("src/app.py", "print('store change')\n")
+    repo.commit("feat: store change", date="2026-08-12T11:00:00Z")
+    [report] = facts(repo, clones=clones)["reports"]
+    assert report["tree_anchor_diff"]["unclassified"] == ["src"]
+    assert report["commits_since"]["count"] == 1
+    assert [c["subject"] for c in report["commits_since"]["commits"]] == [
+        "fix: batch the query"
+    ]
+
+
+def test_a_report_spanning_repositories_has_an_unknown_boundary(repo, tmp_path):
+    service = _service_repo(tmp_path)
+    _foreign_report(
+        repo,
+        service,
+        repository="{checkout: git@gitlab.com:example-group/checkout.git, "
+        "payment: https://github.com/example-org/payment}",
+    )
+    [report] = facts(repo, clones={IDENTITY_B: service.root})["reports"]
+    assert report["repository"]["source"] == "spans"
+    assert report["repository"]["identities"] == [
+        "github.com/example-org/payment",
+        IDENTITY_B,
+    ]
+    assert report["tree_anchor_diff"] is None
+    assert report["commits_since"]["boundary"] == "unreachable"
+
+
+def test_cli_repository_pairs_are_normalized_and_must_be_clones(repo, tmp_path):
+    service = _service_repo(tmp_path)
+    _foreign_report(repo, service)
+    out = run_script(
+        repo,
+        "--repository",
+        f"git@gitlab.com:example-group/checkout.git={service.root}",
+        "--repository",
+        f"github.com/example-org/unnamed={repo.root}",
+    )
+    assert out["repository"]["clones"] == {
+        IDENTITY_B: str(service.root),
+        "github.com/example-org/unnamed": str(repo.root),
+    }
+    assert out["reports"][0]["repository"]["source"] == "clone"
+    for pair in (f"{IDENTITY_B}={tmp_path / 'nowhere'}", "nope", "../x=/tmp"):
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "--repo",
+                str(repo.root),
+                "--repository",
+                pair,
+            ],
+            capture_output=True,
+            text=True,
+            env={**os.environ, **GIT_ENV},
+            check=False,
+        )
+        assert proc.returncode == 2, pair
+        assert "--repository" in proc.stderr
+
+
+def test_a_repository_value_the_rules_cannot_read_is_never_the_stores_own(
+    repo, tmp_path
+):
+    service = _service_repo(tmp_path)
+    _foreign_report(repo, service, repository="../checkout")
+    [report] = facts(repo)["reports"]
+    assert report["repository"]["source"] == "unrecognized"
+    assert report["repository"]["raw"] == ["../checkout"]
+    assert report["tree_anchor_diff"] is None
+    assert report["commits_since"]["boundary"] == "unreachable"
+
+
+def test_a_map_mixing_a_readable_and_an_unreadable_value_spans(repo, tmp_path):
+    service = _service_repo(tmp_path)
+    _foreign_report(
+        repo,
+        service,
+        repository="{checkout: git@gitlab.com:example-group/checkout.git, payment: ../payment}",
+    )
+    [report] = facts(repo, clones={IDENTITY_B: service.root})["reports"]
+    assert report["repository"]["source"] == "spans"
+    assert report["repository"]["raw"] == ["../payment"]
+    assert report["tree_anchor_diff"] is None
+
+
+def test_a_map_naming_one_repository_several_times_resolves_in_its_clone(
+    repo, tmp_path
+):
+    service = _service_repo(tmp_path)
+    _foreign_report(
+        repo,
+        service,
+        repository="{checkout: git@gitlab.com:example-group/checkout.git, "
+        "cart: https://gitlab.com/example-group/checkout}",
+    )
+    [report] = facts(repo, clones={IDENTITY_B: service.root})["reports"]
+    assert report["repository"]["source"] == "clone"
+    assert report["repository"]["identities"] == [IDENTITY_B]
+
+
+def test_a_benchmark_leg_counts_store_commits_from_a_store_local_boundary(
+    repo, tmp_path
+):
+    service = _service_repo(tmp_path)
+    repo.write(".odd/benchmarks/sweep/manifest.yaml", "name: sweep\n")
+    repo.commit("docs(odd): benchmark sweep", date="2026-08-09T10:00:00Z")
+    body = DEFAULT_BODY.replace(
+        "Ad-hoc: 30 calls.", "Benchmark: .odd/benchmarks/sweep/ replayed."
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(
+            run_name="a",
+            revision=service.git("rev-parse", "--short", "HEAD"),
+            extra_frontmatter=(
+                f"tree_anchor: {service.tree_anchor()}\nrepository: {IDENTITY_B}"
+            ),
+            body=body,
+        ),
+    )
+    repo.commit("docs(odd): report", date="2026-08-10T12:00:00Z")
+    repo.write(".odd/benchmarks/sweep/manifest.yaml", "name: sweep\nvus: 20\n")
+    repo.commit("feat(bench): raise the load", date="2026-08-11T10:00:00Z")
+    [report] = facts(repo, clones={IDENTITY_B: service.root})["reports"]
+    [bench] = report["benchmarks"]
+    # the revision only the clone knows must never yield "no benchmark commit"
+    assert bench["commits_since"] is not None
+    assert [c["subject"] for c in bench["commits_since"]] == [
+        "feat(bench): raise the load"
+    ]
+
+
+def test_a_classification_row_may_name_an_entry_of_a_named_clone(repo, tmp_path):
+    service = _service_repo(tmp_path)
+    service.write("vendorlib/x.py", "x = 1\n")
+    service.commit("chore: vendor", date="2026-08-02T10:00:00Z")
+    _foreign_report(repo, service)
+    repo.write(
+        ".odd/entry-classifications.md",
+        CLASSIFICATIONS_HEAD
+        + "| 2026-08-12 | README.md | non-runtime | docs |\n"
+        + "| 2026-08-12 | vendorlib | non-runtime | a mirror |\n",
+    )
+    repo.commit("docs(odd): classifications")
+    # the clone-only entry is unknown to the store alone, known once the clone is named
+    assert [r["status"] for r in facts(repo)["classifications"]["rows"]] == [
+        "ok",
+        "skipped",
+    ]
+    rows = facts(repo, clones={IDENTITY_B: service.root})["classifications"]["rows"]
+    assert [r["status"] for r in rows] == ["ok", "ok"]

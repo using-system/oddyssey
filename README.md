@@ -196,6 +196,7 @@ body structure — are documented in
 /odd-status full picture, every finding and every trend
 /odd-status where is the loop for my service XXX
 /odd-status what was observed on prod for my service XXX
+/odd-status where is the loop for XXX, cloned at ../XXX
 /odd-status wontfix F4 of my last XXX report - port-move is rare, 14.5s accepted
 /odd-status .apm is non-runtime - it is the package's prompts, never on the request path
 ```

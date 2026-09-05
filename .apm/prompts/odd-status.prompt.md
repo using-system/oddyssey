@@ -13,6 +13,10 @@ memory alone.
 - Or a request for the full tables - "full", "everything", "every
   finding", "the whole ledger", "the trends" - which maps onto the
   skill's full rendering; a scoped status renders them by itself.
+- Or, for a store holding reports of other repositories, where one is
+  cloned - "checkout is cloned at ../checkout" - which maps onto the
+  skill's repository pair; without it the skill says that repository's
+  boundary is unknown, and asks.
 - Or a decision request on a finding - "wontfix finding F4 of
   <report>", "decline F2: <rationale>", "reopen F4" - or a
   classification of a top-level tree entry - ".apm is non-runtime: the

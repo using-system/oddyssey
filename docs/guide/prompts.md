@@ -380,6 +380,15 @@ recorded as one row in `.odd/decisions.md`; the finding then renders
 as declined, and "reopen F4: ..." reverses it.
 
 ```text
+/odd-status where is the loop for checkout, cloned at ../checkout
+```
+
+For a store holding reports of several repositories: "cloned at
+../checkout" tells the status where that service's code is, so it can
+say whether the code moved since the report; without it, the status
+says that boundary is unknown.
+
+```text
 /odd-status .apm is non-runtime - it is the package's prompts, never on the request path
 ```
 
