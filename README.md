@@ -15,7 +15,7 @@ https://github.com/user-attachments/assets/776b98b0-862d-4865-b8f1-568e6710c228
 With [APM](https://microsoft.github.io/apm/), for Claude Code:
 
 ```bash
-uvx --from 'apm-cli==0.28.0' apm install --global --target claude using-system/oddyssey
+uvx --from 'apm-cli==0.29.0' apm install --global --target claude using-system/oddyssey
 ```
 
 Same command for every other supported CLI agent — swap the target:
@@ -23,7 +23,7 @@ Same command for every other supported CLI agent — swap the target:
 `windsurf`. Drop `--global` to install into the current repository
 only.
 
-Keep the `apm-cli==0.28.0` pin — it is the minimum supported version
+Keep the `apm-cli==0.29.0` pin — it is the minimum supported version
 and the one CI validates the package with (bumped together). Older
 apm-cli releases (0.14.x observed) predate `targets:` support and
 corrupt the install: the payload fans out to targets that were never
@@ -33,11 +33,11 @@ be left invalid.
 To update an existing install to the latest version:
 
 ```bash
-uvx --from 'apm-cli==0.28.0' apm update --global --target claude using-system/oddyssey
+uvx --from 'apm-cli==0.29.0' apm update --global --target claude using-system/oddyssey
 ```
 
 It shows the update plan and asks for confirmation (`--yes` to skip,
-`--dry-run` to only look); `uvx --from 'apm-cli==0.28.0' apm outdated`
+`--dry-run` to only look); `uvx --from 'apm-cli==0.29.0' apm outdated`
 tells you whether an update is worth running.
 
 ### From the native marketplaces (no APM)

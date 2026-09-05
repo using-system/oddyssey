@@ -16,7 +16,7 @@ permissions:
 
 env:
   RUFF_VERSION: "0.16.4"
-  APM_CLI_VERSION: "0.28.0"
+  APM_CLI_VERSION: "0.29.0"
 
 jobs:
   lint:

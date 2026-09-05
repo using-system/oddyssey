@@ -59,7 +59,7 @@ bash scripts/build-marketplace.sh
 
 # Validate the APM package like CI does (keep the apm-cli pin -
 # older releases corrupt the install; see the README's install note)
-uvx --from apm-cli==0.28.0 apm install --target claude && uvx --from apm-cli==0.28.0 apm audit
+uvx --from apm-cli==0.29.0 apm install --target claude && uvx --from apm-cli==0.29.0 apm audit
 python3 .apm/skills/observability-cli-guides/scripts/check_stack_reference.py   # every stack reference follows references/CONTRACT.md
 ```
 
@@ -119,7 +119,7 @@ name only. The full set of rules a reviewer holds a report to is in
 
 The product tests itself: install your working copy into a scratch
 consumer
-(`uvx --from apm-cli==0.28.0 apm install /path/to/your/clone --target claude`),
+(`uvx --from apm-cli==0.29.0 apm install /path/to/your/clone --target claude`),
 or run
 the ODD loop on the repo itself (`/odd-observe` on `oddyssey-mcp`) —
 the stored reports under `.odd/` show what a healthy run looks like.
