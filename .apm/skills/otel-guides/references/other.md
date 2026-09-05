@@ -17,3 +17,12 @@ This page does not itself list SDKs as docs pages; instead it points to the comm
 - Community/unofficial implementations in the Registry vary widely in maturity and maintenance status; verify activity and spec compliance before depending on one.
 - If nothing suitable is found, raising or gauging interest on a SIG-formation issue (as with Lua, Perl, Julia) is the documented path toward an official implementation, not something usable today.
 - If you know of an unlisted implementation, the documented action is to add it to the Registry rather than build a duplicate.
+
+## Profiling
+
+Cross-language facts — the signal status (Alpha), why a vendor SDK bypasses the Collector, how profiles correlate with traces — live in [profiling.md](profiling.md); this section carries only what is particular to the languages this file covers. Verified 2026-09-05 against the linked pages.
+
+| Profiler | What it is | What to do with it |
+| --- | --- | --- |
+| [OpenTelemetry eBPF profiler](https://github.com/open-telemetry/opentelemetry-ebpf-profiler) | Its README lists Perl and Zig beyond the languages this skill covers; host-level, Linux, privileged, OTLP profiles. Alloy's [`pyroscope.ebpf`](https://grafana.com/docs/alloy/latest/reference/components/pyroscope/pyroscope.ebpf/) has `perl_enabled`. | The answer for Perl on Linux. For a JVM-hosted or Node-hosted language, the Java or JavaScript row applies, as for tracing. |
+| Anything else | Search the [Registry](https://opentelemetry.io/ecosystem/registry/) and the [Pyroscope SDK list](https://grafana.com/docs/pyroscope/latest/configure-client/language-sdks/). | Record "none known" with the two places searched and the date; never a guess. |

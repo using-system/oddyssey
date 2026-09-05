@@ -237,16 +237,35 @@ return it along with its stored path:
 - The registry pages render client-side, so a text fetch of them often
   returns nothing. Fall back in order: the language's contrib repository on
   GitHub (`opentelemetry-<lang>-contrib` — for Java it is `opentelemetry-java-instrumentation` — whose README lists the
-  instrumentation packages), then the package index search (`pip index`,
-  `npm search @opentelemetry`, Maven Central, NuGet, crates.io). If a page
+  instrumentation packages), then the package index — the JSON API
+  endpoints the pinning rule below names, never a CLI search. If a page
   cannot be fetched at all, mark every recommendation derived from it
   **UNVERIFIED — from model memory** in the report; never present an
   unfetched claim as sourced.
 - Always check the latest version of every SDK and instrumentation package
-  you recommend against the package index itself (`pip index versions`,
-  `npm view <pkg> version`, Maven Central, NuGet, crates.io,
-  `go list -m -versions`) and **pin exact versions** in the report, stating
-  where each version came from — never "latest".
+  you recommend against the package index itself and **pin exact versions**
+  in the report, stating where each version came from — never "latest".
+  The index JSON API is the primary source, it needs no tool in the
+  project's environment: `https://pypi.org/pypi/<pkg>/json`
+  (`.info.version`), `https://registry.npmjs.org/<pkg>/latest`
+  (`.version`),
+  `https://repo1.maven.org/maven2/<group/as/path>/<artifact>/maven-metadata.xml`
+  (the `<latest>` element — the repository itself; the
+  `search.maven.org` solr index lags it by releases and answers
+  `numFound 0` for newer artifacts, never use it),
+  `https://crates.io/api/v1/crates/<crate>` (`.crate.max_stable_version`,
+  send a `User-Agent`),
+  `https://api.nuget.org/v3-flatcontainer/<pkg-lowercase>/index.json`
+  (`.versions` lists pre-releases interleaved with stable ones — take the
+  last entry without a `-`), `https://proxy.golang.org/<module>/@latest`
+  (`.Version`). Fall back to the CLI only when the environment has one:
+  `pip index versions --pre <pkg>` (a uv-managed project has no `pip`, so
+  `uv run --frozen pip ...` prints nothing), `npm view <pkg> version`,
+  `go list -m -versions`. The whole OpenTelemetry Python contrib line
+  (`opentelemetry-distro`, `opentelemetry-instrumentation-*`) is
+  pre-release only (`0.xxb0`), and `pip index versions` hides
+  pre-releases without `--pre`: `ERROR: No matching distribution found`
+  from the bare command is expected there, never "package gone".
 - Configure through the standard `OTEL_*` environment variables, never
   hardcoded in code, so the same build moves across environments. Set the
   environment via `OTEL_RESOURCE_ATTRIBUTES` (`deployment.environment.name`
