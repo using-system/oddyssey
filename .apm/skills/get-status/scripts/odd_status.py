@@ -4,7 +4,7 @@
 The get-status skill reasons on the fact sheet this script prints
 instead of parsing every stored report and running git turn by turn.
 The script computes facts only - frontmatters, commit boundaries,
-tree-anchor diffs, the lifted tables, the decisions ledger - and never
+tree-anchor diffs, the lifted tables, the ruling ledgers - and never
 rules on their meaning: the chain, the trends, and the recommendation
 stay with the skill.
 
@@ -34,17 +34,21 @@ SCHEMA = "odd-status-facts/1"
 OBSERVATION_DIR = ".odd/observe-run-reports"
 INSTRUMENTATION_DIR = ".odd/otel-instrumentation-reports"
 LEDGER_PATH = ".odd/decisions.md"
+CLASSIFICATIONS_PATH = ".odd/entry-classifications.md"
+CLASSES = ("runtime", "non-runtime")
 BENCHMARKS_DIR = ".odd/benchmarks"
 
 # The loop's own memory: a commit touching nothing else is never a fix.
-MEMORY_PATHS = (OBSERVATION_DIR, INSTRUMENTATION_DIR, LEDGER_PATH)
+MEMORY_PATHS = (OBSERVATION_DIR, INSTRUMENTATION_DIR, LEDGER_PATH, CLASSIFICATIONS_PATH)
 
 # Top-level tree entries that cannot change a service's runtime behavior
 # in any repository: editor and CI configuration, and the documentation
 # files every project carries. Conservative on purpose - a directory a
 # service could live in (agents/, assets/, marketplace/, ...) is never
 # listed, and anything not listed is reported as unclassified for the
-# skill to decide. Matched on the lower-cased name.
+# skill to decide. Matched on the lower-cased name. The repository's own
+# rulings (.odd/entry-classifications.md) come before this list, and a
+# flag given for one run comes before both.
 NON_RUNTIME_NAMES = {
     ".editorconfig",
     ".gitattributes",
@@ -589,10 +593,21 @@ def benchmark_mentions(sections: list[dict], body: str) -> list[dict]:
 # --- tree anchor --------------------------------------------------------------
 
 
-def is_non_runtime(name: str, extra: set[str], runtime: set[str]) -> bool:
-    if name.lower() in runtime:
-        return False
-    return name.lower() in extra or name.lower() in NON_RUNTIME_NAMES
+def classify_entry(name: str, opts: dict) -> tuple[str, str | None]:
+    """An entry's class and the source that settled it - a flag for this run,
+    the repository's classification ledger, the built-in list - or
+    ``("unclassified", None)`` when none does."""
+    low = name.lower()
+    if low in opts["runtime"]:
+        return "runtime", "flag"
+    if low in opts["non_runtime"]:
+        return "non-runtime", "flag"
+    ruling = opts.get("classifications", {}).get(low)
+    if ruling:
+        return ruling["class"], "file"
+    if low in NON_RUNTIME_NAMES:
+        return "non-runtime", "built-in"
+    return "unclassified", None
 
 
 def tree_anchor_diff(
@@ -611,6 +626,7 @@ def tree_anchor_diff(
         "runtime": [],
         "non_runtime": [],
         "unclassified": [],
+        "classified_by": {},
         "only_in_anchor": [],
         "only_at_candidate": sorted(set(candidate) - set(anchor) - {".odd"}),
         "changed_paths": None,
@@ -627,12 +643,15 @@ def tree_anchor_diff(
             diff["unchanged"] += 1
         else:
             differing.append(name)
-            if name.lower() in opts["runtime"]:
+            klass, source = classify_entry(name, opts)
+            if klass == "runtime":
                 diff["runtime"].append(name)
-            elif is_non_runtime(name, opts["non_runtime"], opts["runtime"]):
+            elif klass == "non-runtime":
                 diff["non_runtime"].append(name)
             else:
                 diff["unclassified"].append(name)
+            if source:
+                diff["classified_by"][name] = source
     if revision and revision["resolves"]:
         diff["changed_paths"] = {
             name: changed_paths(root, revision["sha"], name) for name in differing
@@ -901,6 +920,56 @@ def load_ledger(root: Path, reports: list[dict]) -> dict:
     return {"present": True, "rows": rows, "effective": effective}
 
 
+def load_classifications(root: Path, head_tree: dict[str, str] | None) -> dict:
+    """The entry-classification ledger, read the way the finding ledger is:
+    every row reported, a bad one skipped with its reason, the latest row
+    for an entry winning. Keyed on the lower-cased entry."""
+    path = root / CLASSIFICATIONS_PATH
+    if not path.is_file():
+        return {"present": False, "rows": [], "effective": {}}
+    known = {name.lower() for name in (head_tree or {})}
+    rows: list[dict] = []
+    effective: dict[str, dict] = {}
+    for number, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        if not line.lstrip().startswith("|") or is_separator_row(line):
+            continue
+        cells = split_cells(line)
+        if cells and cells[0].lower() == "date":
+            continue
+        row: dict[str, Any] = {"line": number}
+        if len(cells) != 4:
+            row.update(
+                status="skipped",
+                reason=f"expected 4 columns, got {len(cells)}",
+                raw=line.strip(),
+            )
+            rows.append(row)
+            continue
+        date, entry, klass, rationale = cells
+        row.update(date=date, entry=entry, **{"class": klass}, rationale=rationale)
+        if klass.lower() not in CLASSES:
+            row.update(
+                status="skipped",
+                reason=f"class is neither runtime nor non-runtime: {klass}",
+            )
+        elif not entry or entry.lower() not in known:
+            row.update(
+                status="skipped", reason=f"no top-level entry named {entry} at HEAD"
+            )
+        else:
+            row["status"] = "ok"
+            effective[entry.lower()] = {
+                "line": number,
+                "date": date,
+                "class": klass.lower(),
+                "rationale": rationale,
+            }
+        rows.append(row)
+    return {"present": True, "rows": rows, "effective": effective}
+
+
 # --- the memory invariant (issue #307) ---------------------------------------
 
 REPORT_NAME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})-\d{4}-([a-z0-9][a-z0-9-]*)\.md$")
@@ -1063,6 +1132,8 @@ def build_facts(
         "runtime": {n.lower() for n in runtime},
         "head_tree": ls_tree(root, "HEAD"),
     }
+    classifications = load_classifications(root, opts["head_tree"])
+    opts["classifications"] = classifications["effective"]
     reports = [parse_report(root, rel, kind) for rel, kind in list_reports(root)]
     assign_detail(reports, recent)
     readable = [r for r in reports if "unreadable" not in r]
@@ -1102,6 +1173,7 @@ def build_facts(
         "matched": len(matched),
         "reports": matched,
         "ledger": ledger,
+        "classifications": classifications,
         "invariant": invariant,
     }
 
@@ -1154,13 +1226,16 @@ def main(argv: list[str] | None = None) -> int:
         "--non-runtime",
         action="append",
         default=[],
-        help="a top-level tree entry that cannot change the service's runtime (repeatable)",
+        help="a top-level tree entry that cannot change the service's runtime, for "
+        "this run only - the repository's own rulings live in "
+        ".odd/entry-classifications.md (repeatable)",
     )
     parser.add_argument(
         "--runtime",
         action="append",
         default=[],
-        help="a top-level tree entry to keep out of non_runtime whatever its name (repeatable)",
+        help="a top-level tree entry to keep out of non_runtime whatever its name or "
+        "ruling, for this run only (repeatable)",
     )
     parser.add_argument(
         "--section-texts",

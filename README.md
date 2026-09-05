@@ -197,6 +197,7 @@ body structure — are documented in
 /odd-status where is the loop for my service XXX
 /odd-status what was observed on prod for my service XXX
 /odd-status wontfix F4 of my last XXX report - port-move is rare, 14.5s accepted
+/odd-status .apm is non-runtime - it is the package's prompts, never on the request path
 ```
 
 Answers "where is the loop?" for this repository — one screen, per
@@ -204,11 +205,12 @@ service and stack: the last report, how many findings are open, fixed,
 or declined, and what to do next — from the committed `.odd/` history and
 git alone: no backend query, nothing written. Ask for the full picture,
 or scope it to a service, a stack, or an environment, to get every
-finding, trend, and gap. It also records
-your decision on a finding no fix will ever address: name the finding
-and give a one-sentence reason, and the decision lands in
-`.odd/decisions.md`, the committed ledger next to the reports, so the
-status stops counting that finding as open.
+finding, trend, and gap. It also records the rulings only you can
+make, each with a one-sentence reason: a finding no fix will ever
+address lands in `.odd/decisions.md` and stops counting as open, a
+top-level directory or file that cannot change the service's runtime lands in
+`.odd/entry-classifications.md` and stops being asked about — two
+committed ledgers next to the reports.
 
 #### /odd-instrument-bench
 

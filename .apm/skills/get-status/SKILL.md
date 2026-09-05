@@ -7,7 +7,7 @@ description: Render the state of the ODD loop from the repository's committed .o
 
 Answer "where is the loop?" for this repository, from its committed
 memory alone. Every input is already in the clone — the stored reports,
-the decisions ledger, and git — so the status costs no backend query, no
+the ruling ledgers, and git — so the status costs no backend query, no
 running stack, and no network: it is what the loop wrote down about
 itself.
 
@@ -19,14 +19,15 @@ itself.
 - git metadata about the repository and those files: report commit
   dates, and each report's `revision` and `tree_anchor` fields against
   the commits that came after it;
-- `.odd/decisions.md`, the findings decision ledger — read through the
-  ledger contract `odd-memory`'s `decisions` reference owns: that
-  reference is the format's authority, this skill only reads what was
-  written under it. A
-  missing file means no decision has been recorded yet, which is a
-  fact, not an error.
+- `.odd/decisions.md`, the findings decision ledger, and
+  `.odd/entry-classifications.md`, the tree-entry classification
+  ledger — both read through the ledger contract `odd-memory`'s
+  `decisions` reference owns: that reference is the format's
+  authority, this skill only reads what was written under it. A
+  missing file means no decision, or no classification, has been
+  recorded yet, which is a fact, not an error.
 
-All three are read under the memory contract (`odd-memory`): frontmatter
+All of them are read under the memory contract (`odd-memory`): frontmatter
 first, then sections, never a whole file without a stated need.
 
 The caller may restrict the status to service name(s), a stack (`local`,
@@ -36,8 +37,10 @@ the whole picture, not an empty scope.
 
 Never query a backend, never start the stack, never write or edit a
 report, a ledger, or any other file — this skill reads the loop, it does
-not advance it. The one write in the status surface is the decision
-`odd-memory`'s `decisions` reference records. The status renders in
+not advance it. The one write in the status surface is the ruling
+`odd-memory`'s `decisions` reference records — a decision on a
+finding, or the classification of a tree entry, on the user's word.
+The status renders in
 the conversation — one screen by default, the full tables on request
 — never a committed artifact.
 
@@ -109,9 +112,13 @@ ruling back to the script as a flag and run it again:
   refused — the ledger is the memory, the flag is one run's judgment,
   never persisted.
 - `--runtime <entry>` / `--non-runtime <entry>` for the top-level
-  tree entries you can classify — the flags hold for the whole
-  repository, so when an entry is runtime for one lineage only, leave
-  the deferral and say so.
+  tree entries you can classify, for this run only — a classification
+  that holds for the repository is recorded once in
+  `.odd/entry-classifications.md` through `odd-memory`'s `decisions`
+  reference, on the user's word and never on your own, and the script
+  reads it before the built-in list on every later run; a flag
+  overrides both for one run and never persists. When an entry is
+  runtime for one lineage only, leave the deferral and say so.
 - `--today YYYY-MM-DD` sets the date the cadence rule counts from;
   `--help` lists the rest.
 
@@ -187,8 +194,13 @@ status.
    top-level hash moves with every report written) and every entry
    that cannot change the observed service's runtime behavior —
    documentation is the canonical case, but so are CI configuration,
-   generated/packaging artifacts, and release-metadata files — then
-   test the benchmark by path: the one the report's scenario record
+   generated/packaging artifacts, and release-metadata files; the
+   repository's own rulings in `.odd/entry-classifications.md` come
+   before the built-in list of such names, and a flag given for one
+   run before both; a ruling settles an entry whose hash differs, and
+   an entry present on one side only (added or removed since the
+   anchor) stays uncertain whatever its ruling. Then test the
+   benchmark by path: the one the report's scenario record
    names (`.odd/benchmarks/<name>/`) — nothing when it names none, a
    benchmark the run did not use cannot be its fix; commits touching
    that path since the report (`git log <revision>..HEAD -- <path>`
@@ -274,19 +286,22 @@ the frontmatter fields the kind requires (`services`, `stack`,
 `environment`, `mode`, `depth`, `window` as `start/end` UTC,
 `run_name` and `date` matching the filename; `project` for a plan),
 and a `verifies` that names a stored file when the mode is a replay.
-Per decision row: a report that exists and a finding it carries (the
-ledger's own skipped rows). The fact sheet carries the result under
+Per decision row: a report that exists and a finding it carries; per
+classification row: a top-level entry of HEAD and a class the rule
+knows (each ledger's own skipped rows). The fact sheet carries the
+result under
 `invariant`; the full rendering carries a `## Memory invariant`
 section — the counts, then one line per violation — and the screen
 carries the same as one line, violations only.
 
 A violation is **never a failure**: the store is append-only, so a
 report is never edited to repair it — a new run supersedes it — and a
-decision row is appended, never rewritten. The status is where a
-reader learns that a decision points at nothing; the remedy is the
-next run, or a new row. A report whose only gap is a field it
-predates (`depth`, read as `full` the way the loop state already
-renders it) is not a violation: the fact sheet lists it under
+ruling row is appended, never rewritten. The status is where a
+reader learns that a decision points at nothing, or a classification
+at no entry; the remedy is the next run, or a new row. A report whose
+only gap is a field it predates (`depth`, read as `full` the way the
+loop state already renders it) is not a violation: the fact sheet
+lists it under
 `legacy`, and the section names it in a note next to the counts,
 since nothing can ever change it.
 

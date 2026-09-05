@@ -125,7 +125,8 @@ as a fix. The formats and the rules a reviewer can enforce are in
 [docs/guide/reports.md](docs/guide/reports.md).
 
 The rule governs the report stores — `.odd/observe-run-reports/`,
-`.odd/otel-instrumentation-reports/`, and `.odd/decisions.md`. It does
+`.odd/otel-instrumentation-reports/`, `.odd/decisions.md`, and
+`.odd/entry-classifications.md`. It does
 not reach `.odd/benchmarks/` or `.odd/observability-stacks/`: a
 benchmark or a custom stack file is living source, not a run record,
 and its `odd-memory` reference updates it in place through reviewed

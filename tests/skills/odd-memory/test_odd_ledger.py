@@ -547,3 +547,106 @@ def test_outside_a_git_repository_or_without_the_store_the_script_says_so(tmp_pa
     r.commit("init")
     proc = run(r, *DECIDE, "x")
     assert proc.returncode == 2 and "no stored report named" in proc.stderr
+
+
+# --- classify --------------------------------------------------------------------
+
+
+CLASSIFY = ("classify", "src", "runtime", "--rationale")
+
+
+def test_classify_creates_the_ledger_with_its_skeleton_and_one_row(repo, ledger):
+    proc = run(repo, *CLASSIFY, "the service's code", "--today", "2026-08-13")
+    assert proc.returncode == 0, proc.stderr
+    text = repo.read(".odd/entry-classifications.md")
+    assert text.startswith(ledger.CLASSIFICATIONS_SKELETON)
+    assert text.endswith("| 2026-08-13 | src | runtime | the service's code |\n")
+    lines = dict(line.split(": ", 1) for line in proc.stdout.splitlines())
+    assert lines["path"] == ".odd/entry-classifications.md"
+    assert lines["row"] == "| 2026-08-13 | src | runtime | the service's code |"
+    assert lines["branch"] == "docs/odd-entry-classification-src-runtime"
+    assert lines["subject"] == "docs(odd): entry classification src runtime"
+    assert repo.git("status", "--porcelain") == "?? .odd/entry-classifications.md"
+    assert not (repo.root / ".odd" / "decisions.md").exists()
+
+
+def test_classify_leaves_an_existing_decisions_ledger_byte_identical(repo):
+    run(repo, *DECIDE, "first", "--today", "2026-08-13")
+    before = repo.read(".odd/decisions.md")
+    proc = run(repo, *CLASSIFY, "the service's code", "--today", "2026-08-13")
+    assert proc.returncode == 0, proc.stderr
+    assert repo.read(".odd/decisions.md") == before
+
+
+def test_classify_appends_a_later_row_and_normalizes_the_class(repo):
+    run(repo, *CLASSIFY, "first", "--today", "2026-08-13")
+    before = repo.read(".odd/entry-classifications.md")
+    proc = run(
+        repo,
+        "classify",
+        "src/",
+        "Non-Runtime",
+        "--rationale",
+        "moved",
+        "--today",
+        "2026-08-14",
+    )
+    assert proc.returncode == 0, proc.stderr
+    after = repo.read(".odd/entry-classifications.md")
+    assert after.startswith(before)
+    assert after[len(before) :] == "| 2026-08-14 | src | non-runtime | moved |\n"
+
+
+@pytest.mark.parametrize(
+    ("args", "reason"),
+    [
+        (("classify", "nope", "runtime", "--rationale", "x"), "not a top-level entry"),
+        (
+            ("classify", ".odd", "non-runtime", "--rationale", "x"),
+            "always ignores .odd",
+        ),
+        (
+            ("classify", "src/app.py", "runtime", "--rationale", "x"),
+            "not a top-level entry",
+        ),
+        (("classify", "src", "maybe", "--rationale", "x"), "runtime or non-runtime"),
+        (("classify", "src", "runtime", "--rationale", ""), "rationale is required"),
+        (
+            (
+                "classify",
+                "src",
+                "runtime",
+                "--rationale",
+                "under /Users/example-user/x",
+            ),
+            "home-directory path",
+        ),
+        (
+            ("classify", "src", "runtime", "--rationale", "x", "--today", "yesterday"),
+            "YYYY-MM-DD",
+        ),
+    ],
+)
+def test_classify_refuses_with_one_reason_and_writes_nothing(repo, args, reason):
+    proc = run(repo, *args)
+    assert proc.returncode == 2, proc.stdout
+    assert reason in proc.stderr and len(proc.stderr.strip().splitlines()) == 1
+    assert proc.stdout == ""
+    assert not (repo.root / ".odd" / "entry-classifications.md").exists()
+
+
+def test_classify_refuses_without_a_head_commit(tmp_path):
+    r = Repo(tmp_path)
+    proc = run(r, *CLASSIFY, "x")
+    assert proc.returncode == 2 and "no HEAD commit" in proc.stderr
+
+
+def test_classification_branch_name_normalizes_the_entry(ledger):
+    assert (
+        ledger.classification_branch_name(".apm", "non-runtime")
+        == "docs/odd-entry-classification-apm-non-runtime"
+    )
+    assert (
+        ledger.classification_branch_name("apm.yml", "runtime")
+        == "docs/odd-entry-classification-apm-yml-runtime"
+    )

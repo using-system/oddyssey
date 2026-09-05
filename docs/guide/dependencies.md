@@ -13,9 +13,9 @@ diagram.
 - **Layers**: prompts (user entry points) - agents (dispatched
   missions) - skills (reusable contracts) - MCP tools (the oddyssey
   server piloting the local stack and the global configuration) -
-  stores (the committed `.odd/` report directories, plus the findings
-  decision ledger `.odd/decisions.md` and the benchmark sources under
-  `.odd/benchmarks/`).
+  stores (the committed `.odd/` report directories, plus the two
+  ruling ledgers `.odd/decisions.md` and `.odd/entry-classifications.md`
+  and the benchmark sources under `.odd/benchmarks/`).
 - **Edges**: solid `-->` = dispatch or direct invocation; dashed
   `-.->` = routing or contract reference (one component hands over to
   or follows another's rules); dotted with label = recommendation or
@@ -306,10 +306,10 @@ flowchart LR
 ## /odd-status
 
 Dispatches no agent: `get-status` renders the loop's state from both
-stores, git, and the decisions ledger; a decision is recorded per
-`odd-memory`'s `decisions` reference
-only when the user asks for a decision, and the prompt re-renders
-afterwards. The two recommended prompts are boundary nodes.
+stores, git, and the two ruling ledgers; a ruling — a decision on a
+finding, a tree entry classified — is recorded per `odd-memory`'s
+`decisions` reference only when the user asks for it, and the prompt
+re-renders afterwards. The two recommended prompts are boundary nodes.
 
 ```mermaid
 flowchart LR
@@ -328,6 +328,7 @@ flowchart LR
     obsdir[observe-run-reports/]
     insdir[otel-instrumentation-reports/]
     dec[decisions.md]
+    cls[entry-classifications.md]
   end
 
   status --> gs
@@ -336,11 +337,13 @@ flowchart LR
   gs --> obsdir
   gs --> insdir
   gs --> dec
+  gs --> cls
   gs -. recommends .-> instrument
   gs -. recommends .-> observe
 
   mem --> obsdir
   mem --> dec
+  mem --> cls
 
   gs --> mem
 
@@ -349,7 +352,7 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class status,instrument,observe prompt
   class gs,mem skill
-  class obsdir,insdir,dec store
+  class obsdir,insdir,dec,cls store
 ```
 
 ## /odd-config
@@ -424,7 +427,7 @@ skills), and closes with a show skill's synthesis of what was stored.
 | [`/odd-instrument-bench`](../../.apm/prompts/odd-instrument-bench.prompt.md) | Entry point: ask what only a human decides, ensure `k6`, then point the `k6-benchmark-expert` agent at a service | `k6-benchmark-expert`; `k6-guides` (`authoring-inputs.md`, `install.md`); `odd-memory` (the `benchmark` reference: its `## Show`, and its recall when new-versus-update is ambiguous) |
 | [`/odd-observe`](../../.apm/prompts/odd-observe.prompt.md) | Entry point: resolve the stack, prove the CLI connected, resolve the depth, build the mission and invoke the `observe-run` agent | `observe-run`; `backend-configuration` (`## Check`); `observability-cli-guides` (`builtin-stacks.md`); `k6-guides` (`install.md`); `odd-memory` (the `observe-run-report` reference's `## Show`); `odd_config_get`, `odd_config_set`; reads `.odd/benchmarks/` |
 | [`/odd-verify`](../../.apm/prompts/odd-verify.prompt.md) | Entry point: replay a stored report's protocol through the `observe-run` agent and rule on everything it recorded; preflights against the report's stack and asks before a remote drive replay | `observe-run`; `backend-configuration` (`## Check`); `k6-guides` (`install.md`); `odd-memory` (the `observe-run-report` reference: its `## Show`, and its verification rules); `odd_config_get`; reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/` |
-| [`/odd-status`](../../.apm/prompts/odd-status.prompt.md) | Where is the loop? Rendered from the `.odd/` history and git alone — one screen by default, the full tables on request; records decisions on findings. Dispatches no agent | `get-status`; `odd-memory` (the `decisions` reference) when, and only when, the user asks for a decision on a finding, then re-renders |
+| [`/odd-status`](../../.apm/prompts/odd-status.prompt.md) | Where is the loop? Rendered from the `.odd/` history and git alone — one screen by default, the full tables on request; records the maintainer's rulings — a decision on a finding, a tree entry classified runtime or non-runtime. Dispatches no agent | `get-status`; `odd-memory` (the `decisions` reference) when, and only when, the user asks for a ruling, then re-renders |
 | [`/odd-config`](../../.apm/prompts/odd-config.prompt.md) | Show the configured backend - stack, targeted instance, connection proof - guide a backend switch, and create or complete a custom stack file for a backend the package does not ship | `backend-configuration` (`## Check` to display, `## Switch` when the user picks a backend); `observability-cli-guides` (`builtin-stacks.md`, `CONTRACT.md` and its check script for a custom file); `odd-memory` (the `observability-stack` reference, to persist and show a custom file); writes `.odd/observability-stacks/` |
 
 ## Agents
@@ -449,12 +452,12 @@ each other.
 | --- | --- | --- |
 | [`otel-guides`](../../.apm/skills/otel-guides/SKILL.md) | Curated map of the official OpenTelemetry docs: every supported language plus the cross-language guides (SDK configuration, semantic conventions, Collector deployment) | Nothing |
 | [`k6-guides`](../../.apm/skills/k6-guides/SKILL.md) | Curated map of the official k6 docs: install, running a script, scripting (checks, thresholds, scenarios), test types, protocols - and which of a benchmark's inputs a human must decide rather than an agent | Nothing |
-| [`odd-memory`](../../.apm/skills/odd-memory/SKILL.md) | The `.odd/` memory: the contract every kind shares, and one reference per kind - observation reports, instrumentation reports, the finding-decision ledger, benchmarks, custom stack files - saying how to persist, recall and show it; owns the five stores, and the script that writes the finding-decision ledger (`scripts/odd_ledger.py`: resolve a finding, record a decision or its reversal, checked before the row lands - it reads the global configuration's `stack_config` values, read-only and failing open, so a rationale never carries one) | Nothing - read by the three agents at persist and recall time, by the prompts at show time, by `get-status`, by `backend-configuration` for a custom stack; never invoked on its own |
+| [`odd-memory`](../../.apm/skills/odd-memory/SKILL.md) | The `.odd/` memory: the contract every kind shares, and one reference per kind - observation reports, instrumentation reports, the maintainer-ruling ledgers, benchmarks, custom stack files - saying how to persist, recall and show it; owns the five stores, and the script that writes the two ruling ledgers (`scripts/odd_ledger.py`: resolve a finding, record a decision or its reversal, classify a tree entry, checked before the row lands - it reads the global configuration's `stack_config` values, read-only and failing open, so a rationale never carries one) | Nothing - read by the three agents at persist and recall time, by the prompts at show time, by `get-status`, by `backend-configuration` for a custom stack; never invoked on its own |
 | [`observability-cli-guides`](../../.apm/skills/observability-cli-guides/SKILL.md) | One reference per stack - query surface, configuration display, what to persist - plus the built-in stack list: the local stack, Grafana (gcx), Datadog (Pup), Dynatrace (dtctl), Azure Monitor (az), CloudWatch (aws); the reference contract every stack file follows, with the script that checks a file against it | Routes the local-stack case to `setup-local-stack` |
 | [`setup-local-stack`](../../.apm/skills/setup-local-stack/SKILL.md) | Configure gcx against the local stack without touching the user's contexts, with the datasource UIDs and the push-model caveats | `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset` |
 | [`backend-configuration`](../../.apm/skills/backend-configuration/SKILL.md) | The configured backend, in two sections: `## Check` displays the configured stack's CLI context, proves it connected, guides the setup and hands the preflight over to the mission; `## Switch` owns the change - CLI presence with a guided install offer, the switch and the per-stack `stack_config` values persisted, then `## Check` for the proof; a custom stack's file is checked against the reference contract before the switch | `observability-cli-guides` (`builtin-stacks.md`, the stack's four preflight sections, the contract check script); `odd-memory` (the `observability-stack` reference, for a custom stack's file); `odd_config_get`, `odd_config_set`; routes to `setup-local-stack` for the local stack |
 | [`run-scenario`](../../.apm/skills/run-scenario/SKILL.md) | Drive a reproducible request scenario - ad-hoc requests or a stored benchmark - and record it verbatim for the replay; the shared method in `SKILL.md`, the run identity, the long-scenario carve-outs and the benchmark replay as references read by block | `k6-guides` (`running-tests.md`, `install.md`); reads `.odd/benchmarks/<name>/` (never writes there); orders the clean-base sequence around `odd_stack_reset` and follows `setup-local-stack` |
-| [`get-status`](../../.apm/skills/get-status/SKILL.md) | Render the state of the ODD loop from the committed `.odd/` history and git alone, read-only | `odd-memory`; reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`, and `.odd/decisions.md` (under `odd-memory`'s `decisions` reference); recommends `/odd-instrument-otel` or `/odd-observe` |
+| [`get-status`](../../.apm/skills/get-status/SKILL.md) | Render the state of the ODD loop from the committed `.odd/` history and git alone, read-only | `odd-memory`; reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/`, `.odd/decisions.md` and `.odd/entry-classifications.md` (under `odd-memory`'s `decisions` reference); recommends `/odd-instrument-otel` or `/odd-observe` |
 
 ## Hooks
 

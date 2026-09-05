@@ -1640,3 +1640,115 @@ def test_a_ruling_key_may_carry_the_report_path(repo, odd_status, odd_render):
         "a.md / F1",
         "fixed-and-verified",
     )
+
+
+# --- the entry-classification ledger ------------------------------------------------
+
+
+CLASSIFICATIONS_HEAD = (
+    "# ODD entry classifications\n\nRows are appended, never rewritten.\n\n"
+    "| Date | Entry | Class | Rationale |\n|---|---|---|---|\n"
+)
+
+
+def test_an_entry_the_ledger_classifies_is_not_deferred(repo, odd_status, odd_render):
+    baseline_and_verification(repo)
+    repo.write("src/app.py", "print('changed again')\n")
+    repo.commit("fix: another change", date="2026-08-14T12:00:00Z")
+    deferred = odd_status.build_facts(repo.root, recent=None)
+    assert odd_render.recommendations(deferred, today="2026-08-15")[0]["action"] == (
+        "judgment needed"
+    )
+    repo.write(
+        ".odd/entry-classifications.md",
+        CLASSIFICATIONS_HEAD + "| 2026-08-15 | src | runtime | the service |\n",
+    )
+    repo.commit(
+        "docs(odd): entry classification src runtime", date="2026-08-15T12:00:00Z"
+    )
+    facts = odd_status.build_facts(repo.root, recent=None)
+    [rec] = odd_render.recommendations(facts, today="2026-08-15")
+    assert rec["action"] == "verification due"
+    text = odd_render.render(facts, today="2026-08-15")
+    assert "- nothing deferred" in text.split("## Judgment needed")[1]
+    assert "classifications: 1 row(s)" in text
+    full = odd_render.render(facts, today="2026-08-15", full=True)
+    assert "- Entry classifications: present, 1 row(s) read, 0 skipped" in full
+    assert "- Classifications: 0 row(s) skipped - every ruling names" in full
+
+
+def test_a_non_runtime_ruling_lets_the_loop_rest(repo, odd_status, odd_render):
+    baseline_and_verification(repo)
+    repo.write("src/app.py", "print('changed again')\n")
+    repo.write(
+        ".odd/entry-classifications.md",
+        CLASSIFICATIONS_HEAD
+        + "| 2026-08-14 | src | non-runtime | a vendored mirror |\n",
+    )
+    repo.commit("feat: change and classify", date="2026-08-14T12:00:00Z")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    [rec] = odd_render.recommendations(facts, today="2026-08-15")
+    assert rec["action"] == "loop can rest"
+    assert (
+        "only non-runtime entries moved since the tree anchor: src" in rec["evidence"]
+    )
+
+
+def test_a_skipped_classification_row_is_reported_never_fatal(
+    repo, odd_status, odd_render
+):
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md", observation(run_name="a")
+    )
+    repo.write(
+        ".odd/entry-classifications.md",
+        CLASSIFICATIONS_HEAD + "| 2026-08-13 | nope | runtime | no such entry |\n",
+    )
+    repo.commit("docs(odd): report and a bad classification")
+    text = screen(repo, odd_status, odd_render)
+    line = next(l for l in text.splitlines() if "memory invariant" in l)
+    assert "1 ledger row skipped" in line
+    assert (
+        "entry-classifications.md line 7 - no top-level entry named nope at HEAD"
+        in line
+    )
+    assert "classifications: 0 row(s), 1 skipped" in text
+    assert (
+        "classification line 7 skipped: no top-level entry named nope at HEAD"
+        in text.split("## Judgment needed")[1]
+    )
+    full = rendered(repo, odd_status, odd_render)
+    section = full.split("## Memory invariant")[1].split("## ")[0]
+    assert "- Classifications: 1 row(s) skipped" in section
+    assert (
+        "| entry-classifications.md line 7 | no top-level entry named nope at HEAD |"
+        in section
+    )
+    assert "- Entry classifications: absent (no entry classified yet)" not in full
+
+
+def test_an_absent_classification_ledger_is_a_fact_in_both_renderings(
+    repo, odd_status, odd_render
+):
+    baseline_and_verification(repo)
+    text = screen(repo, odd_status, odd_render, today="2026-08-13")
+    assert "· classifications: absent ·" in text
+    full = rendered(repo, odd_status, odd_render, today="2026-08-13")
+    assert "- Entry classifications: absent (no entry classified yet)" in full
+    assert "- Classifications: 0 row(s) skipped (no entry classified yet)" in full
+
+
+def test_a_ruling_never_settles_an_entry_present_on_one_side_only(
+    repo, odd_status, odd_render
+):
+    baseline_and_verification(repo)
+    repo.write("vendor/lib.py", "print('new')\n")
+    repo.write(
+        ".odd/entry-classifications.md",
+        CLASSIFICATIONS_HEAD + "| 2026-08-14 | vendor | non-runtime | a mirror |\n",
+    )
+    repo.commit("feat: add vendor and classify it", date="2026-08-14T12:00:00Z")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    [rec] = odd_render.recommendations(facts, today="2026-08-15")
+    assert rec["action"] == "judgment needed"
+    assert "only at HEAD: vendor" in rec["evidence"]
