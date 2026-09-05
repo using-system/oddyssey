@@ -25,7 +25,7 @@ fi
 # root locations.
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-uvx --from "apm-cli==${APM_CLI_VERSION}" apm pack --target claude -o "$TMP"
+uvx --from "apm-cli==${APM_CLI_VERSION}" apm pack -o "$TMP"
 
 # Flatten the versioned bundle into the stable path the manifests
 # reference (marketplace/oddyssey), with the plugin manifest where
