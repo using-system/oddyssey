@@ -8,6 +8,14 @@ mission.
 
 Build the mission from the arguments below:
 
+- `Skills: <directory>` - the parent directory of this package's
+  installed skills: the base directory the host prints when one of
+  them is invoked, minus that skill's own directory name. This prompt
+  invokes none before dispatching, so when this session has invoked
+  none of them yet, invoke `otel-guides` once - the mission needs its
+  map anyway - and take the directory from that line. The agent opens
+  the skills' files there, by section, and never searches for them.
+  Derived at run time, always carried, never guessed.
 - Arguments: $ARGUMENTS
 - Expected fields (any order, free-form): the path or repository to
   investigate (default: the current repository), and optionally the

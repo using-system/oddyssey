@@ -125,6 +125,19 @@ stopping on divergence, is yours (Setup step 5).
 
 ## Setup
 
+The skills live under the `Skills:` directory of the mission block:
+`<Skills>/<skill-name>/SKILL.md`, its references beside it as
+`<Skills>/<skill-name>/references/<reference-name>.md`. When the block
+carries no such line, try, skill by skill, `~/.claude/skills/<skill-name>`
+and then `.claude/skills/<skill-name>` at the root of the repository
+you were dispatched in (`git rev-parse --show-toplevel`); when neither
+holds a skill, stop and tell the caller that the skills' directory is
+unknown — name the missing `Skills:` line and the paths tried, and ask
+for the directory. **Never search the filesystem for them**: a `find`
+over the disk is a timeout, not a lookup. The directory is
+conversation-scope: a home-directory path, never copied into a stored
+report.
+
 Every file you open during setup is read **by section, never whole** —
 the reference (step 1), the skills (step 2 and the list below), the
 baseline (step 5). Every later turn of the mission pays for whatever
