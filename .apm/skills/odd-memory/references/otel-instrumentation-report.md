@@ -52,17 +52,25 @@ tree_anchor: {src: "5ea231f…", tests: "8e29aac…"}  # optional: FULL top-leve
 ## Recall: reading the memory
 
 Before a new investigation, load what is already known, per the
-memory contract's recall (newest first, frontmatter only at this
-stage, the baseline by section) — the matching rules are this reference's:
+memory contract's recall (the script first, newest first, the baseline
+by section; frontmatter only, by hand, when the script cannot run) —
+the matching rules are this reference's:
 
-1. List `.odd/otel-instrumentation-reports/` in the investigated repo.
-2. A report matches when its `project` covers the mission's scope and
-   its `stack` is compatible.
-3. The first match is the baseline: its stack inventory, per-service
-   decisions and pinned versions are the sections the new
-   investigation diffs against (new services, changed frameworks,
-   moved pins). What the comparison must report belongs to the calling
-   agent's contract, not to this reference.
+1. Run the recall script in the investigated repo:
+   `python3 <this skill's directory>/scripts/odd_recall.py --repo
+   <path> --kind instrumentation --project <scope> [--stack <stack>]`
+   — it lists `.odd/otel-instrumentation-reports/` newest first and
+   prints the matches by the rule below, one tab-separated line each,
+   the same ten columns as an observation's with `project` in the
+   third and `-` in the observation-only ones.
+2. A report matches when its `project` covers the mission's scope
+   (equal to it, or a parent path of it) and its `stack` is the
+   mission's when one is named.
+3. The first match — the first line printed — is the baseline: its stack
+   inventory, per-service decisions and pinned versions are the sections
+   the new investigation diffs against (new services, changed
+   frameworks, moved pins). What the comparison must report belongs to
+   the calling agent's contract, not to this reference.
 
 ## Rules
 
