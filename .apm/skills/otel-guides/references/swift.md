@@ -17,3 +17,12 @@ Every page below is fetchable as raw markdown by appending `index.md` to its URL
 - No natively-instrumented third-party Swift libraries are known to exist — auto-instrumentation of dependencies generally is not available, so instrumentation work is manual.
 - The SDK targets both server-side Swift (e.g. Vapor) and client-side Swift (iOS/macOS apps) — the same API/SDK applies regardless of runtime target.
 - The default `TracerProvider`/`MeterProvider` are unconfigured out of the box (no exporter attached) — an exporter, such as OTLP, must be explicitly configured for telemetry to actually leave the process.
+
+## Profiling
+
+Cross-language facts — the signal status (Alpha), why a vendor SDK bypasses the Collector, how profiles correlate with traces — live in [profiling.md](profiling.md); this section carries only what is particular to this language. Verified 2026-09-05 against the linked pages.
+
+| Profiler | What it is | What to do with it |
+| --- | --- | --- |
+| None known | Searched 2026-09-05: the Pyroscope SDK list (no Swift), the OTel eBPF profiler README (Swift not listed), the `opentelemetry-swift` README (no profiling mention). | A plan states "no continuous profiler found for Swift" and does not promise the signal. |
+| [swift-server performance guide](https://github.com/swift-server/guides/blob/main/docs/performance.md) | Instruments' Time Profiler on macOS, `perf` flame graphs on Linux, after building with `swift build -c release`. | On-demand profiling only; **the trap**: a debug build profiles nothing representative — the guide's first instruction is release mode. |

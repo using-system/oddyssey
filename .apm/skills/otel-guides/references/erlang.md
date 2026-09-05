@@ -22,3 +22,13 @@ Links ending in `index.md` return the page as raw markdown; links without it are
 - Traces are Stable; metrics and logs remain in development status — plan trace instrumentation as the primary, production-ready signal and treat metrics/logs support as still maturing.
 - No zero-code/automatic instrumentation section is listed in the official docs index for Erlang/Elixir — instrumentation is manual code or via pre-built libraries (e.g., for Phoenix, Ecto), so check the Registry and "Using instrumentation libraries" page first.
 - A dedicated Testing page exists for this language — use it to validate instrumentation, which is not called out as a standalone top-level section for every language.
+
+## Profiling
+
+Cross-language facts — the signal status (Alpha), why a vendor SDK bypasses the Collector, how profiles correlate with traces — live in [profiling.md](profiling.md); this section carries only what is particular to this language. Verified 2026-09-05 against the linked pages.
+
+| Profiler | What it is | What to do with it |
+| --- | --- | --- |
+| None known in-process | Searched 2026-09-05: the Pyroscope SDK list (no BEAM SDK), Alloy's `pyroscope.ebpf` language flags (no BEAM), the `opentelemetry-erlang` README (no profiling mention). | State "no continuous in-process profiler found" in a plan rather than inventing one; the two rows below are what exists. |
+| [OpenTelemetry eBPF profiler](https://github.com/open-telemetry/opentelemetry-ebpf-profiler) | Its README lists Erlang among the supported high-level languages; host-level, Linux, privileged, CPU only, OTLP profiles into a backend that accepts them (Pyroscope, experimental). | The only continuous option found for the BEAM. |
+| [BeamAsm Linux `perf` support](https://www.erlang.org/doc/apps/erts/beamasm.html) | The JIT provides symbols to Linux `perf` (`perf record -- erl +JPperf true`). | On-demand profiling on Linux only; **the trap**: it needs the emulator started with `+JPperf true`, so a running release cannot be profiled this way without a restart. |

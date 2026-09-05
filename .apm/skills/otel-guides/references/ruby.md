@@ -19,3 +19,12 @@ Links ending in `index.md` return the page as raw markdown; links without it are
 - Signal status per the docs index: Traces = Stable, Metrics = Development, Logs = Development — plan traces first; treat metrics and logs instrumentation as less mature and verify current behavior against the fetched page before relying on it.
 - There is no dedicated zero-code/automatic-instrumentation section in the official index; instrumentation is applied through the `Instrumentation` and `Using instrumentation libraries` pages (gem-based auto-instrumentation of dependencies configured via `OpenTelemetry::SDK.configure`), not a standalone agent command like Python's `opentelemetry-instrument`.
 - No dedicated Resources or Propagation top-level sections were listed on the index; check the Instrumentation and API reference pages for resource attribute and context-propagation configuration.
+
+## Profiling
+
+Cross-language facts — the signal status (Alpha), why a vendor SDK bypasses the Collector, how profiles correlate with traces — live in [profiling.md](profiling.md); this section carries only what is particular to this language. Verified 2026-09-05 against the linked pages.
+
+| Profiler | What it is | What to do with it |
+| --- | --- | --- |
+| [Pyroscope Ruby](https://grafana.com/docs/pyroscope/latest/configure-client/language-sdks/ruby/) | The `pyroscope` gem, a `Pyroscope.configure do ... end` block, tags through the configuration block. | **The trap**: the [profile types table](https://grafana.com/docs/pyroscope/latest/configure-client/profile-types/) lists only CPU for Ruby — a plan promising allocation or lock profiles for Ruby promises what the SDK does not collect. |
+| [`pyroscope-otel`](https://grafana.com/docs/pyroscope/latest/configure-client/trace-span-profiles/ruby-span-profiles/) gem | A `TracerProvider` wrapper that labels samples with span IDs. | The trace correlation package. Alloy's eBPF collector also unwinds Ruby (`ruby_enabled`) for a no-code CPU profile. |

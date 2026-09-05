@@ -25,3 +25,13 @@ Links ending in `index.md` return the page as raw markdown; links without it are
 - Zero-code automatic instrumentation (https://opentelemetry.io/docs/zero-code/js/) is the recommended starting point for Node.js; it lives outside `/docs/languages/js/` but is the default path the "Instrumentation" page points to before reaching for manual API calls.
 - Browser (client) instrumentation is explicitly called out as **experimental and mostly unspecified** — treat browser-side plans as higher-risk/lower-confidence than Node.js server-side plans.
 - Node.js support follows active/maintenance LTS versions; older Node versions may work but are untested, which is worth noting if the target app runs on an old runtime.
+
+## Profiling
+
+Cross-language facts — the signal status (Alpha), why a vendor SDK bypasses the Collector, how profiles correlate with traces — live in [profiling.md](profiling.md); this section carries only what is particular to this language. Verified 2026-09-05 against the linked pages.
+
+| Profiler | What it is | What to do with it |
+| --- | --- | --- |
+| [Pyroscope Node.js](https://grafana.com/docs/pyroscope/latest/configure-client/language-sdks/nodejs/) | `@pyroscope/nodejs` (`Pyroscope.init` then `Pyroscope.start`); wall and heap profiles, configurable by `PYROSCOPE_*` variables. | **The trap**: CPU time is not collected unless `wall: { collectCpuTime: true }` (or `PYROSCOPE_WALL_COLLECT_CPU_TIME`) is set — the page's own comment says it "is required for CPU profiling functionality". |
+| Trace correlation | Node.js is not among the five span-profiles packages on the [span profiles page](https://grafana.com/docs/pyroscope/latest/configure-client/trace-span-profiles/) (Go, Java, Ruby, .NET, Python), and its span-profiles page returned 404 on 2026-09-05. | None known — a plan says traces and profiles will not be linked for Node.js today. |
+| [`--cpu-prof`](https://nodejs.org/api/cli.html#--cpu-prof) | Node's built-in V8 CPU profile written at exit. | On-demand only. Browser JavaScript: no profiler found in the Pyroscope SDK list; the eBPF profilers cover Node.js/V8 server processes only. |
