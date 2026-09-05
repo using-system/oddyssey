@@ -185,6 +185,14 @@ configuration, one of the values in [backends.md](backends.md) -
 "checkout" the service, "focus on errors" the focus.
 
 ```text
+/odd-observe observe checkout on my stack seq
+```
+
+"my stack seq" is a custom stack the repository carries as
+`.odd/observability-stacks/seq.md` ([custom-backends.md](custom-backends.md)):
+naming it switches the configuration too; "checkout" is the service.
+
+```text
 /odd-observe observe checkout after my last deployment, error rate should stay under 1%
 ```
 
@@ -285,6 +293,15 @@ newest report on checkout.
 
 "my last prod report" resolves the baseline by detected deployment
 environment: the newest report whose run was detected on prod.
+
+```text
+/odd-verify verify my last report on seq
+```
+
+"my last report on seq" resolves the baseline by stack: the newest
+report whose `stack` is `seq`, a custom stack - its file
+`.odd/observability-stacks/seq.md` must exist in this clone, or the
+prompt stops and says so.
 
 ```text
 /odd-verify verify the instrumentation investigation of services/api - did the planned signals land?

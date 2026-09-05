@@ -54,7 +54,13 @@ this order:
    (`odd_config_get`), say so and **follow the report** - a verify run
    replays the baseline's stack, never silently retargets the current
    one (and it does not rewrite the configuration: the divergence is
-   stated, not persisted).
+   stated, not persisted). That `stack` may be a custom name - a value
+   on no row of `builtin-stacks.md`: step 3's `## Check` resolves it
+   from `.odd/observability-stacks/<name>.md` in this clone and, when
+   that file is absent, stops with the `observability-stack`
+   reference's error naming the built-in list and that location -
+   carry that stop: the report's contract cannot be replayed from a
+   guess, and never from the configured stack instead.
 2. **The execution mode, and the remote-drive question.** Resolve the
    mode - the mission block below restates the rule: the frontmatter's
    mode; for a `verify` or `re-measure` baseline, the mode of the

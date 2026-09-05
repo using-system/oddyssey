@@ -18,9 +18,11 @@ edits both in the same change.
 | `dynatrace` | [dynatrace.md](dynatrace.md) | `dtctl` (DQL) | remote | "Dynatrace" |
 
 Mapping a user's phrasing onto a value goes through the **Also called**
-column; anything that maps onto no row is an error naming the valid
-list, never a guess. `grafana` always means a **remote** Grafana — the
-local stack is its own value, `local`.
+column; anything that maps onto no row is a custom stack when the
+observed repository carries `.odd/observability-stacks/<name>.md`, and
+otherwise an error naming the valid list and that location, never a
+guess. `grafana` always means a **remote** Grafana — the local stack is
+its own value, `local`.
 
 The CLI column is a pointer only: the binary, its Detect command, and
 its Install steps live in each reference's `## CLI binary` section
