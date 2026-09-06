@@ -1,0 +1,83 @@
+# The llms-benchmark demo stack: the agent, the MCP server it calls, and
+# the catalog API behind them.
+#
+#   docker compose up -d --build
+#
+# Telemetry goes to the local oddyssey stack, which runs on the HOST (the
+# oddyssey MCP server drives that container directly, outside this file):
+# start it first with odd_stack_up. Traces, metrics and logs leave over
+# OTLP HTTP; profiles do not - Python has no OTLP profile exporter, so
+# the Pyroscope SDK pushes to Pyroscope's own ingest port. Both ports come
+# from the oddyssey global configuration (odd_config_get): override the
+# two variables below when they are not the defaults.
+#
+# The model is reached through OPENAI_API_KEY, which has no default here
+# and never will: export it in the shell that runs `docker compose up`.
+services:
+  api:
+    build: ../../llms-benchmark/src/api
+    image: llmbench-api:dev
+    container_name: llmbench-api
+    environment:
+      OTEL_SERVICE_NAME: llmbench-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTLP_HTTP_ENDPOINT:-http://host.docker.internal:4318}
+      PYROSCOPE_SERVER_ADDRESS: ${PYROSCOPE_ENDPOINT:-http://host.docker.internal:4040}
+      DEPLOYMENT_ENV: ${DEPLOYMENT_ENV:-local}
+      CATALOG_DB_PATH: /data/catalog.db
+      CATALOG_SIZE: ${CATALOG_SIZE:-5000}
+      PORT: "8000"
+    ports:
+      - "${API_PORT:-8010}:8000"
+    volumes:
+      - catalog-data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  mcp:
+    build: ../../llms-benchmark/src/mcp
+    image: llmbench-mcp:dev
+    container_name: llmbench-mcp
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      OTEL_SERVICE_NAME: llmbench-mcp
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTLP_HTTP_ENDPOINT:-http://host.docker.internal:4318}
+      PYROSCOPE_SERVER_ADDRESS: ${PYROSCOPE_ENDPOINT:-http://host.docker.internal:4040}
+      DEPLOYMENT_ENV: ${DEPLOYMENT_ENV:-local}
+      CATALOG_API_URL: http://api:8000
+      PORT: "8081"
+    ports:
+      - "${MCP_PORT:-8011}:8081"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  agent:
+    build: ../../llms-benchmark/src/agent
+    image: llmbench-agent:dev
+    container_name: llmbench-agent
+    depends_on:
+      - mcp
+    environment:
+      OTEL_SERVICE_NAME: llmbench-agent
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTLP_HTTP_ENDPOINT:-http://host.docker.internal:4318}
+      PYROSCOPE_SERVER_ADDRESS: ${PYROSCOPE_ENDPOINT:-http://host.docker.internal:4040}
+      DEPLOYMENT_ENV: ${DEPLOYMENT_ENV:-local}
+      MCP_URL: http://mcp:8081/mcp
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?export OPENAI_API_KEY before starting the stack}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://openrouter.ai/api/v1}
+      MODEL_NAME: ${MODEL_NAME:-google/gemini-3.5-flash-lite}
+      PORT: "8080"
+    ports:
+      - "${AGENT_PORT:-8012}:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  catalog-data:
