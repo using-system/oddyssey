@@ -148,12 +148,39 @@ def test_a_payload_without_a_command_reads_as_none(guard):
         "git commit -m 'x'",
         "git add -A && git commit -q -m x",
         "git -c commit.gpgsign=false commit -m x",
-        "cd sub; git commit --amend --no-edit",
         "git   commit",
+        "git commit -m x >/dev/null 2>&1",
     ],
 )
 def test_detects_a_commit(guard, command):
     assert guard.git_operations(command) == [("commit", (), None)]
+
+
+@pytest.mark.parametrize(
+    "command, expected",
+    [
+        ("cd sub; git commit --amend --no-edit", [("cd", ("sub",), None)]),
+        ("cd /a/b; git commit -m x", [("cd", ("/a/b",), None)]),
+        ('cd "my dir"; git commit -m x', [("cd", ("my dir",), None)]),
+        ("cd /a/b && git commit -m x", [("cd", ("/a/b", "&&"), None)]),
+        ("cd -P /a/b && git commit -m x", [("cd", ("/a/b", "&&"), None)]),
+        ("cd ../sibling && git commit -m x", [("cd", ("../sibling", "&&"), None)]),
+        ("cd /a/b &&\ngit commit -m x", [("cd", ("/a/b", "&&"), None)]),
+        (
+            "cd /a/b || cd /c; git commit -m x",
+            [("cd", ("/a/b",), None), ("||", (), None), ("cd", (), None)],
+        ),
+        ("cd && git commit -m x", [("cd", (), None)]),
+        ("cd - && git commit -m x", [("cd", (), None)]),
+        ("cd ~/work && git commit -m x", [("cd", (), None)]),
+        ('cd "$HOME/work" && git commit -m x', [("cd", (), None)]),
+        ("cd a b && git commit -m x", [("cd", (), None)]),
+        ("(cd /a/b); git commit -m x", []),
+        ("x=$(cd /a/b && pwd); git commit -m x", []),
+    ],
+)
+def test_detects_the_directory_a_cd_moves_to(guard, command, expected):
+    assert guard.git_operations(command) == [*expected, ("commit", (), None)]
 
 
 @pytest.mark.parametrize(
@@ -320,6 +347,40 @@ def test_a_command_after_a_heredoc_is_still_read(guard):
         ),
         ("git fetch || git status", [("||", (), None)]),
         ("git fetch || exit 1", []),
+        (
+            "git switch docs/x 2>/dev/null || git switch -c docs/x; git commit -m x",
+            [
+                ("unresolved", ("docs/x", "switch"), None),
+                ("||", (), None),
+                ("switch", ("docs/x",), None),
+                ("commit", (), None),
+            ],
+        ),
+        (
+            (
+                "git checkout docs/x >/dev/null 2>&1 || git checkout -b docs/x; "
+                "git commit -m x"
+            ),
+            [
+                ("unresolved", ("docs/x", "checkout"), None),
+                ("||", (), None),
+                ("switch", ("docs/x",), None),
+                ("commit", (), None),
+            ],
+        ),
+        (
+            "git switch -c docs/x &>/dev/null || git switch docs/x; git commit -m x",
+            [
+                ("switch", ("docs/x",), None),
+                ("||", (), None),
+                ("unresolved", ("docs/x", "switch"), None),
+                ("commit", (), None),
+            ],
+        ),
+        (
+            "git switch -c docs/x >switch.log && git commit -m x",
+            [("switch", ("docs/x",), None), ("commit", (), None)],
+        ),
     ],
 )
 def test_detects_a_branch_switch_before_a_commit(guard, command, expected):
@@ -643,6 +704,73 @@ def test_a_switch_recovered_by_creating_the_same_branch_lands_on_it_either_way(
     assert run_hook(claude_payload(command, repo.root)).returncode == 2
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git switch docs/x || git switch -c docs/x; git commit -m x",
+        "git switch docs/x 2>/dev/null || git switch -c docs/x; git commit -m x",
+        (
+            "git switch docs/x >/dev/null 2>&1 || git switch -c docs/x; "
+            "git add .odd && git commit -m x"
+        ),
+        (
+            "git switch docs/x 2>/dev/null || git switch -c docs/x "
+            "&& git add .odd && git commit -m x"
+        ),
+        "git switch docs/x &>/dev/null || git switch -c docs/x; git commit -m x",
+        "git switch docs/x >switch.log || git switch -c docs/x; git commit -m x",
+        "git checkout docs/x 2>/dev/null || git checkout -b docs/x; git commit -m x",
+        "git switch -c docs/x 2>/dev/null || git switch docs/x; git commit -m x",
+        "git switch -q docs/x || git switch -q -c docs/x; git commit -m x",
+        (
+            "git switch docs/x 2>/dev/null || git switch -c docs/x 2>/dev/null; "
+            "git commit -m x"
+        ),
+    ],
+)
+def test_a_redirected_switch_or_create_lands_on_the_work_branch_either_way(
+    tmp_path, command
+):
+    repo = Repo(tmp_path)
+    assert run_hook(claude_payload(command, repo.root)).returncode == 0, command
+    repo.git("branch", "docs/x")
+    assert run_hook(claude_payload(command, repo.root)).returncode == 0, command
+
+
+def test_a_redirected_switch_to_a_remote_only_branch_lands_on_it(tmp_path):
+    repo = Repo(tmp_path / "repo")
+    remote_only_branch(repo, "origin", "fix/remote-only")
+    command = (
+        "git switch fix/remote-only 2>/dev/null || git switch -c fix/remote-only; "
+        "git commit -m x"
+    )
+    assert run_hook(claude_payload(command, repo.root)).returncode == 0
+
+
+def test_a_redirected_switch_before_a_sequenced_commit_lands_on_it(tmp_path):
+    repo = Repo(tmp_path)
+    repo.git("branch", "docs/x")
+    for command in (
+        "git switch docs/x 2>/dev/null && git commit -m x",
+        "git switch -c docs/new 2>/dev/null && git commit -m x",
+    ):
+        assert run_hook(claude_payload(command, repo.root)).returncode == 0, command
+
+
+def test_a_redirected_line_that_still_lands_on_the_default_branch_blocks(tmp_path):
+    repo = Repo(tmp_path)
+    for command in (
+        "git switch docs/y 2>/dev/null || git switch -c docs/z; git commit -m x",
+        "git switch nosuch 2>/dev/null && git commit -m x",
+        "git commit -m x >/dev/null 2>&1",
+        "git switch main 2>/dev/null || git switch -c main; git commit -m x",
+    ):
+        assert run_hook(claude_payload(command, repo.root)).returncode == 2, command
+    repo.git("checkout", "-q", "-b", "docs/x")
+    command = "git switch main >/dev/null 2>&1 && git commit -m x"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 2
+
+
 def test_a_switch_back_to_the_default_branch_blocks_the_commit_after_it(tmp_path):
     repo = Repo(tmp_path)
     repo.git("checkout", "-q", "-b", "docs/x")
@@ -692,6 +820,128 @@ def test_a_foreign_dash_c_skips_only_its_own_invocation(tmp_path):
     assert run_hook(claude_payload(command, repo.root)).returncode == 2
     only_foreign = "git -C /nonexistent/elsewhere commit -m x"
     assert run_hook(claude_payload(only_foreign, repo.root)).returncode == 0
+
+
+def test_a_cd_into_another_repository_moves_where_the_commit_lands(tmp_path):
+    repo = Repo(tmp_path / "repo")
+    clone = Repo(tmp_path / "clone")
+    clone.git("checkout", "-q", "-b", "docs/odd-campaign")
+    for command in (
+        f"git -C {clone.root} add .odd && git -C {clone.root} commit -m x",
+        f"cd {clone.root} && git add .odd && git commit -m x",
+        f"cd {clone.root} && git commit -m x && git push origin docs/odd-campaign",
+        f"cd {clone.root}; git add .odd && git commit -m x",
+        f"cd {clone.root} ; git commit -m x",
+    ):
+        assert run_hook(claude_payload(command, repo.root)).returncode == 0, command
+
+
+def test_a_cd_outside_any_repository_lets_the_commit_through(tmp_path):
+    repo = Repo(tmp_path / "repo")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    for command in (
+        f"cd {elsewhere} && git commit -m x",
+        f"cd {tmp_path / 'nowhere'} && git commit -m x",
+    ):
+        assert run_hook(claude_payload(command, repo.root)).returncode == 0, command
+
+
+def test_a_scratch_repository_built_and_committed_on_the_line_passes(tmp_path):
+    repo = Repo(tmp_path / "playground")
+    scratch = tmp_path / "scratch"
+    command = (
+        f"mkdir -p {scratch} && cd {scratch} && git init -q -b main work && cd work "
+        "&& git add -A && git commit -qm init && git switch -qc docs/x"
+    )
+    assert run_hook(claude_payload(command, repo.root)).returncode == 0
+
+
+def test_a_cd_into_another_repository_on_its_default_branch_still_blocks(tmp_path):
+    repo = Repo(tmp_path / "repo")
+    repo.git("checkout", "-q", "-b", "docs/x")
+    other = Repo(tmp_path / "other")
+    for command in (
+        f"cd {other.root} && git commit -m x",
+        f"cd {other.root} && git push origin main",
+    ):
+        assert run_hook(claude_payload(command, repo.root)).returncode == 2, command
+
+
+def test_a_cd_inside_the_session_repository_is_still_judged_there(tmp_path):
+    repo = Repo(tmp_path)
+    (repo.root / "sub").mkdir()
+    for command in (
+        "cd sub; git commit --amend --no-edit",
+        f"cd {repo.root / 'sub'} && git commit -m x",
+        f"cd {repo.root} && git commit -m x",
+        "cd .odd && git commit -m x",
+    ):
+        assert run_hook(claude_payload(command, repo.root)).returncode == 2, command
+
+
+def test_a_cd_the_hook_cannot_name_falls_back_to_the_session_repository(tmp_path):
+    repo = Repo(tmp_path / "repo")
+    elsewhere = Repo(tmp_path / "elsewhere")
+    elsewhere.git("checkout", "-q", "-b", "docs/x")
+    for unnameable in ('cd "$WORKTREE"', "cd ~/worktree", "cd", "cd -", "cd a b"):
+        for command in (
+            f"{unnameable} && git commit -m x",
+            # after a nameable one: the guard must come back, not stay outside
+            f"cd {elsewhere.root} && {unnameable} && git commit -m x",
+            f"cd {elsewhere.root}; {unnameable}; git commit -m x",
+        ):
+            assert run_hook(claude_payload(command, repo.root)).returncode == 2, command
+    command = f"git fetch -q || cd {elsewhere.root}; git commit -m x"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 2
+
+
+def test_a_cd_inside_a_subshell_does_not_move_the_line(tmp_path):
+    repo = Repo(tmp_path / "repo")
+    elsewhere = Repo(tmp_path / "elsewhere")
+    elsewhere.git("checkout", "-q", "-b", "docs/x")
+    for command in (
+        f"(cd {elsewhere.root}) ; git commit -m x",
+        f"(cd {elsewhere.root} && git status) && git commit -m x",
+        f"x=$(cd {elsewhere.root} && pwd); git commit -m x",
+        f"git switch -c docs/y || (cd {elsewhere.root}); git commit -m x",
+    ):
+        assert run_hook(claude_payload(command, repo.root)).returncode == 2, command
+
+
+def test_a_cd_to_a_directory_that_does_not_exist_moves_nothing(tmp_path):
+    repo = Repo(tmp_path / "repo")
+    missing = tmp_path / "missing"
+    for command in (
+        f"cd {missing}; git commit -m x",
+        f"cd {missing} || true; git commit -m x",
+        "cd ../missing; git commit -m x",
+    ):
+        assert run_hook(claude_payload(command, repo.root)).returncode == 2, command
+    # ``&&`` aborts the line when the ``cd`` fails, so the commit never runs -
+    # and the line may well be the one that creates the directory first.
+    command = f"cd {missing} && git commit -m x"
+    assert run_hook(claude_payload(command, repo.root)).returncode == 0
+
+
+def test_a_quoted_or_spaced_path_is_still_a_directory(tmp_path):
+    repo = Repo(tmp_path / "repo")
+    spaced = Repo(tmp_path / "work tree")
+    spaced.git("checkout", "-q", "-b", "docs/x")
+    inside = repo.root / "sub dir"
+    inside.mkdir()
+    assert (
+        run_hook(
+            claude_payload(f'cd "{spaced.root}"; git commit -m x', repo.root)
+        ).returncode
+        == 0
+    )
+    assert (
+        run_hook(
+            claude_payload(f'cd "{inside}"; git commit -m x', repo.root)
+        ).returncode
+        == 2
+    )
 
 
 def test_a_quoted_or_heredoc_commit_line_passes_on_the_default_branch(tmp_path):
