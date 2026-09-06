@@ -215,7 +215,23 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   `process.runtime.version` plus application frames — `instance` says
   which holds for the profiles.
 - The body's sections are the agent's contract — seven, numbered, and
-  read by number by the recall and `## Show`. One subsection is
+  read by number by the recall and `## Show`. One of them carries a
+  machine-readable row: a verification or re-measure opens **section 3**
+  with one ruling row per finding of the baseline's ranked table —
+  `| # | Baseline finding | Verdict | Evidence |`, `#` holding the
+  baseline's id exactly as that table writes it (`1`, `F4`: the key
+  `decisions.md` names a finding by), the verdict one of `fixed`,
+  `still present`, `worse` or `not ruled (quick)` — before the ranked
+  table of the run's own findings, whose identifiers continue the
+  baseline's numbering rather than restarting it, so they cannot
+  collide with a baseline id. The id is
+  what ties the ruling to the finding: renumbered, re-prefixed, or left
+  to prose, the ruling belongs to no finding and the baseline's stay
+  open in every reader's burn-down, whatever the report's verdict says.
+  Append-only memory makes that permanent — a mis-keyed ruling is never
+  repaired, only re-ruled by a later run. A re-measure writes the same
+  table and rules on no fix: its rows record what the run measured,
+  only a verification's rows close a finding. One subsection is
   optional, named here so the recall, the synthesis and a reader find
   it: when `gen_ai.*` spans existed in the window, section 2 carries a
   **GenAI** subsection under a `### GenAI` heading, after the
@@ -347,8 +363,10 @@ caller closing the mission:
     unattributed / still missing);
   - section 3's ranked table — the identifier, finding, severity and
     confidence cells the table carries, never the evidence or the
-    detail per row; in a verify or re-measure, each baseline anomaly's
-    fate with it (fixed, still present, worse);
+    detail per row; in a verify or re-measure, the baseline-ruling
+    table that precedes it, whole — one row per baseline finding, its
+    id and its verdict (fixed, still present, worse, or not ruled
+    (quick)) — before the ranked table of the run's own findings;
   - section 5's telemetry gaps — its `not queried (<depth>)` line when
     it carries one, then its bullets, one per gap, each carrying the
     gap's fate (filled, still missing, new, not ruled (quick)) and its
@@ -421,8 +439,8 @@ The report to render, in one of two forms:
   reply: the stored path, the carrying commit (or `not committed`),
   and the synthesis block — the frontmatter, section 1's
   recalled-baseline line, section 2's delta lines, check rulings or
-  presence rulings, section 3's ranked table with the baseline
-  anomalies' fates, the telemetry gaps with the baseline gaps' fates,
+  presence rulings, section 3's baseline-ruling table and its ranked
+  table, the telemetry gaps with the baseline gaps' fates,
   and the open decisions, quoted from the file (`## Return value` above
   owns the list). Render from it; never
   re-read the file it just wrote — the block carries every input the

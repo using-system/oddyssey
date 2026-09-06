@@ -1932,6 +1932,7 @@ JUDGMENT_GROUPS = (
         lambda i, _: (
             "ruling not readable by rule" in i
             or "outside its chain" in i
+            or "rules on no finding of its baseline" in i
             or refused_ruling(i)
         ),
     ),
@@ -1961,7 +1962,10 @@ def judgment_items(text: str) -> list[str]:
 
 
 def group_of(item: str, lineage: str) -> str:
-    [name] = [name for name, match in JUDGMENT_GROUPS if match(item, lineage)]
+    # first match wins: a lineage's own item carries its evidence, and that
+    # evidence quotes the sentences the groups below it match on
+    name = next((n for n, match in JUDGMENT_GROUPS if match(item, lineage)), None)
+    assert name is not None, item
     return name
 
 
@@ -1969,10 +1973,10 @@ def test_the_judgment_list_is_ordered_by_what_settling_an_item_changes(
     repo, odd_status, odd_render
 ):
     # one item of each group, more than the screen's cap in all: a boundary
-    # only a judgment settles, a ruling the rules cannot read and two on an id
-    # outside the chain, two verdict words, a quick report's gaps mixed into
-    # its not-queried list, two refused flags, a skipped ledger row and three
-    # malformed flags
+    # only a judgment settles, a ruling the rules cannot read, one on an id
+    # outside the chain, a verification keying none of its baseline's ids,
+    # two verdict words, a quick report's gaps mixed into its not-queried
+    # list, two refused flags, a skipped ledger row and three malformed flags
     rev = repo.git("rev-parse", "--short", "HEAD")
     repo.write(
         ".odd/observe-run-reports/2026-08-10-1000-a.md",
@@ -2004,7 +2008,10 @@ def test_the_judgment_list_is_ordered_by_what_settling_an_item_changes(
     write_verify(repo, "2026-08-12-1000-verify-a.md", "2026-08-10-1000-a.md", verify_a)
     # verifies b, yet rules F1 and F2 - ids report a defines, outside its chain
     write_verify(
-        repo, "2026-08-12-1100-verify-b.md", "2026-08-11-1000-b.md", VERIFY_BODY
+        repo,
+        "2026-08-12-1100-verify-b.md",
+        "2026-08-11-1000-b.md",
+        VERIFY_BODY.replace("| F2 | Cold start | still present | 390 ms |\n", ""),
     )
     repo.write(
         ".odd/decisions.md",
@@ -2445,3 +2452,391 @@ def test_the_stores_own_reports_never_carry_a_repository_prefix(
     facts = odd_status.build_facts(repo.root, recent=None)
     # one lineage: the field arriving on the newest report never splits the chain
     assert list(odd_render.lineages(facts)) == ["checkout / local / local"]
+
+
+# --- a verification's rulings, keyed by the baseline's ids (issue #414) --------
+
+
+CLOSURE_ROWS_BODY = VERIFY_BODY.replace(
+    "| # | Baseline finding | Fate | Evidence |\n"
+    "|---|---|---|---|\n"
+    "| F1 | N+1 on cart lines | FIXED | 1 span per call |\n"
+    "| F2 | Cold start | still present | 390 ms |\n\n",
+    "",
+).replace(
+    "| V1 | Retry storm on /cart | medium | confirmed | 3 retries per call | error -3 % |",
+    "| 1 | **Baseline finding F1 - fixed** | - (closed) | confirmed | 1 span/call | - |\n"
+    "| 2 | **Baseline finding F2 - fixed** | - (closed) | confirmed | 390 ms | - |",
+)
+
+
+def baseline_then_verification(
+    repo: Repo, verify_body: str, *, baseline_body: str = ""
+) -> None:
+    """The default observation, a fix, then a verification carrying ``verify_body``."""
+    rev = repo.git("rev-parse", "--short", "HEAD")
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(
+            run_name="a",
+            revision=rev,
+            extra_frontmatter=f"tree_anchor: {repo.tree_anchor()}",
+            body=baseline_body,
+        ),
+    )
+    repo.commit("docs(odd): observation report a", date="2026-08-10T12:00:00Z")
+    repo.write("src/app.py", "print('fixed')\n")
+    repo.commit("fix: batch the cart lines query", date="2026-08-11T12:00:00Z")
+    write_verify(
+        repo, "2026-08-12-1000-verify-a.md", "2026-08-10-1000-a.md", verify_body
+    )
+    repo.commit("docs(odd): verification report a", date="2026-08-12T12:00:00Z")
+
+
+def test_a_verification_keyed_like_its_baseline_rules_its_findings(
+    repo, odd_status, odd_render
+):
+    # one ruling row per baseline finding with the baseline's own id in
+    # it, under the older `Fate` header a stored report may carry: the id
+    # is what the ledger reads, so nothing here is deferred
+    baseline_then_verification(repo, VERIFY_BODY)
+    facts = odd_status.build_facts(repo.root, recent=None)
+    rows = own_rows(odd_render, facts)
+    assert rows["F1"]["state"] == "fixed-and-verified"
+    assert rows["F2"]["state"] == "open"
+    [rec] = odd_render.recommendations(facts, today="2026-08-13")
+    assert rec["action"] == "loop can rest"
+    judgment = odd_render.render(facts, full=True, today="2026-08-13").split(
+        "## Judgment needed"
+    )[1]
+    assert "rules on no finding of its baseline" not in judgment
+
+
+def test_a_verification_closing_findings_in_its_own_rows_is_deferred(
+    repo, odd_status, odd_render
+):
+    # no ruling column at all in section 3: the closures are new rows of the
+    # verification's own ranked table, which rule nothing the ledger can read
+    baseline_then_verification(repo, CLOSURE_ROWS_BODY)
+    facts = odd_status.build_facts(repo.root, recent=None)
+    rows = own_rows(odd_render, facts)
+    assert rows["F1"]["state"] == "open"
+    assert "not ruled by 2026-08-12-1000-verify-a.md" in rows["F1"]["ruled_by"]
+    [rec] = odd_render.recommendations(facts, today="2026-08-13")
+    assert rec["action"] == "judgment needed"
+    assert (
+        "2026-08-12-1000-verify-a.md rules on no finding of its baseline "
+        "2026-08-10-1000-a.md (2 findings left unruled)" in rec["evidence"]
+    )
+    judgment = odd_render.render(facts, full=True, today="2026-08-13").split(
+        "## Judgment needed"
+    )[1]
+    assert (
+        "2026-08-12-1000-verify-a.md rules on no finding of its baseline "
+        "2026-08-10-1000-a.md (2 findings left unruled): it rules C1, C2, none of "
+        "them an id of the baseline" in judgment
+    )
+    # the rows it did key are not the baseline's ids under another shape:
+    # no prefix hint is invented for them
+    assert "'F' prefix" not in judgment
+
+
+def test_a_verification_keyed_with_an_added_f_prefix_is_deferred_with_the_hint(
+    repo, odd_status, odd_render
+):
+    # section 3 carries a Verdict column, but keyed F1, F2 while the baseline
+    # numbers its findings 1, 2: every ruling is unreadable to the ledger
+    baseline_then_verification(
+        repo,
+        VERIFY_BODY,
+        baseline_body=DEFAULT_BODY.replace("| F1 |", "| 1 |").replace(
+            "| F2 |", "| 2 |"
+        ),
+    )
+    facts = odd_status.build_facts(repo.root, recent=None)
+    rows = own_rows(odd_render, facts)
+    assert [rows["1"]["state"], rows["2"]["state"]] == ["open", "open"]
+    [rec] = odd_render.recommendations(facts, today="2026-08-13")
+    assert rec["action"] == "judgment needed"
+    text = odd_render.render(facts, full=True, today="2026-08-13")
+    judgment = text.split("## Judgment needed")[1]
+    assert (
+        "2026-08-12-1000-verify-a.md rules on no finding of its baseline "
+        "2026-08-10-1000-a.md (2 findings left unruled): it keys F1, F2 against "
+        "the baseline's 1, 2 - an 'F' prefix added: judge whether they are the "
+        "same findings" in judgment
+    )
+    # a hint, never a match: the rules never fold F1 onto 1 themselves
+    assert "| 2026-08-10-1000-a.md / 1 | N+1 on cart lines | high | open |" in text
+    # the screen names the report too, without --full
+    assert (
+        "2026-08-12-1000-verify-a.md rules on no finding of its baseline"
+        in odd_render.render(facts, today="2026-08-13").split("## Judgment needed")[1]
+    )
+
+
+THREE_FINDING_BODY = DEFAULT_BODY.replace(
+    "| F2 | Cold start | low | suspected | first call 400 ms | none |",
+    "| F2 | Cold start | low | suspected | first call 400 ms | none |\n"
+    "| F3 | Chatty logs | low | confirmed | 40 lines per call | none |",
+)
+
+# section 3 exactly as the report contract mandates it: the Verdict header,
+# the baseline's own ids, and the words the contract fixes
+CONTRACT_VERIFY_BODY = VERIFY_BODY.replace(
+    "| # | Baseline finding | Fate | Evidence |\n"
+    "|---|---|---|---|\n"
+    "| F1 | N+1 on cart lines | FIXED | 1 span per call |\n"
+    "| F2 | Cold start | still present | 390 ms |\n",
+    "| # | Baseline finding | Verdict | Evidence |\n"
+    "|---|---|---|---|\n"
+    "| F1 | N+1 on cart lines | fixed | 1 span per call |\n"
+    "| F2 | Cold start | still present | 390 ms |\n"
+    "| F3 | Chatty logs | worse | 60 lines per call |\n",
+)
+
+# a verification that rules its baseline's findings and names none of its own
+RULINGS_ONLY_BODY = VERIFY_BODY.replace(
+    "| # | Finding | Severity | Confidence | Evidence | Expected gain |\n"
+    "|---|---|---|---|---|---|\n"
+    "| V1 | Retry storm on /cart | medium | confirmed | 3 retries per call | error -3 % |\n\n",
+    "",
+)
+
+
+@pytest.mark.parametrize(
+    ("verdict", "state"),
+    [
+        ("fixed", "fixed-and-verified"),
+        ("still present", "open"),
+        ("worse", "regressed"),
+        ("not ruled (quick)", "open"),
+    ],
+)
+def test_the_four_verdict_words_the_contract_mandates_all_classify(
+    odd_render, verdict, state
+):
+    # the contract's vocabulary and the reader's classifier are one thing:
+    # a word the report is told to write and the rules cannot read is the
+    # very disagreement this rule exists to remove
+    assert odd_render.classify_ruling(verdict) == state
+    assert odd_render.classify_ruling(verdict.upper()) == state
+
+
+@pytest.mark.parametrize(
+    "text", ["no worse than the baseline", "not worse", "nothing worse"]
+)
+def test_a_denied_worse_is_not_a_regression(odd_render, text):
+    assert odd_render.classify_ruling(text) != "regressed"
+
+
+def test_a_verification_written_to_the_contract_rules_every_baseline_finding(
+    repo, odd_status, odd_render
+):
+    # the mandated table: the Verdict header, the baseline's ids, the
+    # contract's words - read row by row, nothing deferred
+    baseline_then_verification(
+        repo, CONTRACT_VERIFY_BODY, baseline_body=THREE_FINDING_BODY
+    )
+    facts = odd_status.build_facts(repo.root, recent=None)
+    rows = own_rows(odd_render, facts)
+    assert rows["F1"]["state"] == "fixed-and-verified"
+    assert rows["F2"]["state"] == "open"
+    assert rows["F3"]["state"] == "regressed"
+    text = odd_render.render(facts, full=True, today="2026-08-13")
+    judgment = text.split("## Judgment needed")[1]
+    assert "rules on no finding of its baseline" not in judgment
+    assert "ruling not readable by rule" not in judgment
+    assert (
+        "Burn-down: open 2 · fixed-and-verified 1 · regressed 1 · declined 0." in text
+    )
+
+
+def test_a_quick_verification_writing_not_ruled_quick_still_defers(
+    repo, odd_status, odd_render
+):
+    # the contract mandates a row for every baseline finding, `not ruled
+    # (quick)` included: naming a finding is not ruling it
+    rev = repo.git("rev-parse", "--short", "HEAD")
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(
+            run_name="a",
+            revision=rev,
+            extra_frontmatter=f"tree_anchor: {repo.tree_anchor()}",
+        ),
+    )
+    repo.commit("docs(odd): report", date="2026-08-10T12:00:00Z")
+    body = VERIFY_BODY.replace(
+        "| F2 | Cold start | still present | 390 ms |",
+        "| F2 | Cold start | not ruled (quick) | logs not queried |",
+    )
+    text = observation(
+        run_name="a",
+        mode="verify",
+        date="2026-08-12",
+        revision=repo.git("rev-parse", "--short", "HEAD"),
+        extra_frontmatter=f"verifies: 2026-08-10-1000-a.md\ntree_anchor: {repo.tree_anchor()}",
+        body=body,
+    ).replace("depth: full", "depth: quick")
+    repo.write(".odd/observe-run-reports/2026-08-12-1000-verify-a.md", text)
+    repo.commit("docs(odd): quick verification", date="2026-08-12T12:00:00Z")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    rows = own_rows(odd_render, facts)
+    assert rows["F2"]["state"] == "open"
+    [rec] = odd_render.recommendations(facts, today="2026-08-13")
+    assert rec["action"] == "judgment needed"
+    assert "1 finding(s) of 2026-08-10-1000-a.md unruled" in rec["evidence"]
+
+
+def test_a_verification_keyed_with_an_older_reports_ids_is_deferred(
+    repo, odd_status, odd_render
+):
+    # both reports are one lineage: the verification of the newer one keys
+    # its rulings with the older one's ids, so it rules neither
+    rev = repo.git("rev-parse", "--short", "HEAD")
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", revision=rev),
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-11-1000-b.md",
+        observation(
+            run_name="b",
+            date="2026-08-11",
+            revision=rev,
+            extra_frontmatter=f"tree_anchor: {repo.tree_anchor()}",
+            body=DEFAULT_BODY.replace("| F1 |", "| G1 |").replace("| F2 |", "| G2 |"),
+        ),
+    )
+    repo.commit("docs(odd): reports", date="2026-08-11T12:00:00Z")
+    write_verify(
+        repo, "2026-08-12-1000-verify-b.md", "2026-08-11-1000-b.md", VERIFY_BODY
+    )
+    repo.commit("docs(odd): verification", date="2026-08-12T12:00:00Z")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    rows = own_rows(odd_render, facts, suffix="1000-b.md")
+    assert [rows["G1"]["state"], rows["G2"]["state"]] == ["open", "open"]
+    [rec] = odd_render.recommendations(facts, today="2026-08-13")
+    assert rec["action"] == "judgment needed"
+    judgment = odd_render.render(facts, full=True, today="2026-08-13").split(
+        "## Judgment needed"
+    )[1]
+    assert (
+        "2026-08-12-1000-verify-b.md rules on no finding of its baseline "
+        "2026-08-11-1000-b.md (2 findings left unruled)" in judgment
+    )
+    # the identity question about the older report's ids stays its own item
+    assert "an id of 2026-08-10-1000-a.md outside its chain" in judgment
+
+
+def test_ruling_the_baseline_findings_settles_the_item_and_the_action(
+    repo, odd_status, odd_render
+):
+    baseline_then_verification(
+        repo,
+        VERIFY_BODY,
+        baseline_body=DEFAULT_BODY.replace("| F1 |", "| 1 |").replace(
+            "| F2 |", "| 2 |"
+        ),
+    )
+    facts = odd_status.build_facts(repo.root, recent=None)
+    flags = ["2026-08-10-1000-a.md/1=fixed", "2026-08-10-1000-a.md/2=open"]
+    text = odd_render.render(facts, full=True, today="2026-08-13", ruled=flags)
+    assert (
+        "rules on no finding of its baseline" not in text.split("## Judgment needed")[1]
+    )
+    assert "| checkout / local / local | loop can rest |" in text
+    # one flag short of the baseline, the item and the action both stand
+    partial = odd_render.render(facts, full=True, today="2026-08-13", ruled=flags[:1])
+    assert (
+        "rules on no finding of its baseline" in partial.split("## Judgment needed")[1]
+    )
+    assert "| checkout / local / local | judgment needed |" in partial
+
+
+def test_a_verification_of_a_verification_is_ruled_against_the_findings_it_reaches(
+    repo, odd_status, odd_render
+):
+    # the first verification carries no finding of its own: the baseline the
+    # second one must rule is the observation behind it
+    rev = repo.git("rev-parse", "--short", "HEAD")
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", revision=rev),
+    )
+    repo.commit("docs(odd): report", date="2026-08-10T12:00:00Z")
+    write_verify(
+        repo, "2026-08-11-1000-verify-a.md", "2026-08-10-1000-a.md", RULINGS_ONLY_BODY
+    )
+    repo.commit("docs(odd): first verification", date="2026-08-11T12:00:00Z")
+    write_verify(
+        repo,
+        "2026-08-12-1000-verify-a.md",
+        "2026-08-11-1000-verify-a.md",
+        RULINGS_ONLY_BODY.replace("| F1 |", "| 1 |").replace("| F2 |", "| 2 |"),
+    )
+    repo.commit("docs(odd): second verification", date="2026-08-12T12:00:00Z")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    [rec] = odd_render.recommendations(facts, today="2026-08-13")
+    assert rec["action"] == "judgment needed"
+    judgment = odd_render.render(facts, full=True, today="2026-08-13").split(
+        "## Judgment needed"
+    )[1]
+    assert (
+        "2026-08-12-1000-verify-a.md rules on no finding of its baseline "
+        "2026-08-10-1000-a.md (2 findings left unruled): it keys 1, 2 against "
+        "the baseline's F1, F2 - an 'F' prefix dropped" in judgment
+    )
+
+
+def test_a_verification_reaching_the_grandparents_findings_is_not_deferred(
+    repo, odd_status, odd_render
+):
+    # the same chain, keyed right: the ledger reads it, so there is nothing
+    # to judge - the rule asks about the whole chain, not the nearest report
+    rev = repo.git("rev-parse", "--short", "HEAD")
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", revision=rev),
+    )
+    repo.commit("docs(odd): report", date="2026-08-10T12:00:00Z")
+    write_verify(
+        repo, "2026-08-11-1000-verify-a.md", "2026-08-10-1000-a.md", RULINGS_ONLY_BODY
+    )
+    repo.commit("docs(odd): first verification", date="2026-08-11T12:00:00Z")
+    write_verify(
+        repo,
+        "2026-08-12-1000-verify-a.md",
+        "2026-08-11-1000-verify-a.md",
+        RULINGS_ONLY_BODY,
+    )
+    repo.commit("docs(odd): second verification", date="2026-08-12T12:00:00Z")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    rows = own_rows(odd_render, facts)
+    assert rows["F1"]["state"] == "fixed-and-verified"
+    judgment = odd_render.render(facts, full=True, today="2026-08-13").split(
+        "## Judgment needed"
+    )[1]
+    assert "rules on no finding of its baseline" not in judgment
+
+
+def test_a_verification_carrying_no_ruling_row_at_all_is_deferred(
+    repo, odd_status, odd_render
+):
+    body = CLOSURE_ROWS_BODY.replace(
+        "| Check | Before | This run | Verdict |",
+        "| Check | Before | This run | Result |",
+    )
+    baseline_then_verification(repo, body)
+    facts = odd_status.build_facts(repo.root, recent=None)
+    [rec] = odd_render.recommendations(facts, today="2026-08-13")
+    assert rec["action"] == "judgment needed"
+    judgment = odd_render.render(facts, full=True, today="2026-08-13").split(
+        "## Judgment needed"
+    )[1]
+    assert (
+        "2026-08-12-1000-verify-a.md rules on no finding of its baseline "
+        "2026-08-10-1000-a.md (2 findings left unruled): it carries no ruling "
+        "row at all - open the body" in judgment
+    )

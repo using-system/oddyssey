@@ -93,7 +93,10 @@ verification stating no verdict, a quick verification that ruled only
 part of its items, a boundary the files cannot settle (tree entries
 the anchor cannot classify, an entry present on one side only, a
 commit-date boundary with commits since), a ruling on an id its chain
-does not define (the same finding, or a homonym), a quick report's
+does not define (the same finding, or a homonym), a verification that
+states a verdict yet keys none of its rulings by a finding of its
+chain (with the hint, never the guess, when its keys are the
+baseline's ids with an `F` added or dropped), a quick report's
 gaps section opening with its not-queried list, a section not lifted
 or cut by a cap, an unreadable report, a malformed frontmatter value,
 a skipped ledger row. The action column uses step 6's three actions
@@ -110,11 +113,12 @@ ruling back to the script as a flag and run it again:
 
 - `--ruled <report>/<id>=<state>`, `<state>` one of `open`, `fixed`,
   `regressed`: a finding whose ruling the rules could not read ("still
-  passing" is a pass), or a ruling on an id outside its chain you
-  judge to be the same finding — the item leaves the list once every
-  finding it names is ruled. A ruling on a declined finding is
-  refused — the ledger is the memory, the flag is one run's judgment,
-  never persisted.
+  passing" is a pass), a ruling on an id outside its chain you
+  judge to be the same finding, or the findings a verification left
+  unread by keying them its own way — the item leaves the list, and the
+  lineage's action follows, once every finding it names is ruled. A
+  ruling on a declined finding is refused — the ledger is the memory,
+  the flag is one run's judgment, never persisted.
 - `--runtime <entry>` / `--non-runtime <entry>` for the top-level
   tree entries you can classify, for this run only — a classification
   that holds for the repository is recorded once in

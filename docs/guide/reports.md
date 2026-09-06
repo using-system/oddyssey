@@ -95,10 +95,17 @@ rather than guessing.
 
 A `quick` report keeps the seven headings with sections 1, 2 and 7
 complete and 3 to 6 reduced to their essentials; section 5 names the
-signals the run did not query. A verification adds its verdicts: each
-check passed or failed, each anomaly fixed or still present, each gap
-filled or still missing. A re-measure replays the same protocol and
-rules on no fix: its numbers extend the run's measurement history.
+signals the run did not query. A verification adds its verdicts:
+section 3 opens with one row per finding of the baseline — its id as
+the baseline wrote it (`1`, `F4`), then `fixed`, `still present`,
+`worse`, or `not ruled (quick)` — before the findings the run names
+itself; each check passed or failed; each gap filled or still missing.
+That id is how `/odd-status` burns a finding down, so a ruling written
+under a renumbered id, or only in prose, leaves the finding open in
+the status and says so under "Judgment needed". A re-measure replays
+the same protocol and writes the same rows, but rules on no fix: its
+numbers extend the run's measurement history, and only a
+verification's rows close a finding.
 
 A service that calls a model adds a **GenAI** subsection to section 2:
 the per-model table — calls, tokens in and out, p50/p99, error rate,
