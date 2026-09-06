@@ -24,6 +24,23 @@ Both live at the site **root**, not under `/docs/k6/latest/` (that path
 404s) - a natural first mistake, verify against the root before
 concluding they don't exist.
 
+**An underscore written outside backticks may come back
+backslash-escaped.** Names the pages write as code keep their
+underscores; names written as plain text - the metrics reference's
+first column is the case that bites - are served as
+`dropped\_iterations`, so a grep for the bare name finds nothing on a
+page that does document the metric. It is not a property of tables:
+verified live (this machine, 2026-09-06) on the fetched `.md` of
+`using-k6/metrics/reference/` (56 escaped underscores, every one of
+them an unbackticked name in a table's first column; `grep -c
+dropped_iterations` -> `0`, `grep -c 'dropped\\_iterations'` -> `1`),
+against `using-k6/k6-options/reference/` and `using-k6/thresholds/`
+(143 and 7 table data rows, **zero** escaped underscores - both write
+their names as code). Before concluding a metric or an option is
+undocumented, grep with the underscore made optional
+(`grep -i 'dropped.\?_iterations'`) or on the unambiguous fragment
+alone (`grep -i dropped`).
+
 ## Which reference
 
 | Question | Reference |
@@ -36,6 +53,7 @@ concluding they don't exist.
 | Which test type fits this investigation - smoke, load, stress, soak, spike, breakpoint? | [test-types.md](references/test-types.md) |
 | What does a benchmark's authoring need decided, and by whom - human or agent? | [authoring-inputs.md](references/authoring-inputs.md) |
 | Does k6 support the service's protocol (gRPC, WebSockets, ...)? | [protocols.md](references/protocols.md) |
+| How do I drive an MCP server - the session handshake, SSE bodies, one session per VU? | [mcp.md](references/mcp.md) |
 | Is this browser/frontend performance testing rather than API load? | [browser.md](references/browser.md) |
 
 ## Conventions

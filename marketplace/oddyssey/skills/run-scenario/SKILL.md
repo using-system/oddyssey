@@ -18,9 +18,9 @@ block that applies, never whole:
 
 | Situation | Reference |
 | --- | --- |
-| Every drive: the clean-base order and the identity the queries are qualified by — a process the run launches, a port already served, a remote target the run cannot launch, a reset that is forbidden | [references/run-identity.md](references/run-identity.md), the block that applies |
+| Every drive: the clean-base order and the identity the queries are qualified by, and the run's t0 after the warmup — a process the run launches, a port already served, a remote target the run cannot launch, a reset that is forbidden, a run whose stages are carved from timestamps | [references/run-identity.md](references/run-identity.md), the block that applies |
 | An iteration that is expensive or non-deterministic, a wait that must stay inside the turn, a scenario longer than a tool call | [references/long-scenarios.md](references/long-scenarios.md) |
-| A stored k6 benchmark under `.odd/benchmarks/<name>/` | [references/benchmark-replay.md](references/benchmark-replay.md), in place of the ad-hoc commands |
+| A stored k6 benchmark under `.odd/benchmarks/<name>/` — driven here, or driven elsewhere and only watched | [references/benchmark-replay.md](references/benchmark-replay.md), in place of the ad-hoc commands; its watching section for a run someone else drives |
 
 Start with the identity reference, then follow the steps below.
 
@@ -38,11 +38,11 @@ In order of preference:
    table, a CLI entry point in the repository (read-only).
 
 Prefer a handful of representative operations covered properly over every
-endpoint covered once. Note anything you deliberately left out.
+operation covered once. Note anything you deliberately left out.
 
 ## 2. Warm up
 
-Send a few requests per endpoint (typically 5) before measuring: JIT
+Send a few requests per operation (typically 5) before measuring: JIT
 compilation, connection pools, lazy caches, and first-hit schema loads all
 land in the first requests and distort a small sample. Discard the warmup
 from the quoted numbers, and say in the record that it was discarded —
@@ -50,8 +50,11 @@ unless an iteration is expensive: see `references/long-scenarios.md`.
 
 ## 3. Iterate enough to quote a number
 
-- **>= 30 requests per endpoint** before quoting a p95. Below that, report
-  observations, not quantiles.
+- **>= 30 requests per operation** before quoting a p95 — an operation
+  being the unit the service serves distinctly: on an HTTP server the
+  method and the route together, so two verbs sharing a route need the
+  count each, and elsewhere that surface's own unit (an RPC method, a
+  tool call). Below that, report observations, not quantiles.
 - **~100** before quoting a p99.
 - Sequential by default. If concurrency is part of the question, state the
   level explicitly — it changes every latency number.
@@ -71,8 +74,8 @@ Listeners: none   # or: :8000 served by 41234 uvicorn (127.0.0.1) and 51022 com.
 Backend:  odd_stack_reset, env: {"PROMETHEUS_EXTRA_ARGS": "..."}   # or "defaults"
 Instance: af6070... (restarted before reset)   # or equivalent identity; add the start time when not restarted
 Identity: launched with service.instance.id=<slug>   # or, when the run launched nothing: User-Agent "odd-verify/<slug>" (+ "-warmup"); traceparent "00-<prefix><run8><seq:016x>-<seq:016x>-01", run8 = sha256(<slug>)[:8]; instance read from the rows: <id>
-Warmup:   5 requests per endpoint (discarded)
-Load:     30 requests per endpoint, sequential
+Warmup:   5 requests per operation (discarded)
+Load:     30 requests per operation, sequential
 Started (UTC): 2026-08-17T10:04:12Z
 Ended   (UTC): 2026-08-17T10:05:03Z
 Query points: 1 (after Ended)   # more than one only with a reason - see step 5
@@ -116,12 +119,20 @@ reads (60 s when it reads traces), then run every query against the
 window recorded in step 4. Never interleave requests, waits, and
 queries outside the query points the record declares: a wait after
 every request batch turns a 3-minute scenario into 4 minutes of sleep.
-Where the host blocks a foreground `sleep`, the wait — a fixed sleep or
-a bounded poll — runs through the platform's blocking wait primitive
-(a Monitor-style until-condition tool, `references/long-scenarios.md`)
-with the elapsed time or the poll's `until` condition as that
-primitive's condition, inside the turn — never a background job whose
-completion notification the turn waits for, never a turn ended to wait.
+The wait — a fixed sleep or a bounded poll — is a `sleep` inside a
+helper script run in the foreground (`references/long-scenarios.md`),
+inside the turn — never a background job whose completion notification
+the turn waits for, never a turn ended to wait. A Monitor-style
+background notifier is a wait only in a main conversation, which is
+re-invoked when it fires; a subagent's turn ends first, so there the
+helper is the only wait.
+
+Every file this skill writes — that helper, a poller and its state, a
+captured output — goes in one scratchpad subdirectory this run alone
+owns: the directory the caller named, else `<scratchpad>/<run slug>/`,
+created before the first file. Parallel missions share the scratchpad
+root, and a sibling's file overwriting yours, or a previous run's left
+where yours goes, is silent.
 
 A mission that must read the store at several points — each reset
 wipes it, so a lifecycle test whose subject is the reset has one store

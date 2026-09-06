@@ -67,8 +67,16 @@ the report.
     scenario and say so in section 1, a stop-and-report, never a
     question, since a subagent cannot ask);
   - **observe**: someone else drives — confirm the backend and the service
-    are ready, say so, then wait for the caller's completion signal or the
-    end of the window;
+    are ready, say so, then watch until the run has ended or the window
+    closes: with a benchmark the watch polls the run's own identity and
+    the end is the criterion below, otherwise the caller's completion
+    signal or the end of the window. A watch that closes with nothing on
+    the identity is a stop-and-report ("no run observed in the window"),
+    never an analysis of an empty one. An observed run's report is named
+    for the run **and for you**, whether or not a benchmark is in the
+    mission — `run_name` `<what the run analyzed>-observe-<stack>`, the
+    persistence reference's naming — since another mission may be
+    watching the same run from another backend;
   - **post-hoc** (default): analyze a run that already happened.
 - **Benchmark** — optional: a stored k6 benchmark, named by its
   directory under `.odd/benchmarks/<name>/` or by that path. It composes
@@ -80,7 +88,24 @@ the report.
     requests;
   - **observe** + benchmark: someone else runs it elsewhere; you only
     watch the telemetry, and the report cites the benchmark's name and
-    revision as the replayable protocol instead of a bare window;
+    revision as the replayable protocol instead of a bare window. Read
+    `benchmark-replay.md` for this mode too — its watching section owns
+    what only this mode faces: the run's identity is **discovered**
+    (the manifest's User-Agent prefix inside the window, the slug read
+    off the rows — the mission block is not required to carry it), k6's
+    own evidence is the driver's (quote the `k6:` line the mission
+    block or the driver's stored report hands you; absent both, the
+    record reads `k6: not observed` and what stands in depends on the
+    manifest's `profile.executor` — arrivals against the scheduled
+    integral under an open, arrival-rate model, and under a closed,
+    VU-driven one the manifest's `pacing.expected_rate` band and the
+    run's continuity, where **no threshold is voided on the arrival
+    count alone**), the window is the run's
+    own span and never the minutes you spent watching, the announced
+    start is a hint while the identity is the fact (poll from
+    dispatch), the run has ended — once it has started — on four empty
+    30-second bins, and the watch's poller is resumable across tool
+    calls;
   - **post-hoc** takes no benchmark: you were not there and cannot
     attest that the plan produced the window, so refuse the field and
     say why — a report claiming a benchmark it cannot prove looks
@@ -93,7 +118,11 @@ the report.
   pass criteria — k6's own summary is recorded as evidence, never as
   the verdict.
 - **Window** — how far back to look; default the last 30 minutes. In drive
-  mode the window is the scenario's own start and end.
+  mode the window is the scenario's own start and end. In **observe**
+  mode the mission's window bounds the **watch** — the deadline past
+  which "no run observed" is the answer — while the window the report
+  and the frontmatter record is the observed run's own span; the
+  minutes spent waiting belong to the run record's `Watch:` line.
 - **Focus** — performance, errors, correctness, cost/cardinality, a named
   endpoint, or a full sweep (default: full sweep).
 - **Depth** — `quick` or `full`: how far the mission goes, the second
@@ -157,13 +186,27 @@ whole, 19 K by section). List a file's headings first (one `grep -n
 - `run-scenario`: in **drive** mode, its `SKILL.md` (the `## Read by
   situation` router, then the method, steps 1 to 5),
   `references/run-identity.md` by the block that
-  applies (the clean run always; the port already served, the run that
-  launches nothing, the forbidden reset when they do),
+  applies (the clean run and the run's start after the warmup always;
+  the port already served, the run that launches nothing, the
+  forbidden reset when they do),
   `references/long-scenarios.md` when an iteration is expensive or the
   scenario outlasts a tool call, and `references/benchmark-replay.md`
   only when the mission carries a benchmark; in the other modes,
-  `run-identity.md`'s clean-run and port blocks, `## 4. Record
-  verbatim` and `## 5.` of `SKILL.md` only;
+  `run-identity.md`'s clean-run, port and after-the-warmup blocks (the
+  after-the-warmup one carves the stages of a run someone else drove),
+  `## 4. Record verbatim` and `## 5.` of `SKILL.md` only — plus, in
+  **observe** mode with a benchmark, `run-identity.md`'s
+  `## The run launches nothing` (how a UA-selected run is read per
+  backend, and its stored-benchmark paragraph),
+  `benchmark-replay.md`'s
+  `## Watching a run someone else drives` and every section it reads
+  with: `## Warmup is the manifest's stage boundaries`,
+  `## Bucketing a ramp for the degradation curve`, `## k6's own summary
+  and exit status are evidence, never the verdict` (the void
+  precondition the watching section applies), `## Reading a breakpoint
+  run` when the manifest names that type, and
+  `long-scenarios.md`'s `## Scenarios longer than a tool call` for the
+  watch's own poller;
 - `odd-memory`'s `observe-run-report` reference: `## Recall: reading
   the memory` at step 5, and nothing else then; at report time,
   `## Where reports live`, `## The file format`, `## Return value` and
@@ -338,7 +381,9 @@ a contract), never a cheaper way to write a full report:
   at this depth.
 - **Report** — the seven headings stay (the recall reads by section
   number). Sections 1, 2 and 7 are complete. Section 3 is the ranked
-  table only, no detail per row. Sections 4 and 6 are one line each;
+  table only, no detail per row — a verify or re-measure keeps its
+  baseline-ruling table above it whole, one row per baseline finding,
+  `not ruled (quick)` where the queried signals could not rule. Sections 4 and 6 are one line each;
   section 5 is its `not queried (quick)` line, then one bullet per gap
   the queried signals showed. Section 7 carries the checks this run
   measured, and only those: a quick report is a legal baseline for a
@@ -371,14 +416,11 @@ record then cites the benchmark by name and git revision, the single
 `k6 run` command, k6's exit status and summary, and the manifest's
 stage boundaries that carve the steady-state sub-window. Drive the
 scenario to completion **inside your turn** — the skill owns the wait
-method (one blocking foreground command, the platform's blocking wait
-primitive, or its detached poller for a run longer than a tool call —
-the job detaches, the wait never does; where the host blocks a
-foreground `sleep`, a bounded wait — the flush wait of that skill's
-step 5 included — runs through the platform's blocking wait primitive,
-a Monitor-style until-condition tool, with the elapsed time or the
-poll's `until` condition as that primitive's condition, inside the
-turn: the scenario may have to run as a background job, the wait never
+method (one blocking foreground command, or its detached poller for a
+run longer than a tool call — the job detaches, the wait never does;
+a bounded wait — the flush wait of that skill's step 5 included — is a
+`sleep` inside a helper script run in the foreground, inside the turn:
+the scenario may have to run as a background job, the wait never
 does, and no turn ends to wait for a completion notification): as a
 subagent, never end your turn while the scenario is running — ending
 the turn terminates the mission and returns an unfinished result, with
@@ -415,15 +457,32 @@ backend's documented ingest latency — check its official docs via the
 `observability-cli-guides` reference; absent a documented figure, prove data
 has landed with a bounded query — not the local stack's ~10 s / ~60 s.
 
+In **observe** mode with a benchmark the traffic is someone else's and
+the same discipline holds, turned around: read `benchmark-replay.md`'s
+watching section before the watch starts, then poll from the moment you
+are dispatched rather than from the announced start, on the identity
+the **manifest** gives you — its User-Agent prefix — reading the run's
+slug off the first rows that match rather than expecting the mission
+block to name it. Keep every poll on the backend — never a request at
+the service, whose traffic is the driver's alone — and wait inside your
+turn as a drive does: the poller detaches, the wait never does, and a
+poller re-invoked when a tool call's budget expires re-derives where
+the run stands from its own appended output and the backend, never from
+the call that died. An empty poll before the first row means the run
+has **not started**, never that it ended. The record's `Watch:` line
+carries the announced start, the first row you actually saw and the
+last poll; `Started`/`Ended` carry the run's own, and they are what the
+`window` frontmatter holds.
+
 Every service emits its **own** metrics, spans, and logs — **discover
 first, then query what you found; never assume names**. The five
 discoveries below are independent of each other: **run them
 concurrently inside one shell tool call, never delegated** — each
 command backgrounded with `&` and its PID captured, its **stdout**
-redirected to its own file under the scratchpad and its **stderr** to
-a second one (a CLI's hints and warnings must never land in the
-captured output), then one `wait "$pid"` per job with each status
-collected into a variable — never a failed job aborting the call —
+redirected to its own file under your scratchpad subdirectory and its
+**stderr** to a second one (a CLI's hints and warnings must never land
+in the captured output), then one `wait "$pid"` per job with each
+status collected into a variable — never a failed job aborting the call —
 so every exit code is yours, then one `cat` per file — never one
 after the other, and never one tool call each: a round trip each is
 the serial cost of a phase that needs one, and whether a host runs
@@ -431,31 +490,65 @@ several tool calls of one turn together is the host's choice, while
 one shell call is one round trip on every host. The per-file capture
 is what lets the report quote each query and its result verbatim.
 
-Any such block — a batched read, a backgrounded batch with its waits,
-a bounded poll (its `until` condition being the primitive's, where the
-host blocks a foreground `sleep`): anything of more than one command
-— runs as
-`bash -c '...'` or from a `#!/bin/bash` helper file written to the
-scratchpad, never as bare lines handed to the host's shell, which may
-be zsh and reads bash idioms differently. A single command that stays
-inline in the host's shell dodges four zsh traps, each proven in one
-line: no `${!var}` — zsh answers `bad substitution` where bash
-resolves the indirection; it only arises in a loop over captured
-PIDs, a block that belongs under `bash -c` anyway — inline, write the
-waits out (`wait "$p1"; wait "$p2"`); no unquoted variable holding
-several flags — zsh does not word-split it, `A="-a -b"; printf
-"%s\n" $A` prints one word `-a -b` where bash prints two, so a CLI
-reads one unknown flag — write the flags literally, or use an array
-(`"${A[@]}"` expands the same in both shells; only indexing differs,
-zsh counting from 1 and bash from 0); brace every variable followed
-by `[` — zsh reads `$var[...]` as a subscript: `CD=customDimensions;
-echo "tostring($CD['user_agent.original'])"` aborts the whole line
-with `bad math expression: operand expected`, exit 1, so the CLI
-never runs, and `"tostring($CD[1])"` prints `tostring(c)`, one
-character of the scalar, where bash prints both as written — write
-`${CD}[...]`, or the literal name; no word starting with `=` — zsh
-looks up a command named `===` for `echo ====` and fails with
-`=== not found` where bash prints it — write `echo "----- $f"`.
+Any such block — a batched read, a backgrounded batch with its waits, a
+bounded poll: anything of more than one command — is a `#!/bin/bash`
+**helper file**: write it with the file tool into your own scratchpad
+subdirectory and run it as `bash <file>`. Never `bash -c '...'`, and
+never bare lines handed to the host's shell, which may be zsh and reads
+bash idioms differently. `bash -c '...'` is not the helper file's
+equivalent: zsh's single quotes close on the first apostrophe in the
+payload, so a report body, a jq filter or a Python heredoc holding one
+aborts the whole line before bash runs (`(eval): parse error`) — and a
+payload rewritten to survive the outer quoting arrives with the inner
+quotes gone (`NameError: name 'maxSelf' is not defined`). Prose is never
+a shell payload at all: report bodies and report files go through the
+file tool.
+
+A helper runs under `/bin/bash`, which on macOS is **3.2**: no
+`declare -A`, no `wait -n`. Neither aborts — the builtin prints its
+usage to stderr, the script runs on and exits 0, and a refused
+`declare -A` leaves `m[key]=7` sitting at index 0 — so the wrong
+result is silent even where the error is not. The job you `wait`
+for is backgrounded in the **same shell** as the `wait`: a PID
+captured from `$(...)` is a subshell's, and every `wait "$pid"` then
+answers `is not a child of this shell` with status 127, so every job
+reads as failed.
+
+A bounded wait — the flush wait, a poll for the first rows of a watched
+run — is a `sleep` inside that helper, run in the **foreground** under
+the tool's timeout (hosts allow up to ~10 minutes), longer waits split
+across consecutive calls. A Monitor-style until-condition tool is not a
+wait: it is a background notifier whose events arrive after the turn
+ends, and only a main conversation is ever re-invoked.
+
+**One scratchpad subdirectory per mission**, created before the first
+file: `<scratchpad>/<run slug>-<stack>/`, and every helper, capture,
+poller and state file of the mission lives under it. Parallel missions
+share the scratchpad root, and a sibling's `poll.sh` overwriting yours
+mid-run — or its finished run's `k6-exit.code` sitting where your
+poller looks for yours — fails silently, or reads as your run having
+already ended. It is also the directory you name to a skill that
+writes on your behalf.
+
+A single command that stays inline in the host's shell — a `git`
+invocation, one CLI query — dodges four zsh traps, each proven in one
+line: no `${!var}` — zsh answers `bad substitution` where bash resolves
+the indirection; it only arises in a loop over captured PIDs, a block
+that belongs in a helper anyway — inline, write the waits out (`wait
+"$p1"; wait "$p2"`); no unquoted variable holding several flags — zsh
+does not word-split it, `A="-a -b"; printf "%s\n" $A` prints one word
+`-a -b` where bash prints two, so a CLI reads one unknown flag — write
+the flags literally, or use an array (`"${A[@]}"` expands the same in
+both shells; only indexing differs, zsh counting from 1 and bash from
+0); brace every variable followed by `[` — zsh reads `$var[...]` as a
+subscript: `CD=customDimensions; echo
+"tostring($CD['user_agent.original'])"` aborts the whole line with `bad
+math expression: operand expected`, exit 1, so the CLI never runs, and
+`"tostring($CD[1])"` prints `tostring(c)`, one character of the scalar,
+where bash prints both as written — write `${CD}[...]`, or the literal
+name; no word starting with `=` — zsh looks up a command named `===` for
+`echo ====` and fails with `=== not found` where bash prints it — write
+`echo "----- $f"`.
 
 Then query per signal from what came back:
 
@@ -556,7 +649,7 @@ Then go from aggregates to explanations:
   latency number reads from the User-Agent identity, never from a
   trace's root span.
   With no recalled report either,
-  compare within the run: p99 against p50 per operation, an endpoint
+  compare within the run: p99 against p50 per operation, an operation
   against its siblings, the first half of the window against the second.
   Always say what you compared against.
 - **Cross-signal** — a slow trace names the span, the span's window narrows
@@ -692,14 +785,40 @@ from your reply, without re-reading the file:
    commands, counts, and UTC start/end — for a stored benchmark, its
    name and revision, the `k6 run` command, k6's exit status and
    summary, and the stage boundaries — so the run replays verbatim. In
-   observe mode with a benchmark, its name and revision stand in for
-   the commands you did not run. On a custom stack, close the run
+   observe mode with a benchmark, the same record with the lines that
+   mode replaces (`run-scenario`'s `benchmark-replay.md`, watching a
+   run someone else drives): the benchmark's name and revision stand in
+   for the commands you did not run, `Stages (UTC):` carries the
+   boundaries and both anchors exactly as a drive's, `Watch:` the
+   announced start against the first row you saw, `Poller:` the watch's
+   script with its end criterion, and `k6:` either the driver's line
+   quoted with where it came from or `not observed` with whatever the
+   manifest's executor makes checkable in its place. The `Identity:`
+   line carries the User-Agent you selected on with the slug you read
+   off the rows. Name the run's driver there too — the driving mission
+   as the mission block states it (or that it names none), and its
+   stored report by path when that report is already committed. On a custom stack, close the run
    record with the stack file's fate: unchanged, or changed with its
    commit and the one-line reason (the section before this one), and
    any learning left for the user to apply.
 2. **Observed behavior** — start with the per-operation summary table:
 
    | Operation | Requests | Rate | p50 | p95 | p99 | Error % | DB/downstream calls per req | Notable |
+
+   An **operation** — a row of that table — is the smallest unit the
+   service serves distinctly, which is usually already the span name.
+   On an **HTTP server** that unit is the pair `http.request.method` +
+   `http.route`, **never the route alone**: a route two verbs share is
+   two rows, and folded, a 2.5 ms `GET` and a 62 ms `DELETE` on one
+   route read as one 66 ms p95 that belongs to neither. On any other
+   surface it is that surface's own unit — the RPC method and the tool
+   or procedure it names (`tools/call odd_stack_status`), the topic a
+   consumer reads — never an HTTP shape imposed on a service that
+   serves none. Group the numbers on that key: the service's own OTel
+   HTTP histogram carries both labels, so its quantiles group by
+   `http_request_method` and `http_route` (beside `le`) and its counts
+   by the two alone; a backend's span-derived series key by span name,
+   which carries the verb already and needs no second label.
 
    With a benchmark in the mission, follow it with the threshold table
    — one row per threshold in the benchmark's manifest
@@ -712,7 +831,16 @@ from your reply, without re-reading the file:
    When the scenario record's `k6:` line carries script errors above
    zero, no threshold is ruled: every row reads `void`, and the defect
    is section 3's first finding (`run-scenario`'s `benchmark-replay.md` — the
-   benchmark did not exercise what it measures).
+   benchmark did not exercise what it measures). When that line reads
+   `not observed` — observe mode with no driver's record — every ruled
+   row names the proxy it rests on, which the manifest's
+   `profile.executor` fixes: under an **open**, arrival-rate model the
+   arrivals against the scheduled integral, and rows whose arrivals
+   fell short read `void` with that reason; under a **closed**,
+   VU-driven one the manifest's `pacing.expected_rate` band and the
+   run's continuity, where a shortfall is a finding and never a `void`
+   on the count alone. The shortfall itself
+   is a finding either way.
 
    When `gen_ai.*` spans exist in the window (the section of that name
    above), follow it with the **GenAI** subsection under its own
@@ -726,8 +854,14 @@ from your reply, without re-reading the file:
    query that produced it and a sample (trace ID, metric series, log line).
    With a recalled baseline, follow with the deltas: per operation,
    improved / regressed / unchanged / new against the previous report's
-   numbers, and the fate of its findings. Close with the service graph:
-   who calls whom, and how often.
+   numbers — the fate of its findings is section 3's ruling table, never
+   prose here. A run that first **splits** a baseline's coarser row — a
+   route into its verbs — says so: each new row names the baseline row
+   it replaces. The memory is append-only, so that baseline keeps its
+   key forever, and a reader, or anything matching operation names
+   verbatim across two reports, otherwise sees one row vanish and two
+   appear with nothing saying why. Close with the service graph: who
+   calls whom, and how often.
 3. **Anomalies and probable causes** — ranked table first:
 
    | # | Finding | Severity | Confidence | Evidence | Expected gain |
@@ -735,6 +869,32 @@ from your reply, without re-reading the file:
    Then the detail per row. **Confidence** is `confirmed` (the query and
    its result are quoted) or `suspected` (state the targeted probe that
    would confirm it). Findings resting on a single signal say so.
+
+   A **verify or re-measure** puts one more table above that one, at
+   the top of the section: the baseline's findings, ruled.
+
+   | # | Baseline finding | Verdict | Evidence |
+
+   One row per finding of the baseline's own ranked table, none left
+   out, `#` carrying **the baseline's id verbatim** — `1`, `F4`,
+   whatever that table wrote, never renumbered, never re-prefixed: it
+   is the key `.odd/decisions.md` names a finding by, and the only
+   thing that ties your ruling to it. **Verdict** is `fixed`, `still
+   present` or `worse` — a nuance goes after the word (`still present,
+   reduced`) — or `not ruled (quick)` for a baseline finding the
+   queried signals could not rule. A ruling written anywhere else — in
+   prose, in a row of the ranked table, under an id you renumbered — is
+   a ruling no reader can key to the baseline: the finding stays open
+   in the loop's burn-down however plainly your report calls it fixed.
+   The ranked table that follows it then carries **this run's own**
+   findings only, under identifiers that cannot collide with a baseline
+   id: continue the baseline's numbering instead of restarting it — a
+   baseline whose last finding is `F6` makes your first one `F7`.
+
+   A **re-measure** writes the same table — it replays the same protocol
+   and sees the same anomalies — but it rules on no fix: its rows record
+   what the run measured, and only a verification's rows close a finding
+   in the loop's memory.
 4. **Improvement opportunities** — each with a measurable expected gain
    (e.g. "collapsing the per-user query loop should cut DB operations from
    ~52 to ~2 per request") and the query that will prove it landed.
@@ -761,7 +921,21 @@ from your reply, without re-reading the file:
    its before-value and its pass criterion — a threshold to meet (for a
    benchmark, the manifest's thresholds, carried over from section 2's
    table), an error that must be gone, a gap that must be filled — so the
-   improvement is verified with evidence, not impressions. Each check
+   improvement is verified with evidence, not impressions. A check that
+   measures an operation keys it by that operation's own identity
+   (section 2) — on an HTTP server the method and the route together, on
+   another surface that surface's unit — and groups its query the same
+   way: a check keyed more coarsely than the operations it rules can
+   never be re-read per operation later. In a verify or re-measure, this
+   table rules the baseline's **checks**, each under the key the baseline
+   gave it; a check key is never a finding id, and a check ruled here
+   never stands in for section 3's ruling on a baseline finding — the two
+   tables answer to different keys. A baseline check grouped more
+   coarsely than the operations it rules — by the route alone, its verbs
+   folded — is replayed **as written**, never silently regrouped: the two
+   runs' numbers compare only when the query does not, so the ruling
+   names what the number folds, and the finer check written beside it
+   carries a key of its own — the baseline's, plus the verb. Each check
    states how its query was validated — on healthy data, and on the
    **shape the pass criterion expects**: a check that passes when
    something reaches zero, drops to N, or disappears (dependencies
@@ -847,6 +1021,9 @@ from your reply, without re-reading the file:
   section 5 — at `quick` depth, queried or listed as
   `not queried (quick)` there; the depth appears in section 1 and in
   the frontmatter, and a quick verify counts the items it did not rule;
+  in a verify or re-measure, section 3 opens with one ruling row per
+  baseline finding, none missing, each keyed by the baseline's own id,
+  and this run's own findings carry new identifiers;
   every table row and every finding carries its query and
   result; every improvement carries a number and a verification query with
   a before-value; every verification check carries its validation status;
@@ -856,6 +1033,12 @@ from your reply, without re-reading the file:
   drive mode, the run record's `Query points:` line
   carries a reason for every point beyond the first, and every reset
   beyond the clean-base one names the mission requirement behind it;
+  in observe mode with a benchmark, the run record carries its `k6:`
+  line (the driver's, quoted, or `not observed` with the substitute its
+  executor allows), its `Identity:` line with the slug read off the
+  rows, its `Watch:` and `Stages (UTC):` lines, and the run's own span
+  — not the watch's — as the window in section 1 and in the
+  frontmatter;
   the deployment environment was detected, is definite (no
   provisional value left unsettled), and appears in section 1 and in the
   frontmatter; the memory was recalled (section 1 names the previous

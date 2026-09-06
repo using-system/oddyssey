@@ -1,3 +1,42 @@
+## [1.11.3] - 2026-09-06
+
+### 🚀 Features
+
+- *(skill)* K6-guides - a reference for driving an MCP server over streamable HTTP (#438)
+- *(skill)* Odd-memory - odd_recall.py answers the benchmark kind, so an authoring mission's recall is a command and not a hand-read of every manifest (#460)
+- *(agent,skill)* Observe mode with a benchmark states its k6 evidence, its window, its report name and its watch (#463)
+- *(agent)* K6-benchmark-expert authors the traceparent so a remotely driven benchmark carries both identity headers (#466)
+
+### 🐛 Bug Fixes
+
+- *(agent,skill)* Key a verification's rulings by its baseline's finding ids, and defer the verifications that key none (#447)
+- *(hooks)* Read the whole command line in the default-branch guard (#448)
+- *(agent)* The k6 pre-persist gate checks the manifest, not only the script (#449)
+- *(hooks)* Accept every id in the parenthesised list an instance key opens (#450)
+- *(ci)* Strip the executable bit in build-marketplace.sh so the generated tree matches what the release commits (#451)
+- *(agent,skill)* Observe-run keys an operation by the unit the service serves, method and route on HTTP (#459)
+- *(skill)* Get-status lifts a gaps section bullet by bullet (#458)
+- *(skill)* Run-scenario - benchmark-replay states the drive conventions, remote and local (#461)
+- *(agents,skill)* A multi-command block is a helper file, never bash -c, and its wait is a sleep inside it (#465)
+
+### 📚 Documentation
+
+- *(guide)* Benchmarks - one section per benchmark type, the question it answers and an example invocation (#423)
+- *(odd)* Six benchmarks for oddyssey-mcp, one per test type, as the guide's worked examples (#437)
+- *(guide)* Move the MCP server's tool surface into the renamed plugin.md (#443)
+- *(readme)* Trim the install section - the apm-cli pin's failure modes and the Codex entry (#445)
+- *(skill)* Cloudwatch reference - the 2026-09-06 X-Ray and Logs Insights field notes (#454)
+- *(skill)* Grafana reference - correct the trace-id and increase() rows, add the Grafana Cloud traps of the first observe runs (#452)
+- *(skill)* K6-guides - executors, integer rates, reading k6's evidence (#453)
+- *(skill)* Record the azure-monitor KQL and metric-reading traps (#455)
+- *(skill)* Setup-local-stack - generator series carry no instance dimension (#456)
+- *(odd)* Backfill the manifest gate's two records into the six stored benchmarks (#462)
+- *(readme)* Opencode and Cursor install into the repository only (#468)
+- *(odd)* The six stored benchmarks carry the gated traceparent identity (#469)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(apm)* Bump apm-cli to 0.29.1 in the install commands, the CI workflows and the marketplace build (#440)
 ## [1.11.2] - 2026-09-05
 
 ### 🚀 Features

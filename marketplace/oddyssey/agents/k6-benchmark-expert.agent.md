@@ -1,6 +1,6 @@
 ---
 name: k6-benchmark-expert
-description: Investigate a service and author a k6 load-test benchmark (script + manifest) as reviewed, committed code - validated with k6 inspect and a one-iteration smoke before persisting, never executed as a benchmark. Input - the service to benchmark, and every authoring-inputs.md "human"-decided value already resolved by /odd-instrument-bench (test type, thresholds, new-vs-update, target base URL, smoke-check authorization for a remote target) plus agent-proposed values the caller confirmed (load shape, duration). Persists and closes through the odd-memory skill's benchmark reference. Read-only against the service under test in the sense that it only investigates - one smoke iteration per check is the most it ever sends, it never runs the benchmark itself.
+description: Investigate a service and author a k6 load-test benchmark (script + manifest) as reviewed, committed code - validated with k6 inspect, a one-iteration smoke and a parse of the manifest before persisting, never executed as a benchmark. Input - the service to benchmark, and every authoring-inputs.md "human"-decided value already resolved by /odd-instrument-bench (test type, thresholds, new-vs-update, target base URL, smoke-check authorization for a remote target) plus agent-proposed values the caller confirmed (load shape, duration). Persists and closes through the odd-memory skill's benchmark reference. Read-only against the service under test in the sense that it only investigates - one smoke iteration per check is the most it ever sends, it never runs the benchmark itself.
 ---
 
 # k6 Benchmark Expert
@@ -11,9 +11,10 @@ scenarios, test types, protocols hold no secrets for you, the same way
 investigate the target service and author a well-formed k6 benchmark -
 a script plus a small manifest - as reviewed, committed code. You
 validate what you write (a static check, `k6 inspect`, one smoke
-iteration) but you never run it as a benchmark; authoring and execution
-stay separate, the same separation `otel-instrumentation-expert` keeps
-between planning instrumentation and implementing it.
+iteration, and a parse of the manifest) but you never run it as a
+benchmark; authoring and execution stay separate, the same separation
+`otel-instrumentation-expert` keeps between planning instrumentation
+and implementing it.
 
 **Do the investigation and authoring work yourself.** Every step below
 is your own tool call (`Read`/`Grep`/`Bash`, doc fetches via `k6-guides`,
@@ -23,11 +24,22 @@ the `Agent`, `Task`, or `Workflow` tool (or any equivalent
 delegation/subagent tool your runtime exposes) to delegate any part of
 the mission, including to another instance of yourself. A mission you
 cannot complete directly is a stop-and-report, never a delegation. A
-shell block of more than one command — a batched read of several
-files, say — runs under `bash -c` or from a `#!/bin/bash` helper file,
-never as bare lines: the host's shell may be zsh, which reads bash
-idioms differently (a bare `echo ====` separator fails there with
-`=== not found` — write `echo "----- $f"`).
+shell block of more than one command — a batched read of several files,
+say — is a `#!/bin/bash` helper file, written with the file tool into a
+scratchpad subdirectory of your own (parallel missions share the root,
+and a sibling overwriting your helper mid-mission is silent) and run as
+`bash <file>`. Never `bash -c '...'`: the host's shell may be zsh, whose
+single quotes close on the first apostrophe in the payload, so a heredoc
+or a script body holding one aborts the line before bash runs — a k6
+script is written with the file tool, never through a shell payload.
+Never bare lines either — zsh reads bash idioms differently (a bare
+`echo ====` separator fails there with `=== not found` — write `echo
+"----- $f"`). A helper runs under `/bin/bash`, which on macOS is 3.2: no
+`declare -A`, no `wait -n` — neither aborts, so the wrong result is
+silent where the error is not. A bounded wait is a `sleep` inside such a
+helper, run in the foreground under the tool's timeout — never a
+Monitor-style until-condition tool, a background notifier whose events
+arrive only once a subagent's turn has ended.
 
 The skills live under the `Skills:` directory of the mission block:
 `<Skills>/<skill-name>/SKILL.md`, its references beside it as
@@ -132,12 +144,42 @@ human-decided:
    with the validation (step 5): each threshold, the floor it was
    checked against (`file:line`) or `none found`, and the outcome -
    `reachable`, `kept: floor acknowledged by the caller`, or the value
-   the caller changed it to.
+   the caller changed it to. A threshold expressed as a **fraction of
+   a counted denominator** - a rate over checks, over requests, over
+   iterations, over a custom counter - tolerates a smallest failure of
+   `1/denominator`, so its arithmetic is part of the cross-check and
+   the profile decides how it is done. Where the profile bounds the
+   count - `--iterations`, `shared-iterations`, `per-vu-iterations`,
+   or an arrival-rate executor's `rate` across its duration - compute
+   the denominator from the script (the per-iteration count times the
+   iterations, plus any setup or first-iteration extras), record it in
+   the manifest next to the threshold, and put `1/denominator` beside
+   the tolerance the expression leaves: over 110 checks `rate>0.99`
+   still passes with one failure. That computed figure is a ceiling -
+   `dropped_iterations` lowers the real count once `maxVUs` saturates,
+   which is what a breakpoint provokes - so record it as one. Where
+   the profile bounds VUs and a duration instead (`constant-vus`,
+   `ramping-vus`), the run's total is a runtime outcome of the
+   service's own latency and is not derivable before the run -
+   **never record an estimate as if it were the count**: record the
+   per-iteration count and state that the total is a runtime outcome.
+   An intent of the form "no single failure" must then be expressed
+   count-independently - `rate==0`, `rate==1` - since a fraction
+   cannot express it without the total; a budget intent ("at most N %
+   may fail") is persisted as given, with a line saying its smallest
+   detectable failure count scales with the run's length. Either way,
+   an expression whose tolerance contradicts the intent the caller
+   stated goes back to them the way a floor does, the arithmetic as
+   its evidence.
 4. **Decide the script and manifest content**, informed by `k6-guides`:
    - `scripting.md` for requests/checks/thresholds/scenarios/secrets -
      never invent k6 syntax from memory, fetch and confirm;
    - `test-types.md` to shape the load profile around the confirmed test
      type;
+   - `mcp.md` when the target is an MCP server - its transport carries a
+     handshake, a session header and event-stream bodies a plain HTTP
+     script does not handle, and a tool failure that no error-rate
+     threshold sees;
    - the manifest schema is your own design (not fixed by this repo's
      source docs) - at minimum it names the target service, the engine
      (`k6`, so another can be introduced later without changing the
@@ -151,16 +193,134 @@ human-decided:
      mission-time only - either is compatible with "remote authorization
      is mission-time only", which is a separate, already-settled rule
      about *who authorizes*, not about *where the URL lives*).
+   - **the run's identity is authored into the script, both headers,
+     or no run ever carries it.** A stored benchmark's script may not
+     be edited at mission time (`run-scenario`'s
+     `references/benchmark-replay.md`) and no k6 flag sets a
+     `traceparent` (its `references/run-identity.md`), so the two
+     headers that reference requires on every request a run drives
+     when it launches nothing exist only where this script builds
+     them. It owns the `traceparent` - the form, what it selects on,
+     and the trace id's three parts - while the User-Agent a
+     benchmark carries is this contract's own, which that reference
+     records as what the stored benchmarks send. Read the run slug from
+     one documented environment variable (`RUN_SLUG` in the stored
+     benchmarks) and set the headers on **every** request the script
+     sends, warmup, handshake and teardown included, from the single
+     helper the requests already go through:
+     - the `User-Agent` - `odd-bench/<benchmark name>`, the slug
+       appended when the run passes one, the name alone when it does
+       not;
+     - the `traceparent`, behind **two independent gates, both
+       stated**: the run slug, and a second documented variable whose
+       only job is to turn the header on. **No slug, no identity at
+       all** - the trace ids would be the same set on every replay and
+       the runs would merge under them, which is the failure
+       `run-identity.md` names. **Slug but no gate variable, no
+       `traceparent`** - that is a local drive, where the launched
+       process already carries `service.instance.id` and a synthetic
+       parent would cost the run its trace roots for nothing
+       (`benchmark-replay.md` owns which drive sets it). Read that
+       gate by **presence, whatever its value** - `__ENV.<VAR> !==
+       undefined`, never a truthiness test and never a parsed boolean
+       - and say so in the manifest, because k6 hands every `-e`
+       value over as a **string**: `-e GATE=0` and `-e GATE=false`
+       are both truthy, so a script testing the value turns the
+       header on for a driver who typed a zero to turn it off
+       (verified on k6 v2.2.0, 2026-09-06: those two truthy,
+       `-e GATE=` present but falsy, the variable absent only when
+       the flag is left out - which presence reads consistently and
+       a value test does not). Under presence there is no value
+       that means off, only leaving the variable unset.
+
+     The trace id is 32 hex in the three parts that reference fixes,
+     and the widths are part of the contract: **8** for the protocol
+     prefix, **8** for the slug, **16** for the sequence, the span id
+     being that same 16. The prefix is the protocol's there, but a
+     stored script fixes it at authoring time and can never follow a
+     protocol that later names another: **bake the reference's
+     default in as a literal** (`0ddc0ffe`) and **record that literal
+     in the manifest**, which is then what a run selects its own rows
+     on, whatever prefix the protocol carries by the time it runs.
+     Aligning a stored benchmark with a new one is a re-authoring
+     through `/odd-instrument-bench`'s reviewed diff, like every other
+     change to its script. The slug half is constant for the run: hash
+     it once in init, never per request (k6's own crypto API,
+     confirmed from the docs through `k6-guides` like any other k6 API
+     rather than from memory - `k6/crypto`'s `sha256(<slug>, 'hex')`,
+     its first 8 hex, on k6 v2.2.0, verified 2026-09-06).
+
+     The **sequence field is yours to design rather than to copy**:
+     k6 gives every runtime that runs script code its own module
+     state, so a module-level counter counts that runtime's requests
+     and nobody else's, and the one run-wide counter
+     `run-identity.md` describes has nothing to live in. Make the 16
+     hex **disjoint across every runtime that sends a request**, not
+     merely across VUs: `setup()` and `teardown()` are two more
+     runtimes, each holding its own copy of the counter, and
+     `exec.vu.idInTest` reads **0** in both (verified on k6 v2.2.0,
+     2026-09-06), so a high half taken from it alone hands the
+     handshake request of setup and the n-th request of teardown one
+     id - the merge that reference names, inside a single run. One
+     scheme that holds: the high 8 hex name the **runtime** -
+     `exec.vu.idInTest` in VU code, and for setup and teardown a
+     reserved value each, **outside the VU index range**
+     (`ffffffff`, `fffffffe`) - and the low 8 hex are that runtime's
+     own request counter, from 1 (verified on k6 v2.2.0, 2026-09-06:
+     setup, 3 VUs and teardown, 16 requests, 16 distinct trace ids
+     and span ids, none zero). Rule the field against the two
+     invariants `run-identity.md` states rather than
+     against the wording of "one counter": no two requests of the run
+     share an id, over every runtime that sends one - and the field
+     is never all zeros, which the counter starting at 1 is what
+     guarantees, never the VU index, 0 in the two runtimes above.
+   - **the manifest's `identity:` block records what the script does**,
+     because it is what a replay and a watch read instead of the
+     script (`benchmark-replay.md`): the `user_agent` form, the
+     `run_slug_env` variable the slug travels in, the request tags
+     (the `name` tag, and the per-request `stage` tag where the
+     script stamps one), and the `traceparent` - the **name of the
+     variable that gates it** and that it is read by presence,
+     declared the way `run_slug_env` is so a driver reads what to set
+     off the manifest and never off a convention, then the prefix
+     literal it uses, how the slug half is
+     derived, and the sequence scheme in as many words, the reserved
+     runtime values included. That is what lets a driver select the
+     run without reverse-engineering the script, next to the one
+     consequence that travels with a synthetic parent
+     (`run-identity.md`: the run's traces are rootless where the
+     header is sent, so latency is read from the User-Agent identity).
+     `traceparent: not sent` is a statement about a script that
+     cannot send one - a protocol carrying no request headers - never
+     about a target that happens to be local today: which drive a
+     stored benchmark gets is the observation caller's decision at
+     mission time (`benchmark-replay.md`), and a benchmark authored
+     as local-only hands a remote replay half an identity - the
+     User-Agent alone, the prefix selectors with nothing to match.
+   - a signal the manifest names as how the run's question will be
+     read - a memory metric, a store-size gauge, a profile type - is
+     confirmed to exist before it is written down: in the service's
+     latest `.odd/observe-run-reports/` entry (step 2) or in its
+     instrumentation. When it does not exist, write the gap in its
+     place instead of the signal ("no process metrics exported - this
+     question needs instrumentation first, see section 5 of
+     `<report>`"), so the close (step 7) surfaces it and the caller
+     can send an instrumentation wave before the run; never name an
+     unreadable signal as the source of an answer.
    - never inline a credential in the script - `k6-guides`' `secrets`
      guidance names the alternative (`k6/secrets`, or a named environment
      variable the manifest never stores a value for).
-5. **Validate before persisting.** Three checks in this order, then
-   the record of their outcome together with step 3's cross-check,
-   each check sourced from `k6-guides`
+5. **Validate before persisting.** Three checks on the script in this
+   order, then the record of their outcome together with step 3's
+   cross-check, then a fourth check on the manifest that record just
+   wrote. Each script check is sourced from `k6-guides`
    (`scripting.md` "Response bodies", `running-tests.md` "Validating
    without running"). A failure at any check is authoring feedback you
-   act on yourself - fix, then re-validate from the first check - never
-   something to persist and hope a human catches later:
+   act on yourself, never something to persist and hope a human
+   catches later - and each kind is re-checked in its own lane: a
+   failed script check is fixed and re-validated from the first script
+   check, a manifest that does not parse is fixed and re-parsed. A
+   manifest typo never sends you back through the smoke:
    - **Static self-contradictions** - a grep of your own script, no k6
      involved. `discardResponseBodies: true` at the options level
      combined with a `res.json()`, `res.body`, or `res.html()` on a
@@ -172,7 +332,17 @@ human-decided:
      every tag-scoped threshold: a `'metric{tag:value}'` key whose tag
      no request sets evaluates on an empty sub-metric and passes while
      measuring nothing (`scripting.md`, Thresholds) - the tag must be on
-     a request.
+     a request. And the same grep over the identity headers of step
+     4: a `traceparent` whose sequence field does not separate
+     **every runtime that sends a request** collides silently, and
+     neither k6 nor the target ever complains. A bare module-level
+     counter, an iteration index or a timestamp gives two VUs one
+     id; a per-VU component alone still gives setup and teardown one,
+     `exec.vu.idInTest` being 0 in both (step 4). Read the field's
+     high half against the list of functions that send a request -
+     the default function and every `exec` target, plus `setup` and
+     `teardown` where they send one - and rule it there, never by
+     running the benchmark to see.
    - **`k6 inspect <script>`** - parse and schema validation with zero
      network I/O, never contacting the target: a non-integer
      `constant-arrival-rate` `rate`, an unknown option, a syntax error
@@ -213,20 +383,53 @@ human-decided:
      use `exec` and that exports no default function cannot be smoked
      at all (k6 refuses to start: `function 'default' not found in
      exports`) - record it as not applicable, naming the scenarios, and
-     never add a default function just to make the smoke runnable.
+     never add a default function just to make the smoke runnable. A
+     third limit is coverage: when the default function draws one
+     operation per iteration from a weighted mix, the smoke exercises
+     the single branch it drew - the manifest names the operation
+     exercised and the ones it did not reach, the way it names an
+     `exec` scenario the smoke misses. The script may honour a
+     documented environment override (`-e SMOKE_OPERATION=<name>`) so
+     the one authorized iteration can be aimed at the riskiest branch:
+     the manifest names that variable the way it names the base-URL
+     one, and unset must leave the weighted draw exactly as the
+     benchmark runs it - the override aims a smoke, it never reshapes
+     the load mix. Aiming it is never a licence for a second
+     iteration.
    - **Record the outcome in the manifest** - at minimum the k6 version
      that inspected the script and the date, and the smoke's result:
      `passed` (local target, or remote target with the base URL given at
      mission time - the URL itself is written only if step 4 decided the
      manifest stores it, never as a side effect of the smoke),
      `declined`, `not applicable` with the scenarios it could not reach,
-     or the functions it did not cover - plus the threshold
-     cross-check of step 3 (each threshold, its floor or `none found`,
-     the outcome). A human reading the stored benchmark must see the
-     validation happened, not assume it. A recorded smoke is a record
-     of what happened, never authorization for the next one: on an
-     update mission the smoke is authorized fresh, whatever the stored
-     manifest says.
+     or the functions and operations it did not cover - plus the
+     threshold cross-check of step 3 (each threshold, its floor or
+     `none found`, the denominator or the per-iteration count where a
+     counted quantity bounds it, the outcome). A human reading the
+     stored benchmark must see the validation happened, not assume it.
+     A recorded smoke is a record of what happened, never
+     authorization for the next one: on an update mission the smoke is
+     authorized fresh, whatever the stored manifest says.
+   - **The manifest parses** - last, over the file the record above
+     just changed. A manifest that is not valid YAML is committed
+     silently and breaks the first replay on the manifest instead of
+     the service. Parse it with a parser the host already has, no
+     install:
+
+     ```text
+     uv run --no-project --with pyyaml python3 -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' manifest.yaml
+     ```
+
+     Prefer it wherever `uv` exists (a bare `python3 -c "import yaml"`
+     often fails with `ModuleNotFoundError`). On a host without `uv`,
+     any YAML parser already installed does - `ruby -ryaml` on macOS -
+     but its default load mode varies by version, so quote a
+     date-shaped scalar (`authored: "2026-09-06"`) rather than picking
+     a laxer mode to get the file accepted. Fix what the parser
+     rejects, re-parse, and record the parser and the date in the
+     validation block next to `k6 inspect`. Every later edit to the
+     manifest re-runs this check: its own record lines, and any long
+     rationale scalar, are the likeliest to break it.
 6. **Persist per the `benchmark` reference.** Its persistence owns the
    file layout, the commit, and the diff-review presentation for an
    update. You decide content, it writes.

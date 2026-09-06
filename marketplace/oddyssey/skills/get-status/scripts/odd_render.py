@@ -37,9 +37,11 @@ FIXED_RE = re.compile(
 NOT_FIXED_RE = re.compile(
     r"\b(?:not|never|un)[ -]?(?:fixed|closed|resolved|filled)\b", re.IGNORECASE
 )
-REGRESSED_RE = re.compile(r"\bregress(?:ed|ion)?\b", re.IGNORECASE)
+# ``worse`` is one of the four verdict words the report contract mandates
+REGRESSED_RE = re.compile(r"\b(?:regress(?:ed|ion)?|worse)\b", re.IGNORECASE)
 NEGATED_REGRESSION_RE = re.compile(
-    r"\bnot? (?:a )?regress\w*|\bno regression\b|regression check passed|[\"“']regression[\"”']",
+    r"\bnot? (?:a )?regress\w*|\bno regression\b|regression check passed|[\"“']regression[\"”']"
+    r"|\bn(?:o|ot|one|othing) worse\b",
     re.IGNORECASE,
 )
 OPEN_RE = re.compile(
@@ -52,6 +54,7 @@ STRONG_OPEN_RE = re.compile(
     r"still (present|missing|there)|not ruled|unattributed", re.IGNORECASE
 )
 QUICK_COVERAGE_RE = re.compile(r"\(quick,\s*(\d+) of (\d+) ruled\)", re.IGNORECASE)
+F_PREFIX_RE = re.compile(r"^F(?=\S)", re.IGNORECASE)
 COUNTED_VERDICT_RE = re.compile(r"verdict:?\**\s*(\d+)\s*/\s*(\d+)", re.IGNORECASE)
 MEASURE_RE = re.compile(
     r"^[~<>≈]?\s*(-?\d+(?:[.,]\d+)?)\s*(ms|s|µs|us|%)?(?:\s*\dxx)?(?:\s*\([^()]*\))?$"
@@ -412,6 +415,17 @@ def finding_rows(facts: dict) -> list[dict]:
     return rows
 
 
+def finding_definers(facts: dict) -> dict[tuple[str, str], list[str]]:
+    """Which reports define a finding id, per lineage - a finding id is
+    report-local, so two reports of one lineage can both carry an ``F4``."""
+    definers: dict[tuple[str, str], list[str]] = {}
+    for report in readable(facts):
+        for finding in own_findings(report):
+            key = (lineage_label(report), finding["id"])
+            definers.setdefault(key, []).append(name_of(report))
+    return definers
+
+
 def out_of_chain_rulings(facts: dict, ruled: frozenset[str] = frozenset()) -> list[str]:
     """Rulings a verification carries on an id no report in its chain defines,
     while another report does - the same finding, or a homonym: a judgment.
@@ -419,11 +433,7 @@ def out_of_chain_rulings(facts: dict, ruled: frozenset[str] = frozenset()) -> li
     An item is settled, and dropped, once the caller ruled every finding
     it names (``ruled`` holds their ledger keys)."""
     by_name = {name_of(r): r for r in readable(facts)}
-    definers: dict[tuple[str, str], list[str]] = {}
-    for report in readable(facts):
-        for finding in own_findings(report):
-            key = (lineage_label(report), finding["id"])
-            definers.setdefault(key, []).append(name_of(report))
+    definers = finding_definers(facts)
     out = []
     for verification in readable(facts):
         if not is_verify(verification):
@@ -444,6 +454,97 @@ def out_of_chain_rulings(facts: dict, ruled: frozenset[str] = frozenset()) -> li
                     "finding"
                 )
     return out
+
+
+def id_stem(finding_id: str) -> str:
+    """A finding id without its leading ``F`` - the one letter a run adds or
+    drops when it renumbers its baseline's ids instead of copying them."""
+    return F_PREFIX_RE.sub("", finding_id)
+
+
+def prefix_pairs(rows: list[dict], base_ids: list[str]) -> list[tuple[str, str]]:
+    """(row id, baseline id) for every row keyed like a baseline id with an
+    ``F`` added or dropped - the hint an unreadable ruling earns, never a match
+    the rules make themselves."""
+    by_stem: dict[str, str] = {}
+    for base_id in base_ids:
+        by_stem.setdefault(id_stem(base_id).lower(), base_id)
+    pairs = []
+    for row in rows:
+        base_id = by_stem.get(id_stem(row["id"]).lower())
+        if base_id is not None and base_id != row["id"]:
+            pairs.append((row["id"], base_id))
+    return pairs
+
+
+def unread_rulings(report: dict, facts: dict) -> tuple[dict, list[dict]] | None:
+    """(baseline, rows) when a verification states a verdict yet rules on no
+    finding of any report in its chain - ``None`` when nothing is wrong.
+
+    ``baseline`` is the nearest report of the chain that defines findings (a
+    verification of a verification carrying none of its own still has a
+    baseline to rule); ``rows`` are the rulings the report did write, section
+    3's alone when it carries any - that is where a finding is ruled - and
+    every one of them otherwise.
+    """
+    if not is_verify(report):
+        return None
+    by_name = {name_of(r): r for r in readable(facts)}
+    targets = targets_of(report, by_name)
+    if not targets or any(t["kind"] == "instrumentation" for t in targets):
+        return None  # a plan's items are ruled by name, not by finding id
+    base = next((t for t in targets if own_findings(t)), None)
+    if base is None:
+        return None
+    chain_ids = {f["id"] for t in targets for f in own_findings(t)}
+    rulings = rulings_of(report)
+    if any(row["id"] in chain_ids for row in rulings):
+        return None
+    if verdict_label(report).startswith("no verdict stated"):
+        return None  # a verdict-less report ruling nothing is its own item
+    return base, [row for row in rulings if row["section"] == 3] or rulings
+
+
+def unread_baseline_rulings(
+    report: dict, facts: dict, ruled: frozenset[str] = frozenset()
+) -> str | None:
+    """The judgment item a verification ruling on no finding of its chain earns:
+    whatever its body says, the ledger reads none of it, so the baseline's
+    findings all stay open under a verdict saying otherwise.
+
+    Never a state, always a judgment - the item names both reports and, when
+    the rows are the baseline's ids with an ``F`` added or dropped, says so as
+    a hint, never as a match. It is settled, and dropped, once the caller
+    ruled every finding of the baseline it names (``ruled`` holds their ledger
+    keys).
+    """
+    found = unread_rulings(report, facts)
+    if found is None:
+        return None
+    base, rows = found
+    base_ids = [f["id"] for f in own_findings(base)]
+    if all(f"{name_of(base)} / {fid}" in ruled for fid in base_ids):
+        return None
+    item = (
+        f"{name_of(report)} rules on no finding of its baseline {name_of(base)} "
+        f"({plural(len(base_ids), 'finding')} left unruled): "
+    )
+    pairs = prefix_pairs(rows, base_ids)
+    if pairs:
+        added = sorted({"added" if len(r) > len(b) else "dropped" for r, b in pairs})
+        return (
+            f"{item}it keys {cap(', '.join(r for r, _ in pairs), MAX_RULED_BY)[0]} "
+            f"against the baseline's "
+            f"{cap(', '.join(b for _, b in pairs), MAX_RULED_BY)[0]} - an 'F' "
+            f"prefix {' or '.join(added)}: judge whether they are the same findings"
+        )
+    if rows:
+        return (
+            f"{item}it rules "
+            f"{cap(', '.join(row['id'] for row in rows), MAX_RULED_BY)[0]}, "
+            "none of them an id of the baseline"
+        )
+    return f"{item}it carries no ruling row at all - open the body"
 
 
 def burn_down(rows: list[dict]) -> dict[str, int]:
@@ -911,7 +1012,13 @@ def unruled_by_quick(report: dict, by_name: dict[str, dict]) -> tuple[str, int] 
     if not targets:
         return None
     base = targets[0]
-    ruled = {row["id"] for row in rulings_of(report)}
+    # a row reading ``not ruled (quick)`` is the contract's way of saying the
+    # finding was left unruled: it names the finding, it does not rule it
+    ruled = {
+        row["id"]
+        for row in rulings_of(report)
+        if not NOT_RULED_RE.search(row["ruling"])
+    }
     unruled = [f for f in own_findings(base) if f["id"] not in ruled]
     return (name_of(base), len(unruled)) if unruled else None
 
@@ -961,8 +1068,18 @@ def chain(line: list[dict]) -> str:
     return " -> ".join(parts)
 
 
-def recommendations(facts: dict, today: str | date | None = None) -> list[dict]:
-    """One action per lineage, by the maturity rules, with its inputs."""
+def recommendations(
+    facts: dict,
+    today: str | date | None = None,
+    *,
+    ruled: frozenset[str] = frozenset(),
+) -> list[dict]:
+    """One action per lineage, by the maturity rules, with its inputs.
+
+    ``ruled`` holds the ledger keys the caller ruled this run, so an action
+    deferred over rulings the rules could not read settles with them: rule,
+    re-run, and the lineage moves on.
+    """
     day = (
         today
         if isinstance(today, date)
@@ -1002,12 +1119,17 @@ def recommendations(facts: dict, today: str | date | None = None) -> list[dict]:
             evidence.append(f"verdict {verdict_label(last)}")
         evidence.append(bound["evidence"])
         unruled = unruled_by_quick(last, by_name)
-        if unruled:
+        unread = unread_baseline_rulings(last, facts, ruled)
+        if unruled or unread:
             action = "judgment needed"
-            evidence.append(
-                f"{unruled[1]} finding(s) of {unruled[0]} unruled by the quick verification: "
-                "verified only for the items it ruled, never for the service"
-            )
+            if unruled:
+                evidence.append(
+                    f"{unruled[1]} finding(s) of {unruled[0]} unruled by the quick "
+                    "verification: verified only for the items it ruled, never for "
+                    "the service"
+                )
+            if unread:
+                evidence.append(unread)
         elif bound["changed"] is None:
             action = "judgment needed"
         elif bound["changed"]:
@@ -1196,6 +1318,32 @@ def mixed_not_queried(facts: dict) -> list[str]:
     return out
 
 
+def lift_losses(facts: dict) -> dict[str, dict]:
+    """Per report whose gaps section the lift cut, what it took: the bullets
+    it dropped whole, the bullets it cut at their tail, and whether the prose
+    it cut is where that section records its gaps.
+
+    A section recording its gaps as bullets or as a table keeps them all
+    when the lift cuts its prose - the not-queried line a mission opens
+    with is not a gap - so ``prose`` is true only for a section that
+    records its gaps as prose.
+    """
+    out = {}
+    for newest in newest_observations(facts).values():
+        section = gap_section(newest)
+        if section is None or section["text"] is None:
+            continue
+        if not section["text_truncated"]:
+            continue
+        out[name_of(newest)] = {
+            "dropped": section.get("text_bullets_dropped") or 0,
+            "cut": section.get("text_bullets_cut") or 0,
+            "prose": bool(section.get("text_prose_cut"))
+            and not gap_items_by_shape(section)[1],
+        }
+    return out
+
+
 def gap_rows(facts: dict) -> list[dict]:
     """The newest observation of each lineage, its telemetry-gaps section as recorded.
 
@@ -1204,10 +1352,11 @@ def gap_rows(facts: dict) -> list[dict]:
     a list of signals is dropped whole and deferred - unless the section
     states it carries no gap.
 
-    ``truncated`` says the section's text was cut by the lift (gaps beyond
-    the cap unlisted); ``cut`` carries an item's whole length when the row
-    caps it, else 0; ``paragraph`` marks a section that yielded one
-    paragraph item the split could not cut.
+    ``truncated`` says the lift took something from the section's text -
+    what it took is the lift's to state (``lift_losses``); ``cut`` carries
+    an item's whole length when the row caps it, else 0; ``paragraph``
+    marks a section that yielded one paragraph item the split could not
+    cut.
     """
     rows = []
     for label, newest in newest_observations(facts).items():
@@ -1517,8 +1666,9 @@ def render(
     # The judgment list, in five groups by what settling an item changes -
     # the order the screen's cap applies to, the full rendering's order too.
     # A lineage's boundary (settled with --runtime / --non-runtime, it flips
-    # the action), the rulings the rules could not read and the ones outside
-    # their chain (settled with --ruled, they move a finding between burn-down
+    # the action), the rulings the rules could not read - unreadable wording,
+    # an id outside the chain, a verification keying none of its baseline's
+    # ids - (settled with --ruled, they move a finding between burn-down
     # columns), the verdict problems, the gap notes, and the memory hygiene
     # last: the reports, ledger rows and flags the run could not read, most
     # of them already counted on the invariant line, none of them a store
@@ -1571,6 +1721,10 @@ def render(
                 f"ruling not readable by rule ({r['ruled_by']})"
             )
     rulings += out_of_chain_rulings(facts, ruled_keys)
+    for report in readable(facts):
+        unread = unread_baseline_rulings(report, facts, ruled_keys)
+        if unread:
+            rulings.append(unread)
     rulings += [p for p in problems if RULING_REFUSED_RE.search(p)]
 
     trends, apart = trend_rows(facts)
@@ -1581,10 +1735,29 @@ def render(
             gap_notes.append(
                 f"gaps of {g['recorded_by']}: section 5 not lifted, open the body"
             )
+    cut_gaps: dict[str, int] = {}
+    for g in gaps:
+        if g["cut"] and not g["paragraph"]:
+            cut_gaps[g["recorded_by"]] = cut_gaps.get(g["recorded_by"], 0) + 1
+    losses = lift_losses(facts)
     for name in sorted({g["recorded_by"] for g in gaps if g["truncated"]}):
-        gap_notes.append(
-            f"section 5 of {name} truncated: the gaps beyond the cap are unlisted"
-        )
+        loss = losses.get(name) or {"dropped": 0, "cut": 0, "prose": False}
+        if loss["dropped"]:
+            gap_notes.append(
+                f"section 5 of {name} truncated: {plural(loss['dropped'], 'bullet')} "
+                f"beyond the cap {'is' if loss['dropped'] == 1 else 'are'} unlisted"
+            )
+        if loss["prose"]:
+            gap_notes.append(
+                f"section 5 of {name} truncated: the gaps beyond the cap are unlisted"
+            )
+        if loss["cut"] and name not in cut_gaps:
+            # a row the cap below cut already says to open the body
+            gap_notes.append(
+                f"section 5 of {name} truncated: {plural(loss['cut'], 'bullet')} cut "
+                f"by the lift, open the body for the rest of "
+                f"{'it' if loss['cut'] == 1 else 'them'}"
+            )
     for g in gaps:
         if g["cut"] and g["paragraph"]:
             gap_notes.append(
@@ -1592,10 +1765,6 @@ def render(
                 f"characters, cut at {MAX_GAP_LENGTH}, open the body for the gaps "
                 "it carries"
             )
-    cut_gaps: dict[str, int] = {}
-    for g in gaps:
-        if g["cut"] and not g["paragraph"]:
-            cut_gaps[g["recorded_by"]] = cut_gaps.get(g["recorded_by"], 0) + 1
     for name, count in sorted(cut_gaps.items()):
         gap_notes.append(
             f"section 5 of {name}: {plural(count, 'gap')} cut at {MAX_GAP_LENGTH} "
@@ -1606,7 +1775,7 @@ def render(
             f"section 5 of {name} mixes a not-queried list with its gaps: open the body "
             "for the gaps it carries"
         )
-    recs = recommendations(facts, today)
+    recs = recommendations(facts, today, ruled=ruled_keys)
     boundaries: list[str] = []
     for r in recs:
         if r["action"] == "judgment needed":

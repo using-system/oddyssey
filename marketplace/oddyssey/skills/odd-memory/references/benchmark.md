@@ -19,9 +19,41 @@ benchmark's identity.
 Two-step: the target **service** returns the set of benchmarks that
 already exist for it (so the agent cannot duplicate one it never saw);
 the benchmark **name** identifies the single artifact an update
-rewrites. List every benchmark under `.odd/benchmarks/` and check each
-manifest's declared target service before the agent authors anything
-new.
+rewrites. Both steps are one run of the memory contract's recall
+script, before the agent authors anything new:
+
+    python3 <this skill's directory>/scripts/odd_recall.py --repo <path> \
+      --kind benchmark --service <target service>
+
+It prints one line per stored benchmark, tab-separated: `name` (the
+directory), `service`, `test_type`, `executor` (the manifest's
+`profile.executor`), `authored`. It reads the manifests in Python, so
+none of them reaches the conversation. Drop `--service` to list the
+whole store; `--stack`, `--env`, `--mode`, `--depth` and `--project`
+belong to the report kinds and are refused here.
+
+Unlike a report recall, the **whole listing** is the answer, not its
+first line: a benchmark is a set member, not a baseline. The `name`
+column settles step two — a name in the listing is an **update**, and
+`.odd/benchmarks/<name>/` is the one directory the agent then opens; a
+name absent from it is a **new** benchmark. So **every** directory
+prints a line, `-` in each column its manifest could not fill: one
+carrying no readable `manifest.yaml`, or declaring no `service`, is
+listed under its directory name — the identity — and its defect named
+on stderr beside it. A directory the listing dropped would read as a
+free name and be authored over. A manifest declaring a name other than
+its directory's is listed and named on stderr the same way; a
+benchmark the `--service` scope rules out is dropped from the listing
+but keeps its stderr line.
+
+Order: newest `authored` first, `name` ascending on a tie (the live
+store is one day's work, so the tie is the normal case), a manifest
+with no `authored` last. An absent or empty store is a first run, said
+on stderr, never a failure.
+
+By hand, only when the script cannot run: list the directories under
+`.odd/benchmarks/` and read each manifest's top-level `name`,
+`service` and `test_type` — never a whole manifest.
 
 ## Rules
 
@@ -49,7 +81,14 @@ new.
   unopinionated about whether the script or manifest is any good. That
   judgment belongs to `k6-benchmark-expert`, informed by `k6-guides`.
 - The manifest's schema - the persistence stores whatever shape the manifest
-  has; it does not define that shape.
+  has; it does not define that shape. One carve-out, and only for what
+  `## Recall` above prints: the recall requires a top-level `name` (the
+  directory's own) and `service`, requires `authored` to be
+  `YYYY-MM-DD` when present (the listing orders on it as plain text, so
+  another shape mis-sorts), and reads `test_type` and
+  `profile.executor` for its columns, `-` when absent. It flags what it
+  cannot read and stores the manifest all the same; nothing else in the
+  file is the persistence's business.
 - Deleting a benchmark. A benchmark whose target service is gone is
   stale source, not something the persistence garbage-collects - removing one
   is a human's PR, like removing any other dead source file.
@@ -81,18 +120,28 @@ no exception.
 - **What it exercises** - target service, the endpoints/operations in
   scope, the test type (smoke/load/stress/soak/spike/breakpoint).
 - **Validation** - what the manifest records: `k6 inspect` passed (k6
-  version, date) and the smoke's result - passed (local or remote
-  target, the URL only when the manifest stores it), declined, not
-  applicable (with the scenarios it could not reach), or the functions
-  it did not cover - and the threshold cross-check: each threshold,
-  the service-side floor it was checked against or none found, and the
-  outcome (reachable, kept with the floor acknowledged, or the value
-  the caller changed it to). One or two lines; a benchmark whose
-  manifest records no validation is an upstream contract failure to
-  surface, not a line to invent.
+  version, date), the manifest's own YAML parse (the parser, the
+  date), and the smoke's result - passed (local or remote target, the
+  URL only when the manifest stores it), declined, not applicable
+  (with the scenarios it could not reach), or the functions and
+  operations it did not cover - and the threshold cross-check: each
+  threshold, the service-side floor it was checked against or none
+  found, what bounds a threshold expressed as a fraction of a counted
+  quantity (the denominator, or the per-iteration count where the run
+  total is a runtime outcome), and the outcome (reachable, kept with
+  the floor acknowledged, or the value the caller changed it to). One
+  or two lines; a benchmark whose manifest records no validation is an
+  upstream contract failure to surface, not a line to invent.
+- **A question the manifest records as unreadable** - when the
+  manifest names a telemetry signal the run's question depends on and
+  records it as absent instead, the synthesis says so in one line, in
+  the manifest's own words. A gap written only into a file the human
+  is not shown never reaches them.
 - **Next recommended action** - how to actually run it:
   `/odd-observe run .odd/benchmarks/<name>/` (drive mode with that
-  benchmark, see `docs/guide/benchmarks.md`).
+  benchmark, see `docs/guide/benchmarks.md`) - or, when the bullet
+  above carries a gap, the instrumentation wave that would make the
+  question readable first, the run after it.
 - **For an update**: a short headline of what changed against the
   previous version - the full diff already lives in the commit, this is
   the human-readable one-liner, not a diff dump.

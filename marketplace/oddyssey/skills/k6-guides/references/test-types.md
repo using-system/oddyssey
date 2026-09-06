@@ -17,3 +17,11 @@ common wrong answer that drops breakpoint):
 Picking one is a **human decision** (see authoring-inputs.md) - it
 encodes what the caller actually wants to learn, which this skill or
 the authoring agent cannot infer from the service alone.
+
+The Shape column is what each official page itself configures (all six
+re-fetched 2026-09-06): smoke sets top-level `vus` + `duration`, the
+next four set `options.stages`, and breakpoint alone recommends the
+`ramping-arrival-rate` executor. A benchmark whose stated input is a
+request rate rather than a VU count declares an arrival-rate executor
+whatever the type - a convention of this package, not a k6
+recommendation: scripting.md, "Executors", says which one and why.
