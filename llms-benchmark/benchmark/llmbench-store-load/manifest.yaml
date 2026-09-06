@@ -1,0 +1,519 @@
+# Benchmark manifest - llmbench-store-load
+#
+# The script is the load; this file records what the load is, why its
+# targets are what they are, and how the script was validated. Living
+# source: updated in place through reviewed diffs (odd-memory, benchmark).
+#
+# How to run: through /odd-observe in drive mode with this benchmark
+# (`/odd-observe run llms-benchmark/benchmark/llmbench-store-load/`, see
+# docs/guide/benchmarks.md) - start the target with the launcher under
+# `target` first; the run-scenario skill's benchmark-replay reference
+# owns the k6 command, the summary export and the record. Never run the
+# benchmark from the authoring side.
+
+name: llmbench-store-load
+service: llmbench-api
+services: [llmbench-api, llmbench-mcp, llmbench-agent]
+engine: k6
+script: script.js
+test_type: load # the directory's type word; k6's test-types page calls it "average-load"
+authored: "2026-09-06"
+
+target:
+  description: >
+    The llms-benchmark demo store, all three of its components at once,
+    under two minutes of everyday traffic: a shopper's conversation with
+    the catalog - browse a category, search inside it, open a product,
+    ask for the catalog-wide stats, place an order and read it back -
+    driven both straight at the API and through the four MCP tools the
+    assistant itself calls, while a second, far slower scenario asks the
+    agent one customer question at a time. The average-load question, on
+    the whole store rather than on one component.
+  components:
+    - name: llmbench-api
+      what: FastAPI over a seeded SQLite catalog - the catalog and orders routes
+      source: llms-benchmark/src/api
+      base_url_env: API_URL
+      base_url_default: http://localhost:8010 # the compose launcher below; a remote target is a mission-time input
+    - name: llmbench-mcp
+      what: the MCP server (mcp 2.1.1, streamable HTTP) exposing the store as four tools
+      source: llms-benchmark/src/mcp
+      transport: streamable-http # the benchmark speaks HTTP to POST <MCP_BASE_URL>
+      base_url_env: MCP_BASE_URL # the FULL endpoint, path included - not a root the script appends /mcp to
+      base_url_default: http://localhost:8011/mcp
+    - name: llmbench-agent
+      what: a pydantic-ai agent behind FastAPI, answering a question with the MCP tools
+      source: llms-benchmark/src/agent
+      base_url_env: AGENT_URL
+      base_url_default: http://localhost:8012
+  launcher:
+    command: docker compose -f docker-compose/llms-benchmark/docker-compose.yml up -d --build
+    working_directory: . # the repository root
+    does: >
+      Builds and starts the three containers of the demo stack - api, mcp
+      and agent - with the ports the defaults above assume
+      (API_PORT 8010, MCP_PORT 8011, AGENT_PORT 8012, all overridable in
+      the compose file's environment). Telemetry leaves over OTLP HTTP to
+      the local oddyssey stack running on the host, and profiles go to
+      Pyroscope's own ingest port; both endpoints come from the oddyssey
+      global configuration. The agent needs a model-provider key exported
+      in the shell that runs the command - the compose file names the
+      variable and refuses to start without it; no value for it is ever
+      stored here. Stop the stack with `docker compose -f
+      docker-compose/llms-benchmark/docker-compose.yml down` when the run
+      is over.
+  launcher_env_required: [OPENAI_API_KEY] # named, never valued: exported in the launching shell (compose refuses to start without it)
+  launcher_env_optional: [OTLP_HTTP_ENDPOINT, PYROSCOPE_ENDPOINT, DEPLOYMENT_ENV, MODEL_NAME, CATALOG_SIZE]
+  prerequisites: >
+    Docker running, the local oddyssey stack up (the three services
+    export to it), and a reachable model provider for the agent - the
+    assistant scenario's eight iterations are eight real calls to it.
+
+operations:
+  catalog_scenario: # every iteration of the default function, in this order
+    - name: GET /products?category
+      when: every iteration
+      why: >
+        the listing a shopper lands on - the category moves with the
+        iteration counter, so the run walks all twelve of the catalog's
+        categories instead of replaying one
+    - name: GET /products?category&q
+      when: every iteration
+      why: >
+        narrowing that listing with a search term, the way a shopper who
+        knows roughly what they want does; the term moves with the
+        iteration counter across the store's own vocabulary
+    - name: GET /products/{sku}
+      when: every iteration
+      why: >
+        opening one product from the listing just read - the detail page
+        of the conversation; the SKU is picked out of that iteration's
+        own listing, so it differs from iteration to iteration
+    - name: GET /stats
+      when: every iteration
+      why: >
+        the catalog-wide view - counts, stock and price bands per
+        category, what a storefront's overview panel asks for
+    - name: POST /orders
+      when: every iteration
+      why: the purchase the conversation was heading to, one unit of the product just read
+    - name: GET /orders/{order_ref}
+      when: every iteration in which an order reference came back
+      why: reading the order back, the confirmation step of a purchase
+    - name: initialize
+      when: once per VU (and again after a session is lost)
+      why: opens the VU's MCP session; the response header carries the session id
+    - name: notifications/initialized
+      when: once per VU (with the handshake)
+      why: the handshake's closing notification (202, no body), required before any tools/call
+    - name: tools/list
+      when: once per VU (with the handshake)
+      why: what every MCP client does once per session before its first call
+    - name: tools/call search_products
+      when: every iteration
+      why: >
+        the same search as above, this time through the tool the
+        assistant would call - the query and category are that
+        iteration's own
+    - name: tools/call get_product
+      when: every iteration
+      why: the product lookup through the tool surface, on a second SKU from the same listing
+    - name: tools/call place_order
+      when: every iteration
+      why: the purchase through the tool surface - what the assistant does when a customer buys
+    - name: tools/call get_order
+      when: every iteration in which an order reference came back
+      why: reading that order back through the tool surface, closing the tool-side conversation
+  assistant_scenario: # the exec-named function
+    - name: POST /ask
+      when: every iteration (8 over the run)
+      why: >
+        one customer question put to the agent in its own words; the
+        eight questions of a run are written so that between them they
+        walk all four tools the assistant has - a search, a product
+        lookup, an order placed, an order read back
+
+excluded_operations:
+  - operation: GET /health (llmbench-api) and GET /health (llmbench-agent)
+    why: >
+      liveness endpoints the orchestrator already polls every few
+      seconds; a shopper never calls them and their traffic would sit on
+      top of the run's without belonging to the conversation being
+      measured
+
+session:
+  per_vu: one MCP session, opened on first use and kept across iterations
+  opened_with: initialize, notifications/initialized, tools/list
+  negotiated_version: >
+    the script offers 2025-06-18 and asserts the negotiated version is
+    handshake-era; llmbench-mcp (mcp 2.1.1) negotiated 2025-06-18 at
+    authoring time
+  on_404: >
+    the session id is dropped and the rest of the iteration is skipped
+    (paced, then return); the next iteration re-initializes
+  on_failed_handshake: recorded by its checks; the VU sleeps and returns, the next iteration re-initializes
+  closed_by_script: never (no DELETE; the SDK's session_idle_timeout defaults to None)
+
+identity:
+  user_agent: odd-bench/llmbench-store-load # + "/<RUN_SLUG>" appended when run with -e RUN_SLUG=<slug>; never substituted
+  run_slug_env: RUN_SLUG # passed on every run (see run_slug_gate below); never stored here
+  name_tag: >
+    every request carries the `name` tag listed under operations - the
+    key any later per-operation sub-metric query uses
+  stage_tag: none # a single steady stage per scenario, see profile
+  scenario_tag: >
+    k6's own `scenario` system tag separates the two scenarios' rows in
+    k6's metrics (`catalog` and `assistant`); it is a k6-side metric tag,
+    not a header the services see - on the service side the two are told
+    apart by the operations they call
+  traceparent:
+    # Sent only when BOTH gates below are on; the two are independent.
+    gate_env: SEND_TRACEPARENT
+    gate_read: >-
+      presence, whatever the value: the script tests
+      `__ENV.SEND_TRACEPARENT !== undefined`, never a truthiness test and
+      never a parsed boolean. k6 hands every -e value over as a string, so
+      `-e SEND_TRACEPARENT=0` and `-e SEND_TRACEPARENT=false` are both
+      truthy - there is no value that means off, only leaving the variable
+      out of the command and out of the environment (k6 reads exported
+      system variables too). Verified on this script's own construction,
+      k6 v2.2.0, 2026-09-06: see validation.static_check.
+    set_by: >-
+      the drive, never this file: a remote drive sets it (the requests are
+      the only identity there is), a local drive leaves it unset - the
+      launched containers already carry their own resource identity and a
+      synthetic parent would cost the run its trace roots for nothing.
+    run_slug_gate: >-
+      independent of the gate above: no RUN_SLUG, no identity at all (every
+      replay would send the same set of trace ids and the runs would merge
+      under them), and RUN_SLUG without SEND_TRACEPARENT sends the
+      User-Agent alone.
+    header: 00-<trace id>-<span id>-01
+    trace_id: >-
+      32 hex in three parts: the 8-hex prefix literal below, 8 hex derived
+      from the run slug, and the 16-hex sequence field.
+    prefix: "0ddc0ffe"
+    prefix_note: >-
+      baked into the script at authoring time; this recorded literal is what
+      the run's rows carry, whatever prefix the protocol names later.
+      Changing it is a re-authoring through /odd-instrument-bench.
+    slug_hex: >-
+      the first 8 hex of sha256(<RUN_SLUG>, 'hex') (k6/crypto), hashed once
+      in init and constant for the run.
+    sequence: >-
+      16 hex, disjoint across every runtime that sends a request, not merely
+      across VUs: the high 8 hex name the runtime - exec.vu.idInTest (>= 1)
+      in VU code, which k6 documents as globally unique across the whole
+      test run, so the catalog VUs and the assistant VUs never share one -
+      with ffffffff reserved for setup() and fffffffe for teardown(),
+      outside the VU index range because exec.vu.idInTest reads 0 in both -
+      and the low 8 hex are that runtime's own request counter from 1, k6
+      giving every runtime its own module state. This script exports no
+      setup() and no teardown(): every request goes out from VU code, and
+      the two reserved values stand unused - the script's traceparent()
+      raises rather than build an id with a zero high half, so an author who
+      later sends a request from setup() or teardown() gets a failure there
+      instead of a silent collision.
+    span_id: the same 16-hex sequence field, so it is never all zeros either.
+    caveat: >-
+      where the header goes out the run's traces are rootless (the parent
+      span never existed): presence and count rulings hold, latency is read
+      from the User-Agent identity (run-scenario's run-identity reference).
+
+profile:
+  executor: constant-vus # the catalog scenario's; the assistant scenario's is constant-arrival-rate
+  scenarios:
+    - scenario: catalog
+      exec: default # no `exec` key - the default function, which is what the one-iteration smoke covers
+      executor: constant-vus
+      vus: 5
+      duration: 2m
+      stages: # no ramp: the whole window is steady state
+        - { name: steady, from: 0s, to: 2m, target: 5, quote: true }
+      pacing:
+        sleep_s: 1
+        where: >
+          at the end of every iteration, and on every early return (failed
+          handshake, lost session) - stages alone set no request rate
+        requests_per_iteration: >
+          8 fixed (5 catalog reads, 1 order, 3 tool calls) plus up to 2
+          conditional (the order read back over HTTP and over the tool
+          surface, when an order reference came back), plus 3 more on a
+          VU's first iteration and after any session loss (initialize,
+          notifications/initialized, tools/list). The smoke measured 13
+          on a first iteration with both conditionals taken.
+        expected_rate: >
+          not fixed by the profile: constant-vus bounds the concurrency
+          (5) and the window (2m), and the achieved rate then drifts with
+          the store's own response time - 5 VUs x ~10 requests per
+          iteration divided by (1 s of pacing + the iteration's response
+          time). The one-iteration smoke measured an iteration duration of
+          1.27 s for 13 requests, warm session excluded.
+      warmup: >
+        Not built in - k6 runs one continuous window. Each VU's first
+        iteration carries the MCP handshake and the first connections to
+        the three services; a later query that wants a warm steady state
+        can drop the run's first 10 s inside the steady stage above.
+    - scenario: assistant
+      exec: assistant # a non-default function: the one-iteration smoke cannot reach it (see validation.smoke)
+      executor: constant-arrival-rate
+      rate: 1
+      time_unit: 15s
+      duration: 2m
+      pre_allocated_vus: 2
+      max_vus: 4
+      stages:
+        - { name: steady, from: 0s, to: 2m, target: 1 per 15s, quote: true }
+      pacing:
+        sleep_s: 0 # an arrival-rate executor paces itself; the k6 docs say not to sleep at the end of such an iteration
+        where: the rate is the pacing
+        requests_per_iteration: 1
+        expected_rate: 1 iteration every 15 s = 8 over the run, 8 requests
+      rate_is_a_ceiling: >
+        NEVER RAISE IT. Every iteration of this scenario is one real,
+        paid call to a third-party model provider, billed per request:
+        the agent answers a question by calling the model, which calls
+        the MCP tools, which costs further model turns. One question
+        every 15 seconds is what makes a two-minute run of this benchmark
+        affordable and repeatable; raising the rate, lengthening the
+        duration, or smoking this function multiplies that bill. The
+        provider also rate-limits per minute, which the same ceiling
+        stays under.
+
+thresholds:
+  - metric: http_req_failed
+    expression: "rate<0.05"
+    decided_by: caller (at dispatch)
+    abort_on_fail: false
+    rationale: >
+      Deliberately fractional rather than the equality `rate==0`: the
+      assistant scenario depends on a third-party model provider, and an
+      occasional hiccup there must not fail the whole benchmark.
+    cross_check:
+      floor_catalog_and_mcp: >
+        none found - every branch of every catalog route returns a JSON
+        body under HTTP 200 (llms-benchmark/src/api/app/main.py:54, :74,
+        :92, :133, :193, including the branches at :87, :148, :157 and
+        :202, which answer 200 with a stated reason rather than an error
+        status), and the MCP transport answers 200 to the handshake and
+        to every tools/call and 202 to the notification (verified on the
+        running stack at authoring time). No injected error and no rate
+        limit on either path.
+      floor_agent: >
+        POST /ask answers 500 when the model call has failed
+        MODEL_ATTEMPTS times (default 3 -
+        llms-benchmark/src/agent/app/assistant.py:21, :80, :109, surfaced
+        by llms-benchmark/src/agent/app/main.py:55). That is a
+        third-party provider outcome, and it is exactly the reason the
+        caller set a fractional target rather than an equality.
+      denominator: >
+        A runtime outcome, not derivable before the run. The assistant
+        scenario is bounded - rate 1 per 15 s over 2 m = 8 requests, and
+        that 8 is a CEILING (dropped_iterations lowers the real count if
+        maxVUs 4 ever saturates). The catalog scenario is
+        constant-vus, which bounds VUs and duration but never the
+        iteration count, so its request total depends on the store's own
+        response time; what is fixed there is the per-iteration count
+        recorded at profile.scenarios[catalog].pacing. The whole-run
+        denominator is therefore a runtime outcome, and the smallest
+        failure fraction the expression can detect scales with the run's
+        length - 5 % of a longer run is more failed requests.
+      share: >
+        At the iteration duration the smoke measured (1.27 s for 13
+        requests), 5 VUs over 2 minutes put the catalog scenario in the
+        hundreds of iterations and the thousands of requests, so the
+        assistant's 8 requests are well under 1 % of the run's total:
+        even all 8 answering 500 stays far inside the 5 % budget, which
+        is what the caller's rationale asks of the target.
+      outcome: reachable
+  - metric: checks
+    expression: "rate>0.90"
+    decided_by: caller (at dispatch)
+    abort_on_fail: false
+    rationale: >
+      Same reason as above, on the check side: the two checks of an
+      assistant iteration ride on a third-party model answer, so the
+      target is fractional rather than `rate==1.00`.
+    cross_check:
+      floor: >
+        none found - every check asserts a response the services produce
+        on their normal path: an HTTP status they always answer, a body
+        shape their own routes construct, an MCP session id header and a
+        handshake-era protocol version the server negotiated at authoring
+        time, and `isError` not true on a tool call. The one-iteration
+        smoke passed 29 of 29.
+      denominator: >
+        A runtime outcome, like the one above. Bounded part: the
+        assistant scenario contributes exactly 2 checks per iteration x 8
+        iterations = 16 checks, itself a ceiling for the same
+        dropped_iterations reason. Unbounded part: the catalog scenario
+        contributes 18 fixed checks per iteration plus up to 5
+        conditional (2 for the order read back over HTTP, 3 for the tool
+        surface's get_order), plus 6 more on a VU's first iteration and
+        after any session loss (3 initialize, 1 notification, 2
+        tools/list) - the smoke measured 29 on a first iteration with
+        every conditional taken - and its iteration count is a runtime
+        outcome. So the run's total check count cannot be computed here;
+        what the expression tolerates is 10 % of whatever that total
+        turns out to be, and the failure count that budget represents
+        grows with the run's length.
+      share: >
+        The assistant's 16 checks are, on the same arithmetic as above,
+        well under 1 % of the run's total: all 16 failing stays far
+        inside the 10 % budget.
+      outcome: reachable
+
+signals:
+  # What a run of this benchmark is read through. Every signal below was
+  # confirmed in the services' own instrumentation at authoring time; the
+  # run's questions are answered from these and from k6's own summary.
+  traces: >
+    All three services export spans over OTLP HTTP (each service's
+    app/telemetry.py). llmbench-api and llmbench-agent are
+    FastAPI-instrumented; llmbench-mcp and llmbench-agent are
+    httpx-instrumented, so the tool calls' downstream catalog requests
+    are spans of their own. Two explicit spans exist beside those: the
+    catalog read span in llms-benchmark/src/api/app/db.py:54 and
+    `agent.ask` in llms-benchmark/src/agent/app/assistant.py:74. The
+    agent additionally turns on pydantic-ai's GenAI instrumentation
+    (llms-benchmark/src/agent/app/assistant.py:56), so the model turns
+    and the tool calls of an /ask carry the gen_ai conventions.
+  metrics: >
+    Three application counters, one per service:
+    `catalog.orders.created` (llms-benchmark/src/api/app/main.py:36),
+    `mcp.tool.calls` tagged by tool name
+    (llms-benchmark/src/mcp/app/server.py:120), and `agent.questions`
+    tagged by model (llms-benchmark/src/agent/app/main.py:32) - plus
+    pydantic-ai's own GenAI metrics on the agent. All exported over OTLP
+    HTTP.
+  logs: >
+    All three services export logs over OTLP HTTP and are
+    logging-instrumented, so a log line carries its trace context; the
+    catalog, the tool calls and the answers each log a line of their own.
+  profiles: >
+    All three services push CPU profiles to Pyroscope's own ingest API
+    when PYROSCOPE_SERVER_ADDRESS is set, which the compose launcher
+    above sets by default.
+  k6_side: >
+    k6's own summary (--summary-export) carries http_req_duration,
+    http_req_failed, checks and dropped_iterations, per-operation through
+    the `name` tag and per-scenario through the `scenario` tag.
+
+validation:
+  static_check: >
+    passed - discardResponseBodies is global and there is exactly one
+    request-sending call site in the script (inside send()), so every
+    request goes through the one helper that sets the identity headers.
+    Every body read is covered: parseJson() is called only on responses
+    whose request set responseType 'text' (the two listings, the product,
+    the order, the order read back, and the agent's answer), the stats
+    request reads no body and keeps the global discard, and parseRpc() is
+    reached only on the non-notification branch, which is the branch that
+    sets responseType 'text' - the notification reads no body. No
+    threshold is tag-scoped, so there is no sub-metric a request could
+    fail to populate. No literal credential anywhere in the script (the
+    model-provider key belongs to the launcher's environment and is named
+    in target.launcher_env_required, never valued). Identity headers: the
+    sequence field's high half was ruled against the functions that send
+    a request - `export default function` (catalog) and `export function
+    assistant` are the only two, no setup() and no teardown() - so every
+    request goes out from VU code where exec.vu.idInTest is >= 1 and
+    globally unique across both scenarios, the halves are disjoint per
+    runtime, and the low half's counter from 1 keeps the field non-zero,
+    which traceparent()'s guard also enforces at runtime by raising on a
+    zero high half. Corroborated out of band on a scratch probe carrying
+    the same construction over two scenarios, one default and one
+    exec-named (not this benchmark; k6 v2.2.0, 2026-09-06): 12 emissions
+    over 3 VUs produced 12 distinct trace ids and 12 distinct span ids,
+    none zero, the VU ids disjoint across the two scenarios; and the gate
+    read by presence - `-e SEND_TRACEPARENT=0` produced 12 headers, the
+    variable left out produced none, and no slug produced none either
+    while the User-Agent fell back to the benchmark name alone.
+  inspect:
+    k6_version: v2.2.0 (commit/devel, go1.26.5, darwin/arm64)
+    date: "2026-09-06"
+    exit: 0
+    result: >
+      empty stderr; both scenarios printed back as written - catalog
+      constant-vus vus 5 duration 2m0s with no exec, assistant
+      constant-arrival-rate rate 1 timeUnit 15s duration 2m0s
+      preAllocatedVUs 2 maxVUs 4 exec assistant - and both threshold
+      expressions parsed as written.
+  smoke:
+    date: "2026-09-06"
+    command: >-
+      k6 run --vus 1 --iterations 1 --no-thresholds script.js -e
+      API_URL=http://localhost:8010 -e
+      MCP_BASE_URL=http://localhost:8011/mcp -e
+      AGENT_URL=http://localhost:8012 -e RUN_SLUG=authoring-smoke -e
+      SEND_TRACEPARENT=1
+    target: local (the three compose containers on 8010/8011/8012, started with the launcher above; self-authorized)
+    gates: >
+      both set on purpose, so the one iteration exercises the identity
+      headers - the smoke is a check of the script, not a drive (a local
+      drive leaves SEND_TRACEPARENT unset)
+    exit: 0
+    stderr: >
+      only k6's `"cli" level configuration overrode scenarios
+      configuration entirely` warning - no level=error, no script
+      exception
+    checks: 29 of 29 succeeded; 1 complete and 0 interrupted iterations
+    http_req_failed: 0.00% (0 out of 13)
+    per_request: >
+      13 requests, iteration_duration 1.27 s - the six catalog requests,
+      the three handshake requests and the four tool calls, both
+      conditional read-backs taken. Whole-run http_req_duration min
+      768 us, med 7.52 ms, avg 20.14 ms, p(95) 85.28 ms, max 182.83 ms.
+      Every request carried the User-Agent and the traceparent, and every
+      one of them was answered 200 or 202 - a synthetic parent changes
+      nothing on the wire.
+    not_covered: >
+      The `assistant` scenario. It names a non-default function through
+      `exec`, and the smoke's CLI flags override the scenarios entirely
+      and run the default function only - so POST /ask was never sent by
+      this validation, which is also the intended outcome: one smoke of
+      that function would be one more paid model call, and the ceiling
+      recorded at profile.scenarios[assistant].rate_is_a_ceiling is not
+      widened for a check. No default function was added to make it
+      runnable. Also outside one iteration's reach: the per-VU session
+      persistence across iterations and the 404 re-initialization, which
+      only appear from a VU's second iteration on. Within the default
+      function nothing is left uncovered - it runs every catalog
+      operation and every tool call on each iteration rather than drawing
+      one from a weighted mix, so the single iteration exercised all of
+      them, and there is no smoke-aiming override to declare.
+    side_effects: >
+      two orders created in the catalog (one over HTTP, one through the
+      place_order tool) and one MCP session opened on the server, plus
+      the traces, metrics and logs those requests exported to the local
+      stack. No model call, no charge.
+  parse:
+    parser: PyYAML safe_load (uv run --no-project --with pyyaml python3)
+    date: "2026-09-06"
+    command: >-
+      uv run --no-project --with pyyaml python3 -c 'import sys, yaml;
+      yaml.safe_load(open(sys.argv[1]))'
+      llms-benchmark/benchmark/llmbench-store-load/manifest.yaml
+    exit: 0
+    result: passed - this file is valid YAML; re-run on every later edit
+  note: a recorded smoke is a record, never authorization for the next one - re-authorized at mission time on every update
+  history:
+    - >-
+      2026-09-06 the benchmark was authored under .odd/benchmarks/ and
+      moved to llms-benchmark/benchmark/ before it was ever committed, so
+      it sits beside the stack it drives rather than in the repository's
+      own ODD memory (issue #473 carries the reasoning). Script byte
+      identical across the move; the manifest changed only in the two
+      lines that spelled the stored path. Re-validated at the new path on
+      the same day, against the same running containers: k6 inspect exit
+      0, PyYAML safe_load exit 0, and the one-iteration smoke re-run as
+      `k6 run --vus 1 --iterations 1 --no-thresholds
+      llms-benchmark/benchmark/llmbench-store-load/script.js -e
+      API_URL=http://localhost:8010 -e
+      MCP_BASE_URL=http://localhost:8011/mcp -e
+      AGENT_URL=http://localhost:8012 -e RUN_SLUG=relocation-smoke -e
+      SEND_TRACEPARENT=1` - exit 0, 29 of 29 checks, http_req_failed
+      0.00% (0 out of 13), 1 complete and 0 interrupted iterations,
+      iteration_duration 1.10 s, stderr carrying only k6's documented
+      CLI-override warning. Same side effects as the authoring smoke: two
+      orders created, one MCP session opened, no model call.
