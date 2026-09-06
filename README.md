@@ -313,6 +313,20 @@ to fetch the code a mission needs to read.
   spec-and-implement wave, turn it into JIRA tickets, or hand it to a
   human — what happens next stays your call.
 
+## Which model to use?
+
+oddyssey does not need the latest frontier model. Its missions are
+reading work — query the telemetry, cross-confirm one signal against
+another, open the file the evidence points at — and a careful mid-tier
+model does that well, for a fraction of the cost of the model you reach
+for to write code.
+
+Rather than assert it, [`.llms-benchmark/`](.llms-benchmark/README.md)
+measures it: a deliberately imperfect three-service stack, one replayed
+scenario, one `/odd-observe` per model at medium reasoning effort, and
+one grade — of what the model reported, how much held up. The results
+table, and the protocol behind it, are there.
+
 ## Prerequisites
 
 - **[Docker](https://docs.docker.com/get-docker/)** — runs the local
