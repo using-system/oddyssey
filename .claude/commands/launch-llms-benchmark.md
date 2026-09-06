@@ -256,7 +256,14 @@ Steps:
      against the model's published prices
      (`https://openrouter.ai/api/v1/models`, the `pricing` object): the
      four counters at those four rates reconstruct the recorded cost
-     exactly. If they do not, say so instead of publishing the number.
+     exactly. **Read the whole `pricing` object, not the four headline
+     rates**: some models carry an `overrides` block that raises every
+     rate above a prompt size, and a flat reconstruction then lands short
+     and looks like a mismatch. Apply the tier per message, on that
+     message's own prompt — and treat the stated `min_prompt_tokens` as
+     indicative, not exact: on the run of #495 the reconstruction matched
+     to the cent at 200,000 where the field said 272,000. If it still
+     does not reconcile, say so instead of publishing the number.
 
    Also read off:
    - the **three phase durations**, not just the total: preflight
@@ -296,10 +303,26 @@ Steps:
    - does the code actually do what the finding says it does? Open the
      file and the line.
 
-   A finding is confirmed when both hold. It is not confirmed when the
-   evidence does not support it, when the cited query returns something
-   else, when the code does not do that, or when the finding is a
-   restatement of another one already counted. A finding whose numbers
+   **What counts as one reported item**, decided before you start
+   grading, because models organise their reports differently and the
+   denominator must not measure that:
+   - **both sections count** — the anomalies and the telemetry gaps.
+     Absent database spans were an anomaly for two runs and a gap for a
+     third; counting the anomalies alone cost that third run a third of
+     its score until the method was fixed.
+   - **an entry that restates one already counted does not count twice**,
+     wherever it sits. Gap sections routinely cross-reference their own
+     findings — one run's five gaps were all restatements and added
+     nothing.
+   - **a row that bundles defects with different root causes and
+     different fixes counts once per defect.** One run put a fan-out and
+     the prompt inflation it causes on one line where another split them
+     across two; one line is not one finding.
+
+   A finding is confirmed when both checks hold. It is not confirmed when
+   the evidence does not support it, when the cited query returns
+   something else, when the code does not do that, or when the finding is
+   a restatement of another one already counted. A finding whose numbers
    are exact but which the report itself labels uncertain still counts:
    grading honesty down would only teach models to hide it.
 
