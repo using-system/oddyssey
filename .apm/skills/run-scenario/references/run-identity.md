@@ -78,19 +78,24 @@ requests** instead. Carry it in two headers on every driven request,
 and never in only one of them:
 
 - `User-Agent: odd-<prompt>/<run slug>` (`odd-verify/<slug>`,
-  `odd-observe/<slug>`; `-warmup` appended on warmup requests). The
-  server's HTTP instrumentation records it as `user_agent.original`,
-  selectable on the request rows of every backend
+  `odd-observe/<slug>`; `-warmup` appended on warmup requests — the
+  suffix that dates the run, "The run starts after the warmup" below).
+  The server's HTTP instrumentation records the header as
+  `user_agent.original`, selectable on the request rows of every backend
   (`customDimensions['user_agent.original']` in KQL,
   `span.user_agent.original` in TraceQL) — this is the identity a
   latency question reads, and it survives a service that ignores
-  `traceparent`. One store reads it on no row: an X-Ray trace summary
-  carries no user agent when its root segment is a client's own span
-  (an instrumented load generator — `Http.UserAgent` `null` on every
-  summary, verified 2026-09-05; the filter empty over a range holding
-  the run's traces, 2026-09-04) — there the trace-id prefix below
-  identifies the run, and its latency reads from the server segment
-  through `batch-get-traces`, never from a summary's `Duration`.
+  `traceparent`. One store reads it on **whichever span roots the
+  trace**. An X-Ray trace summary carries no user agent when the root
+  is a client's own instrumented span (an instrumented load generator
+  — `Http.UserAgent` `null` on every summary, verified 2026-09-05; the
+  filter empty over a range holding the run's traces, 2026-09-04):
+  there the trace-id prefix below identifies the run, and its latency
+  reads from the server segment through `batch-get-traces`, never from
+  a summary's `Duration`. When the generator emits no client span of
+  its own, the server's own segment roots the trace and the identity
+  is readable — `Http.UserAgent` carrying the run's User-Agent on
+  every summary (verified 2026-09-06).
 - `traceparent: 00-<trace id>-<span id>-01`, the trace id being
   **32 hex in three parts**: a fixed 8-hex prefix shared by every run
   of the protocol (`0ddc0ffe` unless the protocol records another),
@@ -126,6 +131,21 @@ rulings and wrong for a latency investigation, whose numbers come
 from the User-Agent identity alone. The `Identity:` line of the
 record (`SKILL.md` step 4) carries both headers' forms with the slug, the prefix
 and the instance read from the rows.
+
+## The run starts after the warmup
+
+The warmup requests of `SKILL.md` step 2 are discarded from the quoted
+numbers — and from the run's **start**: **t0 is the first measured
+request, never the first request the run sent**. A `min(start time)`
+taken over the whole identity dates the run from a warmup request, and
+every stage boundary derived from t0 shifts with it — the run
+mis-buckets, with no error anywhere (verified 2026-09-06: stage counts
+of n=1 and n=176 until the warmup requests were excluded from t0).
+What marks them depends on how the identity travels: the `-warmup`
+suffix on the User-Agent when it travels in the requests (above) — so
+carve t0 from the rows whose User-Agent has none — and otherwise the
+`Warmup:` line of the record (`SKILL.md` step 4), which says how many
+requests per endpoint to drop before taking t0.
 
 ## Reset once
 
