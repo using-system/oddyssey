@@ -340,7 +340,9 @@ a contract), never a cheaper way to write a full report:
   at this depth.
 - **Report** — the seven headings stay (the recall reads by section
   number). Sections 1, 2 and 7 are complete. Section 3 is the ranked
-  table only, no detail per row. Sections 4 and 6 are one line each;
+  table only, no detail per row — a verify or re-measure keeps its
+  baseline-ruling table above it whole, one row per baseline finding,
+  `not ruled (quick)` where the queried signals could not rule. Sections 4 and 6 are one line each;
   section 5 is its `not queried (quick)` line, then one bullet per gap
   the queried signals showed. Section 7 carries the checks this run
   measured, and only those: a quick report is a legal baseline for a
@@ -728,8 +730,9 @@ from your reply, without re-reading the file:
    query that produced it and a sample (trace ID, metric series, log line).
    With a recalled baseline, follow with the deltas: per operation,
    improved / regressed / unchanged / new against the previous report's
-   numbers, and the fate of its findings. Close with the service graph:
-   who calls whom, and how often.
+   numbers — the fate of its findings is section 3's ruling table, never
+   prose here. Close with the service graph: who calls whom, and how
+   often.
 3. **Anomalies and probable causes** — ranked table first:
 
    | # | Finding | Severity | Confidence | Evidence | Expected gain |
@@ -737,6 +740,32 @@ from your reply, without re-reading the file:
    Then the detail per row. **Confidence** is `confirmed` (the query and
    its result are quoted) or `suspected` (state the targeted probe that
    would confirm it). Findings resting on a single signal say so.
+
+   A **verify or re-measure** puts one more table above that one, at
+   the top of the section: the baseline's findings, ruled.
+
+   | # | Baseline finding | Verdict | Evidence |
+
+   One row per finding of the baseline's own ranked table, none left
+   out, `#` carrying **the baseline's id verbatim** — `1`, `F4`,
+   whatever that table wrote, never renumbered, never re-prefixed: it
+   is the key `.odd/decisions.md` names a finding by, and the only
+   thing that ties your ruling to it. **Verdict** is `fixed`, `still
+   present` or `worse` — a nuance goes after the word (`still present,
+   reduced`) — or `not ruled (quick)` for a baseline finding the
+   queried signals could not rule. A ruling written anywhere else — in
+   prose, in a row of the ranked table, under an id you renumbered — is
+   a ruling no reader can key to the baseline: the finding stays open
+   in the loop's burn-down however plainly your report calls it fixed.
+   The ranked table that follows it then carries **this run's own**
+   findings only, under identifiers that cannot collide with a baseline
+   id: continue the baseline's numbering instead of restarting it — a
+   baseline whose last finding is `F6` makes your first one `F7`.
+
+   A **re-measure** writes the same table — it replays the same protocol
+   and sees the same anomalies — but it rules on no fix: its rows record
+   what the run measured, and only a verification's rows close a finding
+   in the loop's memory.
 4. **Improvement opportunities** — each with a measurable expected gain
    (e.g. "collapsing the per-user query loop should cut DB operations from
    ~52 to ~2 per request") and the query that will prove it landed.
@@ -763,7 +792,11 @@ from your reply, without re-reading the file:
    its before-value and its pass criterion — a threshold to meet (for a
    benchmark, the manifest's thresholds, carried over from section 2's
    table), an error that must be gone, a gap that must be filled — so the
-   improvement is verified with evidence, not impressions. Each check
+   improvement is verified with evidence, not impressions. In a verify or
+   re-measure, this table rules the baseline's **checks**, each under the
+   key the baseline gave it; a check key is never a finding id, and a
+   check ruled here never stands in for section 3's ruling on a baseline
+   finding — the two tables answer to different keys. Each check
    states how its query was validated — on healthy data, and on the
    **shape the pass criterion expects**: a check that passes when
    something reaches zero, drops to N, or disappears (dependencies
@@ -849,6 +882,9 @@ from your reply, without re-reading the file:
   section 5 — at `quick` depth, queried or listed as
   `not queried (quick)` there; the depth appears in section 1 and in
   the frontmatter, and a quick verify counts the items it did not rule;
+  in a verify or re-measure, section 3 opens with one ruling row per
+  baseline finding, none missing, each keyed by the baseline's own id,
+  and this run's own findings carry new identifiers;
   every table row and every finding carries its query and
   result; every improvement carries a number and a verification query with
   a before-value; every verification check carries its validation status;
