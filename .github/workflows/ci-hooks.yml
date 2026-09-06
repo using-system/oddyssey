@@ -196,3 +196,17 @@ jobs:
             test -f "marketplace/oddyssey/hooks/scripts/${script}.py"
           done
           test ! -d marketplace/oddyssey/hooks/scripts/__pycache__
+      - name: Assert the regenerated tree carries the committed modes
+        # The release commits this tree through an artifact round-trip
+        # that flattens every file to 644; a generated tree carrying an
+        # executable bit therefore dirties every clean clone and flips
+        # back and forth between releases (#411). Only the modes are
+        # asserted: the content of the committed tree legitimately lags
+        # `.apm/` between releases, since only the release regenerates
+        # it.
+        run: |
+          if git diff --summary -- .claude-plugin .agents marketplace | grep '^ mode change'; then
+            echo "the regenerated marketplace tree differs from the committed one by file mode" >&2
+            exit 1
+          fi
+          echo "the regenerated marketplace tree carries the committed modes"
