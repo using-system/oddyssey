@@ -1,0 +1,240 @@
+# Benchmark manifest - authored by k6-benchmark-expert, stored by the
+# odd-memory skill's benchmark reference. Living source: updated in place
+# through reviewed diffs, never overwritten silently.
+#
+# Run (run-scenario's benchmark-replay reference), with the target started
+# by target.launcher below:
+#   k6 run .odd/benchmarks/mcp-read-soak/script.js --summary-export <summary-file> -e BASE_URL=http://127.0.0.1:8804
+name: mcp-read-soak
+service: oddyssey-mcp
+engine: k6
+script: script.js
+test_type: soak
+authored: 2026-09-06
+issue: 424
+
+target:
+  description: >-
+    Does the MCP server's read surface degrade over a long sustained run -
+    a leak or resource growth per session, per request, or in the docker
+    CLI / readiness-probe path of odd_stack_status? The packaged server
+    (uvx oddyssey-mcp, the users' server) speaks stdio only; the target is
+    the same code on the MCP SDK's streamable HTTP transport (mcp 2.1.1),
+    no code change.
+  transport: streamable-http, SSE responses (the script parses the single "data:" line of each response)
+  path: /mcp
+  protocol_version_requested: "2025-06-18"
+  launcher:
+    command: uv run --frozen python -c "import atexit, logging; from app import telemetry; from app.server import mcp; logging.getLogger('httpx').setLevel(logging.WARNING); logging.getLogger('httpcore').setLevel(logging.WARNING); atexit.register(telemetry.setup_telemetry()); mcp.run(transport='streamable-http', host='127.0.0.1', port=8804)"
+    working_directory: src/mcp-server
+    does: >-
+      runs main() (src/mcp-server/app/server.py:202-212) with the
+      transport swapped - the same HTTP-client log quieting, the same
+      telemetry.setup_telemetry() with its shutdown registered through
+      atexit instead of main()'s try/finally, and mcp.run() on
+      streamable-http instead of stdio - so the target exports its own
+      telemetry exactly like the users' server; the other transport is
+      the only difference. Started in the background, stopped when the
+      run is done.
+  base_url_env: BASE_URL
+  base_url_default: http://127.0.0.1:8804
+  launcher_env_optional: [OTEL_RESOURCE_ATTRIBUTES]   # service.instance.id=<run slug> makes the run's cumulative series attributable (run-scenario's run-identity reference)
+
+operations:
+  - name: initialize
+    method: initialize
+    tool: null
+    when: once per VU (first iteration, and again after a 404)
+    why: opens the VU's session; the Mcp-Session-Id response header and the negotiated protocolVersion are kept for every later request
+  - name: notifications/initialized
+    method: notifications/initialized
+    tool: null
+    when: once per VU (after initialize)
+    why: completes the handshake the SDK requires before any tools/call (answers 202)
+  - name: tools/list
+    method: tools/list
+    tool: null
+    when: every iteration
+    why: the cheapest read, an in-process handler with no I/O - a per-request baseline next to the two tools
+  - name: tools/call odd_config_get
+    method: tools/call
+    tool: odd_config_get
+    when: every iteration
+    why: a read with one small file read and one package-metadata lookup - sub-millisecond, sensitive to any per-request growth
+  - name: tools/call odd_stack_status
+    method: tools/call
+    tool: odd_stack_status
+    when: every iteration
+    why: the expensive read - three docker CLI subprocesses and four readiness probes per call - where a soak would show subprocess, connection or probe resource growth
+excluded_operations:
+  - tool: odd_stack_up
+    why: acts on the machine-wide shared stack
+  - tool: odd_stack_down
+    why: acts on the machine-wide shared stack
+  - tool: odd_stack_reset
+    why: acts on the machine-wide shared stack and wipes stored telemetry
+  - tool: odd_config_set
+    why: writes the global configuration
+
+session:
+  per_vu: one MCP session, opened on first use and kept across iterations for the whole hour (a leak per session shows)
+  on_404: the session id is dropped and the remaining calls of the iteration are skipped; the next iteration re-initializes
+  on_failed_handshake: recorded through the initialize checks; the iteration sleeps and returns, the next iteration retries
+  closed_by_script: never (no DELETE; the SDK's session_idle_timeout defaults to None in mcp 2.1.1, so the ten sessions stay open until the server stops)
+
+identity:
+  user_agent: odd-bench/mcp-read-soak, with "/<RUN_SLUG>" appended when the slug is passed
+  run_slug_env: RUN_SLUG
+  name_tag: every request carries the `name` tag set to its operation name above (initialize, notifications/initialized, tools/list, tools/call odd_config_get, tools/call odd_stack_status), the scope of the per-operation thresholds
+  stage_tag: none (a single constant-vus scenario, no stages)
+
+profile:
+  scenario: read_soak
+  executor: constant-vus
+  vus: 10
+  duration: 1h
+  graceful_stop: 30s
+  stages:
+    # constant-vus holds 10 VUs throughout; the boundary is the warmup
+    # rule's (run-scenario's benchmark-replay reads it), not a k6 ramp.
+    - name: warmup
+      from: 0s
+      to: 60s
+      target: 10
+      quote: false
+    - name: steady
+      from: 60s
+      to: 1h
+      target: 10
+      quote: true
+  pacing:
+    sleep_s: 1
+    where: at the end of every iteration (the failed-handshake early return sleeps the same second)
+    requests_per_iteration: 3 (tools/list, tools/call odd_config_get, tools/call odd_stack_status), plus 2 once per VU (initialize, notifications/initialized)
+    expected_rate: >-
+      about 0.85 iterations/s per VU (1 s sleep plus ~150-200 ms of
+      requests; the smokes' iterations lasted 1.13-1.18 s), so about 8.5
+      iterations/s and about 25 HTTP requests/s across the 10 VUs, about
+      8.5 odd_stack_status calls/s - each spawning three docker CLI
+      subprocesses and sending four readiness probes to the local stack's
+      Grafana proxy - and about 30 000 iterations over the hour. The rate
+      drifts with the target's response time (a slower target lowers it);
+      constant-arrival-rate was not used because one session per VU
+      needs a fixed VU set. At that rate every per-iteration operation
+      exceeds 100 samples within the first minute of steady state, so a
+      p99 per operation is quotable over any window of one minute or
+      longer.
+    warmup_boundary: >-
+      k6 runs a single constant-vus scenario, there is no ramp; as a
+      query-time convention the first 60 s - every VU's initialize and
+      its cold first odd_stack_status call (125-174 ms across the smokes
+      against ~120 ms warm) - are excluded from the quoted steady-state
+      numbers per run-scenario's warmup rule, steady state being
+      60s-1h.
+
+thresholds:
+  - metric: "http_req_duration{name:tools/list}"
+    expression: p(99)<100
+    decided_by: "caller (issue #424, amended at dispatch)"
+    abort_on_fail: false
+    cross_check:
+      floor: none found (in-process handler, no I/O)
+      evidence: >-
+        smoke 1.18 ms. Replaces, with the two other per-operation
+        duration thresholds, the whole-run http_req_duration p(99)<100 of
+        issue #424, dropped at dispatch: odd_stack_status is one third of
+        the per-iteration requests, far above the 1 % share that moves a
+        p99, and its structural floor sits above 100 ms.
+      outcome: reachable
+  - metric: "http_req_duration{name:tools/call odd_config_get}"
+    expression: p(99)<100
+    decided_by: "caller (issue #424, amended at dispatch)"
+    abort_on_fail: false
+    cross_check:
+      floor: >-
+        none binding - one read of the configuration file
+        (src/mcp-server/app/config.py:150) and one package-metadata lookup
+        (config.py:128); observed 0.10-0.12 ms server-side
+        (.odd/observe-run-reports/2026-09-04-1107-mcp-read-tools.md)
+      evidence: >-
+        smoke 2.33 ms. Replaces, with the two other per-operation
+        duration thresholds, the whole-run http_req_duration p(99)<100 of
+        issue #424, dropped at dispatch (see tools/list above).
+      outcome: reachable
+  - metric: "http_req_duration{name:tools/call odd_stack_status}"
+    expression: p(99)<500
+    decided_by: "caller (issue #424, amended at dispatch)"
+    abort_on_fail: false
+    cross_check:
+      floor: >-
+        structural - stack_status (src/mcp-server/app/stack.py:401-409)
+        runs three docker CLI subprocesses in sequence (_container_identity,
+        one `docker inspect`, stack.py:352-358; container_user_env, a
+        second `docker inspect` at stack.py:276-281 and a `docker image
+        inspect` at stack.py:292-298) then four sequential HTTP readiness
+        probes (_readiness, stack.py:381-387, httpx timeout 3.0 s each - a
+        hung Grafana proxy bounds one call at ~12 s; a refused connection
+        fails immediately). Observed server-side: p50 120 ms, p95 126 ms,
+        max 127 ms warm (n=30), 135 ms cold
+        (.odd/observe-run-reports/2026-09-04-1107-mcp-read-tools.md,
+        docker inspect ~20-28 ms, image inspect ~31-39 ms, probes
+        ~1.5-4 ms each).
+      evidence: >-
+        smoke 137.66 ms client-side, cold (first call of a fresh
+        process; 125-174 ms in earlier smokes). Replaces, with the two
+        other per-operation duration thresholds, the whole-run
+        http_req_duration p(99)<100 of issue #424, dropped at dispatch
+        because this floor made it unattainable; the caller kept this
+        operation at 500 with the floor acknowledged.
+      outcome: reachable, floor acknowledged
+  - metric: http_req_failed
+    expression: rate<0.01
+    decided_by: "agent-proposed"
+    abort_on_fail: false
+    cross_check:
+      floor: >-
+        none found - a down stack or a docker failure is a status, not an
+        error (stack.py:348-350, stack.py:373); a tool-level failure would
+        be an isError result inside a 200, which the script's checks catch
+        and this threshold does not.
+      evidence: smoke 0 of 5 failed
+      outcome: reachable
+
+validation:
+  static_check: >-
+    passed - discardResponseBodies is global and res.body is read only on
+    the initialize, tools/list and tools/call requests, which carry
+    responseType: 'text'; every tag-scoped threshold key names a `name`
+    tag a request sets; the thresholds above are exactly the script's; no
+    credential-like literal.
+  inspect:
+    k6_version: v2.2.0 (commit/devel, go1.26.5, darwin/arm64)
+    date: 2026-09-06
+    exit: 0
+    resolved: scenario read_soak constant-vus 10 VUs 1h0m0s, the four threshold expressions above
+  smoke:
+    date: 2026-09-06
+    command: k6 run --vus 1 --iterations 1 --no-thresholds script.js -e BASE_URL=http://127.0.0.1:8804
+    target: local, http://127.0.0.1:8804, started with target.launcher (OTEL_RESOURCE_ATTRIBUTES=service.instance.id=mcp-read-soak-smoke)
+    window_utc: 2026-09-06T09:32:48Z/2026-09-06T09:32:49Z
+    exit: 0
+    stderr: only the expected `"cli" level configuration overrode scenarios configuration entirely` warning; no level=error, no script exception
+    checks: 10 of 10 passed
+    http_req_failed: 0 of 5
+    per_request_ms:
+      initialize: 3.02
+      notifications/initialized: 0.38
+      tools/list: 1.18
+      tools/call odd_config_get: 2.33
+      tools/call odd_stack_status: 137.66
+    coverage: >-
+      the only scenario (read_soak) runs the default function - no `exec`
+      - so the smoke covered every request the benchmark sends; its side
+      effects on the target were one session left open until the server
+      was stopped, and the target's own telemetry for that one iteration
+      exported to the local stack under the instance id above.
+  history:
+    - 2026-09-06T09:22:19Z smoke of the previous script revision (no 404 guard on the remaining calls of an iteration) at 127.0.0.1:8804 with target.launcher - passed, 5 requests, 0 failed, 10 of 10 checks, odd_stack_status 138.15 ms
+    - 2026-09-06T09:03:48Z smoke of the revision before (fail() on a failed handshake, no MCP-Protocol-Version header, no 404 recovery) at 127.0.0.1:8804 with target.launcher - passed, 5 requests, 0 failed, 9 of 9 checks, odd_stack_status 125.42 ms
+    - 2026-09-06T08:59:46Z smoke of that revision at a private 127.0.0.1:8814 started without main()'s telemetry setup - passed, 5 requests, 0 failed, 9 of 9 checks, odd_stack_status 174.47 ms
+    - 2026-09-06T08:58:30Z attempt at 127.0.0.1:8804 - void, connection refused after another authoring mission on this machine stopped the server there
