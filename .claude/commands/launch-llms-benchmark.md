@@ -248,10 +248,15 @@ Steps:
 
    Also read off:
    - the **three phase durations**, not just the total: preflight
-     (your launch timestamp → the drive's start), drive (the
-     `drive-window.txt` the run leaves in its scratch directory), and
-     observation (drive end → your end timestamp). The total alone hides
-     which of the three a model spends itself in.
+     (your launch timestamp → the drive's start), drive, and observation
+     (drive end → your end timestamp). The total alone hides which of
+     the three a model spends itself in. A run may leave a
+     `drive-window.txt` in its scratch directory carrying both drive
+     timestamps — but that is a convention some runs follow and others
+     do not. When it is absent, take the boundaries from the k6
+     artefacts the run does leave: the creation time of the script it
+     drove with, and the last write to the k6 stdout capture. Check the
+     span against k6's own reported run duration.
    - the **turns** — assistant messages across the whole session tree,
      same recursion as the cost — and the **median** per-turn latency
      from each message's `time.created` / `time.completed`. Use the
@@ -316,11 +321,21 @@ Steps:
       replace that row in place. The table carries no history: one row
       per model, always the latest run.
 
-    Columns: the three phase durations and the total, turns, median
-    turn latency, input / output / cache tokens, cost in USD, **cost per
-    confirmed finding**, signals queried (`n/4`), the **breakdown of the
-    findings by kind** (telemetry / performance / behavior), `confirmed /
-    reported`, and the oddyssey version.
+    Columns: **rank**, the three phase durations and the total, turns,
+    median turn latency, input / output / cache tokens, cost in USD,
+    **cost per confirmed finding**, signals queried (`n/4`), the
+    **breakdown of the findings by kind** (telemetry / performance /
+    behavior), `confirmed / reported`, and the oddyssey version.
+
+    **The rank is decided with the user, not computed.** It weighs three
+    axes together — findings, cost and duration — and none of them alone
+    survives as a rule: ranking on findings would put a 67-minute run
+    first, on duration would reward whichever model gives up soonest, on
+    cost would reward the one that barely looks. Propose a placement in
+    the PR and argue it on the three axes; adding or updating a model
+    **re-sorts the whole table**, it never just inserts a line. A row
+    measured under an earlier revision of the protocol is marked as such
+    and its placement is provisional until it is re-run.
 
     Cost per confirmed finding is the column that answers the question in
     the README's title: cost and duration alone reward whichever model
