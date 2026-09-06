@@ -12,7 +12,9 @@
 # two variables below when they are not the defaults.
 #
 # The model is reached through OPENAI_API_KEY, which has no default here
-# and never will: export it in the shell that runs `docker compose up`.
+# and never will. Put it in a `.env` next to this file (gitignored,
+# read automatically by docker compose - see .env.example), or export it
+# in the shell that runs `docker compose up`.
 services:
   api:
     build: ../../.llms-benchmark/src/api
@@ -70,7 +72,7 @@ services:
       PYROSCOPE_SERVER_ADDRESS: ${PYROSCOPE_ENDPOINT:-http://host.docker.internal:4040}
       DEPLOYMENT_ENV: ${DEPLOYMENT_ENV:-local}
       MCP_URL: http://mcp:8081/mcp
-      OPENAI_API_KEY: ${OPENAI_API_KEY:?export OPENAI_API_KEY before starting the stack}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY in docker-compose/llms-benchmark/.env (see .env.example) or export it}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://openrouter.ai/api/v1}
       MODEL_NAME: ${MODEL_NAME:-google/gemini-3.5-flash-lite}
       PORT: "8080"
