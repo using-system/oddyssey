@@ -1,0 +1,27 @@
+[project]
+name = "llmbench-agent"
+version = "0.1.0"
+description = "llms-benchmark demo: the pydantic-ai agent answering questions over the catalog"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+    "pydantic-ai==2.40.0",
+    "fastapi==0.141.1",
+    "uvicorn==0.52.4",
+    "pydantic==2.13.5",
+    "httpx==0.28.1",
+    "opentelemetry-api==1.44.0",
+    "opentelemetry-sdk==1.44.0",
+    "opentelemetry-exporter-otlp-proto-http==1.44.0",
+    "opentelemetry-instrumentation-fastapi==0.65b0",
+    "opentelemetry-instrumentation-httpx==0.65b0",
+    "opentelemetry-instrumentation-logging==0.65b0",
+    "pyroscope-io==1.2.1",
+]
+
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]

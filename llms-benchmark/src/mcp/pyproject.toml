@@ -1,0 +1,24 @@
+[project]
+name = "llmbench-mcp"
+version = "0.1.0"
+description = "llms-benchmark demo: the MCP server the agent calls, backed by the catalog API"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+    "mcp==2.1.1",
+    "httpx==0.28.1",
+    "uvicorn==0.52.4",
+    "opentelemetry-api==1.44.0",
+    "opentelemetry-sdk==1.44.0",
+    "opentelemetry-exporter-otlp-proto-http==1.44.0",
+    "opentelemetry-instrumentation-httpx==0.65b0",
+    "opentelemetry-instrumentation-logging==0.65b0",
+    "pyroscope-io==1.2.1",
+]
+
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]
