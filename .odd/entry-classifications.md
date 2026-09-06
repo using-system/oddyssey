@@ -19,3 +19,4 @@ persists nothing.
 | 2026-09-05 | tests | non-runtime | tests, never shipped |
 | 2026-09-05 | src | runtime | the MCP server, the observed service |
 | 2026-09-06 | llms-benchmark | non-runtime | the LLM benchmark's demo stack and its k6 scenario - a fixture oddyssey is measured against, never on the MCP server's request path |
+| 2026-09-06 | .llms-benchmark | non-runtime | the LLM benchmark's demo stack and its k6 scenario - a fixture oddyssey is measured against, never on the MCP server's request path |
