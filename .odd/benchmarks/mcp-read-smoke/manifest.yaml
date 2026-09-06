@@ -210,6 +210,15 @@ validation:
     date: 2026-09-06
     exit: 0
     detail: no stderr; resolved scenario read_surface constant-vus vus=1 duration=1m0s, thresholds as above
+  parse:
+    parser: PyYAML safe_load (uv run --no-project --with pyyaml python3)
+    date: 2026-09-06
+    command: >-
+      uv run --no-project --with pyyaml python3 -c 'import sys, yaml;
+      yaml.safe_load(open(sys.argv[1]))'
+      .odd/benchmarks/mcp-read-smoke/manifest.yaml
+    exit: 0
+    result: passed - this file is valid YAML; re-run on every later edit
   smoke:
     # One iteration of the default function, CLI flags overriding the
     # scenario (k6 warns so), no thresholds evaluated. Self-authorized:

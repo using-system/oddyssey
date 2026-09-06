@@ -192,6 +192,19 @@ thresholds:
     cross_check:
       floor: none found - no injected error, no rate limit, no retry on the read path; stack_status returns a status and never raises (stack.py:373, :350)
       evidence: 0/60 errors in the report, 0/5 in every smoke
+      per_iteration: >-
+        No denominator before the run. The constant-vus profile bounds the
+        VUs (10) and the duration (5m), never the iteration count, so the
+        run's request total is a runtime outcome of the service's own
+        latency - the faster it answers, the more iterations the same 5 m
+        holds. What is fixed is the per-iteration request count recorded at
+        profile.pacing.requests_per_iteration; the handshake extras it
+        records recur whenever a 404 makes a VU re-initialize
+        (session.on_404), not only on its first iteration. `rate<0.01` is
+        the caller's budget (issue #424) and is persisted as given; the note
+        is that its smallest detectable failure count scales with the run's
+        length - 1 % of a longer run is more failed requests, so the same
+        expression is a looser guard the longer the service holds up.
       outcome: reachable
 
 validation:
@@ -205,6 +218,15 @@ validation:
     k6_version: v2.2.0 (commit/devel, go1.26.5, darwin/arm64)
     date: 2026-09-06
     exit: 0 - empty stderr; scenario read_load constant-vus vus 10 duration 5m0s; the four threshold expressions parsed as written
+  parse:
+    parser: PyYAML safe_load (uv run --no-project --with pyyaml python3)
+    date: 2026-09-06
+    command: >-
+      uv run --no-project --with pyyaml python3 -c 'import sys, yaml;
+      yaml.safe_load(open(sys.argv[1]))'
+      .odd/benchmarks/mcp-read-load/manifest.yaml
+    exit: 0
+    result: passed - this file is valid YAML; re-run on every later edit
   smoke:
     date: 2026-09-06
     command: k6 run --vus 1 --iterations 1 --no-thresholds script.js -e BASE_URL=http://127.0.0.1:8802
