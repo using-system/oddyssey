@@ -116,9 +116,11 @@ and never in only one of them:
   the backend merges the runs under them (observed: one trace id, two
   instances, two User-Agents). Two runs may share a prefix, never an
   id. A trace store may print the id **without its leading zeros** —
-  Tempo does (`0ddc0ffe…` reads `ddc0ffe…` in `gcx traces` output,
-  while Loki keeps the 32 hex; verified 2026-09-05) — so a prefix
-  check on such output strips them on both sides (`sub("^0+"; "")`).
+  Tempo does (`0ddc0ffe…` reads `ddc0ffe…` in `gcx traces query`
+  output, while Loki keeps the 32 hex; verified 2026-09-05) — so a
+  prefix check on such output strips them on both sides
+  (`sub("^0+"; "")`), and pads them back when the id is then passed to
+  a flag that validates its width.
 
 Then **read the instance from the run's own rows** —
 `service.instance.id` (or the backend's equivalent) on the requests
