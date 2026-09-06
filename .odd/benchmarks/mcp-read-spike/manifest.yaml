@@ -216,6 +216,25 @@ thresholds:
         subprocess.run without a timeout (stack.py:211) - a hung docker daemon would
         hold a tool thread open past the 60 s request timeout and surface as a
         failed request, a failure of the environment, not a floor of the code
+      per_iteration: >-
+        No denominator before the run, twice over. The ramping-vus profile
+        bounds the VU count (1 -> 100 -> 1) and the durations, never the
+        iteration count, so the run's request total is a runtime outcome of
+        the service's own latency - pacing.expected_rate's "about 240
+        requests/s at 100 VUs" is a nominal ceiling, not a count. And this
+        threshold is scoped to `stage:burst`, whose denominator is the
+        subset of requests the script tagged burst - which request lands
+        inside the 40s-70s window is itself decided at run time, per
+        request, by send(). What is fixed is the per-iteration request count
+        recorded at profile.pacing.requests_per_iteration, with the
+        handshake extras and the 404 short-fall it already notes; those
+        handshake requests recur whenever a 404 makes a VU re-initialize
+        (session.on_404), not only on its first iteration. `rate<0.10` is the
+        caller's budget (issue #424) and is persisted as given; the note is
+        that its smallest detectable failure count scales with the number of
+        requests the burst window actually carried - a burst that collapses
+        the throughput shrinks its own denominator, so the same 10 % is a
+        smaller absolute failure count than a healthy burst's.
       outcome: reachable
   - metric: "http_req_failed{stage:recovery}"
     expression: rate==0
@@ -258,6 +277,15 @@ validation:
     # Options resolved as intended: one ramping-vus scenario with the five
     # stages above, the three thresholds, global discardResponseBodies with
     # responseType: 'text' on every request whose body the script parses.
+  parse:
+    parser: PyYAML safe_load (uv run --no-project --with pyyaml python3)
+    date: 2026-09-06
+    command: >-
+      uv run --no-project --with pyyaml python3 -c 'import sys, yaml;
+      yaml.safe_load(open(sys.argv[1]))'
+      .odd/benchmarks/mcp-read-spike/manifest.yaml
+    exit: 0
+    result: passed - this file is valid YAML; re-run on every later edit
   smoke:
     date: 2026-09-06
     command: k6 run --vus 1 --iterations 1 --no-thresholds script.js -e BASE_URL=http://127.0.0.1:8805 -e RUN_SLUG=smoke-0906

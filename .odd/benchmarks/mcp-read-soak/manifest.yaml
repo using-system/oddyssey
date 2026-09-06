@@ -198,6 +198,21 @@ thresholds:
         be an isError result inside a 200, which the script's checks catch
         and this threshold does not.
       evidence: smoke 0 of 5 failed
+      per_iteration: >-
+        No denominator before the run. The constant-vus profile bounds the
+        VUs (10) and the duration (1h), never the iteration count, so the
+        run's request total is a runtime outcome of the service's own
+        latency - pacing.expected_rate's "about 30 000 iterations over the
+        hour" is that projection, not a count, and it drifts down as the
+        target slows. What is fixed is the per-iteration request count
+        recorded at profile.pacing.requests_per_iteration; the handshake
+        extras it records recur whenever a 404 makes a VU re-initialize
+        (session.on_404), not only on its first iteration.
+        `rate<0.01` is an agent-proposed budget, persisted as decided; the
+        note is that its smallest detectable failure count scales with the
+        run's length - over an hour 1 % is hundreds of failed requests, so a
+        short burst of failures can pass a soak that a shorter run would
+        have flagged.
       outcome: reachable
 
 validation:
@@ -212,6 +227,15 @@ validation:
     date: 2026-09-06
     exit: 0
     resolved: scenario read_soak constant-vus 10 VUs 1h0m0s, the four threshold expressions above
+  parse:
+    parser: PyYAML safe_load (uv run --no-project --with pyyaml python3)
+    date: 2026-09-06
+    command: >-
+      uv run --no-project --with pyyaml python3 -c 'import sys, yaml;
+      yaml.safe_load(open(sys.argv[1]))'
+      .odd/benchmarks/mcp-read-soak/manifest.yaml
+    exit: 0
+    result: passed - this file is valid YAML; re-run on every later edit
   smoke:
     date: 2026-09-06
     command: k6 run --vus 1 --iterations 1 --no-thresholds script.js -e BASE_URL=http://127.0.0.1:8804
