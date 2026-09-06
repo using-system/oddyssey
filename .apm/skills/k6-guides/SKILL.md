@@ -36,6 +36,7 @@ concluding they don't exist.
 | Which test type fits this investigation - smoke, load, stress, soak, spike, breakpoint? | [test-types.md](references/test-types.md) |
 | What does a benchmark's authoring need decided, and by whom - human or agent? | [authoring-inputs.md](references/authoring-inputs.md) |
 | Does k6 support the service's protocol (gRPC, WebSockets, ...)? | [protocols.md](references/protocols.md) |
+| How do I drive an MCP server - the session handshake, SSE bodies, one session per VU? | [mcp.md](references/mcp.md) |
 | Is this browser/frontend performance testing rather than API load? | [browser.md](references/browser.md) |
 
 ## Conventions
