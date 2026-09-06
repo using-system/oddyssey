@@ -1,0 +1,283 @@
+# mcp-read-spike - a k6 spike benchmark of the oddyssey-mcp server's read
+# surface: does the server survive a sudden burst of 100 concurrent MCP
+# sessions, and does it answer every request again once the burst is over?
+# Authored by k6-benchmark-expert (issue #424); the script is script.js next
+# to this file.
+#
+# Running it: `/odd-observe run .odd/benchmarks/mcp-read-spike/`. The run
+# starts the launcher under `target` (with the run slug as
+# service.instance.id through OTEL_RESOURCE_ATTRIBUTES), drives
+#   k6 run .odd/benchmarks/mcp-read-spike/script.js -e BASE_URL=http://127.0.0.1:8805 -e RUN_SLUG=<run slug> --summary-export <scratch file>
+# unmodified, records the stage boundaries as UTC timestamps, then stops
+# the launcher. Never run the script by hand as a benchmark: authoring and
+# execution stay separate.
+
+name: mcp-read-spike
+service: oddyssey-mcp
+engine: k6
+script: script.js
+test_type: spike
+authored: 2026-09-06
+issue: 424
+
+target:
+  description: the oddyssey-mcp server at src/mcp-server/ (Python, MCP SDK 2.1.1, MCPServer)
+  # The packaged server speaks stdio only. For a k6 target the same
+  # application runs on the MCP SDK's streamable HTTP transport, no code
+  # change: the launcher below is main()'s own setup (app/server.py - the
+  # httpx/httpcore quieting and telemetry.setup_telemetry(), its shutdown
+  # registered with atexit) plus the HTTP transport in place of mcp.run()'s
+  # stdio default, so the target exports its telemetry exactly as the stdio
+  # server does. A bare mcp.run(transport='streamable-http', ...) bypasses
+  # main() and exports nothing - never use that form. The users' stdio
+  # server is this same code on another transport; every tool body, span
+  # and metric is the one the stdio server runs. Stop the process when the
+  # run is over: the sessions the benchmark opens live in it (see session).
+  transport: streamable-http
+  path: /mcp   # every request is a POST to it
+  launcher:
+    command: >-
+      uv run --frozen python -c "import atexit, logging; from app import telemetry;
+      from app.server import mcp; logging.getLogger('httpx').setLevel(logging.WARNING);
+      logging.getLogger('httpcore').setLevel(logging.WARNING);
+      atexit.register(telemetry.setup_telemetry());
+      mcp.run(transport='streamable-http', host='127.0.0.1', port=8805)"
+    working_directory: src/mcp-server
+    does: >-
+      starts the same MCPServer on the streamable HTTP transport at 127.0.0.1:8805
+      with main()'s telemetry setup and logger quieting, the telemetry shutdown
+      registered with atexit; stopped by the run once the benchmark is over
+  base_url_env: BASE_URL
+  base_url_default: http://127.0.0.1:8805   # the local launcher above, never a shared environment; a remote target is the run's mission-time decision
+  launcher_env_optional: [OTEL_RESOURCE_ATTRIBUTES]   # service.instance.id=<run slug>, set by the run
+  # Verified against the running launcher, 2026-09-06.
+  wire:
+    request_headers:
+      Accept: application/json, text/event-stream
+      Content-Type: application/json
+    request_answer: "one SSE stream (`event: message` / `data: {...}`), status 200"
+    initialize: answers the mcp-session-id response header
+    later_requests: send it back as Mcp-Session-Id, with MCP-Protocol-Version (the version the server negotiated)
+    notification: notifications/initialized is acknowledged with 202 and no body
+    unknown_session: 404 with a JSON error body
+  local_stack:
+    # odd_stack_status reads the machine-wide shared stack container (two
+    # docker inspect and four readiness probes through Grafana's datasource
+    # proxy). The tool is read-only; the benchmark never starts, stops or
+    # resets that stack. The status path is the "ready" one when the stack
+    # is up (the smoke ran with it up); a down stack answers running: false
+    # faster, still a 200 - state which it was in the run record.
+    touched: read-only
+    state_during_smoke: up
+
+operations:
+  - name: initialize
+    method: initialize
+    tool: null
+    when: once per VU
+    why: opens the VU's MCP session; its answer carries the session id and the negotiated protocol version
+  - name: notifications/initialized
+    method: notifications/initialized
+    tool: null
+    when: once per VU
+    why: completes the handshake the transport requires before any tools/call (202, no body)
+  - name: tools/list
+    method: tools/list
+    tool: null
+    when: every iteration
+    why: the cheapest read - a registry lookup, no I/O - a floor for the per-request cost of the transport itself
+  - name: tools/call odd_config_get
+    method: tools/call
+    tool: odd_config_get
+    when: every iteration
+    why: one file read (app/config.py:150) plus the installed-version lookup - the light tool body
+  - name: tools/call odd_stack_status
+    method: tools/call
+    tool: odd_stack_status
+    when: every iteration
+    why: two docker inspect spawns and four readiness probes - the heavy read, the one the burst queues on
+
+excluded_operations:
+  - tool: odd_stack_up
+    why: acts on the machine-wide shared stack
+  - tool: odd_stack_down
+    why: acts on the machine-wide shared stack (destroys every project's stored telemetry)
+  - tool: odd_stack_reset
+    why: acts on the machine-wide shared stack (wipes every project's stored telemetry)
+  - tool: odd_config_set
+    why: rewrites the global configuration
+
+session:
+  # Per-VU module state: a VU's first iteration sends the two handshake
+  # requests. A failed handshake is recorded through its checks, then the
+  # iteration sleeps and returns - never fail(). The 404 failure is counted,
+  # never hidden. k6 has no per-VU teardown, and the server never evicts a
+  # session on its own (mcp/server/streamable_http_manager.py), so a run
+  # leaves up to 100 sessions in the launcher process until it stops.
+  per_vu: one MCP session, opened on first use and kept across iterations
+  on_404: the session id is dropped and the remaining calls of the iteration are skipped; the next iteration re-initializes
+  on_failed_handshake: the checks record it, the VU sleeps and returns, the next iteration re-initializes
+  closed_by_script: never (no DELETE; the SDK's session_idle_timeout defaults to None)
+
+identity:
+  user_agent: odd-bench/mcp-read-spike        # RUN_SLUG appended as odd-bench/mcp-read-spike/<slug> when -e RUN_SLUG is given; the name always stays
+  run_slug_env: RUN_SLUG
+  name_tag: every request and every check carries `name` = the operation name listed under operations
+  stage_tag: >-
+    every request and every check carries `stage`, one of baseline, ramp-up, burst,
+    ramp-down, recovery - computed inside send(), right before each request goes out
+    (never once per iteration), from the elapsed time since exec.scenario.startTime
+    against the profile's boundaries, so a request sent after a boundary carries the
+    new stage; a request sent during the graceful stop after the last stage is tagged
+    recovery
+  # The process identity is the run's to create, not the script's:
+  # OTEL_RESOURCE_ATTRIBUTES=service.instance.id=<run slug> on the launcher
+  # (target.launcher_env_optional; run-scenario's identity reference).
+
+profile:
+  scenario: spike
+  executor: ramping-vus
+  start_vus: 1
+  # The shape confirmed in issue #424. Boundaries are seconds since the
+  # scenario started; a run record converts them to UTC from its recorded
+  # start.
+  # `from`/`to` are k6 durations from the scenario start; `target` is the
+  # VU count at the end of the stage (the two ramps are linear from the
+  # previous target); `quote` marks the windows a run quotes its
+  # steady-state numbers from - the burst and the recovery only, the two
+  # ramps are transitions and the baseline is the warmup.
+  stages:
+    - name: baseline
+      from: 0s
+      to: 30s
+      target: 1
+      quote: false
+    - name: ramp-up
+      from: 30s
+      to: 40s
+      target: 100
+      quote: false
+    - name: burst
+      from: 40s
+      to: 70s
+      target: 100
+      quote: true
+    - name: ramp-down
+      from: 70s
+      to: 80s
+      target: 1
+      quote: false
+    - name: recovery
+      from: 80s
+      to: 110s
+      target: 1
+      quote: true
+  total_s: 110
+  graceful_stop: 30s         # up to 30 s more for the last iterations; a request sent then is tagged recovery
+  graceful_ramp_down: 30s    # an iteration in flight finishes when its VU is ramped down
+  pacing:
+    warmup: the baseline stage (0s to 30s) is the warmup, never quoted
+    # sleep(1) at the end of every iteration - one second of think time per
+    # session between rounds. Stages alone set no rate; this does. The
+    # request rate is VUs x (requests per iteration) / (1 s + the
+    # iteration's own service time): 3 requests per iteration after a VU's
+    # first (which adds the two handshake requests).
+    sleep_s: 1
+    where: at the end of every iteration (and on the failed-handshake early return)
+    requests_per_iteration: 3   # 5 on a VU's first iteration; fewer when a 404 skipped the rest of an iteration
+    expected_rate:
+      baseline: about 2.5 requests/s
+      burst_nominal_ceiling: about 240 requests/s at 100 VUs, minus what the server's own service time takes out (the ceilings under thresholds)
+
+thresholds:
+  # Each scoped by the `stage` tag so it measures the stage it names.
+  # Cross-checked against the service's code: no fixed sleep, no rate
+  # limit, no injected error rate, no retry with backoff on the read path;
+  # the bounds found are ceilings on throughput and latency, not sources of
+  # failure.
+  - metric: "http_req_failed{stage:burst}"
+    expression: rate<0.10
+    decided_by: "caller (issue #424)"
+    abort_on_fail: false
+    cross_check:
+      floor: >-
+        none found; ceilings - a synchronous tool body runs through
+        anyio.to_thread.run_sync (mcp/server/mcpserver/utilities/func_metadata.py:164)
+        under anyio's default limiter of 40 threads
+        (anyio/_backends/_asyncio.py:3097, CapacityLimiter(40)): at 100 VUs the calls
+        beyond 40 queue, they are never refused; odd_stack_status costs two docker
+        inspect spawns (src/mcp-server/app/stack.py:211, called from :352 and :261)
+        plus four probes with a 3 s timeout each (stack.py:381)
+      evidence: >-
+        about 180 ms per odd_stack_status measured with the stack up (up to 12 s if
+        every probe hangs); worst case at 100 VUs (one request in flight per VU, 40 in
+        parallel) stays far under k6's 60 s request timeout, so queueing shows as
+        latency, not as a failed request. Risk outside the code: _docker runs
+        subprocess.run without a timeout (stack.py:211) - a hung docker daemon would
+        hold a tool thread open past the 60 s request timeout and surface as a
+        failed request, a failure of the environment, not a floor of the code
+      outcome: reachable
+  - metric: "http_req_failed{stage:recovery}"
+    expression: rate==0
+    decided_by: agent-proposed   # issue #424 decided the burst error rate only; the recovery check ("the last stage's requests all answer") is stated as these two stage-scoped thresholds
+    abort_on_fail: false
+    cross_check:
+      floor: none found
+      evidence: >-
+        the surviving VU keeps its session (no server-side eviction,
+        mcp/server/streamable_http_manager.py:82, session_idle_timeout=None), and the
+        99 sessions left by the burst cost the server memory only; a request tagged
+        recovery is one sent after t+80 s, the stage tag being computed per request
+      outcome: reachable
+  - metric: "checks{stage:recovery}"
+    expression: rate==1
+    decided_by: agent-proposed   # same recovery check as above, on the checks - each request answered with a JSON-RPC result, no tool error
+    abort_on_fail: false
+    cross_check:
+      floor: none found
+      evidence: >-
+        the checks read the JSON-RPC result/isError of each response and, on
+        tools/list, that odd_config_get and odd_stack_status are listed;
+        odd_config_get reads one file (app/config.py:150), odd_stack_status is the
+        same read path as the burst threshold's
+      outcome: reachable
+
+validation:
+  static_check: >-
+    every parsed body is read on a request sent with readBody (responseType:
+    'text'); the notification's empty 202 is never read; every tag-scoped threshold
+    names a `stage` value send() sets on every request and check; the tools/list
+    check asserts the two read tools; every tools/call check uses isError !== true;
+    after a 404 the remaining calls of the iteration are skipped (session === null
+    guard); no summaryTrendStats, no fail(); no credential, no real identifier in
+    the script
+  inspect:
+    k6_version: k6 v2.2.0 (commit/devel, go1.26.5, darwin/arm64)
+    date: 2026-09-06
+    exit: 0
+    # Options resolved as intended: one ramping-vus scenario with the five
+    # stages above, the three thresholds, global discardResponseBodies with
+    # responseType: 'text' on every request whose body the script parses.
+  smoke:
+    date: 2026-09-06
+    command: k6 run --vus 1 --iterations 1 --no-thresholds script.js -e BASE_URL=http://127.0.0.1:8805 -e RUN_SLUG=smoke-0906
+    target: http://127.0.0.1:8805, local, started with the launcher above (telemetry setup included), stack up
+    exit: 0
+    stderr: no level=error / script exception; only k6's own warning that the CLI flags overrode the scenarios
+    checks: 100.00% (10 out of 10)
+    http_req_failed: 0.00% (0 out of 5)
+    per_request:
+      initialize: "200, result carries protocolVersion, Mcp-Session-Id header set"
+      notifications/initialized: "202"
+      tools/list: "200, lists odd_config_get and odd_stack_status"
+      tools/call odd_config_get: "200, result, not an error"
+      tools/call odd_stack_status: "200, result, not an error"
+    coverage: the single scenario runs the default function, so the smoke covered every request the benchmark sends
+  history:
+    - "smoke 1 (2026-09-06): failed 2 of 3 initialize checks - k6 v2.2.0 exposes res.headers values as strings (verified live), not the arrays its reference page describes; fixed with a headerValue() helper, re-validated from the static check"
+    - "smoke 2 (2026-09-06): passed, against a launcher that bypassed main() (no telemetry export); superseded once the launcher above replaced it"
+    - "smoke 3 (2026-09-06): passed, against the launcher above; superseded by the review-driven script change (stage tag per request, RUN_SLUG identity, tools/list asserting the two read tools)"
+    - "smoke 4 (2026-09-06): passed, after the review-driven script change; superseded by the round-2 change (the post-404 guard skipping the rest of the iteration)"
+    - "smoke 5 (2026-09-06): passed - the record above; the manifest's rewrite from markdown to YAML earlier in the day changed no script line"
+  # A recorded smoke is a record of what happened, never authorization for
+  # the next one: an update mission authorizes its own.
