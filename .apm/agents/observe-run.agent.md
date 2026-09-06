@@ -416,14 +416,11 @@ record then cites the benchmark by name and git revision, the single
 `k6 run` command, k6's exit status and summary, and the manifest's
 stage boundaries that carve the steady-state sub-window. Drive the
 scenario to completion **inside your turn** — the skill owns the wait
-method (one blocking foreground command, the platform's blocking wait
-primitive, or its detached poller for a run longer than a tool call —
-the job detaches, the wait never does; where the host blocks a
-foreground `sleep`, a bounded wait — the flush wait of that skill's
-step 5 included — runs through the platform's blocking wait primitive,
-a Monitor-style until-condition tool, with the elapsed time or the
-poll's `until` condition as that primitive's condition, inside the
-turn: the scenario may have to run as a background job, the wait never
+method (one blocking foreground command, or its detached poller for a
+run longer than a tool call — the job detaches, the wait never does;
+a bounded wait — the flush wait of that skill's step 5 included — is a
+`sleep` inside a helper script run in the foreground, inside the turn:
+the scenario may have to run as a background job, the wait never
 does, and no turn ends to wait for a completion notification): as a
 subagent, never end your turn while the scenario is running — ending
 the turn terminates the mission and returns an unfinished result, with
@@ -482,10 +479,10 @@ first, then query what you found; never assume names**. The five
 discoveries below are independent of each other: **run them
 concurrently inside one shell tool call, never delegated** — each
 command backgrounded with `&` and its PID captured, its **stdout**
-redirected to its own file under the scratchpad and its **stderr** to
-a second one (a CLI's hints and warnings must never land in the
-captured output), then one `wait "$pid"` per job with each status
-collected into a variable — never a failed job aborting the call —
+redirected to its own file under your scratchpad subdirectory and its
+**stderr** to a second one (a CLI's hints and warnings must never land
+in the captured output), then one `wait "$pid"` per job with each
+status collected into a variable — never a failed job aborting the call —
 so every exit code is yours, then one `cat` per file — never one
 after the other, and never one tool call each: a round trip each is
 the serial cost of a phase that needs one, and whether a host runs
@@ -493,31 +490,65 @@ several tool calls of one turn together is the host's choice, while
 one shell call is one round trip on every host. The per-file capture
 is what lets the report quote each query and its result verbatim.
 
-Any such block — a batched read, a backgrounded batch with its waits,
-a bounded poll (its `until` condition being the primitive's, where the
-host blocks a foreground `sleep`): anything of more than one command
-— runs as
-`bash -c '...'` or from a `#!/bin/bash` helper file written to the
-scratchpad, never as bare lines handed to the host's shell, which may
-be zsh and reads bash idioms differently. A single command that stays
-inline in the host's shell dodges four zsh traps, each proven in one
-line: no `${!var}` — zsh answers `bad substitution` where bash
-resolves the indirection; it only arises in a loop over captured
-PIDs, a block that belongs under `bash -c` anyway — inline, write the
-waits out (`wait "$p1"; wait "$p2"`); no unquoted variable holding
-several flags — zsh does not word-split it, `A="-a -b"; printf
-"%s\n" $A` prints one word `-a -b` where bash prints two, so a CLI
-reads one unknown flag — write the flags literally, or use an array
-(`"${A[@]}"` expands the same in both shells; only indexing differs,
-zsh counting from 1 and bash from 0); brace every variable followed
-by `[` — zsh reads `$var[...]` as a subscript: `CD=customDimensions;
-echo "tostring($CD['user_agent.original'])"` aborts the whole line
-with `bad math expression: operand expected`, exit 1, so the CLI
-never runs, and `"tostring($CD[1])"` prints `tostring(c)`, one
-character of the scalar, where bash prints both as written — write
-`${CD}[...]`, or the literal name; no word starting with `=` — zsh
-looks up a command named `===` for `echo ====` and fails with
-`=== not found` where bash prints it — write `echo "----- $f"`.
+Any such block — a batched read, a backgrounded batch with its waits, a
+bounded poll: anything of more than one command — is a `#!/bin/bash`
+**helper file**: write it with the file tool into your own scratchpad
+subdirectory and run it as `bash <file>`. Never `bash -c '...'`, and
+never bare lines handed to the host's shell, which may be zsh and reads
+bash idioms differently. `bash -c '...'` is not the helper file's
+equivalent: zsh's single quotes close on the first apostrophe in the
+payload, so a report body, a jq filter or a Python heredoc holding one
+aborts the whole line before bash runs (`(eval): parse error`) — and a
+payload rewritten to survive the outer quoting arrives with the inner
+quotes gone (`NameError: name 'maxSelf' is not defined`). Prose is never
+a shell payload at all: report bodies and report files go through the
+file tool.
+
+A helper runs under `/bin/bash`, which on macOS is **3.2**: no
+`declare -A`, no `wait -n`. Neither aborts — the builtin prints its
+usage to stderr, the script runs on and exits 0, and a refused
+`declare -A` leaves `m[key]=7` sitting at index 0 — so the wrong
+result is silent even where the error is not. The job you `wait`
+for is backgrounded in the **same shell** as the `wait`: a PID
+captured from `$(...)` is a subshell's, and every `wait "$pid"` then
+answers `is not a child of this shell` with status 127, so every job
+reads as failed.
+
+A bounded wait — the flush wait, a poll for the first rows of a watched
+run — is a `sleep` inside that helper, run in the **foreground** under
+the tool's timeout (hosts allow up to ~10 minutes), longer waits split
+across consecutive calls. A Monitor-style until-condition tool is not a
+wait: it is a background notifier whose events arrive after the turn
+ends, and only a main conversation is ever re-invoked.
+
+**One scratchpad subdirectory per mission**, created before the first
+file: `<scratchpad>/<run slug>-<stack>/`, and every helper, capture,
+poller and state file of the mission lives under it. Parallel missions
+share the scratchpad root, and a sibling's `poll.sh` overwriting yours
+mid-run — or its finished run's `k6-exit.code` sitting where your
+poller looks for yours — fails silently, or reads as your run having
+already ended. It is also the directory you name to a skill that
+writes on your behalf.
+
+A single command that stays inline in the host's shell — a `git`
+invocation, one CLI query — dodges four zsh traps, each proven in one
+line: no `${!var}` — zsh answers `bad substitution` where bash resolves
+the indirection; it only arises in a loop over captured PIDs, a block
+that belongs in a helper anyway — inline, write the waits out (`wait
+"$p1"; wait "$p2"`); no unquoted variable holding several flags — zsh
+does not word-split it, `A="-a -b"; printf "%s\n" $A` prints one word
+`-a -b` where bash prints two, so a CLI reads one unknown flag — write
+the flags literally, or use an array (`"${A[@]}"` expands the same in
+both shells; only indexing differs, zsh counting from 1 and bash from
+0); brace every variable followed by `[` — zsh reads `$var[...]` as a
+subscript: `CD=customDimensions; echo
+"tostring($CD['user_agent.original'])"` aborts the whole line with `bad
+math expression: operand expected`, exit 1, so the CLI never runs, and
+`"tostring($CD[1])"` prints `tostring(c)`, one character of the scalar,
+where bash prints both as written — write `${CD}[...]`, or the literal
+name; no word starting with `=` — zsh looks up a command named `===` for
+`echo ====` and fails with `=== not found` where bash prints it — write
+`echo "----- $f"`.
 
 Then query per signal from what came back:
 
