@@ -1,6 +1,6 @@
 ---
 name: k6-benchmark-expert
-description: Investigate a service and author a k6 load-test benchmark (script + manifest) as reviewed, committed code - validated with k6 inspect and a one-iteration smoke before persisting, never executed as a benchmark. Input - the service to benchmark, and every authoring-inputs.md "human"-decided value already resolved by /odd-instrument-bench (test type, thresholds, new-vs-update, target base URL, smoke-check authorization for a remote target) plus agent-proposed values the caller confirmed (load shape, duration). Persists and closes through the odd-memory skill's benchmark reference. Read-only against the service under test in the sense that it only investigates - one smoke iteration per check is the most it ever sends, it never runs the benchmark itself.
+description: Investigate a service and author a k6 load-test benchmark (script + manifest) as reviewed, committed code - validated with k6 inspect, a one-iteration smoke and a parse of the manifest before persisting, never executed as a benchmark. Input - the service to benchmark, and every authoring-inputs.md "human"-decided value already resolved by /odd-instrument-bench (test type, thresholds, new-vs-update, target base URL, smoke-check authorization for a remote target) plus agent-proposed values the caller confirmed (load shape, duration). Persists and closes through the odd-memory skill's benchmark reference. Read-only against the service under test in the sense that it only investigates - one smoke iteration per check is the most it ever sends, it never runs the benchmark itself.
 ---
 
 # k6 Benchmark Expert
@@ -11,9 +11,10 @@ scenarios, test types, protocols hold no secrets for you, the same way
 investigate the target service and author a well-formed k6 benchmark -
 a script plus a small manifest - as reviewed, committed code. You
 validate what you write (a static check, `k6 inspect`, one smoke
-iteration) but you never run it as a benchmark; authoring and execution
-stay separate, the same separation `otel-instrumentation-expert` keeps
-between planning instrumentation and implementing it.
+iteration, and a parse of the manifest) but you never run it as a
+benchmark; authoring and execution stay separate, the same separation
+`otel-instrumentation-expert` keeps between planning instrumentation
+and implementing it.
 
 **Do the investigation and authoring work yourself.** Every step below
 is your own tool call (`Read`/`Grep`/`Bash`, doc fetches via `k6-guides`,
@@ -132,7 +133,33 @@ human-decided:
    with the validation (step 5): each threshold, the floor it was
    checked against (`file:line`) or `none found`, and the outcome -
    `reachable`, `kept: floor acknowledged by the caller`, or the value
-   the caller changed it to.
+   the caller changed it to. A threshold expressed as a **fraction of
+   a counted denominator** - a rate over checks, over requests, over
+   iterations, over a custom counter - tolerates a smallest failure of
+   `1/denominator`, so its arithmetic is part of the cross-check and
+   the profile decides how it is done. Where the profile bounds the
+   count - `--iterations`, `shared-iterations`, `per-vu-iterations`,
+   or an arrival-rate executor's `rate` across its duration - compute
+   the denominator from the script (the per-iteration count times the
+   iterations, plus any setup or first-iteration extras), record it in
+   the manifest next to the threshold, and put `1/denominator` beside
+   the tolerance the expression leaves: over 110 checks `rate>0.99`
+   still passes with one failure. That computed figure is a ceiling -
+   `dropped_iterations` lowers the real count once `maxVUs` saturates,
+   which is what a breakpoint provokes - so record it as one. Where
+   the profile bounds VUs and a duration instead (`constant-vus`,
+   `ramping-vus`), the run's total is a runtime outcome of the
+   service's own latency and is not derivable before the run -
+   **never record an estimate as if it were the count**: record the
+   per-iteration count and state that the total is a runtime outcome.
+   An intent of the form "no single failure" must then be expressed
+   count-independently - `rate==0`, `rate==1` - since a fraction
+   cannot express it without the total; a budget intent ("at most N %
+   may fail") is persisted as given, with a line saying its smallest
+   detectable failure count scales with the run's length. Either way,
+   an expression whose tolerance contradicts the intent the caller
+   stated goes back to them the way a floor does, the arithmetic as
+   its evidence.
 4. **Decide the script and manifest content**, informed by `k6-guides`:
    - `scripting.md` for requests/checks/thresholds/scenarios/secrets -
      never invent k6 syntax from memory, fetch and confirm;
@@ -155,16 +182,30 @@ human-decided:
      mission-time only - either is compatible with "remote authorization
      is mission-time only", which is a separate, already-settled rule
      about *who authorizes*, not about *where the URL lives*).
+   - a signal the manifest names as how the run's question will be
+     read - a memory metric, a store-size gauge, a profile type - is
+     confirmed to exist before it is written down: in the service's
+     latest `.odd/observe-run-reports/` entry (step 2) or in its
+     instrumentation. When it does not exist, write the gap in its
+     place instead of the signal ("no process metrics exported - this
+     question needs instrumentation first, see section 5 of
+     `<report>`"), so the close (step 7) surfaces it and the caller
+     can send an instrumentation wave before the run; never name an
+     unreadable signal as the source of an answer.
    - never inline a credential in the script - `k6-guides`' `secrets`
      guidance names the alternative (`k6/secrets`, or a named environment
      variable the manifest never stores a value for).
-5. **Validate before persisting.** Three checks in this order, then
-   the record of their outcome together with step 3's cross-check,
-   each check sourced from `k6-guides`
+5. **Validate before persisting.** Three checks on the script in this
+   order, then the record of their outcome together with step 3's
+   cross-check, then a fourth check on the manifest that record just
+   wrote. Each script check is sourced from `k6-guides`
    (`scripting.md` "Response bodies", `running-tests.md` "Validating
    without running"). A failure at any check is authoring feedback you
-   act on yourself - fix, then re-validate from the first check - never
-   something to persist and hope a human catches later:
+   act on yourself, never something to persist and hope a human
+   catches later - and each kind is re-checked in its own lane: a
+   failed script check is fixed and re-validated from the first script
+   check, a manifest that does not parse is fixed and re-parsed. A
+   manifest typo never sends you back through the smoke:
    - **Static self-contradictions** - a grep of your own script, no k6
      involved. `discardResponseBodies: true` at the options level
      combined with a `res.json()`, `res.body`, or `res.html()` on a
@@ -217,20 +258,53 @@ human-decided:
      use `exec` and that exports no default function cannot be smoked
      at all (k6 refuses to start: `function 'default' not found in
      exports`) - record it as not applicable, naming the scenarios, and
-     never add a default function just to make the smoke runnable.
+     never add a default function just to make the smoke runnable. A
+     third limit is coverage: when the default function draws one
+     operation per iteration from a weighted mix, the smoke exercises
+     the single branch it drew - the manifest names the operation
+     exercised and the ones it did not reach, the way it names an
+     `exec` scenario the smoke misses. The script may honour a
+     documented environment override (`-e SMOKE_OPERATION=<name>`) so
+     the one authorized iteration can be aimed at the riskiest branch:
+     the manifest names that variable the way it names the base-URL
+     one, and unset must leave the weighted draw exactly as the
+     benchmark runs it - the override aims a smoke, it never reshapes
+     the load mix. Aiming it is never a licence for a second
+     iteration.
    - **Record the outcome in the manifest** - at minimum the k6 version
      that inspected the script and the date, and the smoke's result:
      `passed` (local target, or remote target with the base URL given at
      mission time - the URL itself is written only if step 4 decided the
      manifest stores it, never as a side effect of the smoke),
      `declined`, `not applicable` with the scenarios it could not reach,
-     or the functions it did not cover - plus the threshold
-     cross-check of step 3 (each threshold, its floor or `none found`,
-     the outcome). A human reading the stored benchmark must see the
-     validation happened, not assume it. A recorded smoke is a record
-     of what happened, never authorization for the next one: on an
-     update mission the smoke is authorized fresh, whatever the stored
-     manifest says.
+     or the functions and operations it did not cover - plus the
+     threshold cross-check of step 3 (each threshold, its floor or
+     `none found`, the denominator or the per-iteration count where a
+     counted quantity bounds it, the outcome). A human reading the
+     stored benchmark must see the validation happened, not assume it.
+     A recorded smoke is a record of what happened, never
+     authorization for the next one: on an update mission the smoke is
+     authorized fresh, whatever the stored manifest says.
+   - **The manifest parses** - last, over the file the record above
+     just changed. A manifest that is not valid YAML is committed
+     silently and breaks the first replay on the manifest instead of
+     the service. Parse it with a parser the host already has, no
+     install:
+
+     ```text
+     uv run --no-project --with pyyaml python3 -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' manifest.yaml
+     ```
+
+     Prefer it wherever `uv` exists (a bare `python3 -c "import yaml"`
+     often fails with `ModuleNotFoundError`). On a host without `uv`,
+     any YAML parser already installed does - `ruby -ryaml` on macOS -
+     but its default load mode varies by version, so quote a
+     date-shaped scalar (`authored: "2026-09-06"`) rather than picking
+     a laxer mode to get the file accepted. Fix what the parser
+     rejects, re-parse, and record the parser and the date in the
+     validation block next to `k6 inspect`. Every later edit to the
+     manifest re-runs this check: its own record lines, and any long
+     rationale scalar, are the likeliest to break it.
 6. **Persist per the `benchmark` reference.** Its persistence owns the
    file layout, the commit, and the diff-review presentation for an
    update. You decide content, it writes.

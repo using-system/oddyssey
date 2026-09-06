@@ -32,7 +32,10 @@ Your thresholds are checked against what the service's own code can
 reach: a threshold it can structurally never meet (a `p(95)<300ms` on
 a handler that sleeps longer) comes back to you with the file and line
 as evidence, and you raise it, drop it, re-scope it, or keep it
-knowingly. Nothing is persisted until you have decided.
+knowingly. So does one whose expression does not say what you meant —
+`rate>0.99` stops meaning "no check may fail" as soon as a run
+performs more than a hundred checks — with the arithmetic as the
+evidence. Nothing is persisted until you have decided.
 
 The agent validates what it wrote — `k6 inspect` and one smoke
 iteration at the target — and records the outcome in the manifest. It
