@@ -1,20 +1,18 @@
 # Which LLM can run oddyssey?
 
-oddyssey does not need the largest model on the market. Observing a
-running system is reading — telemetry first, then the code the telemetry
-points at — and a model that reads carefully beats a model that reasons
-brilliantly about the wrong query. This directory is where that claim
-gets measured instead of asserted.
+A ranking, to pick the model you run the loop with.
 
-One model, one run, one row. The protocol is fixed, the traffic is
-replayed identically, and the only variable is the model.
+Each model observes the same running stack through the same replayed
+traffic, and its report is graded on evidence. One model, one run, one
+row. The protocol is fixed and the only variable is the model.
 
 ## Results
 
 | Rank | Model | Preflight | Drive | Observation | Total | Turns | Median turn | Input | Output | Cache | Cost | $/confirmed | Signals | Kind | Confirmed / reported | oddyssey |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | **#1** | `z-ai/glm-5.3` | 6m38s | 2m02s | 22m21s | **31m01s** | 49 | 19.7s | 6,986,615 | 188,492 | 6,445,056 | $2.49 | $0.113 | 4/4 | tel 13 · perf 5 · beh 4 | **22 / 23** | 1.11.3 |
-| **#2** | `qwen/qwen3.8-27b` ⚠︎ | 14m27s | 2m02s | 51m08s | 1h07m37s | 67 | 44.8s | 13,897,126 | 220,744 | 12,769,392 | $2.22 | **$0.089** | 4/4 | tel 18 · perf 4 · beh 3 | **25 / 26** | 1.11.3 |
+| **#2** | `google/gemini-3.7-flash` | 3m06s | 2m02s | 8m24s | **13m32s** | 121 | **3.2s** | 11,160,741 | 53,221 | 10,232,989 | **$1.66** | $0.166 | 4/4 | tel 5 · perf 5 · beh 0 | **10 / 10** | 1.11.3 |
+| **#3** | `qwen/qwen3.8-27b` ⚠︎ | 14m27s | 2m02s | 51m08s | 1h07m37s | 67 | 44.8s | 13,897,126 | 220,744 | 12,769,392 | $2.22 | **$0.089** | 4/4 | tel 18 · perf 4 · beh 3 | **25 / 26** | 1.11.3 |
 
 **Rank** is the answer to the question in the title, in one column. It
 is a judgement on **three axes together — findings, cost and duration** —
