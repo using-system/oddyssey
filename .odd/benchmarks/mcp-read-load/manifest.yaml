@@ -1,0 +1,232 @@
+# Benchmark manifest - mcp-read-load
+#
+# The script is the load; this file records what the load is, why its
+# targets are what they are, and how the script was validated. Living
+# source: updated in place through reviewed diffs (odd-memory, benchmark).
+#
+# How to run: through /odd-observe in drive mode with this benchmark
+# (`/odd-observe run .odd/benchmarks/mcp-read-load/`, see
+# docs/guide/benchmarks.md) - start the target with the launcher under
+# `target` first; the run-scenario skill's benchmark-replay reference
+# owns the k6 command, the summary export and the record. Never run the
+# benchmark from the authoring side.
+
+name: mcp-read-load
+service: oddyssey-mcp
+engine: k6
+script: script.js
+test_type: load # the directory's type word; k6's test-types page calls it "average-load"
+authored: 2026-09-06
+issue: 424
+
+target:
+  description: >
+    The oddyssey MCP server's read surface - session initialize,
+    tools/list, and the two read tools odd_config_get and
+    odd_stack_status - measured under a steady 10-client load for five
+    minutes, one MCP session per client: everyday traffic, the
+    average-load question.
+  transport: streamable-http # MCP SDK transport; the benchmark speaks HTTP to POST /mcp
+  path: /mcp
+  launcher:
+    command: >-
+      uv run --frozen python -c "import atexit, logging; from app import
+      telemetry; from app.server import mcp;
+      logging.getLogger('httpx').setLevel(logging.WARNING);
+      logging.getLogger('httpcore').setLevel(logging.WARNING);
+      atexit.register(telemetry.setup_telemetry());
+      mcp.run(transport='streamable-http', host='127.0.0.1', port=8802)"
+    working_directory: src/mcp-server
+    does: >
+      Starts the packaged server (`oddyssey-mcp`, the users' stdio
+      server - the same code on another transport) on the MCP SDK's
+      streamable HTTP transport, in the background, with no code change:
+      the one-liner reproduces `main()` of `src/mcp-server/app/server.py`
+      - the httpx/httpcore log quieting and `telemetry.setup_telemetry()`,
+      whose shutdown (the final flush) is registered with `atexit` - so
+      the target exports the same telemetry the stdio server does; a bare
+      `mcp.run(...)` bypasses `main()` and exports nothing, which
+      /odd-observe cannot measure. It serves POST /mcp: `initialize`
+      answers 200 text/event-stream with an `mcp-session-id` response
+      header, later requests carry it as `Mcp-Session-Id`, the client
+      sends `notifications/initialized` (202) before any tools/call, and
+      the `Accept` header is `application/json, text/event-stream`. Stop
+      the process when the run is over (SIGTERM; the atexit flush runs on
+      exit).
+  base_url_env: BASE_URL # k6 -e BASE_URL=<url>; the script reads __ENV.BASE_URL
+  base_url_default: http://127.0.0.1:8802 # the local launcher above; a remote target is a mission-time input
+  launcher_env_optional: [OTEL_RESOURCE_ATTRIBUTES] # service.instance.id=<run slug> on the launcher's environment (run-scenario's identity rule)
+  prerequisites: >
+    odd_stack_status inspects the local stack container through the
+    docker CLI and probes its readiness endpoints; run with Docker
+    available and the local stack in the state the run means to measure
+    (the floors below were measured with the stack up).
+
+operations:
+  - name: initialize
+    method: initialize
+    tool: null
+    when: once per VU
+    why: opens the VU's MCP session; the response header carries the session id
+  - name: notifications/initialized
+    method: notifications/initialized
+    tool: null
+    when: once per VU
+    why: the handshake's closing notification (202, no body), required before any tools/call
+  - name: tools/list
+    method: tools/list
+    tool: null
+    when: every iteration
+    why: the cheapest read - what every MCP client does before its first call
+  - name: tools/call odd_config_get
+    method: tools/call
+    tool: odd_config_get
+    when: every iteration
+    why: the fast read tool - one JSON file read, in-process
+  - name: tools/call odd_stack_status
+    method: tools/call
+    tool: odd_stack_status
+    when: every iteration
+    why: the slow read tool - docker CLI subprocesses and readiness probes per call
+
+excluded_operations:
+  - tool: odd_stack_up
+    why: acts on the machine-wide shared stack
+  - tool: odd_stack_down
+    why: acts on the machine-wide shared stack
+  - tool: odd_stack_reset
+    why: acts on the machine-wide shared stack - wipes every project's telemetry
+  - tool: odd_config_set
+    why: writes the user's global configuration
+
+session:
+  per_vu: one MCP session, opened on first use and kept across iterations
+  on_404: the session id is dropped and the remaining calls of the iteration are skipped; the next iteration re-initializes
+  on_failed_handshake: recorded by its checks; the VU sleeps and returns, the next iteration re-initializes
+  closed_by_script: never (no DELETE; the SDK's session_idle_timeout defaults to None)
+
+identity:
+  user_agent: odd-bench/mcp-read-load # + "/<RUN_SLUG>" appended when run with -e RUN_SLUG=<slug>; never substituted
+  run_slug_env: RUN_SLUG # optional; never stored here
+  name_tag: every request carries the `name` tag listed under operations - the key of the per-operation thresholds
+  stage_tag: none # a single steady stage, see profile
+
+profile:
+  scenario: read_load
+  executor: constant-vus
+  vus: 10
+  duration: 5m
+  stages: # no ramp: the whole window is steady state
+    - { name: steady, from: 0s, to: 5m, target: 10, quote: true }
+  pacing:
+    sleep_s: 1
+    where: at the end of every iteration (and on the failed-handshake early return) - stages alone set no request rate
+    requests_per_iteration: 3 # tools/list, odd_config_get, odd_stack_status (+2 on a VU's first iteration)
+    expected_rate: ~27 req/s (10 VUs x 3 requests / ~1.13 s per iteration), ~8 000 requests over the run
+    warmup: >
+      Not built in - k6 runs one continuous window. The VUs' first
+      iterations carry the session opening and the server's first
+      connections; a later query that wants a warm steady state can drop
+      the run's first 10 s inside the steady stage above.
+
+thresholds:
+  - metric: "http_req_duration{name:tools/list}"
+    expression: "p(95)<50"
+    decided_by: "caller (issue #424, amended at dispatch)"
+    abort_on_fail: false
+    cross_check:
+      floor: none found
+      evidence: >
+        in-process tool listing; smoke 1.09-2.38 ms over HTTP. Replaces
+        the whole-run `http_req_duration p(95)<50` of issue #424,
+        dropped at dispatch: odd_stack_status (floor ~120 ms, below) is
+        a third of every iteration's requests, far above the ~5 % share
+        that moves a p95, so an untagged p95 would sit at or above
+        ~120 ms whatever this path does and could only pass by measuring
+        traffic that never reaches the status logic.
+      outcome: reachable
+  - metric: "http_req_duration{name:tools/call odd_config_get}"
+    expression: "p(95)<50"
+    decided_by: "caller (issue #424, amended at dispatch)"
+    abort_on_fail: false
+    cross_check:
+      floor: none found - src/mcp-server/app/config.py:133-221 `load()` reads one JSON file
+      evidence: >
+        observed server-side ~0.1 ms (report
+        .odd/observe-run-reports/2026-09-04-1107-mcp-read-tools.md,
+        section 2); smoke 2.37-6.82 ms over HTTP. Replaces the whole-run
+        `http_req_duration p(95)<50` of issue #424, dropped at dispatch
+        (see the tools/list entry for why).
+      outcome: reachable
+  - metric: "http_req_duration{name:tools/call odd_stack_status}"
+    expression: "p(95)<300"
+    decided_by: "caller (issue #424, amended at dispatch)"
+    abort_on_fail: false
+    cross_check:
+      floor: >
+        ~120 ms per call - src/mcp-server/app/stack.py:391-414
+        `stack_status()` runs three docker CLI subprocesses sequentially
+        (`_container_identity()` stack.py:352-358 one `docker inspect`;
+        `container_user_env()` stack.py:276-281 a second `docker inspect`
+        and stack.py:292-299 `docker image inspect`; each through
+        `subprocess.run` at stack.py:211) then four sequential HTTP
+        readiness probes with a 3 s timeout each (`_readiness()`
+        stack.py:381-387)
+      evidence: >
+        observed server-side root p50 120 ms, p95 126 ms, min 105 ms,
+        n=30 (report 2026-09-04-1107-mcp-read-tools.md, section 2;
+        findings F1/F2 there); smokes 122-194 ms over HTTP (single cold
+        samples). Replaces the whole-run `http_req_duration p(95)<50` of
+        issue #424, dropped at dispatch: this path's floor alone made
+        that target unattainable (see the tools/list entry).
+      outcome: >
+        reachable, floor acknowledged - the caller set 300 ms with the
+        floor and its cause (three docker CLI subprocesses and four
+        readiness probes per call) in view: 2.4x the observed p95,
+        leaving room for the 10-client contention this benchmark is the
+        first to measure
+  - metric: http_req_failed
+    expression: "rate<0.01"
+    decided_by: "caller (issue #424)"
+    abort_on_fail: false
+    cross_check:
+      floor: none found - no injected error, no rate limit, no retry on the read path; stack_status returns a status and never raises (stack.py:373, :350)
+      evidence: 0/60 errors in the report, 0/5 in every smoke
+      outcome: reachable
+
+validation:
+  static_check: >
+    passed - discardResponseBodies is global and the only body read
+    (rpcMessage) is reached from rpc(), whose request sets
+    responseType 'text'; the notification reads no body; every
+    tag-scoped threshold key names a `name` tag a request sets; no
+    literal credential.
+  inspect:
+    k6_version: v2.2.0 (commit/devel, go1.26.5, darwin/arm64)
+    date: 2026-09-06
+    exit: 0 - empty stderr; scenario read_load constant-vus vus 10 duration 5m0s; the four threshold expressions parsed as written
+  smoke:
+    date: 2026-09-06
+    command: k6 run --vus 1 --iterations 1 --no-thresholds script.js -e BASE_URL=http://127.0.0.1:8802
+    target: local (127.0.0.1:8802, started with the launcher under target; self-authorized)
+    exit: 0
+    stderr: only k6's `"cli" level configuration overrode scenarios configuration entirely` warning - no level=error, no script exception
+    checks: 12 of 12 succeeded; 1 complete and 0 interrupted iterations
+    http_req_failed: 0.00% (0 out of 5)
+    per_request: >
+      initialize 3.08 ms (200), notifications/initialized 0.40 ms (202),
+      tools/list 1.09 ms, tools/call odd_config_get 2.37 ms, tools/call
+      odd_stack_status 129.39 ms; k6's JSON output listed the three
+      name-scoped sub-metrics with tag values equal to the requests' tags
+    not_covered: >
+      The per-VU session persistence across iterations and the 404
+      re-initialization are exercised only from the second iteration on
+      or after a server restart - one iteration cannot see them. The
+      script exports one default function and no exec-named scenario,
+      so the smoke covers every function.
+    side_effects: one MCP session opened on the server per smoke, its four traces exported to the local stack; none on the stack container or the configuration
+  history:
+    - 2026-09-06 smoke, bare `mcp.run(...)` launcher (no telemetry), first draft with the whole-run p95 threshold - exit 0, 12/12 checks, 0/5 failed; 9.75 / 0.58 / 2.38 / 6.82 / 194.07 ms (initialize / initialized / tools/list / config_get / stack_status)
+    - 2026-09-06 smoke, same launcher, per-operation thresholds - exit 0, 12/12 checks, 0/5 failed; 3.57 / 0.41 / 1.65 / 2.94 / 122.24 ms
+    - 2026-09-06 smoke, telemetry-enabled launcher - exit 0, 12/12 checks, 0/5 failed; 4.34 / 0.54 / 1.33 / 2.50 / 130.37 ms
+  note: a recorded smoke is a record, never authorization for the next one - re-authorized at mission time on every update

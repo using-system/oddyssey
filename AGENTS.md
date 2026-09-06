@@ -269,7 +269,14 @@ When creating a GitHub issue, always set: a type label (`bug`,
 `enhancement`, `documentation`), a `priority: low|medium|high` label,
 and — when the issue concerns a specific observability stack — that
 stack's label (`datadog`, `local`, ...; create the label if it does
-not exist yet). Add `community` too when the issue is about
+not exist yet). Add a topic label too when the issue concerns one
+of the package's cross-cutting themes — `k6` (load-testing
+benchmarks), `otel` (instrumentation), `perf` (mission wall-clock
+time and query cost), `harness` (moving rules from prompt prose to
+hooks, seams and contracts), `github` (the GitHub integration),
+`cicd` (the CI/CD workflows), ... — the repository's labels are the
+authority on which themes exist: pick one of them rather than
+inventing a theme. Add `community` too when the issue is about
 discoverability across external directories, marketplaces, or
 community lists (submitting or updating a listing, tracking its
 review).

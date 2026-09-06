@@ -1,0 +1,241 @@
+# Benchmark manifest - mcp-read-stress (one of the six mcp-read-* benchmarks,
+# which share one schema). Authored by k6-benchmark-expert for
+# /odd-instrument-bench; issue #424 records the human-decided values. The
+# script is script.js beside this file. Run it through
+# `/odd-observe run .odd/benchmarks/mcp-read-stress/`, never by hand, and
+# never as a smoke beyond one iteration outside that.
+
+name: mcp-read-stress
+service: oddyssey-mcp
+engine: k6
+script: script.js
+test_type: stress
+authored: 2026-09-06
+issue: 424
+
+target:
+  description: >-
+    The oddyssey MCP server at src/mcp-server/ (Python, MCP SDK 2.1.1,
+    MCPServer). The packaged server speaks stdio only; for a k6 target the
+    same application runs on the MCP SDK's streamable HTTP transport with
+    no code change - the users' stdio server is the same code on another
+    transport. Read surface only. Service-side bounds found while reading,
+    all latency ceilings and none an error floor: odd_stack_status runs
+    three sequential docker CLI subprocesses (src/mcp-server/app/stack.py:276,
+    :292 and :352, each through subprocess.run at :211; root span p50
+    120 ms / p95 126 ms with the stack up, n=30,
+    .odd/observe-run-reports/2026-09-04-1107-mcp-read-tools.md section 2)
+    and then probes four readiness endpoints sequentially with a 3 s
+    timeout each (stack.py:381-386; up to 12 s per call when Grafana
+    accepts connections but a backend never answers, milliseconds when the
+    stack is up or down); sync tool functions run on the SDK's thread pool
+    (mcp/server/mcpserver/utilities/func_metadata.py:164,
+    anyio.to_thread.run_sync) whose default limiter is 40 threads, so at
+    most 40 tool calls execute concurrently and the rest queue - a latency
+    knee to expect near 40 in-flight calls at the 50-VU hold;
+    odd_config_get has no floor (one file read, app/config.py:133, and the
+    package metadata, :121; root span under 1 ms in the same report).
+  transport: >-
+    MCP over streamable HTTP - JSON-RPC 2.0 POSTed to /mcp, answered as
+    text/event-stream (one `data:` event per message). An initialize
+    request answers 200 with an mcp-session-id response header; later
+    requests of the session carry it as the Mcp-Session-Id request header
+    and MCP-Protocol-Version set to the negotiated version; the client
+    sends notifications/initialized (answered 202) before any tools/call;
+    Accept must be "application/json, text/event-stream".
+  launcher:
+    working_directory: src/mcp-server
+    command: >-
+      uv run --frozen python -c "import atexit, logging; from app import
+      telemetry; from app.server import mcp;
+      logging.getLogger('httpx').setLevel(logging.WARNING);
+      logging.getLogger('httpcore').setLevel(logging.WARNING);
+      atexit.register(telemetry.setup_telemetry());
+      mcp.run(transport='streamable-http', host='127.0.0.1', port=8803)"
+    does: >-
+      What main() does (src/mcp-server/app/server.py:202-212) on the
+      streamable HTTP transport instead of stdio - quiets the httpx and
+      httpcore loggers to WARNING, calls telemetry.setup_telemetry()
+      (app/telemetry.py:109) so the server exports its own telemetry, and
+      registers the returned shutdown with atexit so the last batch is
+      flushed when the process ends. uvicorn logs one INFO line per request
+      on stderr - redirect the launcher's output to a file for a run at
+      50 VUs. Stop the server when the run is over.
+  path: /mcp
+  base_url_env: BASE_URL
+  base_url_default: http://127.0.0.1:8803
+  launcher_env_optional: [OTEL_RESOURCE_ATTRIBUTES]
+  # OTEL_RESOURCE_ATTRIBUTES=service.instance.id=<run slug> at run time gives
+  # the server the run's identity (run-scenario's identity reference).
+
+operations:
+  - name: initialize
+    method: initialize
+    tool: null
+    when: once per VU
+    why: opens the VU's MCP session; the response header carries the session id
+  - name: notifications/initialized
+    method: notifications/initialized
+    tool: null
+    when: once per VU
+    why: the handshake acknowledgement the transport expects before any tools/call
+  - name: tools/list
+    method: tools/list
+    tool: null
+    when: every iteration
+    why: the cheapest read of the surface - a pure SDK round trip, the transport's own floor
+  - name: tools/call odd_config_get
+    method: tools/call
+    tool: odd_config_get
+    when: every iteration
+    why: >-
+      the cheap read tool - one file read (~/.oddyssey/config.json of the
+      user running the server, app/config.py:19) plus package metadata;
+      the response carries that user's stack_config values, which the
+      script never logs
+  - name: tools/call odd_stack_status
+    method: tools/call
+    tool: odd_stack_status
+    when: every iteration
+    why: >-
+      the expensive read tool - three docker CLI subprocesses and four
+      readiness GETs to the shared stack's Grafana, all read-only; the
+      operation the stress is meant to bend
+
+excluded_operations:
+  - tool: odd_stack_up
+    why: starts the machine-wide shared stack container - a state change outside the benchmark's scope
+  - tool: odd_stack_down
+    why: destroys the shared stack and every project's stored telemetry
+  - tool: odd_stack_reset
+    why: wipes the shared stack's stored telemetry machine-wide
+  - tool: odd_config_set
+    why: writes the user's global configuration and may reset the stack
+
+session:
+  per_vu: one MCP session, opened on first use and kept across iterations
+  on_404: >-
+    the session id is dropped and the remaining calls of the iteration are
+    skipped; the next iteration re-initializes
+  on_failed_handshake: >-
+    the checks record it, the VU sleeps and returns; the next iteration
+    re-initializes
+  closed_by_script: never (no DELETE; the SDK's session_idle_timeout defaults to None)
+  # The handshake proposes protocolVersion 2025-06-18 and every later request
+  # carries the negotiated version in MCP-Protocol-Version.
+
+identity:
+  user_agent: odd-bench/mcp-read-stress (with /<RUN_SLUG> appended when the run passes one)
+  run_slug_env: RUN_SLUG
+  name_tag: every request carries the `name` tag listed under operations
+  stage_tag: none
+
+profile:
+  executor: ramping-vus
+  scenario: read_stress
+  start_vus: 0
+  stages:
+    - name: ramp
+      from: 0s
+      to: 5m
+      target: 50
+      quote: false
+    - name: hold
+      from: 5m
+      to: 7m
+      target: 50
+      quote: true
+    - name: ramp-down
+      from: 7m
+      to: 8m
+      target: 0
+      quote: false
+  graceful_ramp_down: 30s
+  total_duration: 8m (up to 8m30s with the graceful ramp-down)
+  boundaries_note: >-
+    Record the run's UTC start and derive the three boundaries from the
+    from/to offsets above; quote steady-state numbers from the stage
+    marked quote: true (the hold) only.
+  pacing:
+    sleep_s: 1
+    where: at the end of every iteration (also on the failed-handshake early return)
+    requests_per_iteration: >-
+      3 (tools/list, tools/call odd_config_get, tools/call odd_stack_status);
+      +2 on a VU's first iteration (initialize, notifications/initialized)
+    expected_rate: >-
+      The stages fix the VU count and the duration only; the request rate
+      is VUs x requests per iteration / iteration duration, the iteration
+      being the think time plus the target's response time. Per VU about
+      2.6 requests/s (1 s of think time plus roughly 0.13-0.17 s of
+      requests, dominated by odd_stack_status); at the 50-VU hold about
+      130 requests/s, of which about 43 odd_stack_status calls/s - about
+      130 docker CLI processes/s on the host, the stress this benchmark
+      applies. The rate drifts down as the target slows (sleep pacing),
+      the expected stress-test signature.
+    smoke_iteration_duration: 1.16s (one VU, local target, stack up)
+
+thresholds:
+  - metric: http_req_failed
+    expression: rate<0.05
+    decided_by: "caller (issue #424)"
+    abort_on_fail: false
+    cross_check:
+      floor: >-
+        none found - no service-side path injects an error or rejects a
+        well-formed request of this script; the transport's 400/404/406/415
+        answers (mcp/server/streamable_http.py) are client-side protocol
+        misuse, which the script avoids and, for a 404, recovers from by
+        re-initializing
+      evidence: >-
+        the read paths of app/server.py (odd_config_get :99-104,
+        odd_stack_status :66-70) return a dict or raise into a JSON-RPC
+        result - a tool failure is an HTTP 200 carrying a JSON-RPC error or
+        result.isError, invisible to http_req_failed; the script's
+        "result without error" checks are where such failures show, so a
+        run rules on the checks next to this threshold; the target
+        description's bounds are latency ceilings, none an error floor
+      outcome: reachable
+
+validation:
+  static_check:
+    date: 2026-09-06
+    result: >-
+      passed - discardResponseBodies is global; the one http.post whose
+      body is read (rpc(), script.js) carries responseType 'text'; the
+      notification post reads no body; no tag-scoped threshold; no
+      inlined credential
+  inspect:
+    k6_version: k6 v2.2.0 (commit/devel, go1.26.5, darwin/arm64)
+    date: 2026-09-06
+    exit: 0
+  smoke:
+    date: 2026-09-06T09:32Z
+    command: >-
+      k6 run --vus 1 --iterations 1 --no-thresholds
+      .odd/benchmarks/mcp-read-stress/script.js -e BASE_URL=http://127.0.0.1:8803
+    target: >-
+      server started with target.launcher.command on 127.0.0.1:8803
+      (self-authorized, local); the machine-wide shared stack container was
+      up
+    exit: 0
+    stderr: >-
+      only the expected '"cli" level configuration overrode scenarios
+      configuration entirely' warning - no level=error, no GoError
+    checks: 100% (10 out of 10); 1 complete and 0 interrupted iterations
+    http_req_failed: 0.00% (0 out of 5)
+    per_request:
+      - initialize - 200, session id header present, result carries protocolVersion
+      - notifications/initialized - 202
+      - tools/list - 200, lists odd_config_get and odd_stack_status
+      - tools/call odd_config_get - 200, result without error
+      - tools/call odd_stack_status - 200, result without error (the 145.31 ms max of http_req_duration; med 4.29 ms)
+    iteration_duration: 1.16s
+    server_log: 1 session created, 4 x 200, 1 x 202, no error, no readiness-probe INFO lines
+    coverage: >-
+      the default function is the script's only function and the scenario
+      names no exec - the smoke covered the whole scenario's iteration; a
+      run's re-initialize-on-404 path was not exercised
+  history:
+    - 2026-09-06T08:58Z - first smoke, bare launcher (no telemetry setup) - exit 0, http_req_failed 0.00% (0 of 5), checks 10 of 10, iteration 1.17 s
+    - 2026-09-06T09:04Z - re-smoke under the telemetry-enabled launcher - exit 0, http_req_failed 0.00% (0 of 5), checks 10 of 10, iteration 1.15 s
+    - 2026-09-06T09:22Z - re-smoke after the common-shape script change (summaryTrendStats dropped, identity constant) - exit 0, http_req_failed 0.00% (0 of 5), checks 10 of 10, iteration 1.14 s

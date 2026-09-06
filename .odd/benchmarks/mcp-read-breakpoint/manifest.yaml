@@ -1,0 +1,256 @@
+# Benchmark manifest - mcp-read-breakpoint
+# Living source (odd-memory, benchmark reference): updated in place through
+# reviewed diffs. Authored by k6-benchmark-expert; run by /odd-observe
+# (run-scenario's benchmark-replay reference), from the repository root:
+#
+#   k6 run .odd/benchmarks/mcp-read-breakpoint/script.js \
+#     --summary-export <summary-file> \
+#     -e BASE_URL=http://127.0.0.1:8806 -e RUN_SLUG=<run slug>
+#
+# with the target started by target.launcher below (the same run slug in
+# OTEL_RESOURCE_ATTRIBUTES=service.instance.id=<run slug>). The run reads the
+# k6 summary's per-name sub-metrics (which threshold aborted, at what elapsed
+# time) and the service's own spans and histograms, qualified by
+# service.instance.id.
+name: mcp-read-breakpoint
+service: oddyssey-mcp
+engine: k6
+script: script.js
+test_type: breakpoint
+authored: 2026-09-06
+issue: 424
+
+target:
+  description: >-
+    The oddyssey MCP server (src/mcp-server) - its read surface, served on
+    the MCP SDK's streamable HTTP transport. The packaged server
+    (uvx oddyssey-mcp) speaks stdio only; for a k6 target the same
+    application is started, unchanged, on the HTTP transport - the users'
+    stdio server is the same code on another transport. The question:
+    at what request rate does one server process, serving many concurrent
+    MCP sessions, stop answering within its per-operation latency budget.
+  transport: streamable-http
+  path: /mcp
+  base_url_env: BASE_URL
+  base_url_default: http://127.0.0.1:8806   # loopback only; a remote target is mission-time
+  launcher:
+    command: >-
+      uv run --frozen python -c "import atexit, logging; from app import telemetry;
+      from app.server import mcp; logging.getLogger('httpx').setLevel(logging.WARNING);
+      logging.getLogger('httpcore').setLevel(logging.WARNING);
+      atexit.register(telemetry.setup_telemetry());
+      mcp.run(transport='streamable-http', host='127.0.0.1', port=8806)"
+    working_directory: src/mcp-server
+    does: >-
+      main()'s telemetry setup plus the HTTP transport - the same quieting of
+      the httpx/httpcore loggers and the same telemetry.setup_telemetry() call
+      app.server.main() makes (src/mcp-server/app/server.py:202-212), its
+      shutdown registered with atexit, then mcp.run() on streamable HTTP
+      instead of stdio; no code change. Stop the process when the run is done
+      (kill its pid): it keeps the MCP sessions the VUs opened, so a server is
+      never reused across runs.
+  launcher_env_optional: [OTEL_RESOURCE_ATTRIBUTES]   # service.instance.id=<run slug>, the run's identity in the telemetry
+  protocol:
+    client_protocol_version_proposed: "2025-06-18"
+    negotiation: >-
+      the initialize result's protocolVersion is sent back as the
+      MCP-Protocol-Version header on every later request of the session
+    accept: application/json, text/event-stream (both required by the SDK)
+
+operations:
+  - name: initialize
+    method: initialize
+    tool: null
+    when: once per VU
+    why: opens the VU's MCP session; the response header carries its Mcp-Session-Id
+  - name: notifications/initialized
+    method: notifications/initialized
+    tool: null
+    when: once per VU
+    why: completes the handshake (answered 202, no body) before any tools/call
+  - name: tools/list
+    method: tools/list
+    tool: null
+    when: every iteration
+    why: the cheapest in-process request - a breaking point on it is the server itself, not a tool
+  - name: tools/call odd_config_get
+    method: tools/call
+    tool: odd_config_get
+    when: every iteration
+    why: the fast read tool (one config file read plus the package version) - the baseline's hot read operation
+  - name: tools/call odd_stack_status
+    method: tools/call
+    tool: odd_stack_status
+    when: every iteration
+    why: the expensive read tool (docker CLI subprocesses and readiness probes) - where the capacity ceiling is expected first
+excluded_operations:
+  - tool: odd_stack_up
+    why: acts on the machine-wide shared stack container
+  - tool: odd_stack_down
+    why: destroys the machine-wide shared stack and every project's stored telemetry
+  - tool: odd_stack_reset
+    why: wipes all stored telemetry machine-wide
+  - tool: odd_config_set
+    why: writes the user's global configuration (and can reset the stack)
+
+session:
+  per_vu: one MCP session, opened on first use (initialize + notifications/initialized on the VU's first iteration) and kept across iterations
+  on_404: >-
+    the session id is dropped (the SDK's "invalid or expired session",
+    mcp/server/streamable_http.py:860-883) and the remaining calls of the
+    iteration are skipped - one lost session is one failed request, not
+    three; the next iteration re-initializes
+  on_failed_handshake: recorded through its checks, then the VU sleeps 1 s and returns (never fail()); the next iteration retries
+  closed_by_script: never (no DELETE; the SDK's session_idle_timeout defaults to None) - up to 200 sessions stay open on the server until it stops
+
+identity:
+  user_agent: odd-bench/mcp-read-breakpoint[/<RUN_SLUG>]   # the benchmark name always; the slug appended when -e RUN_SLUG is passed
+  run_slug_env: RUN_SLUG
+  name_tag: the k6 `name` tag on every request, its value the operations[].name above - the thresholds' sub-metric scope
+  stage_tag: none     # a single stage; the timeline is read from the k6 summary and the telemetry
+  traceparent: not sent - the target is a process the run launches; its identity is the launcher's service.instance.id
+
+profile:
+  scenario: read_surface
+  executor: ramping-arrival-rate   # open model: the load keeps rising as the service slows (k6 breakpoint guidance)
+  start_rate: 1 iteration/s
+  time_unit: 1s
+  pre_allocated_vus: 200
+  max_vus: 200                     # the confirmed envelope: never more than 200 concurrent sessions
+  stages:
+    # A breakpoint has no steady state to quote: the whole run is the ramp
+    # (no plateau, no ramp-down) and the ruling is the abort point - the
+    # elapsed time and rate at which a threshold aborted the run.
+    - name: ramp
+      from: 0s
+      to: 10m
+      target: 200   # iterations/s at the end of the stage (arrival-rate executor)
+      quote: false
+  graceful_stop: 30s (k6 default)   # in-flight iterations after an abort
+  pacing:
+    arrival_rate: 1 -> 200 iterations/s over the 10 m ramp - the executor sets the rate; stages alone never set the request rate
+    sleep_s: 1
+    where: only on the failed-handshake early return (a VU whose initialize failed sleeps 1 s and returns); no sleep at the end of an iteration
+    requests_per_iteration: 3 (+2 on a VU's first iteration)
+    expected_rate: 3 -> ~600 requests/s over the ramp (~200 odd_stack_status calls/s at the top)
+    warmup_excluded: first 30s        # no abort before +30s (delay_abort_eval); the run is expected to be aborted by a threshold before +10m
+  model_swap: >-
+    Issue #424 said "ramp continuously from 1 to 200 VUs over 10 minutes"
+    (a closed model, ramping-vus). What runs is an open model,
+    ramping-arrival-rate from 1 to 200 iterations/s over 10 minutes with at
+    most 200 VUs: the k6 breakpoint guidance recommends it because a closed
+    model self-throttles as the service slows (each VU waits for its answer),
+    which softens the very breakpoint the test looks for, while an arrival
+    rate keeps pushing. The rate is comparable to the issue's ramp: 200 VUs
+    pacing one iteration per second is 200 iterations/s, the same top rate,
+    and the VU cap keeps the concurrency envelope identical (200 sessions).
+    When the 200 VUs cannot sustain the rate, k6 reports dropped_iterations -
+    the generator hitting the envelope's VU cap because the service's latency
+    grew, a breakpoint signal in its own right, not a generator defect. One
+    caveat: during a handshake-failure storm a VU parked in the failed-handshake
+    1 s sleep leaves the maxVUs pool for that second, so dropped_iterations is
+    then partly that back-off, not only the service slowing - read it next to
+    the initialize checks.
+
+thresholds:
+  - metric: "http_req_duration{name:tools/list}"
+    expression: "p(95)<200"
+    decided_by: "caller (issue #424, amended at dispatch)"
+    abort_on_fail: true
+    delay_abort_eval: 30s
+    cross_check:
+      floor: none found
+      evidence: served in-process by the SDK, no I/O; smoke 1.26 ms
+      outcome: reachable
+  - metric: "http_req_duration{name:tools/call odd_config_get}"
+    expression: "p(95)<200"
+    decided_by: "caller (issue #424, amended at dispatch)"
+    abort_on_fail: true
+    delay_abort_eval: 30s
+    cross_check:
+      floor: none found near the target
+      evidence: >-
+        one config file read plus importlib_metadata.version() per call
+        (src/mcp-server/app/config.py:133-158, 121-130); baseline server-side
+        ~0.1 ms (observation report 2026-09-04-1107-mcp-read-tools); smoke 2.65 ms
+      outcome: reachable
+  - metric: "http_req_duration{name:tools/call odd_stack_status}"
+    expression: "p(95)<600"
+    decided_by: "caller (issue #424, amended at dispatch)"   # raised from the 200 ms first proposed, which sat next to the cold floor
+    abort_on_fail: true
+    delay_abort_eval: 30s
+    cross_check:
+      floor: >-
+        structural - every call runs three sequential docker CLI subprocesses
+        (src/mcp-server/app/stack.py:401-402 -> _container_identity at
+        352-358 and container_user_env, each a subprocess.run at 211-216)
+        and four sequential readiness GETs with a 3 s httpx timeout each
+        (stack.py:381-386). The tool is a sync def, so the SDK runs it on
+        anyio's worker pool (mcp/server/mcpserver/utilities/func_metadata.py:164)
+        whose default CapacityLimiter is 40 (anyio/_backends/_asyncio.py:3097):
+        at most 40 status calls execute concurrently, the rest queue - a
+        ceiling of roughly 40 / 0.12 s = ~330 status calls/s before queueing
+        alone lifts the latency, docker contention aside.
+      evidence: >-
+        baseline p50 120 ms / p95 126 ms with the stack up, ~150-195 ms cold
+        (observation report 2026-09-04-1107-mcp-read-tools); smoke 139.36 ms
+      outcome: reachable, floor acknowledged
+  - metric: http_req_failed
+    expression: "rate<0.05"
+    decided_by: agent-proposed   # issue #424 decided the p95 breaking points only; this guards a run whose sessions break instead of slowing
+    abort_on_fail: false
+    cross_check:
+      floor: none found
+      evidence: >-
+        no injected error rate; a down or absent stack is a status, not an
+        error (stack.py:318-327, 391-414); the SDK answers 400 to a missing
+        session id and 404 to an unknown or terminated one
+        (mcp/server/streamable_http.py:860-883), which the per-VU session and
+        its 404 recovery avoid; smoke 0 out of 5
+      outcome: reachable
+
+validation:
+  static_check:
+    date: 2026-09-06
+    result: >-
+      passed - the only body read (rpcMessage) sits behind the responseType
+      text override of request(); the notifications/initialized post reads no
+      body; each of the three sub-metric threshold keys has its name tag value
+      set on a request; no fail(), no summaryTrendStats, no credential-looking
+      literal
+  inspect:
+    k6_version: v2.2.0 (commit/devel, go1.26.5, darwin/arm64)
+    date: 2026-09-06
+    command: k6 inspect .odd/benchmarks/mcp-read-breakpoint/script.js
+    exit: 0
+    stderr: empty
+    resolved: >-
+      one ramping-arrival-rate scenario (startRate 1/1s, stages 10m0s -> 200,
+      preAllocatedVUs 200, maxVUs 200) and the four thresholds as written
+  smoke:
+    date: 2026-09-06
+    command: k6 run --vus 1 --iterations 1 --no-thresholds .odd/benchmarks/mcp-read-breakpoint/script.js -e BASE_URL=http://127.0.0.1:8806
+    target: http://127.0.0.1:8806 (local - self-authorized), served by target.launcher started from the worktree's src/mcp-server
+    exit: 0
+    stderr: >-
+      only the expected '"cli" level configuration overrode scenarios
+      configuration entirely' warning - no level=error, no script exception
+    iterations: 1 complete and 0 interrupted
+    checks: 10 out of 10 succeeded
+    http_req_failed: 0.00% (0 out of 5)
+    per_request:
+      initialize: 200, session id header present, protocolVersion in the result
+      notifications/initialized: 202
+      tools/list: 200, both read tools listed, 1.22 ms
+      tools/call odd_config_get: 200, result without error, 2.45 ms
+      tools/call odd_stack_status: 200, result without error, 132.18 ms (one cold sample - consistent with the acknowledged floor)
+    coverage: >-
+      the default function is the only function; the one scenario names no
+      exec, so the smoke covers every request the benchmark sends; the 404
+      path (session drop, skipped calls) is not reachable in a smoke
+    side_effects: one MCP session opened on the target and left open; the server was stopped after the smoke
+  history:
+    - "2026-09-06 smoke, same requests, before review round 2 (no if (sessionId) guard after a 404): exit 0, 0 out of 5 failed, 10 out of 10 checks, odd_stack_status 139.36 ms"
+    - "2026-09-06 smoke, same requests, before the shared-shape review (identity odd-bench/<slug>, no 404 recovery): exit 0, 0 out of 5 failed, 10 out of 10 checks, odd_stack_status 143.21 ms"
+    - "2026-09-06 smoke, before the base-URL variable was renamed to BASE_URL: exit 0, 0 out of 5 failed, 10 out of 10 checks, odd_stack_status 148.4 ms"
+    - "2026-09-06 smoke against the bare mcp.run() launcher without telemetry setup: exit 0, 0 out of 5 failed, 10 out of 10 checks, odd_stack_status 177.66 ms"
