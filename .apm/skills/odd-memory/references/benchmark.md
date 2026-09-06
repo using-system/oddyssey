@@ -81,18 +81,28 @@ no exception.
 - **What it exercises** - target service, the endpoints/operations in
   scope, the test type (smoke/load/stress/soak/spike/breakpoint).
 - **Validation** - what the manifest records: `k6 inspect` passed (k6
-  version, date) and the smoke's result - passed (local or remote
-  target, the URL only when the manifest stores it), declined, not
-  applicable (with the scenarios it could not reach), or the functions
-  it did not cover - and the threshold cross-check: each threshold,
-  the service-side floor it was checked against or none found, and the
-  outcome (reachable, kept with the floor acknowledged, or the value
-  the caller changed it to). One or two lines; a benchmark whose
-  manifest records no validation is an upstream contract failure to
-  surface, not a line to invent.
+  version, date), the manifest's own YAML parse (the parser, the
+  date), and the smoke's result - passed (local or remote target, the
+  URL only when the manifest stores it), declined, not applicable
+  (with the scenarios it could not reach), or the functions and
+  operations it did not cover - and the threshold cross-check: each
+  threshold, the service-side floor it was checked against or none
+  found, what bounds a threshold expressed as a fraction of a counted
+  quantity (the denominator, or the per-iteration count where the run
+  total is a runtime outcome), and the outcome (reachable, kept with
+  the floor acknowledged, or the value the caller changed it to). One
+  or two lines; a benchmark whose manifest records no validation is an
+  upstream contract failure to surface, not a line to invent.
+- **A question the manifest records as unreadable** - when the
+  manifest names a telemetry signal the run's question depends on and
+  records it as absent instead, the synthesis says so in one line, in
+  the manifest's own words. A gap written only into a file the human
+  is not shown never reaches them.
 - **Next recommended action** - how to actually run it:
   `/odd-observe run .odd/benchmarks/<name>/` (drive mode with that
-  benchmark, see `docs/guide/benchmarks.md`).
+  benchmark, see `docs/guide/benchmarks.md`) - or, when the bullet
+  above carries a gap, the instrumentation wave that would make the
+  question readable first, the run after it.
 - **For an update**: a short headline of what changed against the
   previous version - the full diff already lives in the commit, this is
   the human-readable one-liner, not a diff dump.
