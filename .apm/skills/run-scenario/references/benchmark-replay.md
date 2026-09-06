@@ -311,7 +311,7 @@ given, four things change and nothing else does:
   identifies the run. A benchmark whose script builds the header is
   then selected on the trace-id prefix as well (`run-identity.md`'s
   stored-benchmark paragraph); one whose block says the header is not
-  sent — every benchmark stored today — is UA-selected, with the
+  sent — a script that cannot send one — is UA-selected, with the
   prefix selectors unavailable and nothing the gate can turn on. The
   `Identity:` line says which of the two the run had, and the instance
   is read from the rows;

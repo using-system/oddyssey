@@ -161,8 +161,9 @@ its setup and teardown); the manifest states the scheme it used and
 the prefix the script baked in at authoring time — that recorded
 literal, never a prefix the protocol names later, is what the run's
 rows carry — and the rootless caveat below travels with the header
-wherever it goes out. A block that says the header is not sent —
-every benchmark stored today — and a drive that leaves the gate unset
+wherever it goes out. A block that says the header is not sent — a
+script that cannot send one, the protocol carrying no request headers —
+and a drive that leaves the gate unset
 both leave the run **UA-selected**: its `Identity:` line quotes the
 User-Agent form the rows actually carry, the trace-id prefix selectors
 above have nothing

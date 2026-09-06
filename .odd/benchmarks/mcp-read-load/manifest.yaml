@@ -107,9 +107,61 @@ session:
 
 identity:
   user_agent: odd-bench/mcp-read-load # + "/<RUN_SLUG>" appended when run with -e RUN_SLUG=<slug>; never substituted
-  run_slug_env: RUN_SLUG # optional; never stored here
+  run_slug_env: RUN_SLUG # passed on every run (see run_slug_gate below); never stored here
   name_tag: every request carries the `name` tag listed under operations - the key of the per-operation thresholds
   stage_tag: none # a single steady stage, see profile
+  traceparent:
+    # Sent only when BOTH gates below are on; the two are independent.
+    gate_env: SEND_TRACEPARENT
+    gate_read: >-
+      presence, whatever the value: the script tests
+      `__ENV.SEND_TRACEPARENT !== undefined`, never a truthiness test and
+      never a parsed boolean. k6 hands every -e value over as a string, so
+      `-e SEND_TRACEPARENT=0` and `-e SEND_TRACEPARENT=false` are both
+      truthy (verified on k6 v2.2.0, 2026-09-06) - there is no value that
+      means off, only leaving the variable out of the command and out of the
+      environment: k6 reads exported system variables too, so an exported
+      SEND_TRACEPARENT turns the header on with no flag at all (verified on
+      k6 v2.2.0, 2026-09-06).
+    set_by: >-
+      the drive, never this file: a remote drive sets it (the requests are
+      the only identity there is), a local drive leaves it unset - the
+      launched process already carries service.instance.id and a synthetic
+      parent would cost the run its trace roots for nothing.
+    run_slug_gate: >-
+      independent of the gate above: no RUN_SLUG, no identity at all (every
+      replay would send the same set of trace ids and the runs would merge
+      under them), and RUN_SLUG without SEND_TRACEPARENT sends the
+      User-Agent alone.
+    header: 00-<trace id>-<span id>-01
+    trace_id: >-
+      32 hex in three parts: the 8-hex prefix literal below, 8 hex derived
+      from the run slug, and the 16-hex sequence field.
+    prefix: "0ddc0ffe"
+    prefix_note: >-
+      baked into the script at authoring time; this recorded literal is what
+      the run's rows carry, whatever prefix the protocol names later.
+      Changing it is a re-authoring through /odd-instrument-bench.
+    slug_hex: >-
+      the first 8 hex of sha256(<RUN_SLUG>, 'hex') (k6/crypto), hashed once
+      in init and constant for the run.
+    sequence: >-
+      16 hex, disjoint across every runtime that sends a request, not merely
+      across VUs: the high 8 hex name the runtime - exec.vu.idInTest (>= 1)
+      in VU code, with ffffffff reserved for setup() and fffffffe for
+      teardown(), outside the VU index range because exec.vu.idInTest reads
+      0 in both (verified on k6 v2.2.0, 2026-09-06) - and the low 8 hex are
+      that runtime's own request counter from 1, k6 giving every runtime its
+      own module state. This script exports no setup() and no teardown():
+      every request goes out from VU code, and the two reserved values stand
+      unused - the script's traceparent() raises rather than build an id with
+      a zero high half, so an author who later sends a request from setup()
+      or teardown() gets a failure there instead of a silent collision.
+    span_id: the same 16-hex sequence field, so it is never all zeros either.
+    caveat: >-
+      where the header goes out the run's traces are rootless (the parent
+      span never existed): presence and count rulings hold, latency is read
+      from the User-Agent identity (run-scenario's run-identity reference).
 
 profile:
   scenario: read_load
@@ -213,11 +265,27 @@ validation:
     (rpcMessage) is reached from rpc(), whose request sets
     responseType 'text'; the notification reads no body; every
     tag-scoped threshold key names a `name` tag a request sets; no
-    literal credential.
+    literal credential. Identity headers: headers() is the single helper
+    both requests go through (two call sites, two http.post call sites),
+    so every request carries the User-Agent and, with both gates on,
+    exactly one traceparent. The sequence field's high half was ruled
+    against the functions that send a request: `export default function`
+    is the only exported function - no setup(), no teardown() - so every
+    request goes out from VU code where exec.vu.idInTest is >= 1, the
+    halves are disjoint per runtime, and the low half's counter from 1
+    keeps the field non-zero, which traceparent()'s guard enforces at
+    runtime as well - it raises rather than build an id whose high half is 0.
+    Corroborated out of band, on a scratch
+    probe carrying the same construction plus a setup() and a teardown()
+    that send a request (not this benchmark): 14 requests over setup, 3
+    VUs and teardown produced 14 distinct trace ids and 14 distinct span
+    ids, none zero, and the gate read by presence - `-e
+    SEND_TRACEPARENT=0` sent the header, the variable left out sent none,
+    and no slug sent none either.
   inspect:
     k6_version: v2.2.0 (commit/devel, go1.26.5, darwin/arm64)
     date: 2026-09-06
-    exit: 0 - empty stderr; scenario read_load constant-vus vus 10 duration 5m0s; the four threshold expressions parsed as written
+    exit: 0 - re-inspected after the traceparent re-authoring (issue #464); empty stderr; scenario read_load constant-vus vus 10 duration 5m0s; the four threshold expressions parsed as written
   parse:
     parser: PyYAML safe_load (uv run --no-project --with pyyaml python3)
     date: 2026-09-06
@@ -226,20 +294,26 @@ validation:
       yaml.safe_load(open(sys.argv[1]))'
       .odd/benchmarks/mcp-read-load/manifest.yaml
     exit: 0
-    result: passed - this file is valid YAML; re-run on every later edit
+    result: passed - re-parsed after the traceparent re-authoring (issue #464); this file is valid YAML; re-run on every later edit
   smoke:
     date: 2026-09-06
-    command: k6 run --vus 1 --iterations 1 --no-thresholds script.js -e BASE_URL=http://127.0.0.1:8802
+    command: k6 run --vus 1 --iterations 1 --no-thresholds script.js -e BASE_URL=http://127.0.0.1:8802 -e RUN_SLUG=rereview-464-load -e SEND_TRACEPARENT=1
     target: local (127.0.0.1:8802, started with the launcher under target; self-authorized)
+    gates: >
+      both set on purpose, so the one iteration exercises the header the
+      re-authoring added - the smoke is a check of the script, not a
+      drive (a local drive leaves SEND_TRACEPARENT unset)
     exit: 0
     stderr: only k6's `"cli" level configuration overrode scenarios configuration entirely` warning - no level=error, no script exception
     checks: 12 of 12 succeeded; 1 complete and 0 interrupted iterations
     http_req_failed: 0.00% (0 out of 5)
     per_request: >
-      initialize 3.08 ms (200), notifications/initialized 0.40 ms (202),
-      tools/list 1.09 ms, tools/call odd_config_get 2.37 ms, tools/call
-      odd_stack_status 129.39 ms; k6's JSON output listed the three
-      name-scoped sub-metrics with tag values equal to the requests' tags
+      5 requests, iteration_duration 1.15 s: tools/list 1.16 ms,
+      tools/call odd_config_get 2.54 ms, tools/call odd_stack_status
+      141.13 ms (the three name-scoped sub-metrics k6 printed), whole-run
+      http_req_duration min 424 us, med 2.54 ms, max 141.13 ms. All five
+      requests carried the traceparent and the server answered every one
+      of them 200/202 - a synthetic parent changes nothing on the wire.
     not_covered: >
       The per-VU session persistence across iterations and the 404
       re-initialization are exercised only from the second iteration on
@@ -251,4 +325,5 @@ validation:
     - 2026-09-06 smoke, bare `mcp.run(...)` launcher (no telemetry), first draft with the whole-run p95 threshold - exit 0, 12/12 checks, 0/5 failed; 9.75 / 0.58 / 2.38 / 6.82 / 194.07 ms (initialize / initialized / tools/list / config_get / stack_status)
     - 2026-09-06 smoke, same launcher, per-operation thresholds - exit 0, 12/12 checks, 0/5 failed; 3.57 / 0.41 / 1.65 / 2.94 / 122.24 ms
     - 2026-09-06 smoke, telemetry-enabled launcher - exit 0, 12/12 checks, 0/5 failed; 4.34 / 0.54 / 1.33 / 2.50 / 130.37 ms
+    - 2026-09-06 smoke of the script before the traceparent re-authoring (User-Agent identity only), no RUN_SLUG passed - exit 0, 12/12 checks, 0/5 failed; 3.08 / 0.40 / 1.09 / 2.37 / 129.39 ms (initialize / initialized / tools/list / config_get / stack_status); superseded by the record above (issue #464)
   note: a recorded smoke is a record, never authorization for the next one - re-authorized at mission time on every update
