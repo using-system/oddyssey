@@ -110,9 +110,9 @@ Verified live (`aws-cli/2.36.34`, 2026-08; the next three against
 | Metrics (single series, simple) | `aws cloudwatch get-metric-statistics --namespace AWS/EC2 --metric-name CPUUtilization --dimensions Name=InstanceId,Value=i-abcdef --start-time 2014-04-08T23:18:00Z --end-time 2014-04-09T23:18:00Z --period 3600 --statistics Maximum` | [get-metric-statistics](https://docs.aws.amazon.com/cli/latest/reference/cloudwatch/get-metric-statistics.html) | `--period` must be a multiple of 60s; `--statistics` (`SampleCount, Average, Sum, Minimum, Maximum`, max 5) is mutually exclusive with `--extended-statistics` (percentiles). Max 1,440 datapoints per call — narrow the window or widen `--period` if you hit the limit. |
 | Logs (discovery) | `aws logs describe-log-groups --log-group-name-prefix <prefix>` | [describe-log-groups](https://docs.aws.amazon.com/cli/latest/reference/logs/describe-log-groups.html) | Lists log groups (name, ARN, retention, stored bytes), ASCII-sorted by name. `--log-group-name-prefix` and `--log-group-name-pattern` are mutually exclusive. |
 | Logs (simple filter) | `aws logs filter-log-events --log-group-name <name> --filter-pattern "<pattern>" --start-time <epoch-ms> --end-time <epoch-ms>` | [filter-log-events](https://docs.aws.amazon.com/cli/latest/reference/logs/filter-log-events.html) | Pattern-based search across streams in one log group, no aggregation — reach for Logs Insights below for anything needing `stats`/`parse`/joins. Paginated, up to 1&nbsp;MB or 10,000 events per page; `--start-time`/`--end-time` are epoch **milliseconds**, not seconds. An OTel Collector's log exporter commonly writes the whole OTel log record as one JSON body per event (`trace_id`, `span_id`, `resource.service.name`, ...) rather than plain text — see Planning notes for a Logs Insights `parse` example. |
-| Logs (CloudWatch Logs Insights, query language) | `aws logs start-query --log-group-name <name> --start-time <epoch-s> --end-time <epoch-s> --query-string '<CWLI query>'` → poll `aws logs get-query-results --query-id <id>` | [start-query](https://docs.aws.amazon.com/cli/latest/reference/logs/start-query.html), [get-query-results](https://docs.aws.amazon.com/cli/latest/reference/logs/get-query-results.html), [query syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html) | Async: `start-query` returns a `queryId` immediately (`--start-time`/`--end-time` here are epoch **seconds**, unlike `filter-log-events`); poll `get-query-results` until `status` is `Complete` (also: `Scheduled, Running, Failed, Cancelled, Timeout, Unknown`) — a `Running`/`Scheduled` poll returns partial results. The poll loop is in the Planning notes. Queries auto-timeout after 60 minutes; up to 100 concurrent queries per account. `--query-language` defaults to `CWLI` (pipe-separated commands: `fields`, `filter`, `stats`, `sort`, `limit`, `parse`, `dedup`, `stats ... by bin()`, …) but also accepts `SQL` and `PPL`. |
-| Traces (search) | `aws xray get-trace-summaries --start-time <epoch-s> --end-time <epoch-s> --filter-expression 'service("api.example.com")'` | [get-trace-summaries](https://docs.aws.amazon.com/cli/latest/reference/xray/get-trace-summaries.html) | Returns trace IDs + annotation summaries matching the filter, not full trace bodies — feed the IDs to `batch-get-traces` for detail. `--time-range-type` can key the search on `TraceId` (default), `Event`, or `Service`. The filter-expression vocabulary is a fixed set of reserved fields and functions — `http.status`, `http.method`, `http.url`, `responsetime`, `error`/`fault`/`throttle`, `annotation[<key>]` for custom annotations (the square brackets are mandatory when the key contains dots — which OTel-derived keys routinely do), `service("name")`, `duration`, ... ([full syntax](https://docs.aws.amazon.com/xray/latest/devguide/xray-console-filters.html)) — not OTel semconv attribute names: an invented-by-analogy name (`responsecode("404")`) fails with `InvalidRequestException ... Invalid input symbol` pointing at a byte offset, nothing saying "unknown field". Verified working form for status filtering: `http.status = 404`. `StartTime`/`ApproximateTime` render in the machine's **local offset** (`2026-09-04T22:24:49+02:00`), not UTC, while every log timestamp is UTC — convert with `date -u` or a timezone-aware parser before bucketing, never by string prefix; `MatchedEventTime` is `null` unless the search runs with `--time-range-type Event` (verified 2026-09-04). A summary's `Duration` is the **root segment's**: with an instrumented client (a load generator) the root is the client's own span and `Duration` its view of the request, never shorter than the server segment (verified 2026-09-05 on the window's longest trace: root `POST` 0.805 s against the `orders-api` segment's 0.803 s; a 2026-09-04 campaign saw 2-3 ms against 0.8-1.0 ms on client-side stalls) — server-side percentiles come from `batch-get-traces` segments (sampled) or the per-node `ResponseTimeHistogram` of `get-service-graph` (all operations folded; the per-edge one is the client's view). `TracesProcessedCount` is **per page**, never the population: count the `TraceSummaries` array with `jq` (its `length`) on the captured auto-paginated `--output json` (verified 2026-09-05: 2021 per page, 20338 aggregated over 3 h); a range longer than 24 h is refused (`Time range cannot be longer than 24 hours`). `Http.UserAgent` is `null` on every summary whose root is a client span (verified 2026-09-05: 20338 of 20338), and `http.useragent CONTAINS "odd-verify"` then matches nothing even where the run's traces are (verified 2026-09-04: 0 over a range holding 120 traces carrying the run's trace-id prefix): the header-borne run identity of `run-scenario`'s `run-identity.md` is **not readable on X-Ray summaries** — only the trace-id prefix identifies a run there. |
-| Traces (full detail) | `aws xray batch-get-traces --trace-ids <id1> ... <id5>` (at most **5** IDs per call — a sixth fails with `InvalidRequestException: Exceeding maximum query size: 5`, verified 2026-09-04; batch and loop) | [batch-get-traces](https://docs.aws.amazon.com/cli/latest/reference/xray/batch-get-traces.html) | Returns full segment/subsegment JSON per trace ID (duration, resources, exceptions, annotations). Does not work if the account has Transaction Search enabled — traces then aren't indexed in classic X-Ray and must be queried differently. |
+| Logs (CloudWatch Logs Insights, query language) | `aws logs start-query --log-group-name <name> --start-time <epoch-s> --end-time <epoch-s> --query-string '<CWLI query>'` → poll `aws logs get-query-results --query-id <id>` | [start-query](https://docs.aws.amazon.com/cli/latest/reference/logs/start-query.html), [get-query-results](https://docs.aws.amazon.com/cli/latest/reference/logs/get-query-results.html), [query syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html) | Async: `start-query` returns a `queryId` immediately (`--start-time`/`--end-time` here are epoch **seconds**, unlike `filter-log-events`); poll `get-query-results` until `status` is `Complete` (also: `Scheduled, Running, Failed, Cancelled, Timeout, Unknown`) — a `Running`/`Scheduled` poll returns partial results. The poll loop is in the Planning notes. Queries auto-timeout after 60 minutes; up to 100 concurrent queries per account. `--query-language` defaults to `CWLI` (pipe-separated commands: `fields`, `filter`, `stats`, `sort`, `limit`, `parse`, `dedup`, `stats ... by bin()`, …) but also accepts `SQL` and `PPL`. Its aggregations are **zero-safe**: over a window where nothing matches, `stats sum(severity_number >= 17) as errors` and `count_distinct(...)` come back as a row holding `0`, not as an empty result (verified 2026-09-06) — so a protocol's zero branch validates here as a measured `0`, and needs no separate "did the query even run" probe. |
+| Traces (search) | `aws xray get-trace-summaries --start-time <epoch-s> --end-time <epoch-s> --filter-expression 'service("api.example.com")'` | [get-trace-summaries](https://docs.aws.amazon.com/cli/latest/reference/xray/get-trace-summaries.html) | Returns trace IDs + annotation summaries matching the filter, not full trace bodies — feed the IDs to `batch-get-traces` for detail. `--time-range-type` can key the search on `TraceId` (default), `Event`, or `Service`. The filter-expression vocabulary is a fixed set of reserved fields and functions — `http.status`, `http.method`, `http.url`, `responsetime`, `error`/`fault`/`throttle`, `annotation[<key>]` for custom annotations (the square brackets are mandatory when the key contains dots — which OTel-derived keys routinely do), `service("name")`, `duration`, ... ([full syntax](https://docs.aws.amazon.com/xray/latest/devguide/xray-console-filters.html)) — not OTel semconv attribute names: an invented-by-analogy name (`responsecode("404")`) fails with `InvalidRequestException ... Invalid input symbol` pointing at a byte offset, nothing saying "unknown field". Verified working form for status filtering: `http.status = 404`. `StartTime`/`ApproximateTime` render in the machine's **local offset** (`2026-09-04T22:24:49+02:00`), not UTC, while every log timestamp is UTC — convert with `date -u` or a timezone-aware parser before bucketing, never by string prefix; `MatchedEventTime` is `null` unless the search runs with `--time-range-type Event` (verified 2026-09-04). A summary's `Duration` is the **root segment's**: with an instrumented client (a load generator) the root is the client's own span and `Duration` its view of the request, never shorter than the server segment (verified 2026-09-05 on the window's longest trace: root `POST` 0.805 s against the `orders-api` segment's 0.803 s; a 2026-09-04 campaign saw 2-3 ms against 0.8-1.0 ms on client-side stalls) — server-side percentiles come from `batch-get-traces` segments (sampled) or the per-node `ResponseTimeHistogram` of `get-service-graph` (all operations folded; the per-edge one is the client's view). `TracesProcessedCount` is **per page**, never the population — and the value carried by an auto-paginated `--output json` is not the first page's either (verified 2026-09-06, aws-cli 2.36.37: 728 on the aggregated output against 735 on that run's first page; which page it does come from was not established): count the `TraceSummaries` array with `jq` (its `length`) on the captured auto-paginated `--output json` (verified 2026-09-05: 2021 per page, 20338 aggregated over 3 h); a range longer than 24 h is refused (`Time range cannot be longer than 24 hours`). `Http.UserAgent` reads **whoever rooted the trace**. When the root is an instrumented client's own span (a load generator that traces itself), it is `null` on every summary (verified 2026-09-05: 20338 of 20338), and `http.useragent CONTAINS "odd-verify"` then matches nothing even where the run's traces are (verified 2026-09-04: 0 over a range holding 120 traces carrying the run's trace-id prefix): there the header-borne run identity of `run-scenario`'s `run-identity.md` is **not readable on X-Ray summaries** and only the trace-id prefix identifies a run. When the generator emits **no client span of its own** — stock k6 emits none, so the server's own segment roots the trace; a tracing extension on the generator would change that — the header survives into the summary: `Http.UserAgent` carries the run's `odd-observe/<slug>` User-Agent on every summary (verified 2026-09-06), which makes the User-Agent the **preferred** selector for such a run. Read it **client-side** off the captured summaries (one unfiltered call, split client-side — Planning notes): the server-side `http.useragent CONTAINS` form was not re-tested on server-rooted traces (2026-09-06), and its only measured result remains the empty one above, under an instrumented client. Warmup requests carry the `-warmup` suffix (Planning notes: a run's t0). |
+| Traces (full detail) | `aws xray batch-get-traces --trace-ids <id1> ... <id5>` (at most **5** IDs per call — a sixth fails with `InvalidRequestException: Exceeding maximum query size: 5`, verified 2026-09-04; batch and loop) | [batch-get-traces](https://docs.aws.amazon.com/cli/latest/reference/xray/batch-get-traces.html) | Returns full segment/subsegment JSON per trace ID (duration, resources, exceptions, annotations). A segment document's `metadata.default` keys are **flat dotted strings**, not nested objects — the literal key is `"otel.resource.service.instance.id"`, one key — so a path-like lookup (`.metadata.default.otel.resource.service.name`) resolves to nothing and reads exactly like an absent attribute; index the whole key instead (`.metadata.default["otel.resource.service.name"]`), verified 2026-09-06. Does not work if the account has Transaction Search enabled — traces then aren't indexed in classic X-Ray and must be queried differently. |
 | Traces (service map) | `aws xray get-service-graph --start-time <epoch-s> --end-time <epoch-s>` | [get-service-graph](https://docs.aws.amazon.com/cli/latest/reference/xray/get-service-graph.html) | The node/edge graph backing the X-Ray console's Service Map — use for a topology view rather than individual trace inspection. |
 | Profiles | Not a CloudWatch signal — profiling lives in the separate Amazon CodeGuru Profiler service: `aws codeguruprofiler list-profiling-groups --include-description` then `aws codeguruprofiler get-profile --profiling-group-name <name> --period P1D --accept application/json <outfile>` | [codeguruprofiler CLI reference](https://docs.aws.amazon.com/cli/latest/reference/codeguruprofiler/index.html), [get-profile](https://docs.aws.amazon.com/cli/latest/reference/codeguruprofiler/get-profile.html), [list-profiling-groups](https://docs.aws.amazon.com/cli/latest/reference/codeguruprofiler/list-profiling-groups.html), [What is CodeGuru Profiler](https://docs.aws.amazon.com/codeguru/latest/profiler-ug/what-is-codeguru-profiler.html) | `get-profile` writes the aggregated profile to a positional `<outfile>`; pick the window with 1 or 2 of `--start-time`/`--end-time`/`--period` (ISO 8601, e.g. `P1DT1H1M1S`), max range **7 days**. `--accept` defaults to `application/x-amzn-ion` — pass `application/json` for a readable profile. `--max-depth` (1–10000) caps stack depth. Requires the CodeGuru Profiler agent in the application and a profiling group; supported runtimes are JVM languages and Python 3.6+. No `aws cloudwatch`/`aws logs`/`aws xray` command returns profiles. |
 
@@ -226,6 +226,15 @@ call answers with its usage text and exit 252.
   earliest` and `max == latest` and the magnitude exceeds any
   per-interval count, delta otherwise; diff the former, `sum()` the
   latter.
+- **An EMF gauge's `Max` is not the window's peak — and what it *is*
+  was not ruled.** Read per minute over a run, the `Max` of the gauge
+  `http.server.active_requests` returned 0–8 while roughly 150 requests
+  were concurrently in flight at 200 req/s (verified 2026-09-06). What
+  the exporter's collection interval makes of a gauge — which instants
+  it samples, and what a minute's `Max`/`Sum` then aggregates over
+  those samples — was **not** ruled by that run: treat a gauge's EMF
+  `Max`/`Sum` as unexplained rather than as the run's concurrency, and
+  say so in a report instead of quoting the number as a peak.
 - **The `start-query` → `get-query-results` poll**, so no mission
   rewrites it (bash; verified 2026-09-05 — a terminal status other
   than `Complete` is the answer, and the cap keeps a `Running` query
@@ -241,6 +250,56 @@ call answers with its usage text and exit 252.
   done
   aws logs get-query-results --query-id "$id" --output json
   ```
+
+  The loop is bounded by **its own iteration cap**, never by an
+  external `timeout` wrapper: `timeout(1)` is not present on macOS
+  (`command not found: timeout`, verified 2026-09-06), so `timeout
+  <seconds> aws logs get-query-results ...` fails on the host instead
+  of bounding anything. A poll that must be bounded computes its
+  deadline inside the loop (or keeps the `seq` cap above), and a
+  single call is bounded by the `aws` CLI's own timeout settings —
+  read them from `aws help` rather than from memory.
+- **No documented ingest-latency figure — wait per signal, on a proof
+  where there is one.** None of the four pages checked for one
+  publishes an ingest delay to wait out before querying a run (checked
+  2026-09-06:
+  [What is Amazon CloudWatch Logs?](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html),
+  [Analyzing log data with CloudWatch Logs Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AnalyzingLogData.html),
+  [Getting data from AWS X-Ray](https://docs.aws.amazon.com/xray/latest/devguide/xray-api-gettingdata.html),
+  [Setting alarms on metrics created with the embedded metric format](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Embedded_Metric_Format_Alarms.html)).
+  Two directional statements are documented, each on its own page:
+  ingested logs can be viewed "in near real time" through Live Tail —
+  a different feature from Logs Insights —
+  ([What is Amazon CloudWatch Logs?](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html)),
+  and EMF metric generation "depends on your log publishing flow
+  because CloudWatch Logs needs to process logs so they can be
+  transformed into metrics"
+  ([Setting alarms on metrics created with the embedded metric format](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Embedded_Metric_Format_Alarms.html));
+  to which `list-metrics` adds its own warning that a *newly created*
+  metric can take up to 15 minutes to appear (Query by signal above).
+  So no signal is waited on by the clock, and the three are not waited
+  on alike:
+  - **Logs** — poll the Logs Insights `stats max(@timestamp)` probe of
+    the freshness bullet in Reading aws output above until it reaches
+    the run's end. That is a landing proof for the log records, and
+    the only one this reference carries (verified 2026-09-06: with no
+    figure here, an observation fell back to exactly this bounded
+    proof).
+  - **Metrics** — the same probe is a **lower bound only**: the EMF
+    quote above puts the extraction *after* CloudWatch Logs has
+    processed the record, so a landed log record does not mean the
+    metric exists yet. The confirmation is the metric read itself —
+    the window's `get-metric-data`/`get-metric-statistics` call coming
+    back with datapoints (and, on a cumulative pipeline, an edge diff
+    that moves) — and an empty result read this early is "not
+    extracted yet", shaped exactly like the other empties this file
+    warns about.
+  - **Traces** — **no landing proof was established** (2026-09-06):
+    the observation that produced these notes read X-Ray after the
+    logs proof and never measured how long a summary takes to become
+    searchable. Until one is measured, a trace count read once is an
+    observation, not a proven landing — say which it is in the report,
+    and never fill the gap with a figure quoted from somewhere else.
 - CloudWatch Logs Insights (`start-query`/`get-query-results`) and
   `filter-log-events` use **different time units** for the same-named flags
   — `filter-log-events` wants epoch milliseconds, `start-query` wants epoch
@@ -272,6 +331,29 @@ call answers with its usage text and exit 252.
   bin(5m)` fails with `MalformedQueryException: unexpected symbol
   found ( at line 1 and position 115` (verified 2026-09-05); drop the
   `sort` — the by-bin output is already ordered newest-first.
+- **A run's t0 is its first request *without* `-warmup`.** When a run's
+  stages are carved out of X-Ray summary timestamps, take
+  `min(StartTime)` over the summaries whose `Http.UserAgent` is the
+  run's User-Agent **minus** the warmup suffix (`run-scenario`'s
+  `run-identity.md`, "The run starts after the warmup", appends
+  `-warmup` on warmup requests, and the suffix is readable here on a
+  server-rooted trace — the Traces (search) row). Taking it over the
+  whole identity puts t0 on the warmup request, which precedes the
+  load, and every stage boundary
+  derived from t0 shifts with it — the whole run mis-buckets, with no
+  error anywhere (verified 2026-09-06: stage counts of n=1 for the
+  baseline and n=176 for the burst until the `-warmup` User-Agent was
+  excluded from t0).
+- **Summary volume scales with the run's request rate — make one
+  unfiltered call and split it client-side.** `get-trace-summaries`
+  returns one summary per trace, so a window costs what the traffic
+  costs: a 10-minute window at up to 200 req/s came back as 60547
+  summaries — a 102 MB JSON, ~40 s of auto-paginated call (verified
+  2026-09-06, aws-cli 2.36.37). Budget the window at that rate, and
+  make **one** unfiltered call, splitting the summaries client-side by
+  `Http.UserAgent` (the Traces (search) row): a second, filtered call
+  over the same window doubles both the wait and the bytes for rows
+  the first call already carries.
 - `batch-get-traces` explicitly does not work once Transaction Search is
   enabled on the account (traces stop being indexed in classic X-Ray) — a
   quirk worth checking for before assuming this path works in a given

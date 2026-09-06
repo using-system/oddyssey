@@ -157,13 +157,15 @@ whole, 19 K by section). List a file's headings first (one `grep -n
 - `run-scenario`: in **drive** mode, its `SKILL.md` (the `## Read by
   situation` router, then the method, steps 1 to 5),
   `references/run-identity.md` by the block that
-  applies (the clean run always; the port already served, the run that
-  launches nothing, the forbidden reset when they do),
+  applies (the clean run and the run's start after the warmup always;
+  the port already served, the run that launches nothing, the
+  forbidden reset when they do),
   `references/long-scenarios.md` when an iteration is expensive or the
   scenario outlasts a tool call, and `references/benchmark-replay.md`
   only when the mission carries a benchmark; in the other modes,
-  `run-identity.md`'s clean-run and port blocks, `## 4. Record
-  verbatim` and `## 5.` of `SKILL.md` only;
+  `run-identity.md`'s clean-run, port and after-the-warmup blocks (the
+  after-the-warmup one carves the stages of a run someone else drove),
+  `## 4. Record verbatim` and `## 5.` of `SKILL.md` only;
 - `odd-memory`'s `observe-run-report` reference: `## Recall: reading
   the memory` at step 5, and nothing else then; at report time,
   `## Where reports live`, `## The file format`, `## Return value` and
