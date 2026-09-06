@@ -55,6 +55,18 @@ Retention matters little on this stack (no volume, a reset wipes
 everything anyway); the interesting entries are behavioral ones like
 Tempo's MCP server.
 
+**Out of reach of `TEMPO_EXTRA_ARGS`: the metrics-generator's
+span-metrics `dimensions`** — the lever that would put an instance
+label on the `traces_spanmetrics_*` and `traces_service_graph_*` series
+(the skill's `## Datasources`). They are set in the image's baked
+`tempo-config.yaml`; Tempo exposes no flag for them (`-help` carries
+only `-metrics-generator.native-histogram-*`), and `-config.expand-env`
+cannot inject one because that config holds no placeholder. Like OBI
+below, it is out of reach of `env` alone — the manual `docker run`
+escape hatch is the only way to a different config, and a hand-mounted
+one does not survive a reset (verified 2026-09-06, Tempo 3.0.3 on the
+pinned tag).
+
 ## OTLP forwarding — dual-write to a remote backend
 
 `OTEL_EXPORTER_OTLP_ENDPOINT` (traces, metrics, and logs — OTLP/HTTP,
