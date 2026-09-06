@@ -60,7 +60,8 @@ The native artifacts are generated from the APM package on every
 release (`marketplace/`, built by `scripts/build-marketplace.sh`) and
 carry the same agents, commands, skills, and pinned MCP server. The
 other CLIs (Codex, opencode, Cursor, Windsurf, Kiro, Gemini) install
-via APM above.
+via APM above. opencode and Cursor install into the current
+repository only — leave `--global` out.
 
 ## The idea
 
