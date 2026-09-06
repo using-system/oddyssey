@@ -60,10 +60,8 @@ export const options = {
 
 This is the shape a benchmark manifest's warmup/ramp/steady profile
 stages map onto - `stages` is k6's own vocabulary for it (the
-`ramping-vus` executor under the hood; see
-https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/ for the
-full executor list when a benchmark needs a shape other than staged
-ramping - e.g. `constant-vus`, `constant-arrival-rate`).
+`ramping-vus` executor under the hood; see "Executors" below when a
+benchmark needs a shape other than staged ramping).
 
 **Discarding warmup**: k6 runs one continuous window - there is no
 built-in "discard the first N seconds" the way `run-scenario`'s own
@@ -115,10 +113,83 @@ So a benchmark's request rate is set by VU count **and** pacing
 together - a manifest that records stages but not the pacing has not
 recorded the load. When a benchmark needs an *exact* request rate
 rather than one that drifts with the target's response time, don't
-pace with `sleep`: use the `constant-arrival-rate` executor (named
-above), which holds iterations/s directly and starts however many VUs
-that takes. Source:
+pace with `sleep`: use the `constant-arrival-rate` executor (see
+"Executors" below), which holds iterations/s directly and starts
+however many VUs that takes. Source:
 https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/constant-arrival-rate/
+
+## Executors - the shape a benchmark declares
+
+`options.stages` is shorthand for one executor (`ramping-vus`); every
+other load shape is declared explicitly under `options.scenarios`, with
+`executor` naming it. The fields below are the executor pages' own
+option tables (fetched 2026-09-06 from
+`using-k6/scenarios/executors/<name>/.md`, k6 v2), types and defaults
+as those tables state them. Each executor also takes the common
+scenario options its page prefixes that table with - `executor`
+(required, the name below), `startTime`, `gracefulStop`, `exec`, `env`,
+`tags`, `options` - listed on
+https://grafana.com/docs/k6/latest/using-k6/scenarios/#options, which is
+where the executor pages link:
+
+| Executor | Fields |
+| --- | --- |
+| `per-vu-iterations` | `vus` (integer, default `1`), `iterations` per VU (integer, default `1`), `maxDuration` (string, default `"10m"`) - total iterations = `vus * iterations` |
+| `constant-vus` | `duration` (string) **required**, `vus` (integer, default `1`) - the top-level `vus` + `duration` options are this executor's documented shortcut |
+| `ramping-vus` | what `options.stages` declares (above): `stages` (array) **required** (default `[]`), `startVUs` (integer, default `1`), `gracefulRampDown` (string, default `"30s"`) - the wait for an already started iteration to finish before it is stopped during a ramp down, applied whether or not the script names it |
+| `constant-arrival-rate` | `duration` (string), `rate` (integer), `preAllocatedVUs` (integer) **all required**; `timeUnit` (string, default `"1s"`), `maxVUs` (integer, defaults to `preAllocatedVUs`) |
+| `ramping-arrival-rate` | `stages` (array), `preAllocatedVUs` (integer) **both required**; `startRate` (integer, default `0`), `timeUnit` (string, default `"1s"`), `maxVUs` (integer, defaults to `preAllocatedVUs`) |
+
+Full list, including `shared-iterations`:
+https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/
+
+**What the official test-type pages actually use.** Fetched 2026-09-06,
+all six of `testing-guides/test-types/*`: smoke sets top-level `vus` +
+`duration`; average-load, soak, stress and spike each set
+`options.stages`; **breakpoint alone** recommends an arrival-rate
+executor - "That makes it recommendable to use `ramping-arrival-rate`
+for a breakpoint test". The string `arrival-rate` does not appear on
+the other five pages. test-types.md's Shape column is those pages.
+
+**When this package departs from that - a convention of this repository,
+not a k6 recommendation.** A VU-count shape (`stages`, `constant-vus`)
+bounds concurrency, and the achieved request rate then drifts with the
+target's response time (see "Pacing" above). So a benchmark whose
+stated input is a **request rate** declares an arrival-rate executor
+whatever its test type - `constant-arrival-rate` for a flat rate,
+`ramping-arrival-rate` for a ramped one - and one whose stated input is
+a concurrency uses the official page's shape as written. Nothing on the
+k6 pages says this; it follows from the open/closed model distinction
+the arrival-rate pages do document
+(https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/open-vs-closed/).
+
+Two things the arrival-rate pages state outright, both easy to get
+wrong: a `ramping-arrival-rate` stage's `target` is an **iteration
+count per `timeUnit`**, not a VU count; and **no `sleep` at the end of
+an iteration** under either arrival-rate executor - the rate already
+paces it.
+
+**Arrival rates are integers.** `rate`, `startRate`, `preAllocatedVUs`
+and `maxVUs` are typed `integer` in the pages' option tables. A stage's
+`target` is **not** typed there - `stages` is typed `array` and the
+pages describe `target` in prose only - but the binary rejects a
+fractional one exactly the same way. Express a fractional rate by
+dilating `timeUnit`: 1.5 iterations/s is `3` per `'2s'`. Verified live
+(this machine, 2026-09-06, k6 v2.2.0), on a `ramping-arrival-rate`
+scenario:
+
+- `startRate: 1.5` - `k6 inspect` exits **104**, stderr `parsing
+  options from script got error ... json: cannot unmarshal number 1.5
+  into Go struct field Options.scenarios.startRate of type int64`.
+- a stage `target: 2.5` - same failure on
+  `Options.scenarios.stages.target of type int64`, and it is reported
+  first, before the `startRate` one.
+- `startRate: 3` with `timeUnit: '2s'` - `k6 inspect` exits 0 and
+  prints the scenario back with `"startRate": 3, "timeUnit": "2s"`.
+
+The violation stops the script from loading, so no partial run hides
+it - but the message names the Go field rather than the option written
+in the script, which is why it reads as opaque the first time.
 
 ## Response bodies - `discardResponseBodies` and `responseType`
 
