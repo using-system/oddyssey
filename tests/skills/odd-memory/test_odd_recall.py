@@ -139,6 +139,7 @@ def lines(proc: subprocess.CompletedProcess) -> list[list[str]]:
 
 OBS = ".odd/observe-run-reports"
 INS = ".odd/otel-instrumentation-reports"
+BENCH = ".odd/benchmarks"
 
 
 def store(repo: Repo) -> None:
@@ -337,6 +338,250 @@ def test_instrumentation_reports_match_when_the_project_covers_the_scope(repo):
         == []
     )
     assert lines(run(repo, "--kind", "instrumentation")) != []
+
+
+# --- benchmarks: a set, not a baseline -----------------------------------------------
+
+
+def manifest(
+    *,
+    name="checkout-load",
+    service="checkout",
+    test_type="load",
+    executor="constant-vus",
+    authored="2026-08-10",
+) -> str:
+    return "\n".join(
+        [
+            "# Benchmark manifest - living source, updated in place.",
+            f"name: {name}",
+            f"service: {service}",
+            "engine: k6",
+            "script: script.js",
+            f"test_type: {test_type} # the directory's type word",
+            f"authored: {authored}",
+            "issue: 400",
+            "",
+            "target:",
+            "  name: not-the-benchmark",
+            "  service: not-the-service",
+            "  description: >-",
+            "    A block the recall never reads: executor: not-the-executor",
+            "",
+            "profile:",
+            f"  executor: {executor}   # k6's executor",
+            "  vus: 10",
+            "  stages:",
+            "    - name: steady",
+            "      target: 10",
+            "",
+        ]
+    )
+
+
+def benchmarks(repo: Repo) -> None:
+    for rel, text in (
+        ("checkout-load", manifest()),
+        (
+            "checkout-smoke",
+            manifest(
+                name="checkout-smoke",
+                test_type="smoke",
+                executor="shared-iterations",
+                authored="2026-08-12",
+            ),
+        ),
+        (
+            "payment-spike",
+            manifest(
+                name="payment-spike",
+                service="payment",
+                test_type="spike",
+                executor="ramping-vus",
+                authored="2026-08-11",
+            ),
+        ),
+    ):
+        repo.write(f"{BENCH}/{rel}/manifest.yaml", text)
+        repo.write(f"{BENCH}/{rel}/script.js", "export default function () {}\n")
+    repo.commit("docs(odd): benchmarks")
+
+
+def test_a_benchmark_recall_lists_the_whole_set_newest_first(repo):
+    benchmarks(repo)
+    proc = run(repo, "--kind", "benchmark")
+    assert proc.returncode == 0, proc.stderr
+    # the manifest's own columns: the inline comment is not part of the
+    # value, and a nested key of another block never reaches one
+    assert lines(proc) == [
+        ["checkout-smoke", "checkout", "smoke", "shared-iterations", "2026-08-12"],
+        ["payment-spike", "payment", "spike", "ramping-vus", "2026-08-11"],
+        ["checkout-load", "checkout", "load", "constant-vus", "2026-08-10"],
+    ]
+    assert proc.stderr == ""
+
+
+def test_benchmarks_authored_the_same_day_list_by_name(repo):
+    repo.write(f"{BENCH}/b-one/manifest.yaml", manifest(name="b-one"))
+    repo.write(f"{BENCH}/a-two/manifest.yaml", manifest(name="a-two"))
+    repo.commit("docs(odd): benchmarks")
+    assert [l[0] for l in lines(run(repo, "--kind", "benchmark"))] == ["a-two", "b-one"]
+
+
+def test_a_benchmark_matches_on_its_declared_target_service(repo):
+    benchmarks(repo)
+    assert [
+        l[0] for l in lines(run(repo, "--kind", "benchmark", "--service", "checkout"))
+    ] == ["checkout-smoke", "checkout-load"]
+    assert (
+        len(
+            lines(
+                run(
+                    repo,
+                    "--kind",
+                    "benchmark",
+                    "--service",
+                    "checkout",
+                    "--service",
+                    "payment",
+                )
+            )
+        )
+        == 3
+    )
+
+
+def test_the_directory_is_the_identity_and_a_manifest_naming_another_is_flagged(repo):
+    repo.write(f"{BENCH}/checkout-load/manifest.yaml", manifest(name="renamed"))
+    repo.commit("docs(odd): benchmark")
+    proc = run(repo, "--kind", "benchmark")
+    assert [l[0] for l in lines(proc)] == ["checkout-load"]
+    assert (
+        "checkout-load: manifest name 'renamed' differs from the directory name"
+        in proc.stderr
+    )
+
+
+def test_a_benchmark_without_a_readable_manifest_still_takes_its_name(repo):
+    # the listing is what says a name is taken: a directory dropped from it
+    # would read as a free name, and the agent would author over it
+    repo.write(f"{BENCH}/checkout-load/manifest.yaml", manifest())
+    repo.write(f"{BENCH}/no-manifest/script.js", "export default function () {}\n")
+    (repo.root / BENCH / "unreadable").mkdir(parents=True)
+    (repo.root / BENCH / "unreadable" / "manifest.yaml").write_bytes(
+        b"name: unreadable\nservice: \xff\xfe\n"
+    )
+    repo.commit("docs(odd): benchmarks")
+    proc = run(repo, "--kind", "benchmark", "--service", "checkout")
+    assert proc.returncode == 0
+    assert lines(proc) == [
+        ["checkout-load", "checkout", "load", "constant-vus", "2026-08-10"],
+        ["no-manifest", "-", "-", "-", "-"],
+        ["unreadable", "-", "-", "-", "-"],
+    ]
+    assert "no-manifest: no manifest.yaml in the directory" in proc.stderr
+    assert "unreadable: unreadable manifest.yaml" in proc.stderr
+
+
+def test_a_manifest_without_a_target_service_is_listed_and_flagged(repo):
+    repo.write(
+        f"{BENCH}/checkout-load/manifest.yaml",
+        manifest().replace("service: checkout\n", ""),
+    )
+    repo.commit("docs(odd): benchmark")
+    proc = run(repo, "--kind", "benchmark", "--service", "checkout")
+    assert proc.returncode == 0
+    assert lines(proc) == [["checkout-load", "-", "load", "constant-vus", "2026-08-10"]]
+    assert "checkout-load: service absent" in proc.stderr
+
+
+def test_a_benchmark_of_several_services_matches_on_any_of_them(repo):
+    repo.write(
+        f"{BENCH}/pair/manifest.yaml",
+        manifest(name="pair", service="[checkout, payment]"),
+    )
+    repo.commit("docs(odd): benchmark")
+    assert lines(run(repo, "--kind", "benchmark", "--service", "payment")) == [
+        ["pair", "checkout,payment", "load", "constant-vus", "2026-08-10"]
+    ]
+    assert lines(run(repo, "--kind", "benchmark", "--service", "orders")) == []
+
+
+def test_an_authored_date_of_another_shape_is_flagged_since_the_order_reads_it(repo):
+    repo.write(f"{BENCH}/checkout-load/manifest.yaml", manifest(authored="10/08/2026"))
+    repo.commit("docs(odd): benchmark")
+    proc = run(repo, "--kind", "benchmark")
+    assert [l[4] for l in lines(proc)] == ["10/08/2026"]
+    assert "checkout-load: authored '10/08/2026' is not YYYY-MM-DD" in proc.stderr
+
+
+def test_a_benchmark_the_scope_rules_out_is_still_flagged(repo):
+    benchmarks(repo)
+    repo.write(
+        f"{BENCH}/payment-spike/manifest.yaml",
+        manifest(name="renamed", service="payment", test_type="spike"),
+    )
+    repo.commit("docs(odd): benchmark")
+    proc = run(repo, "--kind", "benchmark", "--service", "checkout")
+    assert [l[0] for l in lines(proc)] == ["checkout-smoke", "checkout-load"]
+    assert (
+        "not matched, flagged: payment-spike: manifest name 'renamed' differs"
+        in proc.stderr
+    )
+
+
+def test_a_file_at_the_root_of_the_store_is_not_a_benchmark(repo):
+    benchmarks(repo)
+    repo.write(f"{BENCH}/notes.md", "not a benchmark\n")
+    repo.commit("docs(odd): note")
+    proc = run(repo, "--kind", "benchmark")
+    assert len(lines(proc)) == 3
+    assert "not a benchmark directory, ignored: notes.md" in proc.stderr
+
+
+def test_an_absent_benchmark_store_is_a_first_run(repo):
+    proc = run(repo, "--kind", "benchmark")
+    assert proc.returncode == 0 and proc.stdout == ""
+    assert "no benchmark under .odd/benchmarks/ - a first run" in proc.stderr
+
+
+def test_a_benchmark_scope_matching_nothing_says_what_exists(repo):
+    benchmarks(repo)
+    proc = run(repo, "--kind", "benchmark", "--service", "orders")
+    assert proc.returncode == 0 and proc.stdout == ""
+    assert "no stored benchmark matches service orders" in proc.stderr
+    assert "services: checkout, payment" in proc.stderr
+    assert "test types: load, smoke, spike" in proc.stderr
+
+
+def test_a_defective_directory_does_not_swallow_what_the_scope_missed(repo):
+    # the line a defective directory always contributes is not a match: the
+    # scope still selected nothing, so what exists is still told
+    benchmarks(repo)
+    (repo.root / BENCH / "empty").mkdir(parents=True)
+    proc = run(repo, "--kind", "benchmark", "--service", "orders")
+    assert proc.returncode == 0
+    assert lines(proc) == [["empty", "-", "-", "-", "-"]]
+    assert "empty: no manifest.yaml in the directory" in proc.stderr
+    assert "no stored benchmark matches service orders" in proc.stderr
+    assert "services: checkout, payment" in proc.stderr
+    assert "test types: load, smoke, spike" in proc.stderr
+
+
+def test_the_report_flags_are_refused_on_the_benchmark_kind(repo):
+    benchmarks(repo)
+    for args, named in (
+        (("--stack", "local"), "--stack, --env, --mode and --depth"),
+        (("--env", "prod"), "--stack, --env, --mode and --depth"),
+        (("--mode", "drive"), "--stack, --env, --mode and --depth"),
+        (("--depth", "full"), "--stack, --env, --mode and --depth"),
+        (("--project", "x"), "--project applies to instrumentation reports only"),
+    ):
+        proc = run(repo, "--kind", "benchmark", *args)
+        assert proc.returncode == 2 and proc.stdout == "", args
+        assert len(proc.stderr.strip().splitlines()) == 1, args
+        # the refusal names the flags it refuses, not just an exit code
+        assert named in proc.stderr, args
 
 
 # --- nothing matches, nothing stored -------------------------------------------------

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""List the stored reports a mission's recall should consider, newest first.
+"""List the stored memory a mission's recall should consider, newest first.
 
 A recall used to read every stored report's frontmatter into the
 conversation to find one baseline. This script reads them in Python
@@ -9,19 +9,32 @@ are the odd-memory references'; the script applies the flags it is
 given, and each reference says which flags a mission passes.
 
 Standard library and git only; it imports no other skill's script.
-stdout carries the matches only, one per line, tab-separated:
+stdout carries the matches only, one per line, tab-separated. A report
+kind prints
 
     filename  kind  services|project  stack  environment  mode  depth  verifies  workload  repository
 
 (``-`` for an absent value; a plan carries its ``project`` in the third
-column and ``-`` in the observation-only ones). stderr carries what is
-not a match: a report the memory contract's frontmatter checks flag
-(listed all the same, never skipped silently), a newer quick report a
-full mission skips, a scope matching nothing and what exists instead,
-an absent store. Exit 0 in every one of those cases - a first run is
-normal; 2 on a usage error or outside a git repository.
+column and ``-`` in the observation-only ones). A benchmark is a
+directory, not a dated file, and it is recalled as a set - the whole
+listing is what the mission checks itself against, not just its first
+line - so it prints its own five columns, read from the manifest:
 
-    python3 odd_recall.py [--repo PATH] [--kind observation|instrumentation]
+    name  service  test_type  executor  authored
+
+Every benchmark directory prints such a line, ``-`` in each column its
+manifest could not fill: the listing is what says a name is taken, and
+a name dropped from it would read as free.
+
+stderr carries what is not a match: a report the memory contract's
+frontmatter checks flag, or a benchmark whose manifest a recall cannot
+read (listed all the same, never skipped silently), a newer quick
+report a full mission skips, a scope matching nothing and what exists
+instead, an absent store. Exit 0 in every one of those cases - a first
+run is normal; 2 on a usage error or outside a git repository.
+
+    python3 odd_recall.py [--repo PATH]
+                          [--kind observation|instrumentation|benchmark]
                           [--service S ...] [--stack S] [--env E]
                           [--depth quick|full] [--mode M ...] [--project P]
 """
@@ -38,6 +51,7 @@ from typing import Any, NoReturn
 STORES = {
     "observation": ".odd/observe-run-reports",
     "instrumentation": ".odd/otel-instrumentation-reports",
+    "benchmark": ".odd/benchmarks",
 }
 COLUMNS = (
     "filename",
@@ -51,6 +65,9 @@ COLUMNS = (
     "workload",
     "repository",
 )
+BENCHMARK_COLUMNS = ("name", "service", "test_type", "executor", "authored")
+MANIFEST = "manifest.yaml"
+MANIFEST_LINE_RE = re.compile(r"^(\s*)([A-Za-z_][\w.-]*):(.*)$")
 # the frontmatter contract's shapes, exactly as get-status's memory invariant
 # reads them - a test asserts the two agree on a set of report shapes
 FRONTMATTER_LINE_RE = re.compile(r"^([A-Za-z_][\w.-]*):(.*)$")
@@ -437,6 +454,197 @@ def recall(root: Path, kind: str, scope: dict) -> tuple[list[str], list[str]]:
     return out, err
 
 
+# --- a benchmark, read as its manifest carries it -------------------------------------
+
+
+def strip_comment(text: str) -> str:
+    """The line without its YAML end-of-line comment - a ``#`` opening
+    outside quotes, at the start or after a space."""
+    quote = None
+    for index, ch in enumerate(text):
+        if quote:
+            if ch == quote:
+                quote = None
+        elif ch in ("'", '"'):
+            quote = ch
+        elif ch == "#" and (index == 0 or text[index - 1] in " \t"):
+            return text[:index]
+    return text
+
+
+def read_manifest(text: str) -> dict:
+    """The manifest's top-level values, plus the immediate ones of its
+    ``profile`` mapping - the one nested block a recall column reads
+    (``profile.executor``). Nothing deeper: the manifest's schema belongs
+    to the authoring agent, not to the persistence (the benchmark
+    reference), so this reads the few keys the listing prints and leaves
+    the rest of the file unopened. Values go through the frontmatter's own
+    reader, so a flow collection (``service: [a, b]``) is a list here too,
+    never the string of its own brackets."""
+
+    def value_of(raw: str) -> Any:
+        value = strip_comment(raw).strip()
+        # a block scalar (``>``, ``|``) is prose the listing never prints
+        return None if not value or value[0] in "|>" else parse_value(value)
+
+    top: dict = {}
+    profile: dict = {}
+    section: str | None = None
+    indent: int | None = None
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        match = MANIFEST_LINE_RE.match(line)
+        if match and not match.group(1):
+            section, indent = match.group(2), None
+            top[section] = value_of(match.group(3))
+        elif match and section == "profile":
+            width = len(match.group(1))
+            if indent is None:
+                indent = width
+            if width == indent:
+                profile[match.group(2)] = value_of(match.group(3))
+    top["profile"] = profile
+    return top
+
+
+def read_benchmark(directory: Path) -> dict:
+    """One stored benchmark: the directory name is its identity, the
+    manifest carries the columns."""
+    entry = {"name": directory.name, "kind": "benchmark"}
+    path = directory / MANIFEST
+    if not path.is_file():
+        entry["missing"] = MANIFEST
+        return entry
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        entry["unreadable"] = str(exc)
+        return entry
+    entry["manifest"] = read_manifest(text)
+    return entry
+
+
+def check_benchmark(entry: dict) -> list[str]:
+    """What a stored benchmark lacks for this recall to read it: its
+    identity, the field the scope matches on, and the field the listing
+    orders on. Never more - the manifest's schema is the authoring
+    agent's, and the persistence stores whatever shape it has (the
+    benchmark reference states this carve-out)."""
+    if "missing" in entry:
+        return [f"no {entry['missing']} in the directory"]
+    if "unreadable" in entry:
+        return [f"unreadable {MANIFEST}: {entry['unreadable']}"]
+    problems: list[str] = []
+    manifest = entry["manifest"]
+    declared = manifest.get("name")
+    if declared is None or declared == "":
+        problems.append("name absent")
+    elif str(declared) != entry["name"]:
+        problems.append(
+            f"manifest name {str(declared)!r} differs from the directory name"
+            f" {entry['name']!r}, which is the benchmark's identity"
+        )
+    if not as_list(manifest.get("service")):
+        problems.append("service absent")
+    written = manifest.get("authored")
+    if written is not None and not DATE_RE.match(str(written)):
+        # the listing orders on it as plain text: another shape mis-sorts
+        problems.append(f"authored {str(written)!r} is not YYYY-MM-DD")
+    return problems
+
+
+def benchmark_matches(entry: dict, scope: dict) -> bool:
+    """A benchmark the scope cannot rule out. A directory whose manifest
+    this recall could not read, or that declares no service, is never
+    ruled out: the listing is what says a name is taken, and a name it
+    drops would read as free."""
+    services = as_list(entry.get("manifest", {}).get("service"))
+    if not services:
+        return True
+    return not scope["services"] or bool(set(scope["services"]) & set(services))
+
+
+def benchmark_line(entry: dict) -> str:
+    """Every directory read prints a line - ``-`` in each column its
+    manifest could not fill, its problems on stderr beside it."""
+    manifest = entry.get("manifest", {})
+    return "\t".join(
+        [
+            entry["name"],
+            cell(manifest.get("service")),
+            cell(manifest.get("test_type")),
+            cell(manifest.get("profile", {}).get("executor")),
+            cell(manifest.get("authored")),
+        ]
+    )
+
+
+def authored(entry: dict) -> str:
+    """The ordering key: the manifest's ``authored`` as plain text (the
+    contract's YYYY-MM-DD sorts chronologically), empty when absent so it
+    sorts last under the newest-first order."""
+    value = entry.get("manifest", {}).get("authored")
+    return "" if value is None else str(value)
+
+
+def recall_benchmarks(root: Path, scope: dict) -> tuple[list[str], list[str]]:
+    """The stdout lines and the stderr lines, for the benchmark store.
+
+    A benchmark is living source in a directory, not a dated report file:
+    the whole list is the answer (the set that already exists for the
+    service), and the name column answers the second step - which stored
+    artifact an update rewrites. So every directory read prints a line,
+    dashes included: a name the listing drops would read as free."""
+    store = root / STORES["benchmark"]
+    children = sorted(store.iterdir()) if store.is_dir() else []
+    err = [
+        f"not a benchmark directory, ignored: {child.name}"
+        for child in children
+        if not child.is_dir()
+    ]
+    directories = [child for child in children if child.is_dir()]
+    if not directories:
+        return [], err + [f"no benchmark under {STORES['benchmark']}/ - a first run"]
+    entries = [read_benchmark(d) for d in directories]
+    entries.sort(key=lambda e: e["name"])
+    entries.sort(key=authored, reverse=True)
+    problems = {e["name"]: check_benchmark(e) for e in entries}
+    matched = [e for e in entries if benchmark_matches(e, scope)]
+    matched_names = {e["name"] for e in matched}
+    out = []
+    for entry in matched:
+        out.append(benchmark_line(entry))
+        err.extend(f"{entry['name']}: {p}" for p in problems[entry["name"]])
+    for entry in entries:
+        if entry["name"] not in matched_names:
+            err.extend(
+                f"not matched, flagged: {entry['name']}: {p}"
+                for p in problems[entry["name"]]
+            )
+    # what exists is told when the *scope* selected nothing - never gated on
+    # the output, which a defective directory joins whatever the scope is
+    selected = [e for e in matched if as_list(e.get("manifest", {}).get("service"))]
+    if not selected:
+        readable = [e for e in entries if "manifest" in e]
+        services = sorted(
+            {s for e in readable for s in as_list(e["manifest"].get("service"))}
+        )
+        types = sorted(
+            {
+                str(e["manifest"]["test_type"])
+                for e in readable
+                if e["manifest"].get("test_type")
+            }
+        )
+        err.append(
+            f"no stored benchmark matches {describe(scope)}; stored: "
+            f"services: {', '.join(services) or 'none'}; "
+            f"test types: {', '.join(types) or 'none'}"
+        )
+    return out, err
+
+
 # --- cli ---------------------------------------------------------------------------
 
 
@@ -474,8 +682,13 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(
             "--service, --env, --mode and --depth apply to observation reports only"
         )
-    if args.kind == "observation" and args.project:
+    if args.kind != "instrumentation" and args.project:
         parser.error("--project applies to instrumentation reports only")
+    if args.kind == "benchmark" and (args.stack or args.env or args.mode or args.depth):
+        parser.error(
+            "--stack, --env, --mode and --depth apply to the report kinds only;"
+            " a benchmark is recalled by --service and by name"
+        )
     scope = {
         "services": args.service,
         "stack": args.stack,
@@ -489,7 +702,10 @@ def main(argv: list[str] | None = None) -> int:
     except Refusal as exc:
         print(str(exc), file=sys.stderr)
         return 2
-    out, err = recall(root, args.kind, scope)
+    if args.kind == "benchmark":
+        out, err = recall_benchmarks(root, scope)
+    else:
+        out, err = recall(root, args.kind, scope)
     if out:
         sys.stdout.write("\n".join(out) + "\n")
     if err:
