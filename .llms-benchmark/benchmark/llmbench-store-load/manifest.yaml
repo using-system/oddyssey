@@ -5,7 +5,7 @@
 # source: updated in place through reviewed diffs (odd-memory, benchmark).
 #
 # How to run: through /odd-observe in drive mode with this benchmark
-# (`/odd-observe run llms-benchmark/benchmark/llmbench-store-load/`, see
+# (`/odd-observe run .llms-benchmark/benchmark/llmbench-store-load/`, see
 # docs/guide/benchmarks.md) - start the target with the launcher under
 # `target` first; the run-scenario skill's benchmark-replay reference
 # owns the k6 command, the summary export and the record. Never run the
@@ -32,22 +32,22 @@ target:
   components:
     - name: llmbench-api
       what: FastAPI over a seeded SQLite catalog - the catalog and orders routes
-      source: llms-benchmark/src/api
+      source: .llms-benchmark/src/api
       base_url_env: API_URL
       base_url_default: http://localhost:8010 # the compose launcher below; a remote target is a mission-time input
     - name: llmbench-mcp
       what: the MCP server (mcp 2.1.1, streamable HTTP) exposing the store as four tools
-      source: llms-benchmark/src/mcp
+      source: .llms-benchmark/src/mcp
       transport: streamable-http # the benchmark speaks HTTP to POST <MCP_BASE_URL>
       base_url_env: MCP_BASE_URL # the FULL endpoint, path included - not a root the script appends /mcp to
       base_url_default: http://localhost:8011/mcp
     - name: llmbench-agent
       what: a pydantic-ai agent behind FastAPI, answering a question with the MCP tools
-      source: llms-benchmark/src/agent
+      source: .llms-benchmark/src/agent
       base_url_env: AGENT_URL
       base_url_default: http://localhost:8012
   launcher:
-    command: docker compose -f docker-compose/llms-benchmark/docker-compose.yml up -d --build
+    command: docker compose -f docker-compose/.llms-benchmark/docker-compose.yml up -d --build
     working_directory: . # the repository root
     does: >
       Builds and starts the three containers of the demo stack - api, mcp
@@ -60,7 +60,7 @@ target:
       in the shell that runs the command - the compose file names the
       variable and refuses to start without it; no value for it is ever
       stored here. Stop the stack with `docker compose -f
-      docker-compose/llms-benchmark/docker-compose.yml down` when the run
+      docker-compose/.llms-benchmark/docker-compose.yml down` when the run
       is over.
   launcher_env_required: [OPENAI_API_KEY] # named, never valued: exported in the launching shell (compose refuses to start without it)
   launcher_env_optional: [OTLP_HTTP_ENDPOINT, PYROSCOPE_ENDPOINT, DEPLOYMENT_ENV, MODEL_NAME, CATALOG_SIZE]
@@ -292,7 +292,7 @@ thresholds:
     cross_check:
       floor_catalog_and_mcp: >
         none found - every branch of every catalog route returns a JSON
-        body under HTTP 200 (llms-benchmark/src/api/app/main.py:54, :74,
+        body under HTTP 200 (.llms-benchmark/src/api/app/main.py:54, :74,
         :92, :133, :193, including the branches at :87, :148, :157 and
         :202, which answer 200 with a stated reason rather than an error
         status), and the MCP transport answers 200 to the handshake and
@@ -302,8 +302,8 @@ thresholds:
       floor_agent: >
         POST /ask answers 500 when the model call has failed
         MODEL_ATTEMPTS times (default 3 -
-        llms-benchmark/src/agent/app/assistant.py:21, :80, :109, surfaced
-        by llms-benchmark/src/agent/app/main.py:55). That is a
+        .llms-benchmark/src/agent/app/assistant.py:21, :80, :109, surfaced
+        by .llms-benchmark/src/agent/app/main.py:55). That is a
         third-party provider outcome, and it is exactly the reason the
         caller set a fractional target rather than an equality.
       denominator: >
@@ -373,17 +373,17 @@ signals:
     FastAPI-instrumented; llmbench-mcp and llmbench-agent are
     httpx-instrumented, so the tool calls' downstream catalog requests
     are spans of their own. Two explicit spans exist beside those: the
-    catalog read span in llms-benchmark/src/api/app/db.py:54 and
-    `agent.ask` in llms-benchmark/src/agent/app/assistant.py:74. The
+    catalog read span in .llms-benchmark/src/api/app/db.py:54 and
+    `agent.ask` in .llms-benchmark/src/agent/app/assistant.py:74. The
     agent additionally turns on pydantic-ai's GenAI instrumentation
-    (llms-benchmark/src/agent/app/assistant.py:56), so the model turns
+    (.llms-benchmark/src/agent/app/assistant.py:56), so the model turns
     and the tool calls of an /ask carry the gen_ai conventions.
   metrics: >
     Three application counters, one per service:
-    `catalog.orders.created` (llms-benchmark/src/api/app/main.py:36),
+    `catalog.orders.created` (.llms-benchmark/src/api/app/main.py:36),
     `mcp.tool.calls` tagged by tool name
-    (llms-benchmark/src/mcp/app/server.py:120), and `agent.questions`
-    tagged by model (llms-benchmark/src/agent/app/main.py:32) - plus
+    (.llms-benchmark/src/mcp/app/server.py:120), and `agent.questions`
+    tagged by model (.llms-benchmark/src/agent/app/main.py:32) - plus
     pydantic-ai's own GenAI metrics on the agent. All exported over OTLP
     HTTP.
   logs: >
@@ -493,11 +493,26 @@ validation:
     command: >-
       uv run --no-project --with pyyaml python3 -c 'import sys, yaml;
       yaml.safe_load(open(sys.argv[1]))'
-      llms-benchmark/benchmark/llmbench-store-load/manifest.yaml
+      .llms-benchmark/benchmark/llmbench-store-load/manifest.yaml
     exit: 0
     result: passed - this file is valid YAML; re-run on every later edit
   note: a recorded smoke is a record, never authorization for the next one - re-authorized at mission time on every update
   history:
+    - >-
+      2026-09-06 the tree moved from llms-benchmark/ to .llms-benchmark/
+      (issue #482) - the fixture leaves the repository's product surface.
+      Script byte identical across the move; the manifest changed only in
+      the lines that spell a source or a stored path, and this history
+      block was left verbatim because it records what was done when the
+      old path was the real one. Re-validated at the new path against the
+      same running containers: k6 inspect exit 0, PyYAML safe_load exit
+      0, and the one-iteration smoke re-run as `k6 run --vus 1
+      --iterations 1 --no-thresholds
+      .llms-benchmark/benchmark/llmbench-store-load/script.js -e
+      API_URL=http://localhost:8010 -e
+      MCP_BASE_URL=http://localhost:8011/mcp -e
+      AGENT_URL=http://localhost:8012 -e RUN_SLUG=dotmove-smoke -e
+      SEND_TRACEPARENT=1`.
     - >-
       2026-09-06 the benchmark was authored under .odd/benchmarks/ and
       moved to llms-benchmark/benchmark/ before it was ever committed, so
