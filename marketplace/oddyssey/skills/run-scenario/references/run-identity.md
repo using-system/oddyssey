@@ -78,19 +78,24 @@ requests** instead. Carry it in two headers on every driven request,
 and never in only one of them:
 
 - `User-Agent: odd-<prompt>/<run slug>` (`odd-verify/<slug>`,
-  `odd-observe/<slug>`; `-warmup` appended on warmup requests). The
-  server's HTTP instrumentation records it as `user_agent.original`,
-  selectable on the request rows of every backend
+  `odd-observe/<slug>`; `-warmup` appended on warmup requests — the
+  suffix that dates the run, "The run starts after the warmup" below).
+  The server's HTTP instrumentation records the header as
+  `user_agent.original`, selectable on the request rows of every backend
   (`customDimensions['user_agent.original']` in KQL,
   `span.user_agent.original` in TraceQL) — this is the identity a
   latency question reads, and it survives a service that ignores
-  `traceparent`. One store reads it on no row: an X-Ray trace summary
-  carries no user agent when its root segment is a client's own span
-  (an instrumented load generator — `Http.UserAgent` `null` on every
-  summary, verified 2026-09-05; the filter empty over a range holding
-  the run's traces, 2026-09-04) — there the trace-id prefix below
-  identifies the run, and its latency reads from the server segment
-  through `batch-get-traces`, never from a summary's `Duration`.
+  `traceparent`. One store reads it on **whichever span roots the
+  trace**. An X-Ray trace summary carries no user agent when the root
+  is a client's own instrumented span (an instrumented load generator
+  — `Http.UserAgent` `null` on every summary, verified 2026-09-05; the
+  filter empty over a range holding the run's traces, 2026-09-04):
+  there the trace-id prefix below identifies the run, and its latency
+  reads from the server segment through `batch-get-traces`, never from
+  a summary's `Duration`. When the generator emits no client span of
+  its own, the server's own segment roots the trace and the identity
+  is readable — `Http.UserAgent` carrying the run's User-Agent on
+  every summary (verified 2026-09-06).
 - `traceparent: 00-<trace id>-<span id>-01`, the trace id being
   **32 hex in three parts**: a fixed 8-hex prefix shared by every run
   of the protocol (`0ddc0ffe` unless the protocol records another),
@@ -98,7 +103,11 @@ and never in only one of them:
   `sha256(<slug>)`), and the zero-padded 16-hex request sequence
   number; the span id is the sequence number on 16 hex. The sequence
   numbers every driven request of the run, warmup included, from
-  **1** — one counter for the whole run: a span id of all zeros is
+  **1** — one counter for the whole run, or, where the generator
+  holds no counter its workers share, a field made **disjoint per
+  worker by construction**, over every worker that sends a request (a
+  k6 script's VUs, and its setup and teardown: the stored-benchmark
+  paragraph below): a span id of all zeros is
   invalid under W3C trace context, the instrumentation then starts a
   fresh trace and that request drops out of every prefix selector,
   and a counter restarted per phase gives two requests one id. The prefix is
@@ -111,9 +120,60 @@ and never in only one of them:
   the backend merges the runs under them (observed: one trace id, two
   instances, two User-Agents). Two runs may share a prefix, never an
   id. A trace store may print the id **without its leading zeros** —
-  Tempo does (`0ddc0ffe…` reads `ddc0ffe…` in `gcx traces` output,
-  while Loki keeps the 32 hex; verified 2026-09-05) — so a prefix
-  check on such output strips them on both sides (`sub("^0+"; "")`).
+  Tempo does (`0ddc0ffe…` reads `ddc0ffe…` in `gcx traces query`
+  output, while Loki keeps the 32 hex; verified 2026-09-05) — so a
+  prefix check on such output strips them on both sides
+  (`sub("^0+"; "")`), and pads them back when the id is then passed to
+  a flag that validates its width.
+
+**A stored k6 benchmark carries the identity its manifest declares.**
+Its script may not be edited (`references/benchmark-replay.md`), so the
+identity is the one it was authored with, read from the manifest's
+`identity:` block: the `user_agent` its requests carry
+(`odd-bench/<name>[/<slug>]` in the stored benchmarks), the
+`run_slug_env` variable the slug travels in (`RUN_SLUG` there), the
+request tags, and whether a `traceparent` is sent. **Pass the slug
+through the variable the manifest names, every run** — `-e
+RUN_SLUG=<slug>`: without it the User-Agent is the benchmark's name
+alone, every replay sends the same one, and the runs merge under it
+exactly as two runs sharing a trace id do. k6's `--user-agent` flag
+(verified k6 v2.2.0) sets only the default k6 uses when the script sets
+no header of its own — against a script that sets one it is at best
+redundant and at worst a second, conflicting identity, so it is passed
+only when the manifest declares no `user_agent`. There is no `-warmup`
+suffix mid-run either (one process, one User-Agent): what dates t0 is
+the manifest's own warmup stage — its per-request `stage` tag when the
+manifest declares one, the record's `Warmup:` line otherwise ("The run
+starts after the warmup" below). No flag sets a `traceparent` either:
+whether one goes out is the script's doing, and the `identity:` block
+is what says so. A script authored to send it
+(`k6-benchmark-expert`'s authoring contract: both headers built from
+the slug the `run_slug_env` variable carries, the `traceparent` behind
+a second gate the block names — read by presence, so a remote drive
+sets it and a local one leaves it out of the command rather than
+giving it a value meaning off — a launched process already carries
+`service.instance.id`, and the caveat below would cost it its trace
+roots for nothing) makes such a run **prefix-selectable like any
+other** — the same three-part trace id above, its sequence field
+disjoint per runtime rather than one run-wide counter, since k6 holds
+no counter across the runtimes that send its requests (its VUs, and
+its setup and teardown); the manifest states the scheme it used and
+the prefix the script baked in at authoring time — that recorded
+literal, never a prefix the protocol names later, is what the run's
+rows carry — and the rootless caveat below travels with the header
+wherever it goes out. A block that says the header is not sent — a
+script that cannot send one, the protocol carrying no request headers —
+and a drive that leaves the gate unset
+both leave the run **UA-selected**: its `Identity:` line quotes the
+User-Agent form the rows actually carry, the trace-id prefix selectors
+above have nothing
+to match, and every ruling comes from `user_agent.original` (an
+uninstrumented k6 emits no client span, so the server's own span roots
+each trace and the User-Agent is readable on the summary rows — the
+last case of the bullet above). Either way the header block is
+authored, never written into the script at mission time: giving a
+stored benchmark one is a re-authoring, through
+`/odd-instrument-bench`'s reviewed diff.
 
 Then **read the instance from the run's own rows** —
 `service.instance.id` (or the backend's equivalent) on the requests
@@ -126,6 +186,21 @@ rulings and wrong for a latency investigation, whose numbers come
 from the User-Agent identity alone. The `Identity:` line of the
 record (`SKILL.md` step 4) carries both headers' forms with the slug, the prefix
 and the instance read from the rows.
+
+## The run starts after the warmup
+
+The warmup requests of `SKILL.md` step 2 are discarded from the quoted
+numbers — and from the run's **start**: **t0 is the first measured
+request, never the first request the run sent**. A `min(start time)`
+taken over the whole identity dates the run from a warmup request, and
+every stage boundary derived from t0 shifts with it — the run
+mis-buckets, with no error anywhere (verified 2026-09-06: stage counts
+of n=1 and n=176 until the warmup requests were excluded from t0).
+What marks them depends on how the identity travels: the `-warmup`
+suffix on the User-Agent when it travels in the requests (above) — so
+carve t0 from the rows whose User-Agent has none — and otherwise the
+`Warmup:` line of the record (`SKILL.md` step 4), which says how many
+requests per operation to drop before taking t0.
 
 ## Reset once
 

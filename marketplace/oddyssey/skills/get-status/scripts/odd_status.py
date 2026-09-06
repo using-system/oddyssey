@@ -78,7 +78,17 @@ DEFAULT_TABLE_SECTIONS = (2, 3, 5)
 REPLAY_MODES = ("verify", "re-measure")
 REPLAY_TABLE_SECTIONS = (2, 3, 5, 7)
 DEFAULT_MAX_CELL = 120
-DEFAULT_MAX_TEXT = 1500
+DEFAULT_MAX_TEXT = 1500  # per bullet of a bulleted section, else per section
+# bullets lifted from a section, the rest counted: a section's prose can
+# reach this many times --max-text, the price of never cutting a compliant
+# section mid-bullet - real sections carry under ten bullets
+MAX_TEXT_BULLETS = 40
+NOTHING_CUT = {
+    "truncated": False,
+    "bullets_dropped": 0,
+    "bullets_cut": 0,
+    "prose_cut": False,
+}
 DEFAULT_RECENT = 3
 MAX_FINDING_TITLE = 80
 MAX_COMPACT_PARAGRAPH = 300
@@ -477,6 +487,66 @@ def cap(text: str, limit: int | None) -> tuple[str, bool]:
     return text[:limit] + ELLIPSIS, True
 
 
+def bullet_blocks(lines: list[str]) -> list[list[str]]:
+    """A section's prose in blocks: the lines before its first bullet, then
+    one block per bullet - a bullet carrying the lines wrapped under it and
+    the blank lines that follow it. The blocks rejoin into the prose as
+    written, so the lift changes a section's spacing only where it cuts."""
+    blocks: list[list[str]] = [[]]
+    for line in lines:
+        if line.startswith("- "):
+            blocks.append([])
+        blocks[-1].append(line)
+    return blocks
+
+
+def cap_block(block: list[str], limit: int | None) -> tuple[list[str], bool]:
+    """One block capped on its own, the blank lines around it kept."""
+    head, tail = 0, len(block)
+    while head < tail and not block[head].strip():
+        head += 1
+    while tail > head and not block[tail - 1].strip():
+        tail -= 1
+    body, cut = cap("\n".join(block[head:tail]), limit)
+    return [*block[:head], *(body.split("\n") if body else []), *block[tail:]], cut
+
+
+def cap_text(lines: list[str], limit: int | None) -> tuple[str, dict]:
+    """A section's prose as emitted, and what the cap took from it.
+
+    A bulleted section - the one-bullet-per-gap shape a gaps section is
+    written in - is lifted bullet by bullet: the prose before the first
+    bullet and every bullet capped on its own, at most ``MAX_TEXT_BULLETS``
+    of them. A compliant section is never cut mid-bullet because its total
+    crossed the cap. A section carrying no bullet is capped as one text.
+
+    What the cap took is stated piece by piece - ``bullets_dropped`` whole,
+    ``bullets_cut`` at their tail, ``prose_cut`` for the prose before the
+    bullets or, in a bulletless section, the text itself - so a reader
+    never has to infer which piece is short.
+    """
+    blocks = bullet_blocks(lines)
+    if len(blocks) == 1:
+        text, cut = cap("\n".join(lines).strip(), limit)
+        return text, {**NOTHING_CUT, "truncated": cut, "prose_cut": cut}
+    dropped = max(0, len(blocks) - 1 - MAX_TEXT_BULLETS)
+    out: list[str] = []
+    prose_cut, bullets_cut = False, 0
+    for index, block in enumerate(blocks[: MAX_TEXT_BULLETS + 1]):
+        capped, cut = cap_block(block, limit)
+        out += capped
+        if index:
+            bullets_cut += cut
+        else:
+            prose_cut = cut
+    return "\n".join(out).strip(), {
+        "truncated": bool(dropped or bullets_cut or prose_cut),
+        "bullets_dropped": dropped,
+        "bullets_cut": bullets_cut,
+        "prose_cut": prose_cut,
+    }
+
+
 def cap_table(table: dict, max_cell: int) -> dict:
     truncated = 0
     rows = []
@@ -534,11 +604,13 @@ def capped_sections(
             emitted["tables"] = []
             emitted["tables_skipped"] = len(section["tables"])
         if number in opts["section_texts"]:
-            emitted["text"], emitted["text_truncated"] = cap(
-                "\n".join(section["lines"]).strip(), opts["max_text"]
-            )
+            emitted["text"], taken = cap_text(section["lines"], opts["max_text"])
         else:
-            emitted["text"], emitted["text_truncated"] = None, False
+            emitted["text"], taken = None, NOTHING_CUT
+        emitted["text_truncated"] = taken["truncated"]
+        emitted["text_bullets_dropped"] = taken["bullets_dropped"]
+        emitted["text_bullets_cut"] = taken["bullets_cut"]
+        emitted["text_prose_cut"] = taken["prose_cut"]
         out.append(emitted)
     return out
 
@@ -1420,7 +1492,8 @@ def main(argv: list[str] | None = None) -> int:
         "--max-text",
         type=int,
         default=DEFAULT_MAX_TEXT,
-        help="characters kept per section prose before truncation",
+        help="characters kept before truncation, per bullet of a bulleted "
+        "section prose, else per section",
     )
     parser.add_argument(
         "--max-record",

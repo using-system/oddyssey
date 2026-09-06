@@ -26,6 +26,49 @@ doubt, record the number.
 - `YYYY-MM-DD-HHmm` and `<run_name>` follow the memory contract: UTC
   via `date -u` (so do `date:` and `window`), and a slug naming what
   the run analyzed (`checkout-latency-sweep`, `orders-post-hoc-errors`).
+- An **observed run** (`mode: observe`) — the run belongs to another
+  mission, and several missions may be watching the same one, each
+  from its own backend. Its `run_name` names the run **and the
+  observer**: `<what the run analyzed>-observe-<stack>` — the
+  benchmark's directory name when the mission carries one, the
+  `stack` frontmatter value as the suffix, kebab-cased and stripped of
+  anything the filename rule refuses (`[a-z0-9][a-z0-9-]*`: a custom
+  stack whose name carries a dot, a space or an upper-case letter goes
+  in reduced to that shape, the frontmatter `stack` keeping the real
+  value). The file then reads
+  `YYYY-MM-DD-HHmm-<name>-observe-<stack>.md`, with the timestamp of
+  the observed run's own start — the first request row of the run's
+  identity, the instant `window` opens on — not of the moment the
+  watch began: the driver's report and every observer's then sit
+  together in a listing. One run watched by several missions writes
+  **one report per mission**, never a shared file the observers append
+  to — the memory is append-only, and a stored report is never
+  reopened — and the driver's own report (`mode: drive`, its
+  `run_name` unsuffixed) stands beside them. When the resulting path
+  is already taken — two missions watching the same run from the
+  **same** stack, which the suffix cannot separate and no hook rejects
+  — the later writer never overwrites it: it appends the next free
+  ordinal (`-observe-<stack>-2`) and section 1 names the report it
+  sits beside.
+  What the two halves of the suffix buy: `-observe` keeps an observer's
+  file from colliding with the driver's when the two persist in the
+  same minute, and `<stack>` keeps two observers of one run apart —
+  their reports are otherwise byte-identical in name, so a store
+  listing, a glob, and every human reading either see one name over
+  two backends' evidence. Neither breaks a chain on its own: `verifies`
+  is the authoritative field and `*-verify-<run_name>.md` only proposes
+  candidates, so a shared name costs a candidate that must be read and
+  discarded rather than a wrong answer. A verification or re-measure of
+  such a report reuses that `run_name` unchanged, like any other: the
+  suffix names the backend the **baseline** watched, which is the
+  backend the replay runs on too — a replay is preflighted against the
+  report's own `stack` and never retargeted silently — and a replay
+  knowingly run elsewhere says so in section 1, its frontmatter `stack`
+  carrying the truth the inherited suffix no longer does.
+  Section 1 names the run's driver: the driving mission as the mission
+  block states it (or that it names none), and the driver's stored
+  report by path when it is already committed — "not in the store"
+  when it is not, since the two missions persist in either order.
 - A **verification run** — a run that replays a stored report's
   protocol: an observation report's measurement protocol, or an
   instrumentation report's verification protocol (from
@@ -104,7 +147,12 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   in the mode the `verifies` chain resolves to — that execution mode
   stays reachable through the chain.
 - `window` is the observed interval as `start/end` in UTC; in drive mode
-  it is the scenario's own start and end.
+  it is the scenario's own start and end, and in observe mode the
+  driven run's own span — its **first request row** (the same instant
+  the filename's minute carries, warmup included, as on a drive) to its
+  end — never the interval the mission spent watching for it
+  (`run-scenario`'s `benchmark-replay.md`, watching a run someone else
+  drives).
 - `depth` is how far the mission went — `quick` (the agent's bounded
   protocol: the signals the question touched, one exemplar per
   operation, sections 3 to 6 collapsed, section 7 carrying only what
@@ -215,7 +263,23 @@ verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the rep
   `process.runtime.version` plus application frames — `instance` says
   which holds for the profiles.
 - The body's sections are the agent's contract — seven, numbered, and
-  read by number by the recall and `## Show`. One subsection is
+  read by number by the recall and `## Show`. One of them carries a
+  machine-readable row: a verification or re-measure opens **section 3**
+  with one ruling row per finding of the baseline's ranked table —
+  `| # | Baseline finding | Verdict | Evidence |`, `#` holding the
+  baseline's id exactly as that table writes it (`1`, `F4`: the key
+  `decisions.md` names a finding by), the verdict one of `fixed`,
+  `still present`, `worse` or `not ruled (quick)` — before the ranked
+  table of the run's own findings, whose identifiers continue the
+  baseline's numbering rather than restarting it, so they cannot
+  collide with a baseline id. The id is
+  what ties the ruling to the finding: renumbered, re-prefixed, or left
+  to prose, the ruling belongs to no finding and the baseline's stay
+  open in every reader's burn-down, whatever the report's verdict says.
+  Append-only memory makes that permanent — a mis-keyed ruling is never
+  repaired, only re-ruled by a later run. A re-measure writes the same
+  table and rules on no fix: its rows record what the run measured,
+  only a verification's rows close a finding. One subsection is
   optional, named here so the recall, the synthesis and a reader find
   it: when `gen_ai.*` spans existed in the window, section 2 carries a
   **GenAI** subsection under a `### GenAI` heading, after the
@@ -242,9 +306,12 @@ this reference's:
 
 1. Run the recall script in the observed repo:
    `python3 <this skill's directory>/scripts/odd_recall.py --repo
-   <path> --service <name>... --stack <stack> --env <detected
-   environment> --depth <quick|full>` (`--mode` to restrict to one
-   mode; `--env` omitted while the environment is still provisional)
+   <path> [--service <name>]... --stack <stack> --env <detected
+   environment> --depth <quick|full>` (`--service` is repeated per
+   service — `--service orders-api --service load-generator`, never two
+   names after one flag, which the parser rejects; `--mode` to restrict
+   to one mode; `--env` omitted while the environment is still
+   provisional)
    — it lists `.odd/observe-run-reports/` newest first and prints the
    matches by the rules below, one tab-separated line each: filename,
    kind, services, stack, environment, mode, depth, `verifies`,
@@ -347,8 +414,10 @@ caller closing the mission:
     unattributed / still missing);
   - section 3's ranked table — the identifier, finding, severity and
     confidence cells the table carries, never the evidence or the
-    detail per row; in a verify or re-measure, each baseline anomaly's
-    fate with it (fixed, still present, worse);
+    detail per row; in a verify or re-measure, the baseline-ruling
+    table that precedes it, whole — one row per baseline finding, its
+    id and its verdict (fixed, still present, worse, or not ruled
+    (quick)) — before the ranked table of the run's own findings;
   - section 5's telemetry gaps — its `not queried (<depth>)` line when
     it carries one, then its bullets, one per gap, each carrying the
     gap's fate (filled, still missing, new, not ruled (quick)) and its
@@ -421,8 +490,8 @@ The report to render, in one of two forms:
   reply: the stored path, the carrying commit (or `not committed`),
   and the synthesis block — the frontmatter, section 1's
   recalled-baseline line, section 2's delta lines, check rulings or
-  presence rulings, section 3's ranked table with the baseline
-  anomalies' fates, the telemetry gaps with the baseline gaps' fates,
+  presence rulings, section 3's baseline-ruling table and its ranked
+  table, the telemetry gaps with the baseline gaps' fates,
   and the open decisions, quoted from the file (`## Return value` above
   owns the list). Render from it; never
   re-read the file it just wrote — the block carries every input the

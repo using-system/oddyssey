@@ -86,27 +86,31 @@ report reference is what the persistence hands the caller, and what
 
 ## Recall: reading the memory
 
-For the two report stores — a benchmark is recalled by service and by
-name, a custom stack by name, each ledger is one file; their references
-own that:
+For the two report stores and the benchmarks — a custom stack is
+recalled by name, each ledger is one file; their references own that:
 
 - Run the recall script this skill carries,
   `python3 <this skill's directory>/scripts/odd_recall.py --repo <path>`
   with the mission's scope as flags — the kind's reference says which:
-  it reads every stored frontmatter in Python and prints the matches
-  newest first, one line each, nothing else; a report the frontmatter
-  contract flags is listed and reported, never skipped silently. No
+  it reads every stored frontmatter (a benchmark's manifest) in Python
+  and prints the matches newest first, one line each, nothing else; a
+  report the frontmatter contract flags, or a benchmark whose manifest
+  it cannot read, is listed and reported, never skipped silently. No
   frontmatter reaches the conversation until the baseline is chosen.
   A missing or empty store is a first run — the script says so, never
-  fails. **By hand, only when the script cannot run**: list the store
-  newest first (the filenames sort chronologically) and read
-  **frontmatter blocks only**, never whole files, applying the kind's
-  matching rules yourself; a missing or empty store is a first run
-  then too — say so, never fail.
+  fails. **By hand, only when the script cannot run**: for a report
+  store, list it newest first (the filenames sort chronologically) and
+  read **frontmatter blocks only**, never whole files; the benchmarks
+  are a directory store, so list the directories and read the few
+  manifest keys their reference names, never a whole manifest. Either
+  way apply the kind's matching rules yourself; a missing or empty
+  store is a first run then too — say so, never fail.
 - The first line printed is the baseline: read it **by section, never
   whole** — the kind's reference names the sections a mission needs.
   Reading beyond that set is the exception, for a stated need that the
-  calling agent records.
+  calling agent records. A benchmark recall has no baseline: the whole
+  listing is the set the mission checks itself against, and its
+  reference says what each column answers.
 - Older matches are history: read them only when a trend or the
   evolution of one decision matters, and only the sections in question.
 

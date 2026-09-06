@@ -15,7 +15,7 @@ https://grafana.com/docs/k6/latest/results-output/
 | `-i`, `--iterations <int>` | total iteration limit across all VUs |
 | `-s`, `--stage <dur>:<target>` | add one load stage - repeat the flag for multiple stages, or use `options.stages` in the script (see scripting.md) |
 | `-o`, `--out <output>` | where to send results - `json=<file>` (newline-delimited JSON), `opentelemetry` (see below), and others |
-| `--summary-export <file>` | write the end-of-test summary (per-metric values, threshold results, checks) as JSON to `<file>` - what `run-scenario`'s stored-benchmark step reads for k6's own evidence (verified 2026-09 against k6 v2.2.0). Its schema is the legacy one unless `--new-machine-readable-summary` is also passed, which switches the export to the new shape - never assume a fixed schema across the two |
+| `--summary-export <file>` | write the end-of-test summary (per-metric values, threshold results, checks) as JSON to `<file>` - what `run-scenario`'s stored-benchmark step reads for k6's own evidence (verified 2026-09 against k6 v2.2.0) - how to read it without inverting its booleans: "Reading k6's own evidence" below. Its schema is the legacy one unless `--new-machine-readable-summary` is also passed, which switches the export to the new shape - never assume a fixed schema across the two |
 | `-e KEY=value` | set an environment variable for the script (`__ENV.KEY`) - how a mission-time base URL or a named secret reaches the script without editing it |
 | `--no-setup` / `--no-teardown` | skip the script's `setup()`/`teardown()` |
 
@@ -83,6 +83,58 @@ run, and belongs to the execution side (`run-scenario`).
   don't infer the failure kind from the code alone (this repo's own
   convention with other CLIs' exit codes, e.g. `az`'s).
 
+## Reading k6's own evidence - the `--summary-export` file
+
+The exported JSON is what a run's record quotes. Two of its conventions
+read backwards, and a third number - one a threshold names - is simply
+absent. Verified live (this machine, 2026-09-06, k6 v2.2.0, `k6 run
+--vus 1 --iterations 1 --summary-export summary.json` against a trivial
+local HTTP target, four thresholds declared, all met, exit 0 - the
+default, legacy export shape, which `--new-machine-readable-summary`
+replaces):
+
+- **A threshold's boolean answers "crossed?", not "passed?".** Stdout
+  printed `✓ 'p(95)<900'`, `✓ 'p(99)<200'`, `✓ 'rate<0.01'` and
+  `✓ 'rate==1.00'`; the export wrote every one of them as `false`:
+
+  ```text
+  "http_req_duration": { ...the six trend stats..., "p(95)": 0.7,
+                         "thresholds": {"p(95)<900": false, "p(99)<200": false} }
+  "http_req_failed":   {"passes": 0, "fails": 1,
+                        "thresholds": {"rate<0.01": false}, "value": 0}
+  ```
+
+  (two entries of the export's `metrics` object, the `http_req_duration`
+  one abridged - `p(95)` is in milliseconds, that run's single request)
+
+  `false` is the passing value. The run's verdict is the exit code
+  (above), never the booleans read as plain English.
+- **A `Rate` metric's `passes`/`fails` count samples, and on
+  `http_req_failed` the polarity is inverted.** `passes` is the number
+  of samples worth 1 and `fails` the number worth 0 - so the clean run
+  above exported `http_req_failed: {"passes": 0, "fails": 1,
+  "value": 0}` for its one successful request, while `checks` exported
+  `{"passes": 1, "fails": 0, "value": 1}`. **Read `value`**: it is the
+  rate itself (`0` = nothing failed, `1` = every check passed). Never
+  quote a `Rate`'s `fails` as a count of failed requests.
+- **A `p(99)` threshold has no value in the export.** The default trend
+  stats are `avg,min,med,max,p(90),p(95)` (`summaryTrendStats`, option
+  reference fetched 2026-09-06), so the run above - which declares
+  `p(99)<200` - exported `http_req_duration` with those six stats, the
+  threshold boolean, and no `p(99)` key at all. A record that must
+  quote a percentile outside the six sets
+  `summaryTrendStats: ['avg','min','med','max','p(95)','p(99)']` in the
+  script's options (or `--summary-trend-stats`); otherwise the number
+  comes from the telemetry, not from k6.
+
+**The per-scenario progress glyph is not a verdict.** Observed during
+the 2026-09-06 benchmark campaign (k6 v2.2.0): a run that exited 0 with
+every threshold met still ended its progress line with
+`<scenario> ✗ [ 100% ]`, where the one-iteration run above ended
+`default ✓ [ 100% ]`. No k6 page found documents the glyph, so read it
+as an observation and nothing more. k6's own verdict is the exit code
+(above); `dropped_iterations` and its threshold say what was dropped.
+
 ## Output surface
 
 - **Default (stdout)**: a human-readable summary - per-threshold
@@ -111,8 +163,39 @@ run, and belongs to the execution side (`run-scenario`).
   `http_reqs_total`, `http_req_duration_milliseconds_{sum,count,bucket}`,
   `http_req_blocked_milliseconds_{sum,count,bucket}` - the `_bucket`
   suffix confirms k6's Trend metrics (like `http_req_duration`) export
-  as OTel histograms, queryable with standard PromQL histogram functions
-  (`histogram_quantile`).
+  as OTel histograms, readable with the standard PromQL histogram
+  functions (`histogram_quantile`) - for shape; see below on why a
+  percentile taken that way is not the percentile k6 reports.
+
+  Three things about reading those series back, recorded during the
+  2026-09-06 benchmark campaign (k6 v2.2.0, this output read from a
+  Prometheus-compatible store):
+
+  - **Select on `service_name="k6"`, never on a name prefix.** The
+    names above are the whole convention - `K6_OTEL_METRIC_PREFIX` is
+    empty by default - so a query written `{__name__=~"k6_.*"}`
+    returns an empty result, which reads exactly like "k6 exported
+    nothing".
+  - **A store-side quantile over those buckets is shape, not k6's
+    percentile.** `histogram_quantile(0.95, ...)` over
+    `http_req_duration_milliseconds_bucket` returned **950 ms** for a
+    run whose own summary reported **p(95) = 779.46 ms** - the output's
+    default millisecond bucket boundaries (..., 750, 1000, ...) put the
+    true value inside one 250 ms-wide bucket. Use the exported
+    histogram to compare shape across runs; take the percentile a
+    threshold is read against from k6's own summary.
+  - **An empty result is not a measured zero.** On one run that dropped
+    no iteration, `dropped_iterations` had no series at all in the
+    store - so that run's `dropped_iterations` threshold could not be
+    cross-confirmed here. Whether this generalises to every counter at
+    zero was not established; read the metric from the summary export
+    and the exit code either way.
+
+  A run ending with one `level=info msg="... failed to upload metrics:
+  context canceled"` line was also recorded: k6's own shutdown cancelled
+  the exporter's last flush, and every row had already landed (the
+  store's counts matched the summary's exactly). It is an `info` line
+  about the exporter, not the sign of a partial run.
 
   **This is a local-stack reality, not a general one - never treat it as
   required.** It works with zero extra config against oddyssey's own
