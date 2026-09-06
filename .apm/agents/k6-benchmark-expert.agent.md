@@ -138,6 +138,10 @@ human-decided:
      never invent k6 syntax from memory, fetch and confirm;
    - `test-types.md` to shape the load profile around the confirmed test
      type;
+   - `mcp.md` when the target is an MCP server - its transport carries a
+     handshake, a session header and event-stream bodies a plain HTTP
+     script does not handle, and a tool failure that no error-rate
+     threshold sees;
    - the manifest schema is your own design (not fixed by this repo's
      source docs) - at minimum it names the target service, the engine
      (`k6`, so another can be introduced later without changing the
