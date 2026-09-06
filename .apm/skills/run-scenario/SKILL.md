@@ -38,11 +38,11 @@ In order of preference:
    table, a CLI entry point in the repository (read-only).
 
 Prefer a handful of representative operations covered properly over every
-endpoint covered once. Note anything you deliberately left out.
+operation covered once. Note anything you deliberately left out.
 
 ## 2. Warm up
 
-Send a few requests per endpoint (typically 5) before measuring: JIT
+Send a few requests per operation (typically 5) before measuring: JIT
 compilation, connection pools, lazy caches, and first-hit schema loads all
 land in the first requests and distort a small sample. Discard the warmup
 from the quoted numbers, and say in the record that it was discarded —
@@ -50,8 +50,11 @@ unless an iteration is expensive: see `references/long-scenarios.md`.
 
 ## 3. Iterate enough to quote a number
 
-- **>= 30 requests per endpoint** before quoting a p95. Below that, report
-  observations, not quantiles.
+- **>= 30 requests per operation** before quoting a p95 — an operation
+  being the unit the service serves distinctly: on an HTTP server the
+  method and the route together, so two verbs sharing a route need the
+  count each, and elsewhere that surface's own unit (an RPC method, a
+  tool call). Below that, report observations, not quantiles.
 - **~100** before quoting a p99.
 - Sequential by default. If concurrency is part of the question, state the
   level explicitly — it changes every latency number.
@@ -71,8 +74,8 @@ Listeners: none   # or: :8000 served by 41234 uvicorn (127.0.0.1) and 51022 com.
 Backend:  odd_stack_reset, env: {"PROMETHEUS_EXTRA_ARGS": "..."}   # or "defaults"
 Instance: af6070... (restarted before reset)   # or equivalent identity; add the start time when not restarted
 Identity: launched with service.instance.id=<slug>   # or, when the run launched nothing: User-Agent "odd-verify/<slug>" (+ "-warmup"); traceparent "00-<prefix><run8><seq:016x>-<seq:016x>-01", run8 = sha256(<slug>)[:8]; instance read from the rows: <id>
-Warmup:   5 requests per endpoint (discarded)
-Load:     30 requests per endpoint, sequential
+Warmup:   5 requests per operation (discarded)
+Load:     30 requests per operation, sequential
 Started (UTC): 2026-08-17T10:04:12Z
 Ended   (UTC): 2026-08-17T10:05:03Z
 Query points: 1 (after Ended)   # more than one only with a reason - see step 5
