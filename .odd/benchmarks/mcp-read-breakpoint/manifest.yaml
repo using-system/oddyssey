@@ -7,6 +7,8 @@
 #     --summary-export <summary-file> \
 #     -e BASE_URL=http://127.0.0.1:8806 -e RUN_SLUG=<run slug>
 #
+# adding -e SEND_TRACEPARENT on a remote drive only (the gate under
+# identity.traceparent below), and
 # with the target started by target.launcher below (the same run slug in
 # OTEL_RESOURCE_ATTRIBUTES=service.instance.id=<run slug>). The run reads the
 # k6 summary's per-name sub-metrics (which threshold aborted, at what elapsed
@@ -108,7 +110,58 @@ identity:
   run_slug_env: RUN_SLUG
   name_tag: the k6 `name` tag on every request, its value the operations[].name above - the thresholds' sub-metric scope
   stage_tag: none     # a single stage; the timeline is read from the k6 summary and the telemetry
-  traceparent: not sent - the target is a process the run launches; its identity is the launcher's service.instance.id
+  traceparent:
+    # Sent only when BOTH gates below are on; the two are independent.
+    gate_env: SEND_TRACEPARENT
+    gate_read: >-
+      presence, whatever the value: the script tests
+      `__ENV.SEND_TRACEPARENT !== undefined`, never a truthiness test and
+      never a parsed boolean. k6 hands every -e value over as a string, so
+      `-e SEND_TRACEPARENT=0` and `-e SEND_TRACEPARENT=false` are both
+      truthy (verified on k6 v2.2.0, 2026-09-06) - there is no value that
+      means off, only leaving the variable out of the command and out of the
+      environment: k6 reads exported system variables too, so an exported
+      SEND_TRACEPARENT turns the header on with no flag at all (verified on
+      k6 v2.2.0, 2026-09-06).
+    set_by: >-
+      the drive, never this file: a remote drive sets it (the requests are
+      the only identity there is), a local drive leaves it unset - the
+      launched process already carries service.instance.id and a synthetic
+      parent would cost the run its trace roots for nothing.
+    run_slug_gate: >-
+      independent of the gate above: no RUN_SLUG, no identity at all (every
+      replay would send the same set of trace ids and the runs would merge
+      under them), and RUN_SLUG without SEND_TRACEPARENT sends the
+      User-Agent alone.
+    header: 00-<trace id>-<span id>-01
+    trace_id: >-
+      32 hex in three parts: the 8-hex prefix literal below, 8 hex derived
+      from the run slug, and the 16-hex sequence field.
+    prefix: "0ddc0ffe"
+    prefix_note: >-
+      baked into the script at authoring time; this recorded literal is what
+      the run's rows carry, whatever prefix the protocol names later.
+      Changing it is a re-authoring through /odd-instrument-bench.
+    slug_hex: >-
+      the first 8 hex of sha256(<RUN_SLUG>, 'hex') (k6/crypto), hashed once
+      in init and constant for the run.
+    sequence: >-
+      16 hex, disjoint across every runtime that sends a request, not merely
+      across VUs: the high 8 hex name the runtime - exec.vu.idInTest (>= 1)
+      in VU code, with ffffffff reserved for setup() and fffffffe for
+      teardown(), outside the VU index range because exec.vu.idInTest reads
+      0 in both (verified on k6 v2.2.0, 2026-09-06) - and the low 8 hex are
+      that runtime's own request counter from 1, k6 giving every runtime its
+      own module state. This script exports no setup() and no teardown():
+      every request goes out from VU code, and the two reserved values stand
+      unused - the script's traceparent() raises rather than build an id with
+      a zero high half, so an author who later sends a request from setup()
+      or teardown() gets a failure there instead of a silent collision.
+    span_id: the same 16-hex sequence field, so it is never all zeros either.
+    caveat: >-
+      where the header goes out the run's traces are rootless (the parent
+      span never existed): presence and count rulings hold, latency is read
+      from the User-Agent identity (run-scenario's run-identity reference).
 
 profile:
   scenario: read_surface
@@ -236,7 +289,23 @@ validation:
       text override of request(); the notifications/initialized post reads no
       body; each of the three sub-metric threshold keys has its name tag value
       set on a request; no fail(), no summaryTrendStats, no credential-looking
-      literal
+      literal. Identity headers: headers() is the single helper both requests
+      go through (two call sites, two http.post call sites), so every request
+      carries the User-Agent and, with both gates on, exactly one traceparent.
+      The sequence field's high half was ruled against the functions that send
+      a request: `export default function` is the only exported function - no
+      setup(), no teardown() - so every request goes out from VU code where
+      exec.vu.idInTest is >= 1, the halves are disjoint per runtime, and the
+      low half's counter from 1 keeps the field non-zero, which
+      traceparent()'s guard enforces at runtime as well - it raises rather
+      than build an id whose high half is 0
+    identity_probe: >-
+      Corroborated out of band, on a scratch probe carrying the same
+      construction plus a setup() and a teardown() that send a request (not
+      this benchmark): 14 requests over setup, 3 VUs and teardown produced 14
+      distinct trace ids and 14 distinct span ids, none zero, and the gate
+      read by presence - `-e SEND_TRACEPARENT=0` sent the header, the
+      variable left out sent none, and no slug sent none either.
   inspect:
     k6_version: v2.2.0 (commit/devel, go1.26.5, darwin/arm64)
     date: 2026-09-06
@@ -246,6 +315,7 @@ validation:
     resolved: >-
       one ramping-arrival-rate scenario (startRate 1/1s, stages 10m0s -> 200,
       preAllocatedVUs 200, maxVUs 200) and the four thresholds as written
+      (re-inspected after the traceparent re-authoring, issue #464)
   parse:
     parser: PyYAML safe_load (uv run --no-project --with pyyaml python3)
     date: 2026-09-06
@@ -254,11 +324,15 @@ validation:
       yaml.safe_load(open(sys.argv[1]))'
       .odd/benchmarks/mcp-read-breakpoint/manifest.yaml
     exit: 0
-    result: passed - this file is valid YAML; re-run on every later edit
+    result: passed - re-parsed after the traceparent re-authoring (issue #464); this file is valid YAML; re-run on every later edit
   smoke:
     date: 2026-09-06
-    command: k6 run --vus 1 --iterations 1 --no-thresholds .odd/benchmarks/mcp-read-breakpoint/script.js -e BASE_URL=http://127.0.0.1:8806
+    command: k6 run --vus 1 --iterations 1 --no-thresholds .odd/benchmarks/mcp-read-breakpoint/script.js -e BASE_URL=http://127.0.0.1:8806 -e RUN_SLUG=rereview-464-breakpoint -e SEND_TRACEPARENT=1
     target: http://127.0.0.1:8806 (local - self-authorized), served by target.launcher started from the worktree's src/mcp-server
+    gates: >-
+      both set on purpose, so the one iteration exercises the header the
+      re-authoring added - the smoke is a check of the script, not a drive
+      (a local drive leaves SEND_TRACEPARENT unset)
     exit: 0
     stderr: >-
       only the expected '"cli" level configuration overrode scenarios
@@ -269,15 +343,21 @@ validation:
     per_request:
       initialize: 200, session id header present, protocolVersion in the result
       notifications/initialized: 202
-      tools/list: 200, both read tools listed, 1.22 ms
-      tools/call odd_config_get: 200, result without error, 2.45 ms
-      tools/call odd_stack_status: 200, result without error, 132.18 ms (one cold sample - consistent with the acknowledged floor)
+      tools/list: 200, both read tools listed, 1.32 ms
+      tools/call odd_config_get: 200, result without error, 3.69 ms
+      tools/call odd_stack_status: 200, result without error, 152.02 ms (one cold sample - consistent with the acknowledged floor)
+      whole_run: http_req_duration min 400 us, med 3.69 ms, max 152.02 ms; iteration_duration 165.57 ms
+    traceparent: >-
+      all five requests carried it (both gates set) and the server answered
+      every one of them 200/202 - a synthetic parent changes nothing on the
+      wire
     coverage: >-
       the default function is the only function; the one scenario names no
       exec, so the smoke covers every request the benchmark sends; the 404
       path (session drop, skipped calls) is not reachable in a smoke
     side_effects: one MCP session opened on the target and left open; the server was stopped after the smoke
   history:
+    - "2026-09-06 smoke of the script before the traceparent re-authoring (User-Agent identity only, no RUN_SLUG passed): exit 0, 0 out of 5 failed, 10 out of 10 checks, tools/list 1.22 ms, odd_config_get 2.45 ms, odd_stack_status 132.18 ms - superseded by the record above (issue #464)"
     - "2026-09-06 smoke, same requests, before review round 2 (no if (sessionId) guard after a 404): exit 0, 0 out of 5 failed, 10 out of 10 checks, odd_stack_status 139.36 ms"
     - "2026-09-06 smoke, same requests, before the shared-shape review (identity odd-bench/<slug>, no 404 recovery): exit 0, 0 out of 5 failed, 10 out of 10 checks, odd_stack_status 143.21 ms"
     - "2026-09-06 smoke, before the base-URL variable was renamed to BASE_URL: exit 0, 0 out of 5 failed, 10 out of 10 checks, odd_stack_status 148.4 ms"
