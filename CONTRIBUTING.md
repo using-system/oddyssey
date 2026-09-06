@@ -57,8 +57,8 @@ uvx ruff@0.16.4 format --check .apm/hooks/scripts tests/hooks
 uv run --no-project --with pytest pytest tests/hooks -v
 bash scripts/build-marketplace.sh
 
-# Validate the APM package like CI does (keep the apm-cli pin -
-# older releases corrupt the install; see the README's install note)
+# Validate the APM package like CI does (keep the apm-cli pin: it is
+# the minimum supported version, and older releases corrupt the install)
 uvx --from apm-cli==0.29.1 apm install --target claude && uvx --from apm-cli==0.29.1 apm audit
 python3 .apm/skills/observability-cli-guides/scripts/check_stack_reference.py   # every stack reference follows references/CONTRACT.md
 ```

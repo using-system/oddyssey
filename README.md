@@ -23,13 +23,6 @@ Same command for every other supported CLI agent — swap the target:
 `windsurf`. Drop `--global` to install into the current repository
 only.
 
-Keep the `apm-cli==0.29.1` pin — it is the minimum supported version
-and the one CI validates the package with (bumped together). Older
-apm-cli releases (0.14.x observed) predate `targets:` support and
-corrupt the install: the payload fans out to targets that were never
-requested, `.mcp.json` is emptied on uninstall, and the manifest can
-be left invalid.
-
 To update an existing install to the latest version:
 
 ```bash
@@ -63,15 +56,11 @@ copilot plugin install oddyssey@oddyssey-plugin
 /plugin install oddyssey@oddyssey-plugin
 ```
 
-**Codex** — this repository publishes the Codex manifest at
-`.agents/plugins/marketplace.json`; add the repository as a plugin
-source in your Codex plugins settings.
-
 The native artifacts are generated from the APM package on every
 release (`marketplace/`, built by `scripts/build-marketplace.sh`) and
 carry the same agents, commands, skills, and pinned MCP server. The
-other CLIs (opencode, Cursor, Windsurf, Kiro, Gemini) install via APM
-above.
+other CLIs (Codex, opencode, Cursor, Windsurf, Kiro, Gemini) install
+via APM above.
 
 ## The idea
 
