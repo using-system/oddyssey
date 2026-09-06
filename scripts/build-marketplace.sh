@@ -10,7 +10,7 @@
 # always carry the released version and the matching oddyssey-mcp pin.
 set -euo pipefail
 
-APM_CLI_VERSION="${APM_CLI_VERSION:-0.29.0}"
+APM_CLI_VERSION="${APM_CLI_VERSION:-0.29.1}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
