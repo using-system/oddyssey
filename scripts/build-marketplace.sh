@@ -97,4 +97,16 @@ which the release workflow runs after every version bump. Edit the
 sources under `.apm/` and `apm.yml` instead.
 EOF
 
+# The release does not commit this tree straight from the job that
+# builds it: it travels through actions/upload-artifact, which zips the
+# files and hands every one of them back as 644 (the action documents
+# the loss). So the committed bundle carries no executable bit, while a
+# local run inherits 755 from the sources apm pack copied - four skill
+# scripts show up as mode-only modifications on a clean clone. Strip the
+# bit here so both paths produce the same tree: nothing in the bundle is
+# ever run through its shebang, every script is invoked as
+# `python3 <script>`.
+find marketplace -type f -exec chmod a-x {} +
+chmod a-x .claude-plugin/marketplace.json .agents/plugins/marketplace.json
+
 echo "marketplace artifacts regenerated (${MCP_PIN})"
