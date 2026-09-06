@@ -146,6 +146,26 @@ SDK's own tag mechanism — `tags` in the pyroscope-io SDKs), and
 qualify profile selectors by it; absent one, `process.runtime.version`
 plus application frames are the substitute, stated as such.
 
+Tempo's metrics-generator series carry no instance identity either.
+Their labels are the generator's intrinsic ones — `service`,
+`span_name`, `span_kind`, `status_code` on `traces_spanmetrics_*`,
+`client`, `server`, `connection_type` on `traces_service_graph_*`, plus
+`le` on each family's histogram — none of which is a
+`service.instance.id` equivalent, and `__metrics_gen_instance` names
+the generator itself, not the observed process (verified 2026-09-06,
+gcx 1.2.0: `gcx metrics labels --metric <metric>`, the same command per
+metric). Two processes sharing one `service.name` — the run under
+observation plus a stale listener, a compose container — therefore fold
+into a single series, whose counts are the stack's total and never one
+run's. Read these series for shape and topology; take a run's own
+counts and latencies from the service's own OTel histogram, qualified
+by `service_instance_id`
+(`http_server_request_duration_seconds_count{service_instance_id="<run slug>"}`,
+or whatever discovery returns). The generator's extra `dimensions` list
+is the lever that would add an instance label, and it is inert here:
+this image sets it to names no span carries, so it contributes none of
+the labels above.
+
 Discover before you query: `gcx metrics labels` / `gcx metrics metadata`,
 `gcx traces labels`, `gcx logs labels`, `gcx profiles list-profile-types`.
 The four signals' discoveries are independent — **run them
