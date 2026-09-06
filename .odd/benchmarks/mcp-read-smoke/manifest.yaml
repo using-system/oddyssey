@@ -9,7 +9,8 @@
 # Run it (never from here - through /odd-observe, drive mode):
 #   /odd-observe run .odd/benchmarks/mcp-read-smoke/
 # with the target started by target.launcher first, and the mission-time
-# inputs passed as -e BASE_URL=<url> -e RUN_SLUG=<slug>.
+# inputs passed as -e BASE_URL=<url> -e RUN_SLUG=<slug>, plus
+# -e SEND_TRACEPARENT on a remote drive (identity.traceparent below).
 
 name: mcp-read-smoke
 service: oddyssey-mcp
@@ -122,6 +123,58 @@ identity:
   run_slug_env: RUN_SLUG            # appended: odd-bench/mcp-read-smoke/<slug>; the name always stays
   name_tag: every request carries the k6 `name` tag of its operations entry (they all POST the same URL)
   stage_tag: none (one steady stage)
+  traceparent:
+    # Sent only when BOTH gates below are on; the two are independent.
+    gate_env: SEND_TRACEPARENT
+    gate_read: >-
+      presence, whatever the value: the script tests
+      `__ENV.SEND_TRACEPARENT !== undefined`, never a truthiness test and
+      never a parsed boolean. k6 hands every -e value over as a string, so
+      `-e SEND_TRACEPARENT=0` and `-e SEND_TRACEPARENT=false` are both
+      truthy (verified on k6 v2.2.0, 2026-09-06) - there is no value that
+      means off, only leaving the variable out of the command and out of the
+      environment: k6 reads exported system variables too, so an exported
+      SEND_TRACEPARENT turns the header on with no flag at all (verified on
+      k6 v2.2.0, 2026-09-06).
+    set_by: >-
+      the drive, never this file: a remote drive sets it (the requests are
+      the only identity there is), a local drive leaves it unset - the
+      launched process already carries service.instance.id and a synthetic
+      parent would cost the run its trace roots for nothing.
+    run_slug_gate: >-
+      independent of the gate above: no RUN_SLUG, no identity at all (every
+      replay would send the same set of trace ids and the runs would merge
+      under them), and RUN_SLUG without SEND_TRACEPARENT sends the
+      User-Agent alone.
+    header: 00-<trace id>-<span id>-01
+    trace_id: >-
+      32 hex in three parts: the 8-hex prefix literal below, 8 hex derived
+      from the run slug, and the 16-hex sequence field.
+    prefix: "0ddc0ffe"
+    prefix_note: >-
+      baked into the script at authoring time; this recorded literal is what
+      the run's rows carry, whatever prefix the protocol names later.
+      Changing it is a re-authoring through /odd-instrument-bench.
+    slug_hex: >-
+      the first 8 hex of sha256(<RUN_SLUG>, 'hex') (k6/crypto), hashed once
+      in init and constant for the run.
+    sequence: >-
+      16 hex, disjoint across every runtime that sends a request, not merely
+      across VUs: the high 8 hex name the runtime - exec.vu.idInTest (>= 1)
+      in VU code, with ffffffff reserved for setup() and fffffffe for
+      teardown(), outside the VU index range because exec.vu.idInTest reads
+      0 in both (verified on k6 v2.2.0, 2026-09-06) - and the low 8 hex are
+      that runtime's own request counter from 1, k6 giving every runtime its
+      own module state. This script exports no setup() and no teardown():
+      every request goes out from VU code, and the two reserved values stand
+      unused - the script's traceparent() raises rather than build an id with
+      a zero high half, so an author who later sends a request from setup()
+      or teardown() gets a failure there instead of a silent collision.
+    span_id: the same 16-hex sequence field, so it is never all zeros either.
+    caveat: >-
+      where the header goes out the run's traces are rootless (the parent
+      span never existed): presence and count rulings hold, latency is read
+      from the User-Agent identity (run-scenario's run-identity reference).
 
 profile:
   executor: constant-vus
@@ -204,12 +257,34 @@ validation:
     detail: >-
       Global discardResponseBodies with exactly one body read (rpc(),
       responseType 'text' on that request); the notification POST reads
-      no body. No tag-scoped threshold. No credential literal.
+      no body. No tag-scoped threshold. No credential literal. Identity
+      headers: headers() is the single helper both requests go through
+      (two call sites, two http.post call sites), so every request
+      carries the User-Agent and, with both gates on, exactly one
+      traceparent. The sequence field's high half was ruled against the
+      functions that send a request: `export default function` is the
+      only exported function - no setup(), no teardown() - so every
+      request goes out from VU code where exec.vu.idInTest is >= 1, the
+      halves are disjoint per runtime, and the low half's counter from 1
+      keeps the field non-zero, which traceparent()'s guard enforces at
+      runtime as well - it raises rather than build an id whose high half
+      is 0.
+    identity_probe: >-
+      Corroborated out of band, on a scratch probe carrying the same
+      construction plus a setup() and a teardown() that send a request
+      (not this benchmark): 14 requests over setup, 3 VUs and teardown
+      produced 14 distinct trace ids and 14 distinct span ids, none zero,
+      and the gate read by presence - `-e SEND_TRACEPARENT=0` sent the
+      header, the variable left out sent none, and no slug sent none
+      either.
   inspect:
     k6_version: v2.2.0
     date: 2026-09-06
     exit: 0
-    detail: no stderr; resolved scenario read_surface constant-vus vus=1 duration=1m0s, thresholds as above
+    detail: >-
+      re-inspected after the traceparent re-authoring (issue #464): no
+      stderr; resolved scenario read_surface constant-vus vus=1
+      duration=1m0s, thresholds as above
   parse:
     parser: PyYAML safe_load (uv run --no-project --with pyyaml python3)
     date: 2026-09-06
@@ -218,7 +293,7 @@ validation:
       yaml.safe_load(open(sys.argv[1]))'
       .odd/benchmarks/mcp-read-smoke/manifest.yaml
     exit: 0
-    result: passed - this file is valid YAML; re-run on every later edit
+    result: passed - re-parsed after the traceparent re-authoring (issue #464); this file is valid YAML; re-run on every later edit
   smoke:
     # One iteration of the default function, CLI flags overriding the
     # scenario (k6 warns so), no thresholds evaluated. Self-authorized:
@@ -226,21 +301,28 @@ validation:
     # never authorization for the next one - an update re-authorizes it
     # at mission time.
     date: 2026-09-06
-    command: k6 run --vus 1 --iterations 1 --no-thresholds .odd/benchmarks/mcp-read-smoke/script.js -e BASE_URL=http://127.0.0.1:8801 -e RUN_SLUG=smoke-validation
+    command: k6 run --vus 1 --iterations 1 --no-thresholds .odd/benchmarks/mcp-read-smoke/script.js -e BASE_URL=http://127.0.0.1:8801 -e RUN_SLUG=rereview-464-smoke -e SEND_TRACEPARENT=1
     target: local, http://127.0.0.1:8801 - target.launcher, started for the mission and stopped after it
+    gates: >-
+      both set on purpose, so the one iteration exercises the header the
+      re-authoring added - the smoke is a check of the script, not a
+      drive (a local drive leaves SEND_TRACEPARENT unset)
     exit: 0
     stderr: only the documented warning `"cli" level configuration overrode scenarios configuration entirely` - no level=error, no script exception
     checks: 100.00% (15 out of 15)
     http_req_failed: 0.00% (0 out of 5)
     per_request: >-
       5 requests, 1 complete and 0 interrupted iterations (iteration_duration
-      1.19 s): initialize 200, notifications/initialized 202, tools/list
+      1.16 s): initialize 200, notifications/initialized 202, tools/list
       200, tools/call odd_config_get 200, tools/call odd_stack_status
-      200; http_req_duration min 1.32 ms, med 2.88 ms, max 179.13 ms (the
-      odd_stack_status call). The server log carried the five POST lines
-      and no httpx probe line (the quieting holds).
+      200; http_req_duration min 442 us, med 3.24 ms, max 149.29 ms (the
+      odd_stack_status call). The five requests carried the traceparent
+      and the server answered every one of them 200/202 - a synthetic
+      parent changes nothing on the wire. The server log carried the five
+      POST lines, no httpx probe line (the quieting holds) and no error.
     coverage: the single scenario runs the default function (no exec), so the smoke covered every request the benchmark sends; the 404 branch (session dropped, remaining calls skipped) is not exercised by a healthy target
   history:
+    - "2026-09-06 smoke of the script before the traceparent re-authoring (User-Agent identity only), -e RUN_SLUG=smoke-validation: exit 0, 15/15 checks, 0/5 failed, med 2.88 ms, max 179.13 ms - superseded by the record above (issue #464)"
     - "2026-09-06 smoke against a launcher without the telemetry setup: exit 0, 15/15 checks, 0/5 failed, max 119.73 ms - superseded"
     - "2026-09-06 smoke against target.launcher, first script version: exit 0, 15/15 checks, 0/5 failed, max 147.94 ms, no httpx probe line in the server log - superseded by the common-shape script"
     - "2026-09-06 smoke against target.launcher, common-shape script (RUN_SLUG identity, 404 drop, isError !== true): exit 0, 15/15 checks, 0/5 failed, max 133.39 ms - superseded by the script with the if (sessionId) guards"
