@@ -103,7 +103,11 @@ and never in only one of them:
   `sha256(<slug>)`), and the zero-padded 16-hex request sequence
   number; the span id is the sequence number on 16 hex. The sequence
   numbers every driven request of the run, warmup included, from
-  **1** — one counter for the whole run: a span id of all zeros is
+  **1** — one counter for the whole run, or, where the generator
+  holds no counter its workers share, a field made **disjoint per
+  worker by construction**, over every worker that sends a request (a
+  k6 script's VUs, and its setup and teardown: the stored-benchmark
+  paragraph below): a span id of all zeros is
   invalid under W3C trace context, the instrumentation then starts a
   fresh trace and that request drops out of every prefix selector,
   and a counter restarted per phase gives two requests one id. The prefix is
@@ -140,17 +144,35 @@ only when the manifest declares no `user_agent`. There is no `-warmup`
 suffix mid-run either (one process, one User-Agent): what dates t0 is
 the manifest's own warmup stage — its per-request `stage` tag when the
 manifest declares one, the record's `Warmup:` line otherwise ("The run
-starts after the warmup" below). No flag sets a `traceparent`, and no
-stored benchmark sends one: until a script is authored to build it from
-the run slug, a benchmark-driven run is **UA-selected** — its
-`Identity:` line quotes the User-Agent form the rows actually carry,
-the trace-id prefix selectors above have nothing to match, and every
-ruling comes from `user_agent.original` (an uninstrumented k6 emits no
-client span, so the server's own span roots each trace and the
-User-Agent is readable on the summary rows — the last case of the
-bullet above). Authoring that header block is a re-authoring, through
-`/odd-instrument-bench`'s reviewed diff, never a header written into
-the script at mission time.
+starts after the warmup" below). No flag sets a `traceparent` either:
+whether one goes out is the script's doing, and the `identity:` block
+is what says so. A script authored to send it
+(`k6-benchmark-expert`'s authoring contract: both headers built from
+the slug the `run_slug_env` variable carries, the `traceparent` behind
+a second gate the block names — read by presence, so a remote drive
+sets it and a local one leaves it out of the command rather than
+giving it a value meaning off — a launched process already carries
+`service.instance.id`, and the caveat below would cost it its trace
+roots for nothing) makes such a run **prefix-selectable like any
+other** — the same three-part trace id above, its sequence field
+disjoint per runtime rather than one run-wide counter, since k6 holds
+no counter across the runtimes that send its requests (its VUs, and
+its setup and teardown); the manifest states the scheme it used and
+the prefix the script baked in at authoring time — that recorded
+literal, never a prefix the protocol names later, is what the run's
+rows carry — and the rootless caveat below travels with the header
+wherever it goes out. A block that says the header is not sent —
+every benchmark stored today — and a drive that leaves the gate unset
+both leave the run **UA-selected**: its `Identity:` line quotes the
+User-Agent form the rows actually carry, the trace-id prefix selectors
+above have nothing
+to match, and every ruling comes from `user_agent.original` (an
+uninstrumented k6 emits no client span, so the server's own span roots
+each trace and the User-Agent is readable on the summary rows — the
+last case of the bullet above). Either way the header block is
+authored, never written into the script at mission time: giving a
+stored benchmark one is a re-authoring, through
+`/odd-instrument-bench`'s reviewed diff.
 
 Then **read the instance from the run's own rows** —
 `service.instance.id` (or the backend's equivalent) on the requests
