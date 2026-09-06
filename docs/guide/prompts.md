@@ -7,7 +7,7 @@ which part of the sentence feeds which field: each example is followed
 by its own mapping, and the notes that hold for a prompt as a whole
 come after its examples. The contracts are the prompts themselves,
 under [`.apm/prompts/`](../../.apm/prompts/); the architecture behind
-them is mapped in [dependencies.md](dependencies.md).
+them is mapped in [plugin.md](plugin.md).
 
 ## /odd-instrument-otel
 
