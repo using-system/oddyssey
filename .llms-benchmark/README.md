@@ -11,9 +11,9 @@ replayed identically, and the only variable is the model.
 
 ## Results
 
-| Model | Run duration | Input tokens | Output tokens | Cache tokens | Cost (USD) | Signals | Confirmed / reported | oddyssey |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| _no run recorded yet_ | | | | | | | | |
+| Model | Preflight | Drive | Observation | Total | Turns | Median turn | Input | Output | Cache | Cost | $/confirmed | Signals | Kind | Confirmed / reported | oddyssey |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `qwen/qwen3.8-27b` | 14m27s | 2m02s | 51m08s | **1h07m37s** | 67 | 44.8s | 13,897,126 | 220,744 | 12,769,392 | $2.22 | **$0.089** | 4/4 | tel 18 · perf 4 · beh 3 | **25 / 26** | 1.11.3 |
 
 **Confirmed / reported** is the grade. The denominator is how many
 findings the model reported; the numerator is how many of them held up
@@ -29,6 +29,23 @@ the run actually queried. It is not part of the grade; it is what the
 grade should be read against. A ratio earned across two signals and one
 earned across four are not the same achievement, and the column is the
 only thing that shows it.
+
+**$/confirmed** is cost divided by confirmed findings — what one
+trustworthy finding costs with this model. It is the column that actually
+answers the question in the title, because cost and duration alone reward
+whichever model gives up soonest.
+
+**Kind** breaks the reported findings into telemetry, performance and
+behavior. A run can score well and still have looked at one kind of
+problem only; the ratio does not say which.
+
+**Preflight / Drive / Observation** split the total because the three are
+not interchangeable. The drive is fixed by the scenario; the preflight is
+how long the model takes to orient itself; the observation is the work.
+A model whose total is dominated by observation is thorough, one whose
+preflight runs long is lost. And **Turns** with **Median turn** separate
+the two ways of being slow: many small turns means the model is groping,
+few long ones means it is simply slow to answer.
 
 ### What the numbers mean
 
