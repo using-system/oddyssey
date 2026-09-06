@@ -1,18 +1,20 @@
-# Component dependency map
+# The oddyssey plugin package
 
-Who invokes what across the package's three layers - prompts, agents,
-skills - plus the MCP server tools and the report stores. Every edge
-matches an actual invocation in the `.apm/` sources; the per-layer
-tables at the end are the component catalog. One diagram per prompt,
-limited to that prompt's reachable subgraph; a component from another
-prompt's path appears as a **boundary node**, expanded in its own
-diagram.
+Every component the package ships - prompts, agents, skills, hooks and
+the MCP server's tools - with its role, and who invokes what across
+them. Every edge matches an actual invocation in the `.apm/` sources;
+the per-layer tables and the MCP server's own section near the end are
+the component catalog. One diagram per prompt, limited to that prompt's
+reachable subgraph; a component from another prompt's path appears as a
+**boundary node**, expanded in its own diagram.
 
 ## Legend
 
 - **Layers**: prompts (user entry points) - agents (dispatched
-  missions) - skills (reusable contracts) - MCP tools (the oddyssey
-  server piloting the local stack and the global configuration) -
+  missions) - skills (reusable contracts) - hooks (the guards a host
+  runs around a tool call; catalogued below, absent from the diagrams,
+  which map invocations) - MCP tools (the oddyssey server piloting the
+  local stack and the global configuration) -
   stores (the committed `.odd/` report directories, plus the two
   ruling ledgers `.odd/decisions.md` and `.odd/entry-classifications.md`
   and the benchmark sources under `.odd/benchmarks/`).
@@ -481,14 +483,40 @@ A hook deploys with the package; a host can be told not to run it
 (`apm deny using-system/oddyssey` before installing, or the host's own
 hooks setting).
 
-## MCP tools
+## The MCP server
 
-`odd_config_get` / `odd_config_set` read and write the global
-configuration (stack, local ports, per-stack `stack_config`) -
-`odd_config_get` also answers the installed `oddyssey-mcp` version;
-`odd_stack_status` / `odd_stack_up` / `odd_stack_reset` pilot the
-local otel-lgtm container. They are the only components with machine
-state - every prompt, agent, and skill above is a prose contract.
+One job: **pilot a local Grafana stack with an OpenTelemetry endpoint**.
+One container ([grafana/otel-lgtm](https://github.com/grafana/docker-otel-lgtm),
+pinned, its definition embedded in the server — Docker is the only
+prerequisite) exposes Grafana on `:3000`, OTLP on `:4317`/`:4318`, and
+Pyroscope's ingest on `:4040` (profiles are pushed there directly by
+pyroscope-io-style SDKs — they are not an OTLP signal); apps export
+their telemetry there. Tempo traces, Prometheus metrics, Loki
+logs, and Pyroscope profiles are all queried through the Grafana proxy
+(`:3000/api/datasources/proxy/uid/...`), so the same paths work against any
+Grafana; on remote stacks the backend behind it can be something other
+than the local otel-lgtm container.
+
+| Tool | What it does | Params |
+| --- | --- | --- |
+| `odd_stack_up` | Start the local stack and wait until it is ready | `env` (optional) — container environment; applies at creation only, is persisted in `stack_config.local` (credential-named variables excluded) and reapplied on every recreation |
+| `odd_stack_down` | Destroy it — stored telemetry does not survive | — |
+| `odd_stack_status` | Probe whether it is up — and get the container's identity too: `image`, `created`/`started` timestamps, and its user-set `env` (credential-named values redacted to `null`; all four `null` when there is no container) | — |
+| `odd_stack_reset` | Wipe all stored telemetry and return a fresh, ready stack — the next run starts from a clean slate | `env` (optional) — always applies, the container is recreated; persisted/reapplied like `odd_stack_up` |
+| `odd_config_get` | Read the global configuration — stack backend, local host ports, per-stack targeting values, custom stack declarations — and the installed `oddyssey-mcp` version | — |
+| `odd_config_set` | Update it — a port change resets the stack so the new value applies right away | `config` — partial merge, e.g. `{"local": {"grafana_port": 3300}}`; inside `stack_config` and `custom`, `null` deletes a key or a stack's entry; a stack outside the built-in list needs a `custom` declaration |
+
+The server is instrumented with OpenTelemetry and, by default, exports its
+own traces and metrics to the local stack (`http://localhost:4318`, OTLP
+`http/protobuf` — the protocol is fixed, `OTEL_EXPORTER_OTLP_PROTOCOL` set
+to anything else is not honored). Any `OTEL_*` variable set in the MCP
+client's env block overrides the defaults, and `OTEL_SDK_DISABLED=true`
+turns telemetry off entirely. When the stack is down, telemetry is silently
+dropped — the normal state, and never a failure of the server.
+
+These six tools are the only components with machine state - the global
+configuration and the local container. Every prompt, agent, skill and
+hook above is a prose contract.
 
 ## Bird's-eye view
 

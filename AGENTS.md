@@ -169,21 +169,22 @@ removed, or a prompt's behavior/arguments change — examples and
 field-mapping annotations must keep matching the `.apm/prompts/`
 contracts. Update the `README.md` too: the How to steps and the
 Miscellaneous prompts subsection both reference prompts — and the
-`Prompts` table of `docs/guide/dependencies.md` lists every prompt.
+`Prompts` table of `docs/guide/plugin.md` lists every prompt.
 The editorial rule above applies: keep the guide true, never
 exhaustive.
 
-## Keep the dependency map in sync
+## Keep the plugin guide in sync
 
-`docs/guide/dependencies.md` maps who invokes what across prompts,
-agents, skills, and MCP tools. Update it in the same change whenever a
-prompt, agent, skill, or MCP tool is added or removed, or a dependency
-between them changes — every edge must match an actual invocation in
-the `.apm/` sources (no aspirational edges). Its `Prompts`, `Agents`,
-and `Skills` tables list every component with its role and its edges —
-they are the package's component catalog, the README carries none.
-Update the `README.md` too: its MCP tools table lists the server's
-tool surface.
+`docs/guide/plugin.md` maps who invokes what across prompts, agents,
+skills, hooks and MCP tools. Update it in the same change whenever a
+prompt, agent, skill, hook, or MCP tool is added or removed, or a
+dependency between them changes — every edge must match an actual
+invocation in the `.apm/` sources (no aspirational edges). Its
+`Prompts`, `Agents`, `Skills` and `Hooks` tables and its `The MCP
+server` section list every component with its role and its edges —
+they are the package's component catalog, the README carries none: a
+tool's parameters, the container and its ports, and what the server
+exports about itself all live there.
 The editorial rule above applies: keep the guide true, never
 exhaustive.
 
