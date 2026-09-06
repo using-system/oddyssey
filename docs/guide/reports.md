@@ -19,9 +19,10 @@ Written by `/odd-observe` and `/odd-verify`, one file per run.
 ### Filenames
 
 ```text
-YYYY-MM-DD-HHmm-<run_name>.md            # an observation
-YYYY-MM-DD-HHmm-verify-<run_name>.md     # a verification replaying a stored protocol
-YYYY-MM-DD-HHmm-remeasure-<run_name>.md  # a protocol replay testing no fix
+YYYY-MM-DD-HHmm-<run_name>.md                   # an observation
+YYYY-MM-DD-HHmm-<name>-observe-<stack>.md       # a run someone else drove, as one observer saw it
+YYYY-MM-DD-HHmm-verify-<run_name>.md            # a verification replaying a stored protocol
+YYYY-MM-DD-HHmm-remeasure-<run_name>.md         # a protocol replay testing no fix
 ```
 
 The timestamp is the run's own UTC start, so a directory listing reads
@@ -29,6 +30,12 @@ as a timeline. `<run_name>` names what the run analyzed
 (`checkout-latency-sweep`); a verification or re-measure reuses the
 replayed report's. "Has this run been verified?" is the glob
 `*-verify-<run_name>.md`; a re-measure never matches it.
+
+A run one mission drives and others watch — the same benchmark seen
+from two backends, say — writes one report per mission, never a shared
+file: an observer's names the run and the backend it watched from, the
+driver's sits beside it under the same timestamp, and each says in
+section 1 which mission drove the run.
 
 ### Frontmatter
 
@@ -56,7 +63,7 @@ process_restarted: true
 | `environment` | yes | The deployment environment, detected from the telemetry, never asked | the detected value; `local` on the local stack; `unknown` when the service emits none |
 | `mode` | yes | How the run executed, or what kind of replay it was | `drive`, `observe`, `post-hoc`, `verify`, `re-measure` |
 | `depth` | new reports | How far the mission went | `quick` (the signals the question touches, a collapsed report), `full`; absent on older reports, which ran full — `/odd-verify` replays such a baseline at `quick` unless you say `full verify` |
-| `window` | yes | The observed interval, UTC | `start/end` |
+| `window` | yes | The observed interval, UTC — the run's own span, not the time a mission spent waiting for it | `start/end` |
 | `run_name` | yes | The filename's slug | kebab-case |
 | `date` | yes | The run's UTC date | `YYYY-MM-DD` |
 | `verifies` | verify, re-measure | The report whose protocol was replayed | its exact filename; the repo-relative path for an instrumentation report |

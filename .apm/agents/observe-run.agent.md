@@ -67,8 +67,16 @@ the report.
     scenario and say so in section 1, a stop-and-report, never a
     question, since a subagent cannot ask);
   - **observe**: someone else drives — confirm the backend and the service
-    are ready, say so, then wait for the caller's completion signal or the
-    end of the window;
+    are ready, say so, then watch until the run has ended or the window
+    closes: with a benchmark the watch polls the run's own identity and
+    the end is the criterion below, otherwise the caller's completion
+    signal or the end of the window. A watch that closes with nothing on
+    the identity is a stop-and-report ("no run observed in the window"),
+    never an analysis of an empty one. An observed run's report is named
+    for the run **and for you**, whether or not a benchmark is in the
+    mission — `run_name` `<what the run analyzed>-observe-<stack>`, the
+    persistence reference's naming — since another mission may be
+    watching the same run from another backend;
   - **post-hoc** (default): analyze a run that already happened.
 - **Benchmark** — optional: a stored k6 benchmark, named by its
   directory under `.odd/benchmarks/<name>/` or by that path. It composes
@@ -80,7 +88,24 @@ the report.
     requests;
   - **observe** + benchmark: someone else runs it elsewhere; you only
     watch the telemetry, and the report cites the benchmark's name and
-    revision as the replayable protocol instead of a bare window;
+    revision as the replayable protocol instead of a bare window. Read
+    `benchmark-replay.md` for this mode too — its watching section owns
+    what only this mode faces: the run's identity is **discovered**
+    (the manifest's User-Agent prefix inside the window, the slug read
+    off the rows — the mission block is not required to carry it), k6's
+    own evidence is the driver's (quote the `k6:` line the mission
+    block or the driver's stored report hands you; absent both, the
+    record reads `k6: not observed` and what stands in depends on the
+    manifest's `profile.executor` — arrivals against the scheduled
+    integral under an open, arrival-rate model, and under a closed,
+    VU-driven one the manifest's `pacing.expected_rate` band and the
+    run's continuity, where **no threshold is voided on the arrival
+    count alone**), the window is the run's
+    own span and never the minutes you spent watching, the announced
+    start is a hint while the identity is the fact (poll from
+    dispatch), the run has ended — once it has started — on four empty
+    30-second bins, and the watch's poller is resumable across tool
+    calls;
   - **post-hoc** takes no benchmark: you were not there and cannot
     attest that the plan produced the window, so refuse the field and
     say why — a report claiming a benchmark it cannot prove looks
@@ -93,7 +118,11 @@ the report.
   pass criteria — k6's own summary is recorded as evidence, never as
   the verdict.
 - **Window** — how far back to look; default the last 30 minutes. In drive
-  mode the window is the scenario's own start and end.
+  mode the window is the scenario's own start and end. In **observe**
+  mode the mission's window bounds the **watch** — the deadline past
+  which "no run observed" is the answer — while the window the report
+  and the frontmatter record is the observed run's own span; the
+  minutes spent waiting belong to the run record's `Watch:` line.
 - **Focus** — performance, errors, correctness, cost/cardinality, a named
   endpoint, or a full sweep (default: full sweep).
 - **Depth** — `quick` or `full`: how far the mission goes, the second
@@ -165,7 +194,19 @@ whole, 19 K by section). List a file's headings first (one `grep -n
   only when the mission carries a benchmark; in the other modes,
   `run-identity.md`'s clean-run, port and after-the-warmup blocks (the
   after-the-warmup one carves the stages of a run someone else drove),
-  `## 4. Record verbatim` and `## 5.` of `SKILL.md` only;
+  `## 4. Record verbatim` and `## 5.` of `SKILL.md` only — plus, in
+  **observe** mode with a benchmark, `run-identity.md`'s
+  `## The run launches nothing` (how a UA-selected run is read per
+  backend, and its stored-benchmark paragraph),
+  `benchmark-replay.md`'s
+  `## Watching a run someone else drives` and every section it reads
+  with: `## Warmup is the manifest's stage boundaries`,
+  `## Bucketing a ramp for the degradation curve`, `## k6's own summary
+  and exit status are evidence, never the verdict` (the void
+  precondition the watching section applies), `## Reading a breakpoint
+  run` when the manifest names that type, and
+  `long-scenarios.md`'s `## Scenarios longer than a tool call` for the
+  watch's own poller;
 - `odd-memory`'s `observe-run-report` reference: `## Recall: reading
   the memory` at step 5, and nothing else then; at report time,
   `## Where reports live`, `## The file format`, `## Return value` and
@@ -418,6 +459,23 @@ is the caller's, not `localhost`, and the flush wait before querying is the
 backend's documented ingest latency — check its official docs via the
 `observability-cli-guides` reference; absent a documented figure, prove data
 has landed with a bounded query — not the local stack's ~10 s / ~60 s.
+
+In **observe** mode with a benchmark the traffic is someone else's and
+the same discipline holds, turned around: read `benchmark-replay.md`'s
+watching section before the watch starts, then poll from the moment you
+are dispatched rather than from the announced start, on the identity
+the **manifest** gives you — its User-Agent prefix — reading the run's
+slug off the first rows that match rather than expecting the mission
+block to name it. Keep every poll on the backend — never a request at
+the service, whose traffic is the driver's alone — and wait inside your
+turn as a drive does: the poller detaches, the wait never does, and a
+poller re-invoked when a tool call's budget expires re-derives where
+the run stands from its own appended output and the backend, never from
+the call that died. An empty poll before the first row means the run
+has **not started**, never that it ended. The record's `Watch:` line
+carries the announced start, the first row you actually saw and the
+last poll; `Started`/`Ended` carry the run's own, and they are what the
+`window` frontmatter holds.
 
 Every service emits its **own** metrics, spans, and logs — **discover
 first, then query what you found; never assume names**. The five
@@ -696,8 +754,19 @@ from your reply, without re-reading the file:
    commands, counts, and UTC start/end — for a stored benchmark, its
    name and revision, the `k6 run` command, k6's exit status and
    summary, and the stage boundaries — so the run replays verbatim. In
-   observe mode with a benchmark, its name and revision stand in for
-   the commands you did not run. On a custom stack, close the run
+   observe mode with a benchmark, the same record with the lines that
+   mode replaces (`run-scenario`'s `benchmark-replay.md`, watching a
+   run someone else drives): the benchmark's name and revision stand in
+   for the commands you did not run, `Stages (UTC):` carries the
+   boundaries and both anchors exactly as a drive's, `Watch:` the
+   announced start against the first row you saw, `Poller:` the watch's
+   script with its end criterion, and `k6:` either the driver's line
+   quoted with where it came from or `not observed` with whatever the
+   manifest's executor makes checkable in its place. The `Identity:`
+   line carries the User-Agent you selected on with the slug you read
+   off the rows. Name the run's driver there too — the driving mission
+   as the mission block states it (or that it names none), and its
+   stored report by path when that report is already committed. On a custom stack, close the run
    record with the stack file's fate: unchanged, or changed with its
    commit and the one-line reason (the section before this one), and
    any learning left for the user to apply.
@@ -731,7 +800,16 @@ from your reply, without re-reading the file:
    When the scenario record's `k6:` line carries script errors above
    zero, no threshold is ruled: every row reads `void`, and the defect
    is section 3's first finding (`run-scenario`'s `benchmark-replay.md` — the
-   benchmark did not exercise what it measures).
+   benchmark did not exercise what it measures). When that line reads
+   `not observed` — observe mode with no driver's record — every ruled
+   row names the proxy it rests on, which the manifest's
+   `profile.executor` fixes: under an **open**, arrival-rate model the
+   arrivals against the scheduled integral, and rows whose arrivals
+   fell short read `void` with that reason; under a **closed**,
+   VU-driven one the manifest's `pacing.expected_rate` band and the
+   run's continuity, where a shortfall is a finding and never a `void`
+   on the count alone. The shortfall itself
+   is a finding either way.
 
    When `gen_ai.*` spans exist in the window (the section of that name
    above), follow it with the **GenAI** subsection under its own
@@ -924,6 +1002,12 @@ from your reply, without re-reading the file:
   drive mode, the run record's `Query points:` line
   carries a reason for every point beyond the first, and every reset
   beyond the clean-base one names the mission requirement behind it;
+  in observe mode with a benchmark, the run record carries its `k6:`
+  line (the driver's, quoted, or `not observed` with the substitute its
+  executor allows), its `Identity:` line with the slug read off the
+  rows, its `Watch:` and `Stages (UTC):` lines, and the run's own span
+  — not the watch's — as the window in section 1 and in the
+  frontmatter;
   the deployment environment was detected, is definite (no
   provisional value left unsettled), and appears in section 1 and in the
   frontmatter; the memory was recalled (section 1 names the previous

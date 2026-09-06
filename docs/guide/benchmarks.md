@@ -123,7 +123,10 @@ Name the benchmark in an `/odd-observe` mission, by directory or path:
   or a named secret the manifest leaves open is passed at mission time
   and recorded by name;
 - **observe**: someone else runs it, the agent only watches the
-  telemetry;
+  telemetry — it watches for the run's own requests rather than
+  trusting the start time you announced, reports the run's span rather
+  than the time it spent waiting, and writes one report per watching
+  mission, named for the run and the backend it watched from;
 - **post-hoc** takes no benchmark: the agent cannot attest that the
   plan produced the window.
 
@@ -131,7 +134,12 @@ The report cites the benchmark by name and git revision, rules on the
 manifest's thresholds from the service's own telemetry, and keeps k6's
 summary as evidence only; when the k6 run itself threw, no threshold
 is ruled — every row reads `void` and the defect is the report's first
-finding. Driving a remote target is authorized in
+finding. An observed run has no k6 output of its own to keep: the
+agent quotes the driver's when you hand it over, and otherwise says so
+in the report and rules the thresholds from the telemetry alone — it
+voids a ruling where the benchmark's own plan makes a shortfall
+provable, and reports the gap as a finding where that plan leaves it
+unprovable. Driving a remote target is authorized in
 the prompt, every run.
 
 ## Verify
