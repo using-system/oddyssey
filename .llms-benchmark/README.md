@@ -11,26 +11,59 @@ replayed identically, and the only variable is the model.
 
 ## Results
 
-| Model | Run duration | Input tokens | Output tokens | Cache tokens | Confirmed / reported | oddyssey |
-| --- | --- | --- | --- | --- | --- | --- |
-| _no run recorded yet_ | | | | | | |
+| Model | Run duration | Input tokens | Output tokens | Cache tokens | Cost (USD) | Signals | Confirmed / reported | oddyssey |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| _no run recorded yet_ | | | | | | | | |
 
 **Confirmed / reported** is the grade. The denominator is how many
 findings the model reported; the numerator is how many of them held up
 when each was checked back against the telemetry it cited and the code it
 accused. A model that reports three findings and gets three right scores
 `3 / 3`; a model that reports twelve and gets four right scores `4 / 12`
-— and the second is the worse report, however long it is.
+— and the second is the worse report, however long it is. A finding the
+report itself labels uncertain still counts when its numbers check out:
+grading honesty down would only teach models to hide it.
+
+**Signals** is how many of the four — metrics, traces, logs, profiles —
+the run actually queried. It is not part of the grade; it is what the
+grade should be read against. A ratio earned across two signals and one
+earned across four are not the same achievement, and the column is the
+only thing that shows it.
+
+### What the numbers mean
+
+The four token and cost columns come from opencode's own session store,
+read after the run exits — never from the model's account of itself,
+which is written mid-run and cannot include its own last turns. They sum
+the whole session tree: opencode dispatches the observation to a
+subagent, and that subagent is usually the larger half of the bill.
+
+- **Input** is the whole prompt processed — uncached tokens plus what was
+  written to and read from cache. The provider's raw `input` counter is
+  not used on its own: under prompt caching it holds only the residue
+  that missed the cache entirely, which can be a few hundred tokens for a
+  run that processed millions, and which differs so much between
+  providers that two rows would not compare.
+- **Cache** is the cached share of Input, so the two columns overlap by
+  design. It is what explains a multi-million-token run costing a couple
+  of dollars.
+- **Output** includes reasoning tokens, which are billed as output.
+- **Cost** is the provider's own billed figure, cross-checked against its
+  published per-token prices before it is written down.
 
 The table carries no history: one row per model, always its latest run.
-The token counts come from the opencode session export, not from the
-model's own account of itself.
 
 ## How a row is produced
 
 ```text
-/launch-llms-benchmark anthropic/claude-sonnet-5 <your OpenRouter key>
+/launch-llms-benchmark anthropic/claude-sonnet-5
 ```
+
+The model id is the only argument. Two credentials are prerequisites you
+set up once and the command never asks for: an OpenRouter provider
+configured in opencode, and an `OPENAI_API_KEY` in
+`docker-compose/llms-benchmark/.env` for the demo agent's own model calls
+(see `.env.example` next to it).
 
 That command runs the whole protocol and comes back with a pull request
 adding or replacing the model's row. What it does:
@@ -40,19 +73,25 @@ adding or replacing the model's row. What it does:
    services to answer.
 2. Drives the model through the **opencode** CLI, on OpenRouter, at
    **medium** reasoning effort — headless, one session.
-3. Gives it one mission: `/odd-observe` in **quick** mode, running the
-   stored scenario `benchmark/llmbench-store-load/`, on the **local**
-   stack. Both halves are named on purpose — the scenario, so every row
-   comes from the same replayed traffic; the stack, so no row is observed
-   against a backend the others were not.
+3. Gives it one mission — a single `/odd-observe` invocation naming the
+   three services, the stored scenario `benchmark/llmbench-store-load/`,
+   **full** depth and the **local** stack — and asks for every kind of
+   anomaly, not only the slow ones: performance, outright errors, wrong
+   behavior, and telemetry that is missing or lying. Each of the four is
+   named on purpose. The services, so the run never guesses its scope
+   from what happens to be running. The scenario, so every row comes from
+   the same replayed traffic. The stack, so no row is observed against a
+   backend the others were not. The depth, because a shallower one
+   queries metrics and traces only, and a run under it can reach
+   performance anomalies and nothing else however good the model is.
 4. Grades the report finding by finding, on evidence: the cited query is
    re-run, the accused line is opened. Both hold, or the finding does not
-   count.
-5. Opens the results PR from a clean `main`, carrying the row and the
-   per-finding rulings — and nothing else.
+   count. Telemetry gaps are findings like any other.
+5. Opens the run's issue, then the results PR from a clean `main`,
+   carrying the row and the per-finding rulings — and nothing else.
 
-A run takes roughly twenty to forty minutes, almost all of it the
-model's own observation. The scenario itself is two minutes.
+The scenario itself is two minutes; the run around it is dominated by
+the model's own observation.
 
 ## The stack under observation
 
@@ -102,7 +141,8 @@ observation report anyway.
 ## Running the stack by hand
 
 ```bash
-export OPENAI_API_KEY=<an OpenRouter key>
+# once: cp ../docker-compose/llms-benchmark/.env.example \
+#          ../docker-compose/llms-benchmark/.env  and fill OPENAI_API_KEY in
 docker compose -f ../docker-compose/llms-benchmark/docker-compose.yml up -d --build
 
 curl localhost:8010/health                      # the catalog API
