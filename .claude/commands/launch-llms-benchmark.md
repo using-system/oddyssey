@@ -137,6 +137,17 @@ Steps:
    problems, outright errors, wrong behavior, and telemetry that is
    missing or lying, across all four signals.
 
+   And one more sentence, which is not a hint but a method: **drive and
+   observe first — the code confirms what the telemetry surfaced, it does
+   not decide what to look for.** Open a file only after a measurement
+   led you to it, and only to check that measurement. Without it a model
+   reads the whole application up front and finds its defects by code
+   review, then dresses them in telemetry: the run of #489 read all ten
+   source files nine minutes before it drove any traffic, where the run
+   before it read one file, after its first queries. Forbidding the code
+   outright would be worse — the ODD cross-check needs it, and half the
+   findings would become unverifiable.
+
    **Tell it nothing else.** No hint about what to look for, no count of
    anything to find, no example of a defect. Any such hint invalidates
    the row.
@@ -158,7 +169,17 @@ Steps:
      and its `pattern="..."` entries name the commands being run.
    - the process itself: alive, and — past the first minute — with
      children. **Alive with no child and no new log line is the stdin
-     hang**, not a slow model.
+     hang**, not a slow model. A long silence while the process lives and
+     the last line reads `llm runtime selected` is one slow turn, not a
+     stall.
+   - **the `k6` process and the run's own scratch directory**, for the
+     drive. Do not look for a `k6 run` bash pattern in the log: a run may
+     drive through a helper script it writes, and then that pattern never
+     appears at all — it stayed at zero for the whole of #489's run. The
+     scratch directory (under the system temp dir, named after the run)
+     fills with the run's query outputs and carries a `drive-window.txt`
+     with the drive's own start and end once it is done; those two
+     timestamps are what step 7 needs.
    - the session in the store (step 7's identification): its `cost` and
      token counters climb while the run works.
 
@@ -225,11 +246,26 @@ Steps:
      four counters at those four rates reconstruct the recorded cost
      exactly. If they do not, say so instead of publishing the number.
 
-   Also read off the **wall-clock duration** (your own start/end
-   timestamps), the **oddyssey version** (`odd_config_get`'s `version`),
-   and how many of the four signals the run actually queried — count
-   `gcx metrics` / `traces` / `logs` / `profiles` invocations in
-   `~/.local/share/opencode/log/opencode.log` for this run's id.
+   Also read off:
+   - the **three phase durations**, not just the total: preflight
+     (your launch timestamp → the drive's start), drive (the
+     `drive-window.txt` the run leaves in its scratch directory), and
+     observation (drive end → your end timestamp). The total alone hides
+     which of the three a model spends itself in.
+   - the **turns** — assistant messages across the whole session tree,
+     same recursion as the cost — and the **median** per-turn latency
+     from each message's `time.created` / `time.completed`. Use the
+     median and never the mean: one message whose completion timestamp is
+     written late is enough to make the mean meaningless (a 1078 s turn
+     inside a 1240 s run, on the first run). The two together separate
+     the two ways of being slow — many short turns is a model groping,
+     few long ones is a model slow to answer.
+   - the **oddyssey version** (`odd_config_get`'s `version`);
+   - how many of the four signals the run actually queried — count
+     `gcx metrics` / `traces` / `logs` / `profiles` invocations in
+     `~/.local/share/opencode/log/opencode.log` for this run's id, and
+     corroborate with the run's scratch files, since a run that queries
+     through helper scripts logs fewer invocations than it makes.
 
 8. **Grade the report — this is your job, not the model's.** Read the
    observation report the run stored under `.odd/observe-run-reports/`
@@ -280,13 +316,24 @@ Steps:
       replace that row in place. The table carries no history: one row
       per model, always the latest run.
 
-    Columns: run duration, input tokens, output tokens, cache tokens,
-    cost in USD, signals queried (`n/4`), `confirmed / reported`, and the
-    oddyssey version.
+    Columns: the three phase durations and the total, turns, median
+    turn latency, input / output / cache tokens, cost in USD, **cost per
+    confirmed finding**, signals queried (`n/4`), the **breakdown of the
+    findings by kind** (telemetry / performance / behavior), `confirmed /
+    reported`, and the oddyssey version.
+
+    Cost per confirmed finding is the column that answers the question in
+    the README's title: cost and duration alone reward whichever model
+    gives up soonest. The breakdown by kind exists because a run can
+    score perfectly and still have looked at one kind of problem only —
+    the first run's `7/7` was performance and nothing else.
 
     The PR body carries the per-finding rulings from step 8, so the ratio
     is auditable, and it names the opencode version and the model variant
-    used. **It carries no API key and no list of the stack's defects** —
+    used. It also notes three things the table has no column for: how
+    many source files the run read **before** the drive, whether it drove
+    any traffic of its own outside the stored scenario, and whether its
+    report carries a replayable verification protocol. **It carries no API key and no list of the stack's defects** —
     the rulings read as "the report's finding N held up / did not hold
     up, because <evidence>", never as a catalogue of what the application
     gets wrong.
