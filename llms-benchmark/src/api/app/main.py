@@ -205,7 +205,7 @@ def get_order(order_ref: str) -> dict:
 
 def main() -> None:
     telemetry.setup_telemetry()
-    LoggingInstrumentor().instrument(set_logging_format=False)
+    LoggingInstrumentor().instrument(set_logging_format=False, log_code_attributes=True)
     # The healthcheck is polled far more often than the API is called; keeping
     # it off the traced surface keeps the traces readable.
     FastAPIInstrumentor.instrument_app(app, excluded_urls="health")

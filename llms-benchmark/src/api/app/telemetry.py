@@ -21,7 +21,7 @@ from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
@@ -86,15 +86,19 @@ def setup_telemetry() -> None:
     metrics.set_meter_provider(meter_provider)
     _shutdowns.append(meter_provider.shutdown)
 
+    # The provider only - the handler that bridges stdlib logging onto it
+    # is installed by LoggingInstrumentor, which the entry point calls
+    # right after this function. Installing one here as well would put
+    # two bridging handlers on the root logger: the contrib
+    # instrumentor's duplicate guard reads an environment variable, never
+    # the root logger's handlers, so a handler added in code cannot trip
+    # it and every record would be exported twice.
     logger_provider = LoggerProvider(resource=resource)
     logger_provider.add_log_record_processor(BatchLogRecordProcessor(OTLPLogExporter()))
     set_logger_provider(logger_provider)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
-    logging.getLogger().addHandler(
-        LoggingHandler(level=logging.INFO, logger_provider=logger_provider)
     )
     _shutdowns.append(logger_provider.shutdown)
 
