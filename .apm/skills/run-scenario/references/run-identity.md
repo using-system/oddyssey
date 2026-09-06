@@ -147,7 +147,7 @@ What marks them depends on how the identity travels: the `-warmup`
 suffix on the User-Agent when it travels in the requests (above) — so
 carve t0 from the rows whose User-Agent has none — and otherwise the
 `Warmup:` line of the record (`SKILL.md` step 4), which says how many
-requests per endpoint to drop before taking t0.
+requests per operation to drop before taking t0.
 
 ## Reset once
 

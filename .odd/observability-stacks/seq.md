@@ -104,15 +104,25 @@ In filters the long names apply: `@SpanId`, `@TraceId`, `has(@Start)`.
 - Span duration is the built-in `@Elapsed` (`@Timestamp - @Start`), in
   Seq's native **100 ns ticks**
   ([built-in properties](https://datalust.co/docs/built-in-properties-and-functions)) —
-  divide by 10 000 for milliseconds. It filters and aggregates
-  (verified 2026-09-04):
-  `seqcli query -q "select count(*), percentile(@Elapsed, 50), percentile(@Elapsed, 99), max(@Elapsed) from stream where has(@Start) group by RequestMethod" --start=<iso> --end=<iso> --json`
+  divide by 10 000 for milliseconds. It filters and aggregates (the
+  aggregation and the `group by RequestMethod` half verified
+  2026-09-04; the route half added 2026-09-06, never run against a live
+  Seq, its property name the observed service's to discover):
+  `seqcli query -q "select count(*), percentile(@Elapsed, 50), percentile(@Elapsed, 99), max(@Elapsed) from stream where has(@Start) group by RequestMethod, <templated route property>" --start=<iso> --end=<iso> --json`
   for the per-operation quantiles, and
   `seqcli search -f "has(@Start) and @Elapsed > 500ms" -c 20 --start=<iso> --end=<iso> --json`
-  for the exemplar above a threshold. Duration literals (`500ms`,
-  `1s`) work in both `search -f` and `query -q`; a raw number is ticks,
-  so a p99 read from `percentile(@Elapsed, 99)` can be pasted straight
-  back into a filter.
+  for the exemplar above a threshold (verified 2026-09-04). Duration
+  literals (`500ms`, `1s`) work in both `search -f` and `query -q`; a
+  raw number is ticks, so a p99 read from `percentile(@Elapsed, 99)`
+  can be pasted straight back into a filter. **Group by the whole
+  operation, never by one half of it**: `RequestMethod` alone folds
+  every route into one row per verb, the route alone folds a route's
+  verbs into one row, and either way the quantile belongs to no
+  operation the service serves. The route half must be the
+  **templated** route — `http.route` and its `{placeholders}` on an
+  OTel-instrumented service — never the concrete path: the sample
+  data's `RequestPath` carries the identifier, so grouping by it shatters
+  one operation into a row per request, a percentile over one sample each.
 
 Ingestion: an OpenTelemetry SDK exports to Seq with
 `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf` and the traces endpoint
@@ -171,8 +181,10 @@ exemplar fetches concurrently.
   own properties — and the child spans give the downstream call count
   per request. Traces are one flat parent/child tree per request
   (`@ps` is the parent span id); plan the operation grouping on the
-  properties the service emits, since `@SpanKind` may be `Internal`
-  throughout (verified 2026-09-04).
+  properties the service emits — `@SpanKind` may be `Internal`
+  throughout (verified 2026-09-04) — and on **all** of them: one
+  property of a pair (a method without its route, a route without its
+  method) folds distinct operations into a single row.
 
 ## Configuration display
 

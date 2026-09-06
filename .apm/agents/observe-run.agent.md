@@ -560,7 +560,7 @@ Then go from aggregates to explanations:
   latency number reads from the User-Agent identity, never from a
   trace's root span.
   With no recalled report either,
-  compare within the run: p99 against p50 per operation, an endpoint
+  compare within the run: p99 against p50 per operation, an operation
   against its siblings, the first half of the window against the second.
   Always say what you compared against.
 - **Cross-signal** — a slow trace names the span, the span's window narrows
@@ -705,6 +705,21 @@ from your reply, without re-reading the file:
 
    | Operation | Requests | Rate | p50 | p95 | p99 | Error % | DB/downstream calls per req | Notable |
 
+   An **operation** — a row of that table — is the smallest unit the
+   service serves distinctly, which is usually already the span name.
+   On an **HTTP server** that unit is the pair `http.request.method` +
+   `http.route`, **never the route alone**: a route two verbs share is
+   two rows, and folded, a 2.5 ms `GET` and a 62 ms `DELETE` on one
+   route read as one 66 ms p95 that belongs to neither. On any other
+   surface it is that surface's own unit — the RPC method and the tool
+   or procedure it names (`tools/call odd_stack_status`), the topic a
+   consumer reads — never an HTTP shape imposed on a service that
+   serves none. Group the numbers on that key: the service's own OTel
+   HTTP histogram carries both labels, so its quantiles group by
+   `http_request_method` and `http_route` (beside `le`) and its counts
+   by the two alone; a backend's span-derived series key by span name,
+   which carries the verb already and needs no second label.
+
    With a benchmark in the mission, follow it with the threshold table
    — one row per threshold in the benchmark's manifest
    (`.odd/benchmarks/<name>/`; `run-scenario` reads it when you drive,
@@ -731,8 +746,13 @@ from your reply, without re-reading the file:
    With a recalled baseline, follow with the deltas: per operation,
    improved / regressed / unchanged / new against the previous report's
    numbers — the fate of its findings is section 3's ruling table, never
-   prose here. Close with the service graph: who calls whom, and how
-   often.
+   prose here. A run that first **splits** a baseline's coarser row — a
+   route into its verbs — says so: each new row names the baseline row
+   it replaces. The memory is append-only, so that baseline keeps its
+   key forever, and a reader, or anything matching operation names
+   verbatim across two reports, otherwise sees one row vanish and two
+   appear with nothing saying why. Close with the service graph: who
+   calls whom, and how often.
 3. **Anomalies and probable causes** — ranked table first:
 
    | # | Finding | Severity | Confidence | Evidence | Expected gain |
@@ -792,11 +812,21 @@ from your reply, without re-reading the file:
    its before-value and its pass criterion — a threshold to meet (for a
    benchmark, the manifest's thresholds, carried over from section 2's
    table), an error that must be gone, a gap that must be filled — so the
-   improvement is verified with evidence, not impressions. In a verify or
-   re-measure, this table rules the baseline's **checks**, each under the
-   key the baseline gave it; a check key is never a finding id, and a
-   check ruled here never stands in for section 3's ruling on a baseline
-   finding — the two tables answer to different keys. Each check
+   improvement is verified with evidence, not impressions. A check that
+   measures an operation keys it by that operation's own identity
+   (section 2) — on an HTTP server the method and the route together, on
+   another surface that surface's unit — and groups its query the same
+   way: a check keyed more coarsely than the operations it rules can
+   never be re-read per operation later. In a verify or re-measure, this
+   table rules the baseline's **checks**, each under the key the baseline
+   gave it; a check key is never a finding id, and a check ruled here
+   never stands in for section 3's ruling on a baseline finding — the two
+   tables answer to different keys. A baseline check grouped more
+   coarsely than the operations it rules — by the route alone, its verbs
+   folded — is replayed **as written**, never silently regrouped: the two
+   runs' numbers compare only when the query does not, so the ruling
+   names what the number folds, and the finer check written beside it
+   carries a key of its own — the baseline's, plus the verb. Each check
    states how its query was validated — on healthy data, and on the
    **shape the pass criterion expects**: a check that passes when
    something reaches zero, drops to N, or disappears (dependencies
