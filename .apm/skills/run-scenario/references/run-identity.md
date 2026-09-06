@@ -122,6 +122,36 @@ and never in only one of them:
   (`sub("^0+"; "")`), and pads them back when the id is then passed to
   a flag that validates its width.
 
+**A stored k6 benchmark carries the identity its manifest declares.**
+Its script may not be edited (`references/benchmark-replay.md`), so the
+identity is the one it was authored with, read from the manifest's
+`identity:` block: the `user_agent` its requests carry
+(`odd-bench/<name>[/<slug>]` in the stored benchmarks), the
+`run_slug_env` variable the slug travels in (`RUN_SLUG` there), the
+request tags, and whether a `traceparent` is sent. **Pass the slug
+through the variable the manifest names, every run** — `-e
+RUN_SLUG=<slug>`: without it the User-Agent is the benchmark's name
+alone, every replay sends the same one, and the runs merge under it
+exactly as two runs sharing a trace id do. k6's `--user-agent` flag
+(verified k6 v2.2.0) sets only the default k6 uses when the script sets
+no header of its own — against a script that sets one it is at best
+redundant and at worst a second, conflicting identity, so it is passed
+only when the manifest declares no `user_agent`. There is no `-warmup`
+suffix mid-run either (one process, one User-Agent): what dates t0 is
+the manifest's own warmup stage — its per-request `stage` tag when the
+manifest declares one, the record's `Warmup:` line otherwise ("The run
+starts after the warmup" below). No flag sets a `traceparent`, and no
+stored benchmark sends one: until a script is authored to build it from
+the run slug, a benchmark-driven run is **UA-selected** — its
+`Identity:` line quotes the User-Agent form the rows actually carry,
+the trace-id prefix selectors above have nothing to match, and every
+ruling comes from `user_agent.original` (an uninstrumented k6 emits no
+client span, so the server's own span roots each trace and the
+User-Agent is readable on the summary rows — the last case of the
+bullet above). Authoring that header block is a re-authoring, through
+`/odd-instrument-bench`'s reviewed diff, never a header written into
+the script at mission time.
+
 Then **read the instance from the run's own rows** —
 `service.instance.id` (or the backend's equivalent) on the requests
 the identity selects — and record it; it is never asserted up front,
