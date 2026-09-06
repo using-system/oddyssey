@@ -114,7 +114,7 @@ def main() -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     telemetry.setup_telemetry()
-    LoggingInstrumentor().instrument(set_logging_format=False)
+    LoggingInstrumentor().instrument(set_logging_format=False, log_code_attributes=True)
     HTTPXClientInstrumentor().instrument()
     _tool_calls = telemetry.meter().create_counter(
         "mcp.tool.calls",

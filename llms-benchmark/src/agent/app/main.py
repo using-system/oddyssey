@@ -8,7 +8,7 @@ import os
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPX2ClientInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 from pydantic import BaseModel
 
@@ -56,11 +56,15 @@ async def ask(payload: Question) -> dict:
 
 
 def main() -> None:
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    for noisy in ("httpx", "httpx2", "httpcore", "httpcore2"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     telemetry.setup_telemetry()
-    LoggingInstrumentor().instrument(set_logging_format=False)
-    HTTPXClientInstrumentor().instrument()
+    LoggingInstrumentor().instrument(set_logging_format=False, log_code_attributes=True)
+    # httpx2, not httpx: the model SDK, pydantic-ai and the MCP client all
+    # speak httpx2, and the v1 instrumentor would patch a library nothing
+    # on this path calls - leaving the model call with no client span and
+    # no client duration metric.
+    HTTPX2ClientInstrumentor().instrument()
     FastAPIInstrumentor.instrument_app(app)
     assistant.instrument()
     try:
