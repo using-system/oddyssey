@@ -315,17 +315,12 @@ to fetch the code a mission needs to read.
 
 ## Which model to use?
 
-oddyssey does not need the latest frontier model. Its missions are
-reading work — query the telemetry, cross-confirm one signal against
-another, open the file the evidence points at — and a careful mid-tier
-model does that well, for a fraction of the cost of the model you reach
-for to write code.
-
-Rather than assert it, [`.llms-benchmark/`](.llms-benchmark/README.md)
-measures it: a deliberately imperfect three-service stack, one replayed
-scenario, one `/odd-observe` per model at medium reasoning effort, and
-one grade — of what the model reported, how much held up. The results
-table, and the protocol behind it, are there.
+A ranking of models on the loop's own work is kept in
+[`.llms-benchmark/`](.llms-benchmark/README.md): each one observes the
+same running stack through the same replayed traffic, and its report is
+graded on evidence — of what it claimed, how much held up. The table
+carries the findings, the cost and the duration of every run, so you can
+pick on the axis that matters to you.
 
 ## Prerequisites
 

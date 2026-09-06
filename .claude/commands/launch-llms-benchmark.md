@@ -167,11 +167,20 @@ Steps:
      opencode session of the user's writes to the same file, so never
      read the tail unfiltered). Its last line is the current activity,
      and its `pattern="..."` entries name the commands being run.
+   - **`level=ERROR` in the run's log lines, on every poll.** This is the
+     check that matters and it is cheap. A provider can fail a stream and
+     leave the connection open: the process stays alive, its child stays
+     alive, the socket stays ESTABLISHED, stderr stays empty, and nothing
+     moves for as long as you let it. One run sat like that for nine
+     minutes after two `stream error` lines and a 503, while every
+     liveness check said it was working. Treat a stream opened with no
+     completion and no new log line for several minutes as a stall, and
+     say so instead of reassuring.
    - the process itself: alive, and — past the first minute — with
      children. **Alive with no child and no new log line is the stdin
-     hang**, not a slow model. A long silence while the process lives and
-     the last line reads `llm runtime selected` is one slow turn, not a
-     stall.
+     hang**, not a slow model. Note the process you launched is a shell
+     wrapper; opencode is its child, and it is the child's state that
+     means anything.
    - **the `k6` process and the run's own scratch directory**, for the
      drive. Do not look for a `k6 run` bash pattern in the log: a run may
      drive through a helper script it writes, and then that pattern never
@@ -203,7 +212,10 @@ Steps:
    is not enough — a previous run of the same model carries the same
    title. Select the root session on **all** of:
    - `title = 'llms-benchmark <model>'`, and
-   - `time_created >= <the timestamp recorded in step 6>`, and
+   - `time_created >= <the timestamp recorded in step 6>` — **read it
+     back from the file you wrote it to, never retype it from memory**;
+     a remembered value off by fifteen seconds makes this selector
+     return zero rows and look like a protocol failure, and
    - `json_extract(model,'$.id')` equal to the model benchmarked, and
    - `directory` equal to the repository root, and
    - `parent_id IS NULL`.
@@ -251,9 +263,10 @@ Steps:
      (your launch timestamp → the drive's start), drive, and observation
      (drive end → your end timestamp). The total alone hides which of
      the three a model spends itself in. A run may leave a
-     `drive-window.txt` in its scratch directory carrying both drive
-     timestamps — but that is a convention some runs follow and others
-     do not. When it is absent, take the boundaries from the k6
+     file in its scratch directory carrying both drive timestamps — but
+     that is a convention each run invents for itself: three runs used
+     three different names (`drive-window.txt`, `timestamps.env`,
+     `run-timestamps.txt`) and one wrote none at all. When it is absent, take the boundaries from the k6
      artefacts the run does leave: the creation time of the script it
      drove with, and the last write to the k6 stdout capture. Check the
      span against k6's own reported run duration.
