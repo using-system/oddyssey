@@ -56,15 +56,11 @@ copilot plugin install oddyssey@oddyssey-plugin
 /plugin install oddyssey@oddyssey-plugin
 ```
 
-**Codex** — this repository publishes the Codex manifest at
-`.agents/plugins/marketplace.json`; add the repository as a plugin
-source in your Codex plugins settings.
-
 The native artifacts are generated from the APM package on every
 release (`marketplace/`, built by `scripts/build-marketplace.sh`) and
 carry the same agents, commands, skills, and pinned MCP server. The
-other CLIs (opencode, Cursor, Windsurf, Kiro, Gemini) install via APM
-above.
+other CLIs (Codex, opencode, Cursor, Windsurf, Kiro, Gemini) install
+via APM above.
 
 ## The idea
 
