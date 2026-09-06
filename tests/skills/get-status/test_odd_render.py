@@ -17,10 +17,12 @@ from pathlib import Path
 import pytest
 from test_odd_status import (
     DEFAULT_BODY,
+    GAPS_BULLET,
     GIT_ENV,
     LEDGER_HEAD,
     SCRIPT,
     Repo,
+    gap_bullets,
     observation,
 )
 
@@ -1465,6 +1467,110 @@ def test_a_bullet_cut_at_the_cap_is_named_as_a_cut_gap(repo, odd_status, odd_ren
         "open the body for the rest of it"
     ) in judgment
     assert "beyond the cap" not in judgment
+
+
+def gaps_judgment(repo, odd_status, odd_render, bullets: str, **kwargs) -> tuple:
+    """The gap rows and the judgment list of a report whose section 5 is
+    ``bullets`` - the shape the observe-run contract prescribes."""
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", body=DEFAULT_BODY.replace(GAPS_BULLET, bullets)),
+    )
+    repo.commit("docs(odd): report")
+    facts = odd_status.build_facts(repo.root, recent=None, max_title=None, **kwargs)
+    rendered = odd_render.render(facts, today="2026-08-11")
+    return odd_render.gap_rows(facts), rendered.split("## Judgment needed")[1]
+
+
+def test_a_six_bullet_section_past_the_text_cap_defers_nothing(
+    repo, odd_status, odd_render
+):
+    """A compliant section 5 - one bullet per gap, each with its fate and its
+    discovery query - is lifted bullet by bullet: longer than the cap as a
+    whole, every gap listed, so nothing is truncated and nothing deferred."""
+    bullets = gap_bullets(6)
+    assert len(bullets) > odd_status.DEFAULT_MAX_TEXT
+    rows, judgment = gaps_judgment(repo, odd_status, odd_render, bullets)
+    assert len(rows) == 6
+    assert not any(r["truncated"] or r["cut"] for r in rows)
+    assert "section 5 of" not in judgment
+
+
+def test_the_bullets_the_bullet_cap_dropped_are_counted(repo, odd_status, odd_render):
+    dropped = 2
+    rows, judgment = gaps_judgment(
+        repo,
+        odd_status,
+        odd_render,
+        gap_bullets(odd_status.MAX_TEXT_BULLETS + dropped, length=80),
+    )
+    assert len(rows) == odd_status.MAX_TEXT_BULLETS
+    assert all(r["truncated"] for r in rows)
+    assert (
+        "section 5 of 2026-08-10-1000-a.md truncated: 2 bullets beyond the cap "
+        "are unlisted"
+    ) in judgment
+
+
+def test_the_bullets_the_lift_cut_are_counted(repo, odd_status, odd_render):
+    _, judgment = gaps_judgment(
+        repo, odd_status, odd_render, gap_bullets(2), max_text=200
+    )
+    assert (
+        "section 5 of 2026-08-10-1000-a.md truncated: 2 bullets cut by the lift, "
+        "open the body for the rest of them"
+    ) in judgment
+
+
+def test_a_cut_lead_before_the_bullets_defers_nothing(repo, odd_status, odd_render):
+    """The not-queried line a mission opens its gaps section with is not a
+    gap: the lift cutting it lists every gap the section carries."""
+    lead = "Not queried (full): profiles - " + "x" * 1600
+    rows, judgment = gaps_judgment(
+        repo, odd_status, odd_render, f"{lead}\n\n{gap_bullets(2)}"
+    )
+    assert len(rows) == 2 and not any(r["cut"] for r in rows)
+    assert "section 5 of" not in judgment
+
+
+def test_a_cut_prose_around_a_gaps_table_defers_nothing(repo, odd_status, odd_render):
+    """A section recording its gaps as a table keeps them all when the lift
+    cuts the prose around it: the table is lifted apart from the text."""
+    table = (
+        "| Gap | Evidence | State |\n|---|---|---|\n"
+        "| No profiles for checkout | no series | still missing |"
+    )
+    rows, judgment = gaps_judgment(
+        repo, odd_status, odd_render, f"{table}\n\nRuled: " + "x" * 1600
+    )
+    assert [r["gap"] for r in rows] == ["No profiles for checkout (still missing)"]
+    assert "section 5 of" not in judgment
+
+
+def test_a_cut_paragraph_still_says_its_gaps_are_unlisted(repo, odd_status, odd_render):
+    """A section recording its gaps as prose - the legacy shape - records them
+    where the cap bites: what is beyond it is unlisted, as before."""
+    paragraph = " ".join(line.strip() for line in LEGACY_GAPS_PARAGRAPH.splitlines())
+    rows, judgment = gaps_judgment(
+        repo, odd_status, odd_render, paragraph, max_text=400
+    )
+    assert rows and all(r["truncated"] for r in rows)
+    assert (
+        "section 5 of 2026-08-10-1000-a.md truncated: the gaps beyond the cap "
+        "are unlisted"
+    ) in judgment
+
+
+def test_a_gap_bullet_past_both_caps_is_deferred_once(repo, odd_status, odd_render):
+    huge = "- **Logs: absent for checkout** - " + "no log stream carries it, " * 80
+    rows, judgment = gaps_judgment(repo, odd_status, odd_render, huge.rstrip(", "))
+    # the lift cut the bullet, the row cut what the lift left (less its marker)
+    assert [r["cut"] for r in rows] == [odd_status.DEFAULT_MAX_TEXT - 1]
+    assert (
+        "section 5 of 2026-08-10-1000-a.md: 1 gap cut at 500 characters, "
+        "open the body for the rest of it"
+    ) in judgment
+    assert "beyond the cap" not in judgment and "by the lift" not in judgment
 
 
 def test_two_verdict_words_are_deferred_as_two_verdicts(repo, odd_status, odd_render):

@@ -1318,6 +1318,32 @@ def mixed_not_queried(facts: dict) -> list[str]:
     return out
 
 
+def lift_losses(facts: dict) -> dict[str, dict]:
+    """Per report whose gaps section the lift cut, what it took: the bullets
+    it dropped whole, the bullets it cut at their tail, and whether the prose
+    it cut is where that section records its gaps.
+
+    A section recording its gaps as bullets or as a table keeps them all
+    when the lift cuts its prose - the not-queried line a mission opens
+    with is not a gap - so ``prose`` is true only for a section that
+    records its gaps as prose.
+    """
+    out = {}
+    for newest in newest_observations(facts).values():
+        section = gap_section(newest)
+        if section is None or section["text"] is None:
+            continue
+        if not section["text_truncated"]:
+            continue
+        out[name_of(newest)] = {
+            "dropped": section.get("text_bullets_dropped") or 0,
+            "cut": section.get("text_bullets_cut") or 0,
+            "prose": bool(section.get("text_prose_cut"))
+            and not gap_items_by_shape(section)[1],
+        }
+    return out
+
+
 def gap_rows(facts: dict) -> list[dict]:
     """The newest observation of each lineage, its telemetry-gaps section as recorded.
 
@@ -1326,10 +1352,11 @@ def gap_rows(facts: dict) -> list[dict]:
     a list of signals is dropped whole and deferred - unless the section
     states it carries no gap.
 
-    ``truncated`` says the section's text was cut by the lift (gaps beyond
-    the cap unlisted); ``cut`` carries an item's whole length when the row
-    caps it, else 0; ``paragraph`` marks a section that yielded one
-    paragraph item the split could not cut.
+    ``truncated`` says the lift took something from the section's text -
+    what it took is the lift's to state (``lift_losses``); ``cut`` carries
+    an item's whole length when the row caps it, else 0; ``paragraph``
+    marks a section that yielded one paragraph item the split could not
+    cut.
     """
     rows = []
     for label, newest in newest_observations(facts).items():
@@ -1708,10 +1735,29 @@ def render(
             gap_notes.append(
                 f"gaps of {g['recorded_by']}: section 5 not lifted, open the body"
             )
+    cut_gaps: dict[str, int] = {}
+    for g in gaps:
+        if g["cut"] and not g["paragraph"]:
+            cut_gaps[g["recorded_by"]] = cut_gaps.get(g["recorded_by"], 0) + 1
+    losses = lift_losses(facts)
     for name in sorted({g["recorded_by"] for g in gaps if g["truncated"]}):
-        gap_notes.append(
-            f"section 5 of {name} truncated: the gaps beyond the cap are unlisted"
-        )
+        loss = losses.get(name) or {"dropped": 0, "cut": 0, "prose": False}
+        if loss["dropped"]:
+            gap_notes.append(
+                f"section 5 of {name} truncated: {plural(loss['dropped'], 'bullet')} "
+                f"beyond the cap {'is' if loss['dropped'] == 1 else 'are'} unlisted"
+            )
+        if loss["prose"]:
+            gap_notes.append(
+                f"section 5 of {name} truncated: the gaps beyond the cap are unlisted"
+            )
+        if loss["cut"] and name not in cut_gaps:
+            # a row the cap below cut already says to open the body
+            gap_notes.append(
+                f"section 5 of {name} truncated: {plural(loss['cut'], 'bullet')} cut "
+                f"by the lift, open the body for the rest of "
+                f"{'it' if loss['cut'] == 1 else 'them'}"
+            )
     for g in gaps:
         if g["cut"] and g["paragraph"]:
             gap_notes.append(
@@ -1719,10 +1765,6 @@ def render(
                 f"characters, cut at {MAX_GAP_LENGTH}, open the body for the gaps "
                 "it carries"
             )
-    cut_gaps: dict[str, int] = {}
-    for g in gaps:
-        if g["cut"] and not g["paragraph"]:
-            cut_gaps[g["recorded_by"]] = cut_gaps.get(g["recorded_by"], 0) + 1
     for name, count in sorted(cut_gaps.items()):
         gap_notes.append(
             f"section 5 of {name}: {plural(count, 'gap')} cut at {MAX_GAP_LENGTH} "

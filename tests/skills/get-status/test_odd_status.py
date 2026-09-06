@@ -185,6 +185,19 @@ Prose after the table stays in the section text.
 """
 
 
+GAPS_BULLET = "- **Logs: absent for checkout** - no log stream carries the service."
+
+
+def gap_bullets(count: int, length: int = 300) -> str:
+    """A section 5 in the one-bullet-per-gap shape the report contract asks
+    for: ``count`` bullets, each ``length`` characters, fate and query."""
+    out = []
+    for n in range(1, count + 1):
+        head = f"- **Signal {n}: absent for checkout** - still missing - `query {n}` "
+        out.append((head + "y" * max(0, length - len(head))).rstrip())
+    return "\n".join(out)
+
+
 LEDGER_HEAD = (
     "# ODD finding decisions\n\nRows are appended, never rewritten.\n\n"
     "| Date | Finding | Verdict | Rationale |\n|---|---|---|---|\n"
@@ -939,6 +952,77 @@ def test_section_text_is_capped_and_flagged(repo):
     }[3]
     assert section["text_truncated"] is False
     assert "prose after the table" in section["text"]
+
+
+def bulleted_gaps(repo, bullets: str, **kwargs) -> dict:
+    """The emitted section 5 of a report whose gaps section is ``bullets``."""
+    repo.write(
+        ".odd/observe-run-reports/2026-08-10-1000-a.md",
+        observation(run_name="a", body=DEFAULT_BODY.replace(GAPS_BULLET, bullets)),
+    )
+    repo.commit("docs(odd): report")
+    return {s["number"]: s for s in facts(repo, **kwargs)["reports"][0]["sections"]}[5]
+
+
+def test_a_bulleted_section_is_lifted_bullet_by_bullet_past_the_text_cap(repo):
+    module = _load_module()
+    bullets = gap_bullets(6)
+    assert len(bullets) > module.DEFAULT_MAX_TEXT
+    section = bulleted_gaps(repo, bullets)
+    assert section["text"] == bullets  # every bullet whole, none cut
+    assert section["text_truncated"] is False
+    assert section["text_bullets_dropped"] == 0
+    assert section["text_bullets_cut"] == 0
+    assert section["text_prose_cut"] is False
+
+
+def test_a_bullet_longer_than_the_cap_is_the_only_one_cut(repo):
+    module = _load_module()
+    long_bullet = "- **Traces: absent for checkout** - " + "z" * 2000
+    section = bulleted_gaps(repo, f"{GAPS_BULLET}\n{long_bullet}")
+    first, second = section["text"].splitlines()
+    assert first == GAPS_BULLET
+    assert len(second) == module.DEFAULT_MAX_TEXT + 1
+    assert second.endswith(module.ELLIPSIS)
+    assert section["text_truncated"] is True
+    assert section["text_bullets_cut"] == 1
+    assert section["text_bullets_dropped"] == 0 and section["text_prose_cut"] is False
+
+
+def test_bullets_beyond_the_bullet_cap_are_dropped_and_counted(repo):
+    module = _load_module()
+    section = bulleted_gaps(repo, gap_bullets(module.MAX_TEXT_BULLETS + 3, length=80))
+    lifted = section["text"].splitlines()
+    assert len(lifted) == module.MAX_TEXT_BULLETS
+    assert section["text_bullets_dropped"] == 3
+    assert section["text_truncated"] is True
+    assert section["text_bullets_cut"] == 0 and section["text_prose_cut"] is False
+
+
+def test_the_prose_before_the_bullets_is_capped_on_its_own(repo):
+    lead = "Not queried (quick): profiles - " + "x" * 2000
+    section = bulleted_gaps(repo, f"{lead}\n\n{gap_bullets(2)}")
+    assert section["text"].startswith("Not queried (quick): profiles - x")
+    assert section["text"].endswith(gap_bullets(2))  # the bullets survive its cut
+    assert section["text_truncated"] is True
+    assert section["text_prose_cut"] is True  # the lead, not a gap
+    assert section["text_bullets_cut"] == 0 and section["text_bullets_dropped"] == 0
+
+
+def test_the_lift_keeps_the_spacing_of_a_section_it_does_not_cut(repo):
+    written = f"Not queried (full): none.\n\n{gap_bullets(2, length=60)}"
+    section = bulleted_gaps(repo, written)
+    assert section["text"] == written  # blank lines and all, verbatim
+    assert section["text_truncated"] is False
+
+
+def test_a_bulletless_section_is_still_capped_as_one_text(repo):
+    module = _load_module()
+    prose = "Gaps the queried signals showed: " + "y" * 2000
+    section = bulleted_gaps(repo, prose)
+    assert section["text"] == prose[: module.DEFAULT_MAX_TEXT] + module.ELLIPSIS
+    assert section["text_truncated"] is True and section["text_prose_cut"] is True
+    assert section["text_bullets_cut"] == 0 and section["text_bullets_dropped"] == 0
 
 
 def test_tree_anchor_is_summarized_in_the_emitted_frontmatter(repo):
