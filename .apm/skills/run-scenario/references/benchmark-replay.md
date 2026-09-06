@@ -8,7 +8,9 @@ drive the identity reference and `SKILL.md` steps 3 and 5 apply
 unchanged — the clean-base order, the run's t0 after the warmup, the
 sample-count rules, the flush wait — and `SKILL.md` step 4 applies with
 the record shape below; a remote drive changes four things, in its own
-section. What
+section; and a run you do not drive at all — `observe-run`'s observe
+mode, someone else running the script — is the last section, read with
+this one and never instead of it. What
 differs is how the load is generated and how the record cites it:
 
 ## Confirm k6 is installed before anything else
@@ -340,4 +342,194 @@ Command:
   k6 run .odd/benchmarks/orders-api-spike/script.js --tag run=observe-spike-0906 --summary-export /tmp/k6-summary-observe-spike-0906.json -e BASE_URL=https://orders.example.com -e RUN_SLUG=observe-spike-0906
 k6:        exit 0, 4812 requests, checks 100%, dropped iterations 52 (generator: maxVUs saturated while the server p95 stayed flat), script errors 0
 Not reproducible: none
+```
+
+## Watching a run someone else drives
+
+`observe-run`'s **observe** mode with a benchmark: another mission — or
+another person — runs the script, and you read only the telemetry.
+Everything above about the manifest still holds — the `identity:` block
+that says how the run is selected, the stage arithmetic and its two
+anchors, the 30-second segments of a ramp, the breakpoint reading, the
+thresholds ruled from the service's own telemetry. What changes is that
+you hold none of k6's own evidence, and that the run's identity, its
+start and its end are things you discover rather than decide.
+
+- **The identity is discovered, not handed over.** The manifest's
+  `identity:` block gives the stable half of the User-Agent
+  (`odd-bench/<name>` in the stored benchmarks); the run slug is the
+  half the driver passed through `run_slug_env`, and no mission block
+  has to carry it. Select the run on that prefix inside the window,
+  then **read the slug off the rows**, and record the whole User-Agent
+  on the `Identity:` line with the instance, as a drive does. A prefix
+  matching several slugs in the window is several runs, not one: watch
+  the one the mission names, and otherwise report the ambiguity — each
+  slug with its first row — rather than folding them into one set of
+  numbers. What only the driver knows is recorded as exactly that: the
+  driving mission under the name the mission block gives it (`not
+  named` when it gives none), `Base URL: not observed` when the block
+  does not state it, and k6's own evidence per the next bullet.
+- **k6's evidence is the driver's, never inferred as if it were
+  yours.** The exit code, the stderr and the summary belong to the
+  process you did not launch. When the driver's record reaches you —
+  its stored report's `k6:` line, or a `k6:` line the mission block
+  hands over — quote it verbatim with where it came from, and the void
+  precondition of "k6's own summary and exit status are evidence,
+  never the verdict" above applies exactly as on a drive: script
+  exceptions above zero void every threshold ruling. When it does not
+  reach you, the `k6:` line reads **`not observed`**, and what stands
+  in is the next bullet's — never a silent assumption that the
+  generator ran clean, and never a `pass` resting on one.
+- **What can stand in depends on the manifest's executor.** The rows
+  attest only what the executor makes checkable, so the substitute is
+  read off `profile.executor` before anything is counted:
+  - **an open model** (`ramping-arrival-rate`, `constant-arrival-rate`
+    — of the stored benchmarks, the breakpoint alone) schedules the arrivals
+    themselves, so **received against scheduled** is a real check — the
+    run's request rows counted per stage against the integral of the
+    manifest's stage rates over the same interval, which is the
+    arrival-rate consequence stated above and carries that scope. Both
+    numbers go on the `k6:` line, and every threshold ruled under them
+    says in the report that this is its evidence: the count attests
+    that the generator kept the schedule, it does **not** attest zero
+    script exceptions, since one thrown after the response came back
+    leaves the arrivals intact. `dropped_iterations` is ruled from that
+    same received-against-scheduled number, named as such (the k6-side
+    counter and the OpenTelemetry bonus signal both land in the
+    driver's store, not necessarily in yours).
+  - **a closed model** (`constant-vus`, `ramping-vus` — every other
+    stored benchmark: load, soak, smoke, stress, spike) schedules
+    **VUs, not arrivals**: the rate is VUs × requests per iteration ÷
+    iteration duration, and it drifts down with the target's own
+    response time by design — several of the stored manifests say so in
+    as many words under `pacing.expected_rate`. There is no schedule to
+    integrate, and a
+    count below expectation is a legitimate reading of a slower service
+    before it is anything else. What stands in, in this order: the
+    manifest's `pacing.expected_rate`, quoted as the expectation it is
+    and never as a pass criterion; the run's **continuity** — arrivals
+    present in every bin of the window at the shape the profile's VU
+    count implies, rather than stopping or gapping mid-stage; and,
+    where the manifest offers neither, one explicit line saying **no
+    schedule exists and the generator's completeness is unattested**.
+    Under a closed model **no threshold is ever voided on the arrival
+    count alone**.
+  - **any other executor** is read as closed unless it schedules the
+    arrivals itself. The iteration-bounded pair
+    (`shared-iterations`, `per-vu-iterations`) is the closed case with
+    the strongest substitute of all: the manifest declares a total
+    number of iterations, so the expected request count is that total
+    × `pacing.requests_per_iteration` — an exact figure rather than a
+    band, and a run whose rows fall short of it stopped early. It stays
+    a closed model all the same: that shortfall is a finding, never an
+    automatic `void`.
+- **A shortfall is not a pass.** Under an **open** model, arrivals
+  below the schedule beyond its own rounding — the fractional last
+  iteration a stage's rate leaves, nothing more — mean the run may not
+  have exercised what it measures: the thresholds it touches read
+  `void (arrivals short of schedule, the generator's evidence not
+  observed)`, never `pass`, and the shortfall is a finding of its own.
+  Under a **closed** model the same shape — arrivals stopping before a
+  stage's end, a count far under the expected band — is a finding to
+  raise and investigate, never an automatic `void`. Either way it is
+  read against the service's own latency, by the dropped-iterations
+  rule above: a flat server-side p95 makes it the generator's, a rising
+  one makes it the service bending.
+- **The window is the run's, not the watch's.** The recorded window —
+  and the report's `window` frontmatter, and the minute its filename
+  carries — runs from **the run's first request row** on the identity
+  to its end as the criterion below fixes it, the two instants
+  `Started (UTC)` and `Ended (UTC)` carry; a drive's window opens on
+  the same row and closes on k6's exit. The minutes the mission spent
+  waiting are the record's `Watch:` line instead. A window padded with
+  idle time is not the interval a replay reproduces, and every rate in
+  the report divides by it.
+- **The announced start is a hint; the identity is the fact.** Poll
+  from the moment the mission is dispatched and its readiness
+  preflight has passed — never sleep until the announced clock time:
+  an announced start is a plan, and a ramp observed four minutes ahead
+  of it carves a truncated window for anyone who trusted it. The
+  `Watch:` line carries both, the hint as stated and the first row
+  actually seen.
+- **Both anchors come from the rows, and a k6 run marks no warmup on
+  its User-Agent.** You do not hold the launcher's clock, so the first
+  request row of the identity anchors the stage offsets and the
+  manifest's own warmup stage dates t0, exactly as in "Warmup is the
+  manifest's stage boundaries" above: read the boundaries off the
+  per-request `stage` tag where the manifest declares one, and convert
+  the offsets from that first row where it does not. There is no
+  `-warmup` suffix to look for — one process, one User-Agent
+  (`references/run-identity.md`, the stored-benchmark paragraph) — and
+  an observer hunting for one finds nothing and dates the run from a
+  warmup request instead, which mis-buckets every stage after it (that
+  suffix belongs to an observe run with no benchmark, whose driver
+  drove ad-hoc requests: `run-identity.md`'s "The run starts after the
+  warmup" then applies as written). Both anchors go on the record's
+  `Stages (UTC):` line, the same line and the same words as a drive's.
+- **The end criterion applies only once the run has started.** Before
+  the first row on the identity, an empty poll means **not started**,
+  never ended, and the watch continues to the mission's deadline; a
+  watch that reaches that deadline with no row at all is a
+  stop-and-report ("no run observed in the window"), never an analysis
+  of an empty one. **After** the first row, the run has ended when the
+  identity stops producing rows: no row in **four consecutive
+  30-second bins** — the segment width a ramp is already read at —
+  counted on data old enough to have landed, since a backend that lags
+  a minute makes a live run look finished. That quiet must also be
+  longer than any gap the profile itself schedules where it fell: an
+  open model opening at a low arrival rate, or a closed model with few
+  VUs and a long sleep, spaces its own requests, and the bins widen to
+  the profile's own spacing before an end is called. `Ended (UTC)` is
+  then the last request row, never the last empty poll. Quiet arriving
+  before the manifest's scheduled total means the run ended early — a
+  threshold with `abort_on_fail: true`, or a generator that died — and
+  the report says which the telemetry supports, with the elapsed time
+  and the rate at the stop; a truncated window is never presented as
+  the whole run.
+- **The watch outlasts a tool call, so its poller is resumable.** The
+  primitives are `references/long-scenarios.md`'s and nothing new: a
+  detached `nohup` script that runs one bounded count query on the
+  identity every 30 s and **appends** a timestamped line per poll to a
+  file, later tool calls reading only that file — so a call that
+  expires mid-watch loses nothing. Where the host or the query CLI
+  will not detach, the same script runs inside the turn through the
+  platform's blocking wait primitive with the end criterion as its
+  `until` condition, and is **re-invoked** the moment the call's budget
+  runs out. That is safe only while each invocation holds no state from
+  the last: it re-derives where the run stands from the append-only
+  poll file and the backend alone — whether a first row has been seen
+  and when, the newest arrival, and the empty bins since — and appends
+  rather than truncates, so invocation *n+1* continues the watch
+  instead of restarting it. Give it outcomes a caller can tell apart:
+  exit `0` when the end criterion is met, a distinct status meaning
+  "still running (or not started yet), re-invoke me". Re-invoking is
+  the same turn's next tool call — the turn never ends waiting (ending
+  it terminates the mission). The poller **watches, it never drives**:
+  an observer's polls go to the backend only, and no request is sent
+  at the service, whose traffic is the driver's alone. The `Poller:`
+  line carries the script, its output file, the interval, the end
+  criterion and how many invocations it took.
+
+The record then keeps every line of a drive's and replaces what you did
+not do — here the breakpoint benchmark, whose ramp outlasts a tool call
+and whose executor is the open model above:
+
+```text
+Scenario:  benchmark orders-api-breakpoint (observed; driven by another mission, "the campaign's drive mission")
+Benchmark: .odd/benchmarks/orders-api-breakpoint/ @ 3ccfd18 (clean; HEAD 454af15 at the watch's start)
+Base URL:  not observed — the driver's, and the mission block does not state it
+Listeners: n/a (nothing driven or launched here)
+Backend:   no reset — the run is someone else's; isolated by window and identity
+Instance:  read from the run's rows: orders-api-7c9f (one instance)
+Identity:  User-Agent "odd-bench/orders-api-breakpoint/campaign-bp-0906" — the manifest's prefix, the slug read off the rows (one slug in the window); UA-selected, no traceparent
+Warmup:    the manifest's baseline stage, 30 s (excluded), carried by the per-request stage tag
+Stages (UTC): read off the stage tag, no arithmetic — baseline 08:54:02–08:54:32 (excluded), ramp 08:54:32–09:04:32, ramp-down 09:04:32–09:04:38; t0 (first measured request) 08:54:32; ramp read in 30 s segments, offered rate at each segment's midpoint
+Watch:     announced "from 08:58, within 15 minutes"; polled from dispatch 08:52:40; first row on the identity 08:54:02, four minutes before the hint; last poll 09:07:10
+Started (UTC): 2026-09-06T08:54:02Z   # the run's first request row, not the watch's start
+Ended   (UTC): 2026-09-06T09:04:38Z   # last request row; four empty 30 s bins after it, against a 1 s-spaced schedule at that point
+Query points: 1 (after Ended + the backend's ingest wait, proven by a bounded count query)
+Poller:    /tmp/watch-campaign-bp-0906.sh -> /tmp/watch-campaign-bp-0906.log, every 30 s, one bounded count on the identity per poll, backend only (no request at the service); not-started until the first row, then ends on four empty 30 s bins; 3 invocations, exit 0 on the third
+Command:   none run here — the driver's
+k6:        not observed (driven elsewhere); open model (ramping-arrival-rate), arrivals 2327 request rows against 2327.5 scheduled by the manifest's stage rates — the half is the schedule's own rounding, so the schedule was met; script exceptions unknown, and every threshold below is ruled under that proxy
+Not reproducible: the drive itself — this mission did not run it, and a replay needs the same benchmark driven again at the same revision
 ```

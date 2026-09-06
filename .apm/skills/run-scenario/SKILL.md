@@ -20,7 +20,7 @@ block that applies, never whole:
 | --- | --- |
 | Every drive: the clean-base order and the identity the queries are qualified by, and the run's t0 after the warmup — a process the run launches, a port already served, a remote target the run cannot launch, a reset that is forbidden, a run whose stages are carved from timestamps | [references/run-identity.md](references/run-identity.md), the block that applies |
 | An iteration that is expensive or non-deterministic, a wait that must stay inside the turn, a scenario longer than a tool call | [references/long-scenarios.md](references/long-scenarios.md) |
-| A stored k6 benchmark under `.odd/benchmarks/<name>/` | [references/benchmark-replay.md](references/benchmark-replay.md), in place of the ad-hoc commands |
+| A stored k6 benchmark under `.odd/benchmarks/<name>/` — driven here, or driven elsewhere and only watched | [references/benchmark-replay.md](references/benchmark-replay.md), in place of the ad-hoc commands; its watching section for a run someone else drives |
 
 Start with the identity reference, then follow the steps below.
 
