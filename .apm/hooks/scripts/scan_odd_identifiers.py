@@ -17,9 +17,13 @@ an identifier, when the report declares it on the frontmatter
 ``instance:`` field, cites one of those declared ids in its body, or
 writes it right after ``service.instance.id=`` (or the ``_`` and
 ``resource.`` spellings, ``=`` or ``:``, the key closing the previous
-line when markdown wrapped the value). A ``stack_config`` value is
-flagged whatever its context: a cloud identifier never becomes evidence
-by standing next to ``instance:``.
+line when markdown wrapped the value). Such a key opens a list, not a
+single value: inside the closed parentheses it introduces, an id
+standing beside one the report already names is evidence too - a run's
+instance and the stale co-resident found next to it are cited that
+way. A
+``stack_config`` value is flagged whatever its context: a cloud
+identifier never becomes evidence by standing next to ``instance:``.
 
 On most hosts a post-tool hook cannot undo the write: the message
 reaches the model, and the rule in the persistence skills stays the
@@ -92,6 +96,16 @@ INSTANCE_KEY = r"(?<![\w.])(?:resource[._])?service[._]instance[._]id"
 INSTANCE_KEY_RE = re.compile(INSTANCE_KEY + r"\s*[=:]\s*[\"'`]?$")
 WRAPPED_KEY_RE = re.compile(INSTANCE_KEY + r"[`'\"*]*\s*[=:]?\s*[`'\"*]*\s*$")
 WRAPPED_LEAD_RE = re.compile(r"^[\s`'\"*|-]*$")
+# The same key, wherever it stands on the line, ending there rather
+# than running on into a longer word: it opens the parenthesised list
+# its ids belong to. The "(" follows the key by at most this many
+# lines, with no blank line between them - past that it opens nothing.
+# The trailing guard stops at a word character on purpose: rejecting a
+# dot too would reject a key ending a sentence, which a report writes
+# far more often than it writes a continuation such as
+# ``service.instance.id.digest``.
+LISTING_KEY_RE = re.compile(INSTANCE_KEY + r"(?!\w)")
+INSTANCE_LIST_KEY_LINES = 2
 FRONTMATTER_FENCE = "---"
 INSTANCE_FIELD = "instance:"
 
@@ -269,6 +283,79 @@ def _declared_instance_ids(lines: list[str]) -> tuple[set[int], set[str]]:
     return numbers, ids
 
 
+def _blocks(lines: list[str]) -> list[list[int]]:
+    """The line numbers of each run of lines no blank line breaks."""
+    blocks: list[list[int]] = []
+    current: list[int] = []
+    for number, line in enumerate(lines, 1):
+        if line.strip():
+            current.append(number)
+        elif current:
+            blocks.append(current)
+            current = []
+    if current:
+        blocks.append(current)
+    return blocks
+
+
+def _matched_parens(lines: list[str], block: list[int]) -> set[tuple[int, int]]:
+    """The "(" positions of the block a ")" closes; an unclosed one opens nothing."""
+    pending: list[tuple[int, int]] = []
+    matched: set[tuple[int, int]] = set()
+    for number in block:
+        for column, char in enumerate(lines[number - 1]):
+            if char == "(":
+                pending.append((number, column))
+            elif char == ")" and pending:
+                matched.add(pending.pop())
+    return matched
+
+
+def _listed_instance_ids(
+    lines: list[str],
+    guids: list[list[re.Match]],
+    named: set[tuple[int, int]],
+) -> set[tuple[int, int]]:
+    """The GUID positions the parenthesised list an instance key opens carries.
+
+    ``named`` holds the positions the report already names as instance
+    ids. Inside a closed pair of parentheses an instance key opened, one
+    named id exempts every id the pair holds, whatever their order. A
+    GUID belongs to the innermost pair enclosing it and to no other: an
+    exempted pair never covers a pair nested inside it.
+    """
+    listed: set[tuple[int, int]] = set()
+    for block in _blocks(lines):
+        matched = _matched_parens(lines, block)
+        keys: list[tuple[int, int]] = []
+        open_groups: list[tuple[int, int]] = []  # the pairs still open
+        introduced: set[tuple[int, int]] = set()  # the pairs a key opened
+        members: dict[tuple[int, int], list[tuple[int, int]]] = {}
+        for number in block:
+            line = lines[number - 1]
+            keys.extend((number, m.start()) for m in LISTING_KEY_RE.finditer(line))
+            starts = {m.start() for m in guids[number - 1]}
+            for column, char in enumerate(line):
+                if column in starts:
+                    if open_groups:
+                        members.setdefault(open_groups[-1], []).append((number, column))
+                elif char == "(" and (number, column) in matched:
+                    group = (number, column)
+                    if any(
+                        0 <= number - key_line <= INSTANCE_LIST_KEY_LINES
+                        and (key_line < number or key_column < column)
+                        for key_line, key_column in keys
+                    ):
+                        introduced.add(group)
+                    open_groups.append(group)
+                elif char == ")" and open_groups:
+                    open_groups.pop()
+        for group, positions in members.items():
+            if group in introduced and any(p in named for p in positions):
+                listed.update(positions)
+    return listed
+
+
 def _is_instance_id(
     line: str,
     match: re.Match,
@@ -297,16 +384,24 @@ def scan_text(text: str, forbidden: list[str]) -> list[Finding]:
     ]
     lines = text.splitlines()
     instance_lines, instance_ids = _declared_instance_ids(lines)
+    guids = [list(GUID_RE.finditer(line)) for line in lines]
+    named: set[tuple[int, int]] = set()
+    for number, line in enumerate(lines, 1):
+        previous = lines[number - 2] if number > 1 else ""
+        named.update(
+            (number, m.start())
+            for m in guids[number - 1]
+            if _is_instance_id(
+                line, m, number in instance_lines, instance_ids, previous
+            )
+        )
+    named |= _listed_instance_ids(lines, guids, named)
     findings: list[Finding] = []
     for number, line in enumerate(lines, 1):
         kinds: list[str] = []
-        previous = lines[number - 2] if number > 1 else ""
         if any(
-            not _is_placeholder_guid(m.group(0))
-            and not _is_instance_id(
-                line, m, number in instance_lines, instance_ids, previous
-            )
-            for m in GUID_RE.finditer(line)
+            not _is_placeholder_guid(m.group(0)) and (number, m.start()) not in named
+            for m in guids[number - 1]
         ):
             kinds.append("GUID")
         if any(_is_personal_home_path(m) for m in HOME_PATH_RE.finditer(line)):
@@ -349,8 +444,8 @@ def decide(payload: object, process_cwd: str) -> tuple[int, list[str]]:
         "obviously fake placeholder (a zeroed or 1234-patterned GUID passes) "
         "before persisting or committing; a GUID that is an OTel "
         "service.instance.id is evidence and stays once the report says so "
-        "(the frontmatter instance: field, or service.instance.id= before it), "
-        "a cloud identifier does not:"
+        "(the frontmatter instance: field, service.instance.id= before it, or "
+        "the parenthesised list that key opens), a cloud identifier does not:"
     )
     lines = [header]
     lines.extend(f"  {f.path}:{f.line}: {f.kind}" for f in findings[:MAX_LINES])

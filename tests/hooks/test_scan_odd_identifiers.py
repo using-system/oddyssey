@@ -240,16 +240,155 @@ def test_a_value_markdown_wrapped_under_its_key_passes(scan, text):
     assert scan.scan_text(text, forbidden=[]) == []
 
 
+# A key opens a list of values: an observation report names the run's
+# instance and, in the parentheses that follow, the stale co-resident
+# found beside it - the second id sits two lines below the key.
+LIVE_INSTANCE_ID = "11111111-1111-4111-8111-111111111111"
+STALE_INSTANCE_ID = "22222222-2222-4222-8222-222222222222"
+
+
 @pytest.mark.parametrize(
-    "line",
+    "body",
     [
-        f"myservice_instance_id={INSTANCE_ID}",
-        f"foo.service.instance.id: {INSTANCE_ID}",
-        f"service.instance.id was rotated; new tenant {INSTANCE_ID}",
+        (
+            "`target_info` carries **two** `service_instance_id` values on the\n"
+            f"stack (`{LIVE_INSTANCE_ID}` and\n"
+            f"`{STALE_INSTANCE_ID}`) - the second is stale\n"
+        ),
+        (
+            "`target_info` still carries the same two `service_instance_id`\n"
+            f"values seen in the baseline (`{LIVE_INSTANCE_ID}`\n"
+            f"live, `{STALE_INSTANCE_ID}` stale). Every cumulative\n"
+        ),
     ],
 )
-def test_a_lookalike_key_does_not_exempt(scan, line):
-    assert [f.kind for f in scan.scan_text(line + "\n", forbidden=[])] == ["GUID"]
+def test_every_id_the_list_a_key_opens_carries_passes(scan, body):
+    text = f"---\ninstance: {{orders-api: {LIVE_INSTANCE_ID}}}\n---\n" + body
+    assert scan.scan_text(text, forbidden=[]) == []
+
+
+def test_a_listed_guid_needs_the_key_that_opens_the_list(scan):
+    text = (
+        f"---\ninstance: {{orders-api: {LIVE_INSTANCE_ID}}}\n---\n"
+        "`target_info` carries **two** values on the\n"
+        f"stack (`{LIVE_INSTANCE_ID}` and\n"
+        f"`{STALE_INSTANCE_ID}`) - the second is stale\n"
+    )
+    assert [(f.line, f.kind) for f in scan.scan_text(text, forbidden=[])] == [
+        (6, "GUID")
+    ]
+
+
+def test_a_blank_line_closes_the_list_a_key_opened(scan):
+    text = (
+        f"---\ninstance: {{orders-api: {LIVE_INSTANCE_ID}}}\n---\n"
+        "`target_info` carries **two** `service_instance_id` values\n"
+        "\n"
+        f"stack (`{LIVE_INSTANCE_ID}` and\n"
+        f"`{STALE_INSTANCE_ID}`) - the second is stale\n"
+    )
+    assert [(f.line, f.kind) for f in scan.scan_text(text, forbidden=[])] == [
+        (7, "GUID")
+    ]
+
+
+def test_a_guid_outside_the_list_stays_a_finding(scan):
+    text = (
+        f"---\ninstance: {{orders-api: {LIVE_INSTANCE_ID}}}\n---\n"
+        "`target_info` carries **two** `service_instance_id` values on the\n"
+        f"stack (`{LIVE_INSTANCE_ID}` and\n"
+        f"`{STALE_INSTANCE_ID}`) - the second is stale, and the\n"
+        f"workspace it reports to is {REAL_GUID}\n"
+    )
+    assert [(f.line, f.kind) for f in scan.scan_text(text, forbidden=[])] == [
+        (7, "GUID")
+    ]
+
+
+def test_the_list_exempts_its_ids_whatever_their_order(scan):
+    """The stale id is quoted first as often as second."""
+    text = (
+        f"---\ninstance: {{orders-api: {LIVE_INSTANCE_ID}}}\n---\n"
+        "`target_info` carries **two** `service_instance_id` values on the\n"
+        f"stack (`{STALE_INSTANCE_ID}` stale and\n"
+        f"`{LIVE_INSTANCE_ID}` live) - the first is the leftover\n"
+    )
+    assert scan.scan_text(text, forbidden=[]) == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # a "(" the block never closes, holding the declared id: without a
+        # ")" the exemption would run to the end of the paragraph
+        (
+            f"the `service_instance_id` values (see below: `{LIVE_INSTANCE_ID}`\n"
+            + "".join(f"filler line {i}\n" for i in range(30))
+            + f"workspace {REAL_GUID}\n"
+        ),
+        # a "(" opened inside a fenced excerpt and left open
+        (
+            "the `service_instance_id` values:\n"
+            "```\n"
+            f"target_info{{job=(orders-api, instance={LIVE_INSTANCE_ID}\n"
+            "```\n"
+            f"workspace {REAL_GUID}\n"
+        ),
+        # punctuation that merely looks like an opening parenthesis
+        (
+            f"the `service_instance_id` :-( `{LIVE_INSTANCE_ID}` is live\n"
+            f"workspace {REAL_GUID}\n"
+        ),
+    ],
+)
+def test_an_unclosed_paren_opens_no_list(scan, body):
+    text = f"---\ninstance: {{orders-api: {LIVE_INSTANCE_ID}}}\n---\n" + body
+    lines = text.splitlines()
+    assert [(f.line, f.kind) for f in scan.scan_text(text, forbidden=[])] == [
+        (len(lines), "GUID")
+    ]
+
+
+def test_an_exempt_list_never_covers_a_list_nested_in_it(scan):
+    """A GUID belongs to the innermost parentheses around it, and to no other."""
+    text = (
+        f"---\ninstance: {{orders-api: {LIVE_INSTANCE_ID}}}\n---\n"
+        "`target_info` carries the `service_instance_id` values on the\n"
+        f"stack (`{LIVE_INSTANCE_ID}` live, and the workspace it exports\n"
+        f"to (`{REAL_GUID}`) is a different resource)\n"
+    )
+    assert [(f.line, f.kind) for f in scan.scan_text(text, forbidden=[])] == [
+        (6, "GUID")
+    ]
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        (f"myservice_instance_id={INSTANCE_ID}\n", [(1, "GUID")]),
+        (f"foo.service.instance.id: {INSTANCE_ID}\n", [(1, "GUID")]),
+        (f"service.instance.id was rotated; new tenant {INSTANCE_ID}\n", [(1, "GUID")]),
+        # the trailing side: a longer word the key merely starts opens no list
+        (
+            (
+                f"---\ninstance: {{orders-api: {LIVE_INSTANCE_ID}}}\n---\n"
+                "the service.instance.identifier debate aside, the export\n"
+                f"(`{LIVE_INSTANCE_ID}`, workspace `{REAL_GUID}`) is what matters\n"
+            ),
+            [(5, "GUID")],
+        ),
+        (
+            (
+                f"---\ninstance: {{orders-api: {LIVE_INSTANCE_ID}}}\n---\n"
+                f"the service_instance_id_hash values (`{LIVE_INSTANCE_ID}` and\n"
+                f"`{REAL_GUID}`)\n"
+            ),
+            [(5, "GUID")],
+        ),
+    ],
+)
+def test_a_lookalike_key_does_not_exempt(scan, text, expected):
+    assert [(f.line, f.kind) for f in scan.scan_text(text, forbidden=[])] == expected
 
 
 @pytest.mark.parametrize(
