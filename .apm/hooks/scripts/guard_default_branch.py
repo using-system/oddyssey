@@ -46,6 +46,35 @@ commit`` are blocked on the default branch, and ``git switch -c x &&
 git commit -m a || git commit -m b`` too, conservatively - the second
 commit runs on whichever branch the first failed on.
 
+A redirection is not part of a command's words: ``git switch x
+2>/dev/null``, ``>/dev/null 2>&1``, ``&>/dev/null``, ``>file`` are
+dropped with their target before the line is read, so the switch-or-
+create idiom ``git switch x 2>/dev/null || git switch -c x`` is the
+same line as its bare form (#408).
+
+A ``cd`` earlier on the line moves the repository the commands after it
+are judged in, the way ``git -C <path>`` does for one invocation - but
+only when the directory it names resolves outside the session
+repository's top level, and only when the shell's own ``cd`` would have
+moved: a ``cd`` inside that repository lands on the same branch anyway,
+one inside parentheses (``(cd x)``, ``$(cd x)``) dies with the
+subshell, and one to a directory that does not exist fails, leaving the
+shell where it was - unless ``&&`` joins it to the command after it,
+which then never runs, so the line may build the directory first
+(``mkdir -p x && cd x && ...``). That last move is a guess, and the
+guess lasts to the end of the line: a failed ``&&`` aborts its own
+chain only, the shell resuming at the first ``;`` or ``||``, so a
+directory the line never creates carries the guard past that break
+(``cd <missing> && ls; git commit`` is read in ``<missing>``). Letting
+the guess expire at the break would refuse ``mkdir -p x && cd x && git
+init -q .; git commit`` - the very shape this rule exists to allow - so
+the bound stays, on a line whose ``cd`` is already broken. A ``cd`` the
+hook cannot name - ``cd`` alone, ``cd -``,
+a path built from ``~`` or a variable, one that runs only after a
+``||`` - makes the shell's directory unknowable: like a ``||``, the
+line is judged from there on what the session repository has checked
+out.
+
 It fails open: a payload it cannot parse, a shape it does not know, a
 directory that is not a repository, a git that does not answer - none
 of them block anything. A hook that broke a host on an unforeseen
@@ -89,6 +118,9 @@ CWD_PATHS = (("cwd",), ("tool_info", "cwd"))
 HEREDOC_RE = re.compile(r"<<-?\s*(['\"]?)([^\s'\"<>|&;()]+)\1")
 # Everything shlex returns as pure punctuation ends a command.
 PUNCTUATION = set("();<>|&")
+# ... except a redirection operator: it and the target after it are file
+# plumbing, not words of the command, and never a command boundary.
+REDIRECTIONS = {">", ">>", ">|", "<", "<<", "<<<", "<>", ">&", "<&", "&>", "&>>"}
 # A recovery command that ends the line: what follows never runs after it.
 # ``exit`` alone - ``return`` outside a function is an error the line survives
 # in bash and sh, and an ``exit`` inside parentheses ends only the subshell.
@@ -182,10 +214,12 @@ def _strip_heredocs(command: str) -> str:
 class Segment(NamedTuple):
     """One command of the shell line: ``recovery`` when it follows a ``||``
     and so runs only if the command before it failed, ``subshell`` when it
-    sits inside parentheses."""
+    sits inside parentheses, ``chained`` when an ``&&`` binds it to the
+    command before - which therefore aborts the line when it fails."""
 
     recovery: bool
     subshell: bool
+    chained: bool
     tokens: list[str]
 
 
@@ -198,19 +232,32 @@ def _segments(command: str) -> list[Segment]:
         tokens = list(lexer)
     except ValueError:
         tokens = text.split()
-    segments = [Segment(False, False, [])]
+    segments = [Segment(False, False, False, [])]
     depth = 0
+    target_follows = False
     for token in tokens:
         if not token.strip():
             continue  # an escaped blank: not a word, not an operator
+        if target_follows:
+            target_follows = False
+            continue  # the file a redirection writes to or reads from
+        if token in REDIRECTIONS:
+            words = segments[-1].tokens
+            if words and words[-1].isdigit():
+                words.pop()  # the file descriptor stuck before it: ``2>/dev/null``
+            target_follows = True
+            continue
         if set(token) <= PUNCTUATION:
             depth = max(0, depth + token.count("(") - token.count(")"))
             last = segments[-1]
             if last.tokens:
-                last = Segment(False, False, [])
+                last = Segment(False, False, False, [])
                 segments.append(last)
             segments[-1] = Segment(
-                last.recovery or "||" in token, depth > 0, last.tokens
+                last.recovery or "||" in token,
+                depth > 0,
+                last.chained or "&&" in token,
+                last.tokens,
             )
             continue
         segments[-1].tokens.append(token)
@@ -321,6 +368,19 @@ def _switch_target(
     )
 
 
+def _cd_target(arguments: list[str]) -> tuple[str, ...]:
+    """The directory a ``cd`` moves to, as (path,); () when the hook cannot
+    name it - ``cd`` alone, ``cd -``, several operands, or a path only the
+    shell can expand (``~/x``, ``$WORKTREE/x``)."""
+    positional = [token for token in arguments if not token.startswith("-")]
+    if len(positional) != 1:
+        return ()
+    path = positional[0]
+    if path.startswith("~") or "$" in path:
+        return ()
+    return (path,)
+
+
 def _created_branch(arguments: list[str]) -> str | None:
     """The branch a ``git branch`` call creates, when it creates one."""
     positional = [t for t in arguments if not t.startswith("-")]
@@ -334,7 +394,9 @@ Operation = tuple[str, tuple[str, ...], str | None]
 
 def _operation(tokens: list[str]) -> Operation | None:
     """(kind, targets, -C path) when the command commits, pushes, switches
-    branch, or creates one."""
+    branch, creates one, or changes directory."""
+    if tokens[0] == "cd":
+        return ("cd", _cd_target(tokens[1:]), None)
     invocation = _git_invocation(tokens)
     if invocation is None:
         return None
@@ -360,19 +422,34 @@ def _aimed_at(operation: Operation | None) -> tuple[str, ...]:
 
 
 def git_operations(command: str) -> list[Operation]:
-    """Return (kind, targets, -C path) for each commit, push, branch switch, or
-    branch creation in the line, in the order the shell runs them. A command
-    that runs only because the one before it failed (after ``||``) is read for
-    what it leaves behind: a plain top-level ``exit`` ends the line and leaves
-    no entry; anything else leaves a ("||", (), None) entry - the branch is
-    unknown from there - followed by the command's own operation when it is a
-    commit, a push, or a switch to the very branch the failed switch aimed at
-    (the line is on it either way, if the name resolves); a switch elsewhere
-    may not have run and is dropped."""
+    """Return (kind, targets, -C path) for each commit, push, branch switch,
+    branch creation, or directory change in the line, in the order the shell
+    runs them. A command that runs only because the one before it failed
+    (after ``||``) is read for what it leaves behind: a plain top-level
+    ``exit`` ends the line and leaves no entry; anything else leaves a
+    ("||", (), None) entry - the branch is unknown from there - followed by
+    the command's own operation when it is a commit, a push, or a switch to
+    the very branch the failed switch aimed at (the line is on it either way,
+    if the name resolves); a switch is dropped, and a directory change becomes
+    the ("cd", (), None) of an unknowable one. A directory change inside
+    parentheses is dropped: it dies with the subshell. One the command after it
+    is ``&&``-bound to carries "&&" next to its path - a directory that does
+    not exist yet is a failure that skips the command it joins, so the line may
+    build it first."""
     operations: list[Operation] = []
     previous: Operation | None = None
-    for recovery, subshell, tokens in _segments(command):
+    segments = _segments(command)
+    for index, (recovery, subshell, _chained, tokens) in enumerate(segments):
         operation = _operation(tokens)
+        if operation is not None and operation[0] == "cd":
+            if subshell:
+                operation = None  # the parent shell never leaves its directory
+            elif (
+                operation[1]
+                and index + 1 < len(segments)
+                and segments[index + 1].chained
+            ):
+                operation = ("cd", (*operation[1], "&&"), None)
         if not recovery:
             if operation is not None:
                 operations.append(operation)
@@ -381,7 +458,9 @@ def git_operations(command: str) -> list[Operation]:
         else:
             operations.append(("||", (), None))
             same_aim = _aimed_at(operation) == _aimed_at(previous) != ()
-            if operation is not None and (
+            if operation is not None and operation[0] == "cd":
+                operations.append(("cd", (), None))  # which directory is unknowable
+            elif operation is not None and (
                 operation[0] in ("commit", "push") or same_aim
             ):
                 operations.append(operation)
@@ -443,6 +522,28 @@ def guessed_from_remote(repo: Path, name: str) -> bool:
     )
 
 
+def repository_top(repo: Path) -> Path | None:
+    """The top level of the repository ``repo`` sits in, when it sits in one."""
+    top = _git(repo, "rev-parse", "--show-toplevel")
+    return Path(os.path.realpath(top)) if top else None
+
+
+def _resolved(base: Path, raw: str) -> Path | None:
+    """``raw`` as an absolute path, relative ones read from ``base``."""
+    candidate = Path(raw)
+    if not candidate.is_absolute():
+        candidate = base / candidate
+    try:
+        return Path(os.path.realpath(candidate))
+    except (OSError, ValueError):
+        return None
+
+
+def _inside(path: Path, top: Path | None) -> bool:
+    """True when ``path`` is ``top`` or sits under it."""
+    return top is not None and (path == top or top in path.parents)
+
+
 def default_branch(repo: Path) -> str:
     """origin/HEAD's branch; else main, or master when master is checked out."""
     head = _git(repo, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
@@ -457,9 +558,13 @@ def decide(payload: object, process_cwd: str) -> tuple[int, str]:
     if command is None:
         return PASS, ""
     operations = git_operations(command)
-    if not operations:
-        return PASS, ""
-    base = Path(payload_cwd(payload) or process_cwd)
+    if not any(kind in ("commit", "push") for kind, _, _ in operations):
+        return PASS, ""  # nothing on this line can be refused: ask git nothing
+    session = Path(payload_cwd(payload) or process_cwd)
+    base = session
+    session_top = (
+        repository_top(session) if any(o[0] == "cd" for o in operations) else None
+    )
     checked_out: dict[Path, tuple[str | None, str]] = {}  # what the repository says
     branches: dict[Path, tuple[str | None, str]] = {}  # what the line moved it to
     created: dict[Path, set[str]] = {}
@@ -468,6 +573,20 @@ def decide(payload: object, process_cwd: str) -> tuple[int, str]:
             # Which command ran is unknowable: from here the line is judged on
             # the branch checked out, until a switch moves it again.
             branches = dict(checked_out)
+            continue
+        if kind == "cd":
+            # Where the commands after it run. A destination the hook cannot
+            # name or resolve leaves the shell's directory unknowable: the line
+            # is judged on the session repository from there, as after a ``||``.
+            destination = _resolved(base, targets[0]) if targets else None
+            if destination is None:
+                base = session
+            elif destination.is_dir() or "&&" in targets[1:]:
+                # It exists, or its absence skips the command it is joined to -
+                # the shape that builds the directory earlier on the same line.
+                # The guess then stands to the end of the line: see the module
+                # docstring for the bound that leaves.
+                base = session if _inside(destination, session_top) else destination
             continue
         repo = base / hint if hint else base
         if not repo.is_dir():
