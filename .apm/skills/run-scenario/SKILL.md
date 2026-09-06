@@ -119,12 +119,20 @@ reads (60 s when it reads traces), then run every query against the
 window recorded in step 4. Never interleave requests, waits, and
 queries outside the query points the record declares: a wait after
 every request batch turns a 3-minute scenario into 4 minutes of sleep.
-Where the host blocks a foreground `sleep`, the wait — a fixed sleep or
-a bounded poll — runs through the platform's blocking wait primitive
-(a Monitor-style until-condition tool, `references/long-scenarios.md`)
-with the elapsed time or the poll's `until` condition as that
-primitive's condition, inside the turn — never a background job whose
-completion notification the turn waits for, never a turn ended to wait.
+The wait — a fixed sleep or a bounded poll — is a `sleep` inside a
+helper script run in the foreground (`references/long-scenarios.md`),
+inside the turn — never a background job whose completion notification
+the turn waits for, never a turn ended to wait. A Monitor-style
+background notifier is a wait only in a main conversation, which is
+re-invoked when it fires; a subagent's turn ends first, so there the
+helper is the only wait.
+
+Every file this skill writes — that helper, a poller and its state, a
+captured output — goes in one scratchpad subdirectory this run alone
+owns: the directory the caller named, else `<scratchpad>/<run slug>/`,
+created before the first file. Parallel missions share the scratchpad
+root, and a sibling's file overwriting yours, or a previous run's left
+where yours goes, is silent.
 
 A mission that must read the store at several points — each reset
 wipes it, so a lifecycle test whose subject is the reset has one store

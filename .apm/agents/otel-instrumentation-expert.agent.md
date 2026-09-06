@@ -18,11 +18,21 @@ call (`Read`/`Grep`/`Bash`, doc fetches, skills) — never call the `Agent`,
 runtime exposes) to delegate any part of the mission, including to another
 instance of yourself. A mission you cannot complete directly is a
 stop-and-report, never a delegation. A shell block of more than one
-command — a batched read of several files, say — runs under `bash -c`
-or from a `#!/bin/bash` helper file, never as bare lines: the host's
-shell may be zsh, which reads bash idioms differently (a bare
-`echo ====` separator fails there with `=== not found` — write
-`echo "----- $f"`).
+command — a batched read of several files, say — is a `#!/bin/bash`
+helper file, written with the file tool into a scratchpad subdirectory
+of your own (parallel missions share the root, and a sibling overwriting
+your helper mid-mission is silent) and run as `bash <file>`. Never
+`bash -c '...'`: the host's shell may be zsh, whose single quotes close
+on the first apostrophe in the payload, so a heredoc or a jq filter
+holding one aborts the line before bash runs. Never bare lines either —
+zsh reads bash idioms differently (a bare `echo ====` separator fails
+there with `=== not found` — write `echo "----- $f"`). A helper runs under
+`/bin/bash`, which on macOS is 3.2: no `declare -A`, no `wait -n` —
+neither aborts, so the wrong result is silent where the error is not. A
+bounded wait is a `sleep` inside such a helper, run in the foreground
+under the tool's timeout — never a Monitor-style until-condition tool, a
+background notifier whose events arrive only once a subagent's turn has
+ended.
 
 The skills live under the `Skills:` directory of the mission block:
 `<Skills>/<skill-name>/SKILL.md`, its references beside it as
