@@ -11,9 +11,22 @@ replayed identically, and the only variable is the model.
 
 ## Results
 
-| Model | Preflight | Drive | Observation | Total | Turns | Median turn | Input | Output | Cache | Cost | $/confirmed | Signals | Kind | Confirmed / reported | oddyssey |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `qwen/qwen3.8-27b` | 14m27s | 2m02s | 51m08s | **1h07m37s** | 67 | 44.8s | 13,897,126 | 220,744 | 12,769,392 | $2.22 | **$0.089** | 4/4 | tel 18 · perf 4 · beh 3 | **25 / 26** | 1.11.3 |
+| Rank | Model | Preflight | Drive | Observation | Total | Turns | Median turn | Input | Output | Cache | Cost | $/confirmed | Signals | Kind | Confirmed / reported | oddyssey |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **#1** | `z-ai/glm-5.3` | 6m38s | 2m02s | 22m21s | **31m01s** | 49 | 19.7s | 6,986,615 | 188,492 | 6,445,056 | $2.49 | $0.113 | 4/4 | tel 13 · perf 5 · beh 4 | **22 / 23** | 1.11.3 |
+| **#2** | `qwen/qwen3.8-27b` ⚠︎ | 14m27s | 2m02s | 51m08s | 1h07m37s | 67 | 44.8s | 13,897,126 | 220,744 | 12,769,392 | $2.22 | **$0.089** | 4/4 | tel 18 · perf 4 · beh 3 | **25 / 26** | 1.11.3 |
+
+**Rank** is the answer to the question in the title, in one column. It
+is a judgement on **three axes together — findings, cost and duration** —
+and it is decided rather than computed. Ranking on findings alone would
+put a 67-minute run first; ranking on duration alone would reward
+whichever model gives up soonest; ranking on cost alone would reward the
+one that barely looks. Adding or updating a model re-sorts the whole
+table, never just inserts a line, and the pull request that does it
+argues the placement on those three axes.
+
+⚠︎ marks a row measured under an earlier revision of the protocol, whose
+placement is therefore provisional until it is re-run.
 
 **Confirmed / reported** is the grade. The denominator is how many
 findings the model reported; the numerator is how many of them held up
