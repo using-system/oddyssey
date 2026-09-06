@@ -105,6 +105,7 @@ flowchart LR
   subgraph Skills
     kg[k6-guides]
     mem[odd-memory]
+    rs[run-scenario]
   end
 
   subgraph Stores[".odd/ stores"]
@@ -118,6 +119,7 @@ flowchart LR
 
   k6x --> kg
   k6x --> mem
+  k6x --> rs
   k6x --> obsdir
 
   mem --> benchdir
@@ -129,7 +131,7 @@ flowchart LR
   classDef store fill:#f3e8fd,stroke:#a142f4
   class bench prompt
   class k6x agent
-  class kg,mem skill
+  class kg,mem,rs skill
   class benchdir,obsdir store
 ```
 
@@ -450,7 +452,7 @@ the code, and persist through the create skills that own the stores.
 | --- | --- | --- |
 | [`otel-instrumentation-expert`](../../.apm/agents/otel-instrumentation-expert.agent.md) | Investigate a codebase and hand back every input for a spec-driven plan to implement OpenTelemetry | `otel-guides` (the language references; the generative AI reference when a manifest names a model SDK); `observability-cli-guides` (the export stack's query surface, for the protocol's queries); routes to `setup-local-stack` to validate a query on the local stack; `odd-memory` (the `otel-instrumentation-report` reference; the `observability-stack` reference when a form check corrects a custom stack file); `odd_config_get`; hands the confirmation of landed signals off to `observe-run` |
 | [`observe-run`](../../.apm/agents/observe-run.agent.md) | Observe a running service through its telemetry, on the local stack, a remote backend or a custom stack, and hand back every input for a plan of fixes | `observability-cli-guides`; `otel-guides` (the generative AI reference's hard facts, when the traces carry `gen_ai.*` spans); `setup-local-stack`; `run-scenario` (ad-hoc requests, or a stored benchmark run unmodified); `odd-memory` (the `observe-run-report` reference; the `observability-stack` reference when a run corrects a custom stack file); `odd_config_get`; `odd_stack_status` / `odd_stack_up` / `odd_stack_reset`; recommends `otel-instrumentation-expert` when a named service emits no telemetry at all |
-| [`k6-benchmark-expert`](../../.apm/agents/k6-benchmark-expert.agent.md) | Investigate a service and author its k6 benchmark as reviewed code, validated but never run as a benchmark | `k6-guides` (`scripting.md`, `running-tests.md`, `mcp.md` for an MCP target); `odd-memory` (the `benchmark` reference); reads `.odd/observe-run-reports/` for the service's hot operations |
+| [`k6-benchmark-expert`](../../.apm/agents/k6-benchmark-expert.agent.md) | Investigate a service and author its k6 benchmark as reviewed code, validated but never run as a benchmark | `k6-guides` (`scripting.md`, `running-tests.md`, `mcp.md` for an MCP target); `odd-memory` (the `benchmark` reference); `run-scenario` (`run-identity.md` for the identity headers the authored script must build, `benchmark-replay.md` for what a replay may not change); reads `.odd/observe-run-reports/` for the service's hot operations |
 
 ## Skills
 

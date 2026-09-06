@@ -53,19 +53,38 @@ diff, never through the run.
   is selected.** It declares the `user_agent` the script's requests
   carry, the `run_slug_env` variable the run slug travels in, the
   request tags (`name`, and a per-request `stage` where the manifest
-  has one), and whether a `traceparent` is sent — never assume any of
-  them. Pass the slug through the variable the manifest names, every
-  run (`-e RUN_SLUG=<slug>` in the stored benchmarks): without it every
-  replay sends the same User-Agent and the runs merge. The record's
-  `Identity:` line quotes the form the rows actually carry — the
-  launched process's `service.instance.id` and that User-Agent — and
+  has one), whether a `traceparent` is sent and the variable that
+  gates it — never assume any of them. Pass the slug through the
+  variable the manifest names, every run (`-e RUN_SLUG=<slug>` in the
+  stored benchmarks): without it every replay sends the same
+  User-Agent and the runs merge. **The `traceparent` has a second
+  gate, and it is the drive that decides it**: set the variable the
+  block names for a **remote** drive, where the requests are the only
+  identity there is, and leave it **unset** for a **local** one, where
+  the launched process already carries `service.instance.id` and a
+  synthetic parent would cost the run its trace roots for nothing. The
+  gate is read by **presence, whatever its value** (the manifest says
+  so): `-e <VAR>=0` turns the header **on**, since k6 passes every `-e`
+  value as a string and the script tests that the variable is there —
+  there is no value meaning off, only leaving it out of the command.
+  Where it is set, the run is selectable on the trace-id prefix as
+  well as on the User-Agent: put the prefix the **manifest records**
+  on the `Identity:` line beside the User-Agent — a stored script
+  bakes its prefix in at authoring time, so that literal is what the
+  rows carry even where the protocol has since named another — and
+  read latency from the User-Agent identity all the same, since the
+  synthetic parent leaves those traces rootless
+  (`references/run-identity.md`). The record's `Identity:` line quotes
+  the form the rows actually carry — the launched process's
+  `service.instance.id` and that User-Agent — and
   `references/run-identity.md`'s stored-benchmark paragraph carries the
   rest, including why `--user-agent` is the wrong lever against a
   script that sets the header itself.
 - **Which flags a replay may add.** A flag that only names the run,
   carries an input the manifest left to mission time, or writes an
   extra output is not a modification: `-e KEY=value` (the base URL, the
-  manifest's `run_slug_env`), `--tag <key>=<value>`,
+  manifest's `run_slug_env`, and its `traceparent` gate on a remote
+  drive — above), `--tag <key>=<value>`,
   `--summary-export`, `--summary-trend-stats` (the way to make k6
   export a percentile outside its six defaults when the script may not
   be edited — `running-tests.md`), `-o opentelemetry` with its
@@ -286,9 +305,16 @@ given, four things change and nothing else does:
 - **the identity travels in the requests** (`run-identity.md`, "The run
   launches nothing"): there is no launched process to name, so the
   manifest's `user_agent` with the slug passed through its
-  `run_slug_env` is the whole identity, and no stored benchmark sends a
-  `traceparent` — the run is UA-selected, the `Identity:` line says so,
-  and the instance is read from the rows;
+  `run_slug_env` is the identity the requests carry — and **this is
+  the drive that sets the `traceparent` gate**, through the variable
+  the manifest's `identity:` block names, since nothing else here
+  identifies the run. A benchmark whose script builds the header is
+  then selected on the trace-id prefix as well (`run-identity.md`'s
+  stored-benchmark paragraph); one whose block says the header is not
+  sent — every benchmark stored today — is UA-selected, with the
+  prefix selectors unavailable and nothing the gate can turn on. The
+  `Identity:` line says which of the two the run had, and the instance
+  is read from the rows;
 - **`Backend: no reset (remote)`** — there is no reset to take, so the
   run is isolated by its window and its identity alone;
 - **`Listeners: n/a (remote)`** — no port was probed and no process
@@ -308,7 +334,7 @@ Base URL:  http://127.0.0.1:8080   # BASE_URL, mission-time
 Listeners: none
 Backend:   odd_stack_reset, env: defaults
 Instance:  orders-run-0902 (restarted before reset)
-Identity:  service.instance.id=orders-run-0902 on the launcher; User-Agent "odd-bench/orders-read-heavy/orders-run-0902" (the manifest's identity block, slug through -e RUN_SLUG); traceparent not sent
+Identity:  service.instance.id=orders-run-0902 on the launcher; User-Agent "odd-bench/orders-read-heavy/orders-run-0902" (the manifest's identity block, slug through -e RUN_SLUG); traceparent not sent — its gate is unset on a local drive, so the run keeps its trace roots and the instance id is the identity
 Warmup:    the manifest's ramp-up stage, 60 s (excluded from the quoted numbers)
 Stages (UTC): offsets converted from the first request row 10:04:12 — ramp-up 10:04:12–10:05:12 (excluded), steady 10:05:12–10:25:12, ramp-down 10:25:12–10:25:42; t0 (first measured request, where the quoted numbers start) 10:05:12
 Started (UTC): 2026-09-02T10:04:12Z
@@ -331,7 +357,7 @@ Base URL:  https://orders.example.com   # BASE_URL, mission-time
 Listeners: n/a (remote)
 Backend:   no reset (remote) — isolated by window and identity
 Instance:  read from the run's rows: orders-api-7c9f (one instance)
-Identity:  User-Agent "odd-bench/orders-api-spike/observe-spike-0906" (the manifest's identity block, slug through -e RUN_SLUG); UA-selected, no traceparent — trace-id-prefix selection unavailable, presence and latency read from the UA identity
+Identity:  User-Agent "odd-bench/orders-api-spike/observe-spike-0906" and traceparent "00-0ddc0ffeb9197c59<seq:016x>-<seq:016x>-01" (the manifest's identity block, slug through -e RUN_SLUG, header gated on -e SEND_TRACEPARENT=1 as the block names it — set here because the drive is remote; sequence disjoint per runtime, the scheme the manifest states); selected on the UA and on the trace-id prefix 0ddc0ffeb9197c59 (the protocol prefix and sha256("observe-spike-0906")[:8]); latency read from the UA identity — the synthetic parent leaves the run's traces rootless
 Warmup:    the manifest's baseline stage, 30 s (excluded), carried by the per-request stage tag
 Stages (UTC): read off the stage tag, no arithmetic — baseline 08:30:11–08:30:41 (excluded), ramp-up 08:30:41–08:30:51, burst 08:30:51–08:31:21, ramp-down 08:31:21–08:31:31, recovery 08:31:31–08:32:01; t0 (first measured request) 08:30:41
 Started (UTC): 2026-09-06T08:30:11Z
@@ -339,7 +365,7 @@ Ended   (UTC): 2026-09-06T08:32:01Z
 Query points: 1 (after Ended + the backend's ingest wait, proven by a bounded count query)
 Poller:    none (the run fits one tool call)
 Command:
-  k6 run .odd/benchmarks/orders-api-spike/script.js --tag run=observe-spike-0906 --summary-export /tmp/k6-summary-observe-spike-0906.json -e BASE_URL=https://orders.example.com -e RUN_SLUG=observe-spike-0906
+  k6 run .odd/benchmarks/orders-api-spike/script.js --tag run=observe-spike-0906 --summary-export /tmp/k6-summary-observe-spike-0906.json -e BASE_URL=https://orders.example.com -e RUN_SLUG=observe-spike-0906 -e SEND_TRACEPARENT=1
 k6:        exit 0, 4812 requests, checks 100%, dropped iterations 52 (generator: maxVUs saturated while the server p95 stayed flat), script errors 0
 Not reproducible: none
 ```
@@ -361,7 +387,15 @@ start and its end are things you discover rather than decide.
   half the driver passed through `run_slug_env`, and no mission block
   has to carry it. Select the run on that prefix inside the window,
   then **read the slug off the rows**, and record the whole User-Agent
-  on the `Identity:` line with the instance, as a drive does. A prefix
+  on the `Identity:` line with the instance, as a drive does. A
+  `traceparent` the manifest declares shortens none of that — the
+  driver may not have set its gate at all, and on a local drive should
+  not have: the trace-id prefix the manifest records is shared by every
+  run of that benchmark, and the 8 hex that single this run out are
+  derived from the slug you are still looking for — so the User-Agent
+  is what finds the run, and the trace-id selector becomes available
+  only once the slug has been read off the rows, for what the
+  User-Agent cannot reach (a log line, a dependency call). A prefix
   matching several slugs in the window is several runs, not one: watch
   the one the mission names, and otherwise report the ambiguity — each
   slug with its first row — rather than folding them into one set of
@@ -492,12 +526,12 @@ start and its end are things you discover rather than decide.
   identity every 30 s and **appends** a timestamped line per poll to a
   file, later tool calls reading only that file — so a call that
   expires mid-watch loses nothing. Where the host or the query CLI
-  will not detach, the same script runs inside the turn through the
-  platform's blocking wait primitive with the end criterion as its
-  `until` condition, and is **re-invoked** the moment the call's budget
-  runs out. That is safe only while each invocation holds no state from
-  the last: it re-derives where the run stands from the append-only
-  poll file and the backend alone — whether a first row has been seen
+  will not detach, the same script runs inside the turn in the form
+  `references/long-scenarios.md` gives, with the end criterion as its
+  `until` condition, and is **re-invoked** the moment the call's
+  budget runs out. That is safe only while each invocation holds no
+  state from the last: it re-derives where the run stands from the
+  append-only poll file and the backend alone — whether a first row has been seen
   and when, the newest arrival, and the empty bins since — and appends
   rather than truncates, so invocation *n+1* continues the watch
   instead of restarting it. Give it outcomes a caller can tell apart:

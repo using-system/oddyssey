@@ -182,6 +182,110 @@ human-decided:
      mission-time only - either is compatible with "remote authorization
      is mission-time only", which is a separate, already-settled rule
      about *who authorizes*, not about *where the URL lives*).
+   - **the run's identity is authored into the script, both headers,
+     or no run ever carries it.** A stored benchmark's script may not
+     be edited at mission time (`run-scenario`'s
+     `references/benchmark-replay.md`) and no k6 flag sets a
+     `traceparent` (its `references/run-identity.md`), so the two
+     headers that reference requires on every request a run drives
+     when it launches nothing exist only where this script builds
+     them. It owns the `traceparent` - the form, what it selects on,
+     and the trace id's three parts - while the User-Agent a
+     benchmark carries is this contract's own, which that reference
+     records as what the stored benchmarks send. Read the run slug from
+     one documented environment variable (`RUN_SLUG` in the stored
+     benchmarks) and set the headers on **every** request the script
+     sends, warmup, handshake and teardown included, from the single
+     helper the requests already go through:
+     - the `User-Agent` - `odd-bench/<benchmark name>`, the slug
+       appended when the run passes one, the name alone when it does
+       not;
+     - the `traceparent`, behind **two independent gates, both
+       stated**: the run slug, and a second documented variable whose
+       only job is to turn the header on. **No slug, no identity at
+       all** - the trace ids would be the same set on every replay and
+       the runs would merge under them, which is the failure
+       `run-identity.md` names. **Slug but no gate variable, no
+       `traceparent`** - that is a local drive, where the launched
+       process already carries `service.instance.id` and a synthetic
+       parent would cost the run its trace roots for nothing
+       (`benchmark-replay.md` owns which drive sets it). Read that
+       gate by **presence, whatever its value** - `__ENV.<VAR> !==
+       undefined`, never a truthiness test and never a parsed boolean
+       - and say so in the manifest, because k6 hands every `-e`
+       value over as a **string**: `-e GATE=0` and `-e GATE=false`
+       are both truthy, so a script testing the value turns the
+       header on for a driver who typed a zero to turn it off
+       (verified on k6 v2.2.0, 2026-09-06: those two truthy,
+       `-e GATE=` present but falsy, the variable absent only when
+       the flag is left out - which presence reads consistently and
+       a value test does not). Under presence there is no value
+       that means off, only leaving the variable unset.
+
+     The trace id is 32 hex in the three parts that reference fixes,
+     and the widths are part of the contract: **8** for the protocol
+     prefix, **8** for the slug, **16** for the sequence, the span id
+     being that same 16. The prefix is the protocol's there, but a
+     stored script fixes it at authoring time and can never follow a
+     protocol that later names another: **bake the reference's
+     default in as a literal** (`0ddc0ffe`) and **record that literal
+     in the manifest**, which is then what a run selects its own rows
+     on, whatever prefix the protocol carries by the time it runs.
+     Aligning a stored benchmark with a new one is a re-authoring
+     through `/odd-instrument-bench`'s reviewed diff, like every other
+     change to its script. The slug half is constant for the run: hash
+     it once in init, never per request (k6's own crypto API,
+     confirmed from the docs through `k6-guides` like any other k6 API
+     rather than from memory - `k6/crypto`'s `sha256(<slug>, 'hex')`,
+     its first 8 hex, on k6 v2.2.0, verified 2026-09-06).
+
+     The **sequence field is yours to design rather than to copy**:
+     k6 gives every runtime that runs script code its own module
+     state, so a module-level counter counts that runtime's requests
+     and nobody else's, and the one run-wide counter
+     `run-identity.md` describes has nothing to live in. Make the 16
+     hex **disjoint across every runtime that sends a request**, not
+     merely across VUs: `setup()` and `teardown()` are two more
+     runtimes, each holding its own copy of the counter, and
+     `exec.vu.idInTest` reads **0** in both (verified on k6 v2.2.0,
+     2026-09-06), so a high half taken from it alone hands the
+     handshake request of setup and the n-th request of teardown one
+     id - the merge that reference names, inside a single run. One
+     scheme that holds: the high 8 hex name the **runtime** -
+     `exec.vu.idInTest` in VU code, and for setup and teardown a
+     reserved value each, **outside the VU index range**
+     (`ffffffff`, `fffffffe`) - and the low 8 hex are that runtime's
+     own request counter, from 1 (verified on k6 v2.2.0, 2026-09-06:
+     setup, 3 VUs and teardown, 16 requests, 16 distinct trace ids
+     and span ids, none zero). Rule the field against the two
+     invariants `run-identity.md` states rather than
+     against the wording of "one counter": no two requests of the run
+     share an id, over every runtime that sends one - and the field
+     is never all zeros, which the counter starting at 1 is what
+     guarantees, never the VU index, 0 in the two runtimes above.
+   - **the manifest's `identity:` block records what the script does**,
+     because it is what a replay and a watch read instead of the
+     script (`benchmark-replay.md`): the `user_agent` form, the
+     `run_slug_env` variable the slug travels in, the request tags
+     (the `name` tag, and the per-request `stage` tag where the
+     script stamps one), and the `traceparent` - the **name of the
+     variable that gates it** and that it is read by presence,
+     declared the way `run_slug_env` is so a driver reads what to set
+     off the manifest and never off a convention, then the prefix
+     literal it uses, how the slug half is
+     derived, and the sequence scheme in as many words, the reserved
+     runtime values included. That is what lets a driver select the
+     run without reverse-engineering the script, next to the one
+     consequence that travels with a synthetic parent
+     (`run-identity.md`: the run's traces are rootless where the
+     header is sent, so latency is read from the User-Agent identity).
+     `traceparent: not sent` is a statement about a script that
+     cannot send one - a protocol carrying no request headers - never
+     about a target that happens to be local today: which drive a
+     stored benchmark gets is the observation caller's decision at
+     mission time (`benchmark-replay.md`), and a benchmark authored
+     as local-only hands a remote replay half an identity - the
+     User-Agent alone, the prefix selectors with nothing to match.
    - a signal the manifest names as how the run's question will be
      read - a memory metric, a store-size gauge, a profile type - is
      confirmed to exist before it is written down: in the service's
@@ -217,7 +321,17 @@ human-decided:
      every tag-scoped threshold: a `'metric{tag:value}'` key whose tag
      no request sets evaluates on an empty sub-metric and passes while
      measuring nothing (`scripting.md`, Thresholds) - the tag must be on
-     a request.
+     a request. And the same grep over the identity headers of step
+     4: a `traceparent` whose sequence field does not separate
+     **every runtime that sends a request** collides silently, and
+     neither k6 nor the target ever complains. A bare module-level
+     counter, an iteration index or a timestamp gives two VUs one
+     id; a per-VU component alone still gives setup and teardown one,
+     `exec.vu.idInTest` being 0 in both (step 4). Read the field's
+     high half against the list of functions that send a request -
+     the default function and every `exec` target, plus `setup` and
+     `teardown` where they send one - and rule it there, never by
+     running the benchmark to see.
    - **`k6 inspect <script>`** - parse and schema validation with zero
      network I/O, never contacting the target: a non-integer
      `constant-arrival-rate` `rate`, an unknown option, a syntax error
