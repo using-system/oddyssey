@@ -138,6 +138,80 @@ benchmark or a custom stack file is living source, not a run record,
 and its `odd-memory` reference updates it in place through reviewed
 diffs like any other committed code.
 
+## Plugin harnessing — non-negotiable
+
+These rules decide the package's performance, and they are not a style
+preference. A run's cost is what the model has to **compose** before it
+can do the work; prose that describes a procedure makes every model
+re-derive it, differently, on every run. The package's job is to leave
+the run free where judgment is needed and to leave it nothing to invent
+where it is not.
+
+**Determinism ships as a command, never as prose.** When the inputs
+already fix the output — service names and a window fix the queries, a
+manifest fixes the k6 command, a repository fixes what a preflight reads
+off the machine — that step is a script in the owning skill's
+`scripts/`, and the contract tells the run to execute it. Prose that
+spells out such a procedure is a defect: it costs turns before anything
+runs, and two runs of it are never the same command.
+
+**Never make an agent author a shell script for a step the package
+ships one for**, and say so in the contract. When a run writes its own
+wrapper anyway, the script is missing a real shape of the work — a
+scenario outlasting a tool call needs a detached mode, not a wrapper —
+so fix the script rather than the instruction.
+
+**State a script's whole flag surface where it is invoked**, with a
+copy-pasteable invocation for the normal case, and say that it is the
+whole surface. A run that cannot see the parameters spends turns on
+`--help` or reads the file; both are pure loss, and reading the file
+invites it to reimplement what it just read.
+
+**An answer already obtained travels; it is never re-derived.** What a
+preflight read is handed to whatever runs next, in the handoff, and the
+receiving contract says to read it there. Re-listing a repository, its
+containers or its ports because the answer stayed upstream is a measured
+cost, not a hypothetical one.
+
+**Read only what the current step uses.** A section needed at report
+time is read at report time. Setup that loads the whole method pays for
+it on every turn in between.
+
+**An expensive operation is a separate decision with a stated reason,
+never the side effect of a general rule.** A recreation, a reset, a
+rebuild belongs behind an explicit "only when" with the case named in
+the run record — a rule phrased so that its expensive branch is always
+taken is the same as having no rule.
+
+**Scripts stay generic through the contract, not through one binary.**
+What is backend-agnostic (the machine preflight) is shared; what depends
+on a query surface (a service probe) is per-backend, and the contract
+reads "when the backend's reference ships one, run it instead of
+composing the queries". Never fold a stack's specifics into a shared
+script, and never leave a run to compose what a stack could have
+shipped.
+
+**Contracts that agree are run; contracts that disagree are read.**
+Two files stating the same rule differently do not average out — the
+run opens both to arbitrate, and pays for the reading and for the
+decision. Measured on one mission: while a record example still showed
+a command composed by hand and a section still called an expensive
+operation the default, the runs opened four skill contracts to settle
+it; once the three texts said the same thing, none of those files was
+opened at all and the reads per run halved. **An example is a
+statement**, and the most copied one: a worked example showing the old
+way overrides the rule forbidding it, however plainly that rule is
+written. When you change a rule, change every place that states it —
+its own file, the contract that routes to it, the router that points
+there, and every example that shows it in use.
+
+**Judge these by what the package controls.** Wall-clock time is
+dominated by per-turn model latency, which the package does not own;
+what it owns is the number of commands and the work the model must
+compose. Move those, and state the before and after — a harnessing
+change that cannot name the commands it removed is not evidence of
+anything.
+
 ## Marketplace is generated — never edit it by hand
 
 `marketplace/`, `.claude-plugin/`, and `.agents/plugins/` are build

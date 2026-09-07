@@ -111,7 +111,8 @@ this order:
 4. **k6.** When the replay will be `drive` with a stored benchmark (the
    report's record names one), ensure the `k6` binary is present, per
    the `k6-guides` skill's `install.md` auto-install step:
-   `command -v k6`; when it is missing, run `brew install k6` directly
+   the preflight script's `k6=` line already says whether it is there;
+   when it reported it missing, run `brew install k6` directly
    when Homebrew is available (no confirmation - k6 needs no account
    and no configuration), otherwise follow that reference's
    non-interactive path for the platform or hand the remaining steps
@@ -126,12 +127,17 @@ this order:
 
 Then build the mission block from that report:
 
-- `Skills: <directory>` - not from the report: the parent directory of
-  this package's installed skills, the base directory the host prints
-  when one of them is invoked (`backend-configuration` in the preflight
-  above), minus that skill's own directory name. The agent opens the
-  skills' files there, by section, and never searches for them.
-  Derived at run time, always carried, never guessed;
+- `Skills: <directory>` - **not from the report**, whose path was a
+  different machine's: the `skills` line of the `package-layout`
+  skill's `scripts/layout.py` - reachable because the preflight above
+  already invoked a skill, and the host prints that skill's directory
+  when it does: `package-layout` is its sibling. The script answers
+  from its own location and is therefore exact wherever the package is
+  installed. Run it once
+  in the preflight and copy the line. Always carried, never guessed:
+  the agent opens the skills' files there, by section, and an agent
+  left to find them itself searches the repository and reads whatever
+  it meets on the way.
 - services and stack come from its frontmatter; the mode is the
   frontmatter's mode, **never inferred from whether the report records
   a scenario or a benchmark** — an `observe`-mode report backed by a
@@ -208,9 +214,11 @@ Then build the mission block from that report:
 
   ```text
   git ls-tree HEAD                                     # compare entry by entry with tree_anchor
-  git status --porcelain                               # clean tree, or changed code
   git log <revision>..HEAD -- .odd/benchmarks/<name>/  # only when the record names a benchmark
   ```
+
+  The tree's cleanliness is not asked here: the preflight script
+  already reported it, on its `repo` line.
 
   Ignore `.odd` (its hash moves with every report written) and every
   entry that cannot change the observed service's runtime behavior

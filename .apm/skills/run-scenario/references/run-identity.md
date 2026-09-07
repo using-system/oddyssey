@@ -13,6 +13,20 @@ families disagree about what "the run" is. Restart order matters too: an
 old process that outlives the reset flushes its whole cumulative history
 into the brand-new store on its next periodic export.
 
+**When the run carries its own identity, the reset is optional.** The
+ordering below exists because an unqualified cumulative query cannot
+tell two runs apart. A per-run `service.instance.id` slug tells them
+apart by name, and the drive's own start and end bound the traces and
+logs — so a run that launches its process with the slug and qualifies
+its cumulative queries by it has already separated itself from
+everything the store held before, without wiping anything. Reset only
+when something else needs an empty store: a baseline expressed as
+absolute counts rather than deltas, or a retention window that would
+drown the run's own data. State which of the two applied. A reset costs
+a container recreation and its health wait inside the preflight, and it
+destroys the history a later post-hoc comparison would have read — it
+is never free, and it is not the default.
+
 Start a clean run in this order — the reverse of what feels natural:
 
 1. **Restart the observed process first** — its dying flush lands in the
