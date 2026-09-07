@@ -93,10 +93,15 @@ Steps:
    run, from the repository root, on the work branch:
 
    ```
-   opencode run --model openrouter/<model> --variant medium \
+   caffeinate -i opencode run --model openrouter/<model> --variant medium \
      --format json --auto --title "llms-benchmark <model>" \
      "<the mission prompt below>" < /dev/null
    ```
+
+   `caffeinate -i` keeps the machine from sleeping under the run. A
+   suspend does not stop the work but it does add itself to the wall
+   clock, and duration is one of the three axes the rank turns on — a run
+   that spanned a sleep is measured wrong and must be re-run.
 
    **`< /dev/null` is not optional.** Run in the background with an open
    stdin, `opencode run` stops just after `init` — no child process, no
@@ -292,8 +297,20 @@ Steps:
      corroborate with the run's scratch files, since a run that queries
      through helper scripts logs fewer invocations than it makes.
 
-8. **Grade the report — this is your job, not the model's.** Read the
-   observation report the run stored under `.odd/observe-run-reports/`
+8. **Grade the report — this is your job, not the model's.**
+
+   **First, check the run actually drove the scenario.** The report's
+   frontmatter window must fall *after* your launch timestamp, and its
+   mode must be a driven one. A run that reads `mode: post-hoc`, or whose
+   window starts before it did, graded somebody else's traffic — one did
+   exactly that, declaring a post-hoc analysis because it believed it
+   could not start a stack that was already running and answering. That
+   run produces **no row**: re-run it with the identical mission (changing
+   the mission would invalidate every other row), and if it declines
+   again, "did not drive the scenario" is its result.
+
+   Then read the observation report the run stored under
+   `.odd/observe-run-reports/`
    and take every finding it reports, one at a time — the anomalies and
    the telemetry gaps alike; an absent signal that really is absent is a
    finding like any other. For each one, rule **confirmed** or **not
@@ -330,7 +347,16 @@ Steps:
    body, one line per finding with the ruling and why.
 
 9. **Tear down, put the tree back, then leave the branch behind.**
-   - `docker compose -f docker-compose/llms-benchmark/docker-compose.yml down -v`.
+   - `docker compose -f docker-compose/llms-benchmark/docker-compose.yml down -v`,
+     **then remove any remaining container whose name starts with
+     `llmbench`**. `down -v` only knows its own compose project, and a run
+     can start its own copy of the stack under another project name: one
+     did, and its three containers ran for **ten hours** afterwards,
+     exporting under the same service names. They exhausted the machine's
+     memory and killed a later run outright, and because profiles carry no
+     instance identity their idle CPU merged into four subsequent runs'
+     profiles. Count the `llmbench` containers while the run works too —
+     more than three means a second stack is up.
      Leave the oddyssey stack up — it is the user's, and it was probably
      up before the run.
    - delete the untracked files step 3's install created and revert its
@@ -357,11 +383,22 @@ Steps:
       replace that row in place. The table carries no history: one row
       per model, always the latest run.
 
-    Columns: **rank**, the three phase durations and the total, turns,
-    median turn latency, input / output / cache tokens, cost in USD,
-    **cost per confirmed finding**, signals queried (`n/4`), the
-    **breakdown of the findings by kind** (telemetry / performance /
-    behavior), `confirmed / reported`, and the oddyssey version.
+    **Two tables, not one.** Seventeen columns scroll the model name off
+    the screen and the rows stop being readable, and GitHub keeps no CSS
+    to pin a column. So:
+
+    - a **headline table** of eight columns — rank, model, oddyssey
+      version, `confirmed / reported`, the findings by kind under a
+      single `Telemetry / Perf / Behavior` header written `X / X / X`,
+      total duration, cost, and cost per confirmed finding. It fits
+      without scrolling and answers the question on its own. The version
+      sits third because it says which protocol a row was taken under,
+      which a reader needs before any number to its right means anything;
+    - a **detail table** inside a `<details>` block — the three phase
+      durations, turns, median turn latency, input / output / cache
+      tokens, and signals. Round the token counts (`30.0M`, `79k`): the
+      exact figures live in each run's pull request, and full precision
+      here only costs width.
 
     **The rank is decided with the user, not computed.** It weighs three
     axes together — findings, cost and duration — and none of them alone
