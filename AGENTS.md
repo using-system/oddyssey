@@ -191,6 +191,20 @@ composing the queries". Never fold a stack's specifics into a shared
 script, and never leave a run to compose what a stack could have
 shipped.
 
+**Contracts that agree are run; contracts that disagree are read.**
+Two files stating the same rule differently do not average out — the
+run opens both to arbitrate, and pays for the reading and for the
+decision. Measured on one mission: while a record example still showed
+a command composed by hand and a section still called an expensive
+operation the default, the runs opened four skill contracts to settle
+it; once the three texts said the same thing, none of those files was
+opened at all and the reads per run halved. **An example is a
+statement**, and the most copied one: a worked example showing the old
+way overrides the rule forbidding it, however plainly that rule is
+written. When you change a rule, change every place that states it —
+its own file, the contract that routes to it, the router that points
+there, and every example that shows it in use.
+
 **Judge these by what the package controls.** Wall-clock time is
 dominated by per-turn model latency, which the package does not own;
 what it owns is the number of commands and the work the model must
