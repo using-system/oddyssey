@@ -36,14 +36,12 @@ ended.
 
 The skills live under the `Skills:` directory of the mission block:
 `<Skills>/<skill-name>/SKILL.md`, its references beside it as
-`<Skills>/<skill-name>/references/<reference-name>.md`. When the block
-carries no such line, try, skill by skill, `~/.claude/skills/<skill-name>`
-and then `.claude/skills/<skill-name>` at the root of the repository
-you were dispatched in (`git rev-parse --show-toplevel`); when neither
-holds a skill, stop and tell the caller that the skills' directory is
-unknown — name the missing `Skills:` line and the paths tried, and ask
-for the directory. **Never search the filesystem for them**: a `find`
-over the disk is a timeout, not a lookup. The directory is
+`<Skills>/<skill-name>/references/<reference-name>.md`. When the block carries
+no such line, run the `package-layout` skill's `scripts/layout.py`: it
+sits inside the installation, so it answers from its own location, and
+its `skills` line is the directory. **Never search the filesystem for
+them**: a `find` over the disk is a timeout, not a lookup, and a glob
+around the repository opens files that are none of your business. The directory is
 conversation-scope: a home-directory path, never copied into a stored
 report.
 

@@ -8,14 +8,13 @@ mission.
 
 Build the mission from the arguments below:
 
-- `Skills: <directory>` - the parent directory of this package's
-  installed skills: the base directory the host prints when one of
-  them is invoked, minus that skill's own directory name. This prompt
-  invokes none before dispatching, so when this session has invoked
-  none of them yet, invoke `otel-guides` once - the mission needs its
-  map anyway - and take the directory from that line. The agent opens
-  the skills' files there, by section, and never searches for them.
-  Derived at run time, always carried, never guessed.
+- `Skills: <directory>` - the `skills` line of the `package-layout`
+  skill's `scripts/layout.py`, which answers it from its own location
+  and is therefore exact wherever the package is installed. Run it once
+  in the preflight and copy the line. Always carried, never guessed:
+  the agent opens the skills' files there, by section, and an agent
+  left to find them itself searches the repository and reads whatever
+  it meets on the way.
 - Arguments: $ARGUMENTS
 - Expected fields (any order, free-form): the path or repository to
   investigate (default: the current repository), and optionally the
