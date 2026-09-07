@@ -56,6 +56,32 @@ connection.
 
 ## Check
 
+### 0. Read the machine in one call
+
+```bash
+python3 <this skill's directory>/scripts/preflight.py [--benchmark <dir>] [--containers <name>]
+```
+
+Which CLIs are installed and at which version, what is running, the
+repository's branch and cleanliness, what each `.odd/` store holds, and
+a named benchmark's target service and base URLs — every question a
+preflight asks the machine rather than the user. It takes no judgment,
+so it takes no turns: one call, about a third of a second, instead of a
+shell command per question. Exit is always 0 — an absent CLI or a
+missing directory is an answer the steps below act on, not a failure.
+
+Its whole surface, so `--help` has nothing to add and the file has
+nothing to read: `--benchmark <dir>` reads that stored benchmark's
+manifest,
+`--containers <name>` filters the container listing to matching names,
+`--root <path>` points at a repository other than the working directory,
+`--json` prints the same report parseable. Nothing else, and nothing
+required.
+
+It resolves neither the stack nor the backend's configuration: those
+need the MCP tools and the backend's own reference, and they are what
+the rest of this section is for.
+
 ### 1. Resolve the stack
 
 `odd_config_get` names the configured stack — a value
@@ -150,7 +176,13 @@ Reference: <repo-relative path of the reference file - for a linked guide, the l
 CLI: <binary> <version>[, at <path> when not on PATH]; context: <the isolated context's path, the named context, or "none" when the CLI carries no context>
 Target: <the Display's values on one line - URLs, ports, tenant/workspace/site names; never a credential>
 Proof: <the probe command> -> <the real signal it returned>, at <UTC>
+Machine: <step 0's one-line summary - the CLIs and versions, what is running, the repo's branch and cleanliness, the benchmark's target service and base URLs>
 ```
+
+The `Machine:` line carries step 0's answers so the agent does not pay
+for them twice: with it in hand, listing the repository, the containers,
+the listening ports or the benchmark's directory again is re-deriving
+what the block already states — a measured cost, not a hypothetical one.
 
 The `Target:` line carries what the Display showed — the real
 targeting values the agent's queries need — and nothing more: never a

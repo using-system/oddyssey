@@ -5,6 +5,57 @@ https://grafana.com/docs/k6/latest/results-output/
 
 ## Running
 
+**A stored benchmark is replayed by this skill's own script, never by a
+hand-built command:**
+
+```bash
+python3 <this skill's directory>/scripts/replay_benchmark.py <benchmark dir> --run-slug <slug>
+```
+
+It reads the benchmark's manifest, resolves every base URL the manifest
+declares a default for, passes the run slug through the variable the
+manifest names, runs the script **unmodified**, and prints the record:
+the benchmark and its own git revision, whether its directory is clean,
+the command verbatim, the UTC window, the exit status, and where the
+summary landed. `--json` for the same as one object, `--dry-run` to see
+the command without sending anything.
+
+**A benchmark that outlasts a tool call is `--detach`, not a wrapper.**
+Most are: a two-minute scenario does not fit in one call, and wrapping
+the command in a shell script of your own puts the flags back in your
+hands — which is what this script exists to prevent.
+
+```bash
+python3 <...>/replay_benchmark.py <benchmark dir> --run-slug <slug> --detach <dir>
+python3 <...>/replay_benchmark.py --status <dir>     # poll until it says finished
+```
+
+`--detach` starts k6 in its own session and returns at once, writing
+`replay-record.json`, `k6-stdout.log` and `k6-stderr.log` into `<dir>`;
+`--status` answers "still running" or the finished record with its UTC
+window and exit status — the same record the foreground form prints. The
+whole flag surface is those two plus `--run-slug`, `-e KEY=value`,
+`--summary`, `--send-traceparent`, `--otel`, `--dry-run` and `--json`:
+there is nothing else, so `--help` has nothing to add and the file has
+nothing to read.
+
+It **refuses** `--vus`, `--iterations`, `--duration`, `--stage`, `--rps`,
+`--execution-segment`, `--no-thresholds`, `--no-setup`/`--no-teardown` —
+each replaces the script's own `options.scenarios` or its criteria, and
+two runs that differ there stop comparing. A benchmark that needs one to
+finish is a reported failure and a re-authoring, never a flag added at
+run time.
+
+What the caller still decides: the run slug (always — without it every
+replay sends the same User-Agent and the runs merge), any `-e KEY=value`
+the manifest left to run time, and `--send-traceparent`, which belongs to
+a **remote** drive only: locally the launched process already carries
+`service.instance.id`, and a synthetic parent would cost the run its
+trace roots for nothing.
+
+### The flags themselves
+
+
 `k6 run <script.js>` - single VU, once, by default. Flags (verified
 2026-08 against k6 v2.2.0):
 
@@ -15,7 +66,7 @@ https://grafana.com/docs/k6/latest/results-output/
 | `-i`, `--iterations <int>` | total iteration limit across all VUs |
 | `-s`, `--stage <dur>:<target>` | add one load stage - repeat the flag for multiple stages, or use `options.stages` in the script (see scripting.md) |
 | `-o`, `--out <output>` | where to send results - `json=<file>` (newline-delimited JSON), `opentelemetry` (see below), and others |
-| `--summary-export <file>` | write the end-of-test summary (per-metric values, threshold results, checks) as JSON to `<file>` - what `run-scenario`'s stored-benchmark step reads for k6's own evidence (verified 2026-09 against k6 v2.2.0) - how to read it without inverting its booleans: "Reading k6's own evidence" below. Its schema is the legacy one unless `--new-machine-readable-summary` is also passed, which switches the export to the new shape - never assume a fixed schema across the two |
+| `--summary-export <file>` | write the end-of-test summary (per-metric values, threshold results, checks) as JSON to `<file>` - k6's own execution evidence for a run record (verified 2026-09 against k6 v2.2.0) - how to read it without inverting its booleans: "Reading k6's own evidence" below. Its schema is the legacy one unless `--new-machine-readable-summary` is also passed, which switches the export to the new shape - never assume a fixed schema across the two |
 | `-e KEY=value` | set an environment variable for the script (`__ENV.KEY`) - how a mission-time base URL or a named secret reaches the script without editing it |
 | `--no-setup` / `--no-teardown` | skip the script's `setup()`/`teardown()` |
 
@@ -66,7 +117,7 @@ machine (2026-09-02, k6 v2.2.0):
 
 Neither is the benchmark: the first sends nothing, the second sends one
 iteration. Anything beyond - a `--duration`, a second iteration - is a
-run, and belongs to the execution side (`run-scenario`).
+run, not a validation.
 
 ## Exit codes
 
@@ -78,7 +129,7 @@ run, and belongs to the execution side (`run-scenario`).
   This is **not** the pass/fail signal `/odd-observe`/`/odd-verify` use
   (that's telemetry-only, per the design) - it is k6's own execution
   evidence, recorded alongside the telemetry-derived numbers by
-  `run-scenario`'s stored-benchmark step (its `benchmark-replay.md` reference).
+  the run record, alongside the telemetry-derived numbers.
 - Other non-zero codes cover setup/script errors - always read stderr,
   don't infer the failure kind from the code alone (this repo's own
   convention with other CLIs' exit codes, e.g. `az`'s).

@@ -174,6 +174,37 @@ over the disk is a timeout, not a lookup. The directory is
 conversation-scope: a home-directory path, never copied into a stored
 report.
 
+**The mission block's `Machine:` line is an answer, not a hint.** It
+carries what the caller's preflight already read off the machine — the
+CLIs and their versions, what is running, the repository's state, the
+benchmark's target and base URLs. Listing the repository, the
+containers, the listening ports or the benchmark's directory again
+spends turns re-deriving it. Look there first; probe the machine
+yourself only for something that line does not carry, and say what.
+
+**Never author a shell script for a step this package already ships one
+for.** The machine preflight, the gcx context, the service probe and a
+stored benchmark's replay are shipped commands with documented flags:
+run them, and read their output. Writing your own version costs several
+turns before it runs at all, and it produces a different command on
+every run — which is exactly what makes two observations
+incomparable. The same holds for re-deriving by hand what one of them
+just printed. A small helper for something no shipped script covers is
+fine; name it in section 1's run record, with what it did and why
+nothing shipped covered it. **A query is not that case**: a handful of
+`gcx` calls is a shell command with its jobs backgrounded, not a file
+you author, and the service probe already answers presence, identity
+and the counter baseline — check its output before deciding you need
+anything at all.
+
+**Setup reads only what setup uses.** A section you will not need until
+the investigation is a section read then, not now: the backend's query
+surface per signal is the Investigation's input, and loading it before
+the drive pays for it on every turn in between for nothing. During setup
+you need the probe script, the scenario's own contract and the recall —
+no more. The list below says when each file is due, and "at report time"
+or "at investigation time" means exactly that.
+
 Every file you open during setup is read **by section, never whole** —
 the reference (step 1), the skills (step 2 and the list below), the
 baseline (step 5). Every later turn of the mission pays for whatever
@@ -183,15 +214,30 @@ that reads by section (measured: the setup phase grew 43 K reading
 whole, 19 K by section). List a file's headings first (one `grep -n
 '^#'` per file), then read the named ranges only:
 
-- `run-scenario`: in **drive** mode, its `SKILL.md` (the `## Read by
+- `run-scenario`: in **drive** mode with a stored benchmark, the replay
+  is a script and it records the run's identity itself — the slug it
+  passed, the window, the exit status, where the summary landed — so
+  `SKILL.md` is read at its `## 4. Record verbatim` and `## 5.` only.
+  `references/run-identity.md` is **not** narrowed by that: read its
+  clean-run block **with every carve-out that block defers to** — the
+  port already served, the run that launches nothing, the restart that
+  is not possible, the reset that is forbidden. A clean run is the
+  expensive path, and those carve-outs are what say when not to take
+  it: reading the rule without them turns "start from a clean base"
+  into "reset the stack every time", which costs minutes and throws
+  away the window the mission was going to observe. In **drive** mode
+  without a stored benchmark, its `SKILL.md` (the `## Read by
   situation` router, then the method, steps 1 to 5),
   `references/run-identity.md` by the block that
   applies (the clean run and the run's start after the warmup always;
   the port already served, the run that launches nothing, the
   forbidden reset when they do),
   `references/long-scenarios.md` when an iteration is expensive or the
-  scenario outlasts a tool call, and `references/benchmark-replay.md`
-  only when the mission carries a benchmark; in the other modes,
+  scenario outlasts a tool call, and, when the mission carries a
+  benchmark, `references/benchmark-replay.md` by its clean-base,
+  warmup and summary-reading sections **only** — building and running
+  the k6 command is `k6-guides`' script, so none of the prose about
+  composing that command is yours to load; in the other modes,
   `run-identity.md`'s clean-run, port and after-the-warmup blocks (the
   after-the-warmup one carves the stages of a run someone else drove),
   `## 4. Record verbatim` and `## 5.` of `SKILL.md` only — plus, in
@@ -243,7 +289,11 @@ run record.
    with its subsections and its `## Planning notes`, once each; never
    `local.md` whole, never `grafana.md` whole, and never
    its `## Remote missions — targeting without touching the user's
-   config` (a remote backend's section). The mission block's
+   config` (a remote backend's section). **When the mission drives a
+   scenario, that query surface is due at investigation time, not
+   here**: setup proves the services with step 3's probe script, which
+   needs none of it — read `grafana.md`'s sections once the drive has
+   started, so the turns between setup and the drive do not carry them. The mission block's
    `Preflight:` handoff (the caller's `backend-configuration` `## Check`
    run) already carries what the preflight's sections resolve — the
    binary, the CLI context, the target's values, the connection proof
@@ -263,13 +313,20 @@ run record.
    the handoff's `context:` path is that file, already written and
    proven: reuse it (regenerate it only when `gcx config check` fails
    on it) and read only the skill's `## Datasources` and `## This stack
-   is push-based` sections; without a handoff, its `## Configure an
-   isolated context` section too. gcx is the stack's mandatory query
-   CLI.
+   is push-based` sections, plus `## Inventory the services, in one
+   command` for step 3's probe script; without a handoff, its
+   `## Configure an isolated context` section too. gcx is the stack's
+   mandatory query CLI.
 3. **Preflight every named service.** Before any analysis, prove its
-   telemetry exists in the window, with the backend's own query surface
-   (at `quick` depth, for the signals the mission queries — the Depth
-   section — the others are neither probed nor reported absent):
+   telemetry exists in the window, with the backend's own query surface.
+   **When the backend's reference ships a probe script, run it and read
+   its output — never compose these queries by hand.** The service names
+   and the window determine every one of them, so there is nothing to
+   decide: a script running them concurrently answers in seconds what
+   spelling them out call by call costs in minutes, and its synthesis is
+   what the later steps read. Absent such a script, probe each signal
+   yourself (at `quick` depth, for the signals the mission queries — the
+   Depth section — the others are neither probed nor reported absent):
    - **traces** — a search scoped to the service returns traces;
    - **metrics** — the service's own series/dimensions exist (discovery,
      not liveness probes: on push-based pipelines an absent scrape-style
@@ -289,8 +346,10 @@ run record.
    back empty.
 4. **Detect the deployment environment.** Before any reset and before
    any scenario, read the `deployment.environment.name` resource
-   attribute from each named service's recent telemetry — one bounded
-   discovery query per service, from the backend's reference file. The
+   attribute from each named service's recent telemetry — step 3's probe
+   script already carries it per service where the backend ships one,
+   otherwise one bounded discovery query per service, from the backend's
+   reference file. The
    environment is detected, never asked, and it is what section 1 states
    and the frontmatter records:
    - on a **local** stack the value is `local` by construction — the
@@ -425,11 +484,22 @@ does, and no turn ends to wait for a completion notification): as a
 subagent, never end your turn while the scenario is running — ending
 the turn terminates the mission and returns an unfinished result, with
 no later wake-up. On
-the local stack, when the mission asks for a clean base — or isolating
-the run matters — restart the observed process, **then** call
-`odd_stack_reset` before the scenario (`run-scenario`'s `run-identity.md`: a clean
-backend is not a clean run, and the order is load-bearing): everything
-the stack then contains IS the run, and the window becomes trivial.
+the local stack, isolating the run is what the run slug does: restart
+the observed process and give it the slug as its `service.instance.id`.
+That is the clean base, and it is the default. That slug, plus the drive's own start and
+end, already separates this run from everything the store held:
+`odd_stack_reset` on top of it buys an empty store and nothing else,
+while costing a container recreation and its health wait inside the
+preflight. `odd_stack_reset` is a **separate, heavier decision**, and wanting the
+run isolated is not a reason to take it — the slug already isolates it.
+Take it only when the mission itself asks for an empty store, or when a
+baseline is expressed in absolute counts, or when retention would drown
+the run's own data; name which of the three applied, in section 1. In
+every other case, do not reset: it costs a container recreation and its
+health wait inside the preflight, and it destroys the history a later
+comparison would have read (`run-scenario`'s `run-identity.md`: when
+the run carries its own identity the reset is optional, and when it is
+taken the order is load-bearing).
 Before launching the service, apply that step's port rule: a port
 already served by a process you did not start is never killed — run
 on a free port with the run slug as `service.instance.id`, drive

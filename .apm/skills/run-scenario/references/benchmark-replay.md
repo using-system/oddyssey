@@ -13,113 +13,18 @@ mode, someone else running the script — is the last section, read with
 this one and never instead of it. What
 differs is how the load is generated and how the record cites it:
 
-## Confirm k6 is installed before anything else
+## Replaying is the `k6-guides` skill's job
 
-Before the clean-base reset (`references/run-identity.md`):
-`command -v k6`, per the `k6-guides` skill's `install.md`. Reached
-from a prompt's preflight (the nominal case, inside `observe-run`),
-the binary is already there — a still-missing one is a contract
-failure to report with the reference's install steps, never a reason
-to install from a subagent. Entered directly in the main
-conversation, with no preflight behind it, run that reference's
-auto-install step first. Either way, when k6 is absent the observed
-process and the store stay untouched: never restart or reset for a
-run you cannot perform, never approximate the script with a curl
-loop. `running-tests.md` in the same skill carries the flags, the
-output surface, the exit codes and the summary export cited below.
+Do not build a k6 command here. `k6-guides` owns everything k6 in this
+package — the knowledge and the tooling — and its `## Running` section
+carries the replay script, what it refuses, and what the caller still
+decides (the run slug, the run-time inputs, and whether a traceparent
+goes out). Run it and bring back its record.
 
-## Read the manifest, then run the script unmodified
-
-The benchmark
-directory holds one k6 script and one manifest
-(the `benchmark` reference's layout): the script is `script.js`
-unless the manifest names another file. Run it from the repository
-root, as one blocking foreground command (or the detached poller
-below when the run outlasts a tool call), with k6's end-of-test
-summary exported to a scratch file:
-
-```text
-k6 run .odd/benchmarks/<name>/script.js --summary-export <summary-file>
-```
-
-Inputs the manifest leaves to mission time (a base URL, a named
-environment variable) are passed through k6's `-e KEY=value` or the
-environment, and recorded by name — a credential's value never lands
-in the record. Never edit the script or the manifest to make the run
-nicer: a benchmark that cannot run as stored is a reported failure,
-and a change to it goes through `/odd-instrument-bench`'s reviewed
-diff, never through the run.
-- **The manifest's `identity:` block is the authority on how the run
-  is selected.** It declares the `user_agent` the script's requests
-  carry, the `run_slug_env` variable the run slug travels in, the
-  request tags (`name`, and a per-request `stage` where the manifest
-  has one), whether a `traceparent` is sent and the variable that
-  gates it — never assume any of them. Pass the slug through the
-  variable the manifest names, every run (`-e RUN_SLUG=<slug>` in the
-  stored benchmarks): without it every replay sends the same
-  User-Agent and the runs merge. **The `traceparent` has a second
-  gate, and it is the drive that decides it**: set the variable the
-  block names for a **remote** drive, where the requests are the only
-  identity there is, and leave it **unset** for a **local** one, where
-  the launched process already carries `service.instance.id` and a
-  synthetic parent would cost the run its trace roots for nothing. The
-  gate is read by **presence, whatever its value** (the manifest says
-  so): `-e <VAR>=0` turns the header **on**, since k6 passes every `-e`
-  value as a string and the script tests that the variable is there —
-  there is no value meaning off, only leaving it out of the command.
-  Where it is set, the run is selectable on the trace-id prefix as
-  well as on the User-Agent: put the prefix the **manifest records**
-  on the `Identity:` line beside the User-Agent — a stored script
-  bakes its prefix in at authoring time, so that literal is what the
-  rows carry even where the protocol has since named another — and
-  read latency from the User-Agent identity all the same, since the
-  synthetic parent leaves those traces rootless
-  (`references/run-identity.md`). The record's `Identity:` line quotes
-  the form the rows actually carry — the launched process's
-  `service.instance.id` and that User-Agent — and
-  `references/run-identity.md`'s stored-benchmark paragraph carries the
-  rest, including why `--user-agent` is the wrong lever against a
-  script that sets the header itself.
-- **Which flags a replay may add.** A flag that only names the run,
-  carries an input the manifest left to mission time, or writes an
-  extra output is not a modification: `-e KEY=value` (the base URL, the
-  manifest's `run_slug_env`, and its `traceparent` gate on a remote
-  drive — above), `--tag <key>=<value>`,
-  `--summary-export`, `--summary-trend-stats` (the way to make k6
-  export a percentile outside its six defaults when the script may not
-  be edited — `running-tests.md`), `-o opentelemetry` with its
-  `K6_OTEL_*` env (local stack only, below), and `--user-agent` only
-  when the manifest declares no `user_agent` of its own (above). Each one goes
-  verbatim into the record's `Command:` line. A flag that moves the
-  **load** or the **criteria** is an edit by another name and is
-  refused like one: `--vus`, `--iterations`, `--duration`, `--stage`
-  (such flags replace the script's `options.scenarios` entirely —
-  `running-tests.md`), `--rps` (a global request-rate cap the
-  benchmark's own pacing never declared), `--execution-segment` and
-  `--execution-segment-sequence` (they run a fraction of the load),
-  `--no-thresholds`, `--no-setup`/`--no-teardown` (flag names verified
-  on k6 v2.2.0, 2026-09-06). A run that needs one
-  of those to finish is a reported failure and a
-  `/odd-instrument-bench` diff, never a flag added at mission time.
-- **The record cites the benchmark by name and git revision, not by
-  commands.** The revision that counts is the **benchmark's own** — the
-  last commit touching its directory
-  (`git log -1 --format=%h -- .odd/benchmarks/<name>/`), whatever
-  `HEAD` is: on a shared checkout another mission commits while a long
-  run is in flight and `HEAD` moves under it (observed on a 20-minute
-  soak). Record both, plus whether the benchmark's directory is clean
-  (`git status --porcelain .odd/benchmarks/<name>/` prints nothing). A
-  dirty benchmark has no revision to replay at — say so in the record.
-  A replay runs the same benchmark at the same revision; when the
-  stored benchmark moved between the two runs (a diff-reviewed update
-  landed), the load may have changed with it. The record then says
-  what moved: findings against the benchmark itself (a script defect,
-  an unattainable threshold) are ruled on the new revision, while the
-  service's before/after numbers compare only when the requests,
-  pacing, and stages are the same — otherwise the second run's numbers
-  open the service's new baseline, stated as such, never a before/after
-  against the first.
-
+What belongs to this side is what happens **around** the replay: the
+clean base below, the warmup the manifest's stages define, waiting for
+the flush before querying, and the fact that k6's own exit status is
+evidence and never the verdict — the verdict comes from the telemetry.
 ## The clean base is the reset, unless the caller needs the store
 
 For a local drive, `references/run-identity.md`'s clean-base order is

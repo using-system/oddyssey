@@ -33,6 +33,9 @@ anonymously.
 Every value comes from `odd_config_get`, never from a hardcoded
 default: the host ports are configurable, so `3000`/`4317`/`4318`/`4040` are
 what a fresh machine happens to show, not what the display may assume.
+The `Connection proof` below prints all four endpoints itself, from
+those same configured ports — read them off its output rather than
+composing them a second time.
 
 - Grafana URL — `http://localhost:<local.grafana_port>`
 - OTLP gRPC endpoint — `http://localhost:<local.otlp_grpc_port>`
@@ -61,20 +64,21 @@ visible.
 
 ### Connection proof
 
-`gcx config check` against the isolated gcx context of the
-`setup-local-stack` skill (`GCX_CONFIG` pointed at its per-session
-file). That skill owns the method — write the context from its
-`## Configure an isolated context` section (read that section only,
-not the skill), never against the user's own gcx contexts. The local
-stack is self-serve: a missing gcx setup is a step to run, not a "CLI
-not configured" error. Check the container is up first
-(`odd_stack_status`) — a down stack fails the probe for a reason no
-authentication guidance would fix.
+The `setup-local-stack` skill's `scripts/gcx_local.py`, run as its
+`## Configure an isolated context` section says (read that
+section only, not the skill). It writes the isolated context and proves
+it with `gcx config check` in one call, so configuring and proving are
+not two steps here — and it never touches the user's own gcx contexts.
+Exit 0 is the proof. The local stack is self-serve: a missing gcx setup
+is a step to run, not a "CLI not configured" error. Check the container
+is up first (`odd_stack_status`) — a down stack fails the probe for a
+reason no authentication guidance would fix.
 
-The preflight handoff's `context:` is the `GCX_CONFIG` path this proof
-ran against, and its `Target:` line is the Display's four URLs; the
-agent reuses that file as-is and reads `setup-local-stack` for its
-`## Datasources` and `## This stack is push-based` sections only.
+The preflight handoff's `context:` is the `GCX_CONFIG` path the script
+printed, and its `Target:` line is the Display's four URLs; the agent
+reuses that file as-is and reads `setup-local-stack` for its
+`## Inventory the services, in one command`, `## Datasources` and
+`## This stack is push-based` sections only.
 
 ### Change-request phrasing
 
@@ -89,7 +93,11 @@ The query surface is [grafana.md](grafana.md)'s — read its
 Loki over OTLP, profile output — whatever the file carries) and
 `## Planning notes`; the datasource UIDs and
 the push-model caveats are the `setup-local-stack` skill's
-`## Datasources` and `## This stack is push-based` sections. Nothing
+`## Datasources` and `## This stack is push-based` sections.
+That skill also ships `scripts/probe_services.py`, the probe script an
+observation's per-service preflight runs instead of composing those
+queries itself (its `## Inventory the services, in one command`).
+Nothing
 about querying is specific to `local` beyond those two skills'
 sections: this file carries none.
 
