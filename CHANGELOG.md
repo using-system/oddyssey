@@ -1,3 +1,38 @@
+## [1.11.4] - 2026-09-07
+
+### 🚀 Features
+
+- *(bench)* A three-component demo application under llms-benchmark/src (#477)
+- *(bench)* A docker-compose stack for the llms-benchmark demo (#478)
+- *(bench)* A k6 scenario that drives the llms-benchmark demo stack (#480)
+- *(commands)* Launch-llms-benchmark (#485)
+
+### 🐛 Bug Fixes
+
+- *(bench)* Export every log record once, and instrument the agent's real HTTP client (#481)
+- *(commands)* The corrections the first launch-llms-benchmark run taught (#487)
+
+### 🚜 Refactor
+
+- *(bench)* Move the benchmark tree to .llms-benchmark (#483)
+
+### 📚 Documentation
+
+- *(bench)* The llms-benchmark README, and the root README's model question (#484)
+- *(bench)* The qwen3.8-27b results row, and what its run taught the protocol (#490)
+- *(bench)* The glm-5.3 results row at #1, and the rank column (#492)
+- *(bench)* The gemini-3.7-flash row at #2, and what its failed first attempt taught (#494)
+- *(bench)* The gpt-6-astra row at #4, and the counting method written down (#496)
+- *(bench)* Re-run qwen3.8-27b under the current protocol, and fix the manifest launcher (#498)
+- *(bench)* Four models measured, and the protocol fixed on three counts (#500)
+
+### ⚡ Performance
+
+- *(skills)* Ship the preflight's deterministic steps as scripts instead of prose (#503)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(deps)* Bump orhun/git-cliff-action from 4.8.0 to 4.9.0 (#488)
 ## [1.11.3] - 2026-09-06
 
 ### 🚀 Features

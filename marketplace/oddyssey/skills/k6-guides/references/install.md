@@ -76,9 +76,9 @@ report:
 **Who runs it.** Whoever is in the main conversation, where the
 install command is visible as it runs: the three prompts' preflights
 (`/odd-instrument-bench`, `/odd-observe`, `/odd-verify`), or
-`run-scenario` itself when its stored-benchmark step is entered
+a stored benchmark's replay when it is entered
 directly there, without a prompt. Inside a subagent - `observe-run`
-running `run-scenario`, `k6-benchmark-expert`'s validation step -
+replaying a stored benchmark, `k6-benchmark-expert`'s validation step -
 nothing installs: a binary still missing there means the preflight did
 not run, a contract failure to report, never a reason to install from
 a subagent.
@@ -88,7 +88,7 @@ a subagent.
 **Both sides.** `k6-benchmark-expert` needs it to **validate** what it
 writes - `k6 inspect` and the one-iteration smoke (running-tests.md,
 "Validating without running") - without ever running the benchmark;
-`run-scenario`'s stored-benchmark step (its `benchmark-replay.md` reference, reached from
+a stored benchmark's replay (reached from
 `/odd-observe` or `/odd-verify` in `drive` mode with a `benchmark`, or
 entered directly) needs it to **run** one. The `/odd-instrument-bench`, `/odd-observe`,
 and `/odd-verify` preflights ensure it is present before dispatching

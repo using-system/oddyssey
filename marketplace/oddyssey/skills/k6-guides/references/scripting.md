@@ -64,7 +64,7 @@ stages map onto - `stages` is k6's own vocabulary for it (the
 benchmark needs a shape other than staged ramping).
 
 **Discarding warmup**: k6 runs one continuous window - there is no
-built-in "discard the first N seconds" the way `run-scenario`'s own
+built-in "discard the first N seconds" the way a replay's own
 warmup rule expects. A benchmark's manifest needs the stage boundaries
 recorded (as timestamps, since `options.stages` durations are known at
 author time) so a later query can exclude the ramp stage from quoted
