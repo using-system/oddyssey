@@ -191,9 +191,12 @@ Steps:
      drive through a helper script it writes, and then that pattern never
      appears at all — it stayed at zero for the whole of #489's run. The
      scratch directory (under the system temp dir, named after the run)
-     fills with the run's query outputs and carries a `drive-window.txt`
-     with the drive's own start and end once it is done; those two
-     timestamps are what step 7 needs.
+     fills with the run's query outputs and, once the drive is done,
+     carries the `replay-record.json` the packaged
+     `k6-guides/scripts/replay_benchmark.py` writes — its `start_utc` and
+     `end_utc` are the drive's own boundaries, and they are what step 7
+     needs. A run that composed its own wrapper instead may leave nothing
+     but a file it named itself.
    - the session in the store (step 7's identification): its `cost` and
      token counters climb while the run works.
 
@@ -274,11 +277,14 @@ Steps:
    - the **three phase durations**, not just the total: preflight
      (your launch timestamp → the drive's start), drive, and observation
      (drive end → your end timestamp). The total alone hides which of
-     the three a model spends itself in. A run may leave a
-     file in its scratch directory carrying both drive timestamps — but
-     that is a convention each run invents for itself: three runs used
-     three different names (`drive-window.txt`, `timestamps.env`,
-     `run-timestamps.txt`) and one wrote none at all. When it is absent, take the boundaries from the k6
+     the three a model spends itself in. Read the boundaries from the
+     `replay-record.json` the packaged `replay_benchmark.py` leaves in the
+     run's scratch directory: its `start_utc` and `end_utc` are the drive
+     itself, recorded by the script rather than by the run, so they mean
+     the same thing on every row. Only when the run drove through a
+     wrapper of its own is there no such file — earlier runs each invented
+     a name (`drive-window.txt`, `timestamps.env`, `run-timestamps.txt`)
+     and one wrote none at all; then take the boundaries from the k6
      artefacts the run does leave: the creation time of the script it
      drove with, and the last write to the k6 stdout capture. Check the
      span against k6's own reported run duration.
@@ -362,7 +368,11 @@ Steps:
    - delete the untracked files step 3's install created and revert its
      edits to tracked files, against the `git status --porcelain` you
      recorded — leave anything that existed before untouched, the
-     gitignored `.env` included;
+     gitignored `.env` included. Delete what the install added, never the
+     directory that holds it: the install writes `.agents/skills/`, but
+     `.agents/` also holds the tracked `plugins/` build artifact, and
+     removing the parent takes it with it. `git status --porcelain` must
+     come back empty afterwards — that is the check, not the deletion;
    - the run may have committed its observation report to the work
      branch. It does not ship: it names the defects it found, which is
      exactly what must not enter this repository, since the next model to
