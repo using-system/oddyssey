@@ -11,7 +11,7 @@ row. The protocol is fixed and the only variable is the model.
 | Rank | Model | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | **#1** | `z-ai/glm-5.3` | 1.11.3 | **22 / 23** | 13 / 5 / 4 | 31m01s | $2.49 | **$0.113** |
-| **#2** | `google/gemini-3.8-flash` | 1.11.3 | 11 / 11 | 6 / 4 / 1 | 20m12s | $3.33 | $0.303 |
+| **#2** | `google/gemini-3.8-flash` | 1.11.4 | **8 / 8** | 4 / 3 / 1 | 15m29s | $1.66 | $0.207 |
 | **#3** | `google/gemini-3.7-flash` | 1.11.4 | 5 / 6 | 3 / 2 / 0 | **10m51s** | $1.07 | $0.213 |
 | **#4** | `anthropic/claude-opus-5` | 1.11.3 | **17 / 17** | 11 / 3 / 3 | 27m36s | $10.35 | $0.609 |
 | **#5** | `qwen/qwen3.8-27b` | 1.11.3 | 15 / 15 | 7 / 4 / 4 | 1h09m33s | $3.01 | $0.201 |
@@ -25,7 +25,7 @@ row. The protocol is fixed and the only variable is the model.
 | Model | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `z-ai/glm-5.3` | 1.11.3 | 6m38s | 2m02s | 22m21s | 49 | 19.7s | 7.0M | 188k | 6.4M | 4/4 |
-| `google/gemini-3.8-flash` | 1.11.3 | 5m08s | 2m01s | 13m03s | 235 | 3.4s | 30.0M | 79k | 28.9M | 4/4 |
+| `google/gemini-3.8-flash` | 1.11.4 | 7m32s | 2m02s | 5m55s | 173 | 2.9s | 12.5M | 33k | 11.7M | 4/4 |
 | `google/gemini-3.7-flash` | 1.11.4 | 2m48s | 2m00s | 6m03s | 96 | 3.6s | 7.0M | 46k | 6.5M | 4/4 |
 | `anthropic/claude-opus-5` | 1.11.3 | 3m52s | 2m01s | 21m43s | 64 | 8.9s | 8.4M | 104k | 8.4M | 4/4 |
 | `qwen/qwen3.8-27b` | 1.11.3 | 15m40s | 2m01s | 51m52s | 70 | 39.2s | 13.8M | 193k | 10.1M | 4/4 |
