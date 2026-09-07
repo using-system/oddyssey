@@ -35,7 +35,9 @@ python3 <...>/replay_benchmark.py --status <dir>     # poll until it says finish
 `--status` answers "still running" or the finished record with its UTC
 window and exit status — the same record the foreground form prints. The
 whole flag surface is those two plus `--run-slug`, `-e KEY=value`,
-`--summary`, `--send-traceparent`, `--otel`, `--dry-run` and `--json`:
+`--summary`, `--send-traceparent`, `--otel` (which sets the exporter
+environment the local stack needs, not only `-o opentelemetry`),
+`--dry-run` and `--json`:
 there is nothing else, so `--help` has nothing to add and the file has
 nothing to read.
 

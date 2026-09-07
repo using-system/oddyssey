@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -76,6 +77,27 @@ def base_url_defaults(text: str) -> dict[str, str]:
     return pairs
 
 
+def otel_env() -> dict:
+    """What k6's OTLP output needs to reach the local stack.
+
+    The exporter defaults to requiring TLS, which this stack does not
+    serve, and its endpoint is a configured port rather than a fixed
+    one - so `-o opentelemetry` on its own connects to nothing and the
+    cross-confirmation series silently never lands.
+    """
+    env = {"K6_OTEL_GRPC_EXPORTER_INSECURE": "true"}
+    try:
+        stored = json.loads(
+            (Path.home() / ".oddyssey" / "config.json").read_text()
+        ).get("local", {})
+    except (OSError, ValueError):
+        stored = {}
+    port = stored.get("otlp_grpc_port")
+    if isinstance(port, int) and 0 < port < 65536 and port != 4317:
+        env["K6_OTEL_GRPC_EXPORTER_ENDPOINT"] = f"localhost:{port}"
+    return env
+
+
 def summarise(stdout: str, stderr: str) -> dict:
     """The evidence lines a record carries, whichever form produced it.
 
@@ -98,7 +120,14 @@ def git(args: list[str], cwd: Path) -> str:
     return out.stdout.strip()
 
 
-def detach(cmd: list[str], repo: Path, out: Path, record: dict, as_json: bool) -> int:
+def detach(
+    cmd: list[str],
+    repo: Path,
+    out: Path,
+    record: dict,
+    as_json: bool,
+    child_env: dict | None = None,
+) -> int:
     """Start the replay in the background and return at once.
 
     A benchmark that runs for minutes outlasts a single tool call, so the
@@ -122,10 +151,12 @@ def detach(cmd: list[str], repo: Path, out: Path, record: dict, as_json: bool) -
         "import json, subprocess, pathlib\n"
         f"o = pathlib.Path({str(out)!r})\n"
         f"cmd = {cmd!r}\n"
+        "import os\n"
+        f"env = {{**os.environ, **{dict(child_env or {})!r}}}\n"
         "so = (o / 'k6-stdout.log').open('w')\n"
         "se = (o / 'k6-stderr.log').open('w')\n"
-        f"p = subprocess.run(cmd, cwd={str(repo)!r}, stdout=so, stderr=se,"
-        " check=False)\n"
+        f"p = subprocess.run(cmd, cwd={str(repo)!r}, env=env, stdout=so,"
+        " stderr=se, check=False)\n"
         "so.close(); se.close()\n"
         "(o / 'k6-exit.code').write_text(str(p.returncode))\n"
         "(o / 'done').write_text('1')\n"
@@ -286,8 +317,10 @@ def main() -> int:
     ]
     for flag in env_flags:
         cmd += ["-e", flag]
+    child_env = {}
     if args.otel:
         cmd += ["-o", "opentelemetry"]
+        child_env = otel_env()
 
     refused = REFUSED & set(cmd)
     if refused:
@@ -301,7 +334,7 @@ def main() -> int:
         or "unknown",
         "clean": git(["status", "--porcelain", str(bench)], repo) == "",
         "run_slug": args.run_slug,
-        "command": " ".join(cmd),
+        "command": " ".join([f"{k}={v}" for k, v in sorted(child_env.items())] + cmd),
         "summary_export": str(summary),
     }
 
@@ -310,10 +343,17 @@ def main() -> int:
         return 0
 
     if args.detach:
-        return detach(cmd, repo, Path(args.detach), record, args.json)
+        return detach(cmd, repo, Path(args.detach), record, args.json, child_env)
 
     record["start_utc"] = utc()
-    proc = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, check=False)
+    proc = subprocess.run(
+        cmd,
+        cwd=repo,
+        env={**os.environ, **child_env} if child_env else None,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     record["end_utc"] = utc()
     record["exit_code"] = proc.returncode
 

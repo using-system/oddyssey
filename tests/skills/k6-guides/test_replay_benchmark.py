@@ -392,3 +392,35 @@ def test_a_reused_directory_does_not_report_the_previous_runs_outcome(
     )
     assert status["finished"] is False
     assert "exit_code" not in status
+
+
+def test_otel_output_carries_what_the_exporter_needs(benchmark, tmp_path):
+    """`-o opentelemetry` alone requires TLS the local stack does not
+    serve, so the flag would connect to nothing and the series would
+    silently never land."""
+    p = run_cli(benchmark, "--run-slug", "s", "--otel", "--dry-run")
+    assert p.returncode == 0, p.stderr
+    assert "K6_OTEL_GRPC_EXPORTER_INSECURE=true" in p.stdout
+    assert "-o opentelemetry" in p.stdout
+
+
+def test_without_otel_no_exporter_environment_is_added(benchmark):
+    p = run_cli(benchmark, "--run-slug", "s", "--dry-run")
+    assert "K6_OTEL" not in p.stdout
+    assert "opentelemetry" not in p.stdout
+
+
+def test_a_configured_grpc_port_reaches_the_exporter(benchmark, tmp_path, monkeypatch):
+    """The port is configurable, so a fixed endpoint would be right only
+    on a machine that kept the default."""
+    module = load()
+    home = tmp_path / "home"
+    (home / ".oddyssey").mkdir(parents=True)
+    (home / ".oddyssey" / "config.json").write_text(
+        json.dumps({"local": {"otlp_grpc_port": 4319}})
+    )
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    env = module.otel_env()
+    assert env["K6_OTEL_GRPC_EXPORTER_INSECURE"] == "true"
+    assert env["K6_OTEL_GRPC_EXPORTER_ENDPOINT"] == "localhost:4319"
