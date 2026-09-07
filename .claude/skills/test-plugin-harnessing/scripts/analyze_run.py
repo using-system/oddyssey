@@ -66,9 +66,20 @@ def log_lines(run_id: str) -> list[tuple[datetime, str]]:
     return rows
 
 
-def sessions(start: datetime | None) -> dict:
-    """Turns and generation time across the run's whole session tree."""
-    if not STORE.is_file() or start is None:
+def sessions(rows: list[tuple[datetime, str]]) -> dict:
+    """Turns and generation time across the run's own session tree.
+
+    The sessions are the ones this run's log lines name - never a time
+    window, which would sweep in whatever else the user was running at
+    the same time.
+    """
+    if not STORE.is_file():
+        return {}
+    seen: set[str] = set()
+    for _, line in rows:
+        seen.update(re.findall(r"session\.id=(\S+)", line))
+        seen.update(re.findall(r'"sessionID":"([^"]+)"', line))
+    if not seen:
         return {}
     tmp = Path(tempfile.mkdtemp()) / "opencode.db"
     for suffix in ("", "-wal", "-shm"):
@@ -76,11 +87,17 @@ def sessions(start: datetime | None) -> dict:
         if src.is_file():
             shutil.copy(src, str(tmp) + suffix)
     con = sqlite3.connect(tmp)
-    lo = int(start.timestamp() * 1000) - 60_000
-    ids = [
-        r[0]
-        for r in con.execute("SELECT id FROM session WHERE time_created > ?", (lo,))
-    ]
+    ids, frontier = list(seen), list(seen)
+    while frontier:
+        marks = ",".join("?" * len(frontier))
+        children = [
+            r[0]
+            for r in con.execute(
+                f"SELECT id FROM session WHERE parent_id IN ({marks})", frontier
+            )
+        ]
+        frontier = [c for c in children if c not in ids]
+        ids.extend(frontier)
     if not ids:
         return {}
     marks = ",".join("?" * len(ids))
@@ -159,7 +176,7 @@ def main() -> int:
             "--help" in ln and any(s in ln for s in SHIPPED) for _, ln in commands
         ),
         "gaps_over_threshold": gaps,
-        **sessions(parse(start_utc) if start_utc else None),
+        **sessions(rows),
     }
 
     if args.json:
