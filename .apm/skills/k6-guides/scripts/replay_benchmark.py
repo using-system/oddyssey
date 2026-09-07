@@ -54,11 +54,16 @@ def utc() -> str:
 
 
 def manifest_field(text: str, key: str) -> str | None:
-    """One scalar off the manifest without a YAML dependency."""
-    match = re.search(rf"^{re.escape(key)}:\s*(.+?)\s*$", text, re.MULTILINE)
+    """One scalar off the manifest without a YAML dependency.
+
+    A manifest nests: `run_slug_env` sits under an identity block in
+    every stored one, so anchoring at column 0 finds none of them and
+    the replay falls back to a default variable name without saying so.
+    """
+    match = re.search(rf"^\s*{re.escape(key)}:\s*(.+?)\s*$", text, re.MULTILINE)
     if not match:
         return None
-    return match.group(1).strip().strip("'\"") or None
+    return match.group(1).split("#")[0].strip().strip("'\"") or None
 
 
 def base_url_defaults(text: str) -> dict[str, str]:
@@ -79,45 +84,49 @@ def git(args: list[str], cwd: Path) -> str:
 
 
 def detach(cmd: list[str], repo: Path, out: Path, record: dict, as_json: bool) -> int:
-    """Start k6 in the background and return at once.
+    """Start the replay in the background and return at once.
 
     A benchmark that runs for minutes outlasts a single tool call, so the
-    caller polls instead of blocking. Everything the record needs lands in
-    `out`, written by a small wrapper: the caller reads it with --status
-    and never rebuilds this command itself.
+    caller polls instead of blocking. k6 runs as the child of a detached
+    wrapper, which is what lets the finished record carry k6's **real**
+    exit status - a threshold breach is a 99, and a run that reported it
+    as a pass would be worse than no record at all.
     """
     out.mkdir(parents=True, exist_ok=True)
     record["start_utc"] = utc()
     record["detached_in"] = str(out)
     (out / "replay-record.json").write_text(json.dumps(record, indent=2))
-    stdout = (out / "k6-stdout.log").open("w")
-    stderr = (out / "k6-stderr.log").open("w")
-    proc = subprocess.Popen(
-        cmd, cwd=repo, stdout=stdout, stderr=stderr, start_new_session=True
-    )
-    (out / "k6.pid").write_text(str(proc.pid))
 
-    watcher = (
-        f"import json,os,pathlib,time,datetime,sys\n"
-        f"o=pathlib.Path({str(out)!r})\n"
-        f"p={proc.pid}\n"
-        f"while True:\n"
-        f"    try: os.kill(p,0)\n"
-        f"    except OSError: break\n"
-        f"    time.sleep(1)\n"
-        f"r=json.loads((o/'replay-record.json').read_text())\n"
-        f"r['end_utc']=datetime.datetime.now(datetime.timezone.utc)"
-        f".strftime('%Y-%m-%dT%H:%M:%SZ')\n"
-        f"r['exit_code']=0\n"
-        f"(o/'replay-record.json').write_text(json.dumps(r,indent=2))\n"
-        f"(o/'done').write_text(r['end_utc'])\n"
+    runner = out / "runner.py"
+    runner.write_text(
+        "import json, subprocess, datetime, pathlib\n"
+        f"o = pathlib.Path({str(out)!r})\n"
+        f"cmd = {cmd!r}\n"
+        "so = (o / 'k6-stdout.log').open('w')\n"
+        "se = (o / 'k6-stderr.log').open('w')\n"
+        f"p = subprocess.run(cmd, cwd={str(repo)!r}, stdout=so, stderr=se,"
+        " check=False)\n"
+        "so.close(); se.close()\n"
+        "r = json.loads((o / 'replay-record.json').read_text())\n"
+        "r['end_utc'] = datetime.datetime.now(datetime.timezone.utc)"
+        ".strftime('%Y-%m-%dT%H:%M:%SZ')\n"
+        "r['exit_code'] = p.returncode\n"
+        "lines = (o / 'k6-stdout.log').read_text().splitlines()\n"
+        "keep = ('checks', 'http_req', 'iterations', 'vus', 'data_')\n"
+        "r['k6'] = [ln for ln in lines if ln.strip().startswith(keep)][-12:]\n"
+        "err = (o / 'k6-stderr.log').read_text().strip()\n"
+        "r['stderr'] = err.splitlines()[-5:] if err else []\n"
+        "(o / 'replay-record.json').write_text(json.dumps(r, indent=2))\n"
+        "(o / 'done').write_text(r['end_utc'])\n"
     )
-    subprocess.Popen(
-        [sys.executable, "-c", watcher],
-        start_new_session=True,
+    proc = subprocess.Popen(
+        [sys.executable, str(runner)],
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        start_new_session=True,
     )
+    (out / "runner.pid").write_text(str(proc.pid))
 
     if as_json:
         print(json.dumps(record, indent=2))
@@ -141,6 +150,8 @@ def report_status(out: Path, as_json: bool) -> int:
         print(json.dumps(record, indent=2))
     else:
         state = f"finished at {record.get('end_utc')}" if done else "still running"
+        if done:
+            state += f", exit {record.get('exit_code')}"
         print(f"{record['benchmark']}: {state}")
         print(f"  started  {record.get('start_utc')}")
         print(f"  summary  {record['summary_export']}")

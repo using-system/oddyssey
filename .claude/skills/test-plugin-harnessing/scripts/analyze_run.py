@@ -127,17 +127,15 @@ def sessions(rows: list[tuple[datetime, str]]) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--run-id", help="the run's own id (never the log's tail)")
-    ap.add_argument("--start", help="the measurement's start, UTC")
     ap.add_argument("--record", help="a measure_phase.py record to read both from")
     ap.add_argument("--gap", type=int, default=60, help="report gaps over N seconds")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
-    run_id, start_utc = args.run_id, args.start
+    run_id = args.run_id
     if args.record:
         record = json.loads(Path(args.record).read_text())
         run_id = run_id or record.get("run_id")
-        start_utc = start_utc or record.get("start_utc")
     if not run_id:
         print("no run id - pass --run-id or --record", file=sys.stderr)
         return 1

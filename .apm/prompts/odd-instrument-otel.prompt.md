@@ -9,8 +9,11 @@ mission.
 Build the mission from the arguments below:
 
 - `Skills: <directory>` - the `skills` line of the `package-layout`
-  skill's `scripts/layout.py`, which answers it from its own location
-  and is therefore exact wherever the package is installed. Run it once
+  skill's `scripts/layout.py` - reachable because the preflight above
+  already invoked a skill, and the host prints that skill's directory
+  when it does: `package-layout` is its sibling. The script answers
+  from its own location and is therefore exact wherever the package is
+  installed. Run it once
   in the preflight and copy the line. Always carried, never guessed:
   the agent opens the skills' files there, by section, and an agent
   left to find them itself searches the repository and reads whatever

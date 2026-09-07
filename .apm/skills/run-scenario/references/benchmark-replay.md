@@ -25,20 +25,27 @@ What belongs to this side is what happens **around** the replay: the
 clean base below, the warmup the manifest's stages define, waiting for
 the flush before querying, and the fact that k6's own exit status is
 evidence and never the verdict — the verdict comes from the telemetry.
-## The clean base is the reset, unless the caller needs the store
+## The clean base is the run slug; the reset is a separate decision
 
-For a local drive, `references/run-identity.md`'s clean-base order is
-the default and a silent mission does not turn it off: another
-lineage's telemetry sitting in the store is not history the caller
-asked to keep, and a fresh `service.instance.id` is a weaker isolation
-rather than a substitute — it qualifies the cumulative metrics, it does
-not empty the store the trace and log queries search. The reset is
-dropped only when the caller needs that history or an env forbids it;
-then `run-identity.md`'s forbidden-reset block is the protocol
-(time-scope every query to the recorded window, qualify by the
-identity, read cumulative metrics as window-edge deltas), and the
-record's `Backend:` line says which of the two the run had. A remote
-drive has no reset at all (below).
+For a local drive, the clean base is `references/run-identity.md`'s
+order **without** its wipe: restart the observed process with the run
+slug as its `service.instance.id`, and the run is separated from
+everything the store already held — the slug qualifies the cumulative
+metrics, and the replay's own recorded window scopes the trace and log
+queries to this run. That is the default, and it costs nothing.
+
+`odd_stack_reset` on top of it buys an empty store and nothing else,
+while costing a container recreation and its health wait **inside the
+preflight** and destroying the history a later post-hoc comparison
+would have read. Take it only when the mission asks for an empty store,
+when a baseline is expressed in absolute counts rather than deltas, or
+when retention would drown the run's own data — and say which of the
+three in the record. When a reset is taken, `run-identity.md`'s order
+is load-bearing; when an env forbids one, its forbidden-reset block is
+the protocol (time-scope every query to the recorded window, qualify by
+the identity, read cumulative metrics as window-edge deltas). The
+record's `Backend:` line says which case the run had. A remote drive
+has no reset at all (below).
 
 ## Warmup is the manifest's stage boundaries
 
@@ -153,17 +160,23 @@ instead — **received against scheduled**, the scheduled count being the
 integral of the manifest's stage rates over the run — and say in the
 report that this is what the number is.
 
-## A run longer than a tool call uses the detached poller of `references/long-scenarios.md`
+## A run longer than a tool call is the replay script's `--detach`
 
-A
-staged benchmark routinely exceeds one tool call's budget; the poller
-script and its output file are part of the record, on its `Poller:`
-line. **The poller watches the run, it does not drive the service**: it
-tails k6's own output and the process, and sends no request the
+A staged benchmark routinely exceeds one tool call's budget. That is
+what `k6-guides`' replay script's `--detach` is for: it starts the run
+in its own session and returns at once, and `--status <dir>` answers
+"still running" or the finished record with its UTC window and k6's
+real exit status. **Never author a poller for this** — a shell script
+of your own puts the flags back in your hands, which is what running
+the shipped command prevents, and it is one more thing to write before
+the drive starts.
+
+Whatever watches the run **watches it, it does not drive the service**:
+it reads k6's own output and the process, and sends no request the
 benchmark did not. When a liveness probe is genuinely needed, it goes
 to a route the benchmark excludes, at a fixed interval, and its route,
-interval and total count go on that line — load a replay repeats and
-the measured numbers leave out.
+interval and total count go on the record's `Poller:` line — load a
+replay repeats and the measured numbers leave out.
 
 ## Reading a breakpoint run
 

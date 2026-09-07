@@ -14,6 +14,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -200,7 +201,7 @@ def test_detach_returns_at_once_and_status_tracks_it(benchmark, tmp_path, monkey
     )
     assert p.returncode == 0, p.stderr
     assert (out / "replay-record.json").is_file()
-    assert (out / "k6.pid").is_file()
+    assert (out / "runner.pid").is_file()
     record = json.loads((out / "replay-record.json").read_text())
     assert record["start_utc"] and record["detached_in"] == str(out)
     assert "end_utc" not in record
@@ -225,3 +226,52 @@ def test_the_benchmark_is_still_required_for_a_replay(tmp_path):
     )
     assert p.returncode != 0
     assert "required" in (p.stderr + p.stdout)
+
+
+def test_a_detached_run_records_k6s_real_exit_status(benchmark, tmp_path):
+    """A threshold breach is a 99: a record that called it 0 would be
+    worse than no record, since the replay's exit status is the evidence
+    a report quotes."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stub = bin_dir / "k6"
+    stub.write_text("#!/bin/sh\necho 'checks.........: 12.00%'\nexit 99\n")
+    stub.chmod(0o755)
+    out = tmp_path / "detached"
+    e = dict(os.environ)
+    e["PATH"] = str(bin_dir) + os.pathsep + e["PATH"]
+    p = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            str(benchmark),
+            "--run-slug",
+            "s",
+            "--detach",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
+        env=e,
+        check=False,
+    )
+    assert p.returncode == 0, p.stderr
+
+    for _ in range(100):
+        if (out / "done").is_file():
+            break
+        time.sleep(0.1)
+    assert (out / "done").is_file(), "the detached run never finished"
+
+    record = json.loads((out / "replay-record.json").read_text())
+    assert record["exit_code"] == 99
+    assert record["end_utc"]
+    assert any("checks" in line for line in record["k6"])
+
+    status = subprocess.run(
+        [sys.executable, str(SCRIPT), "--status", str(out)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert "exit 99" in status.stdout

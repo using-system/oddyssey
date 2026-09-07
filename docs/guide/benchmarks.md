@@ -118,8 +118,10 @@ replays exactly that.
 Name the benchmark in an `/odd-observe` mission, by directory or path:
 
 - **drive**: the `observe-run` agent runs the stored script itself,
-  unmodified, from a clean base — the service restarted and the local
-  stack reset, so telemetry stored before the run is wiped; a base URL
+  unmodified, from a clean base — the service restarted with this run's
+  own identity, so the run is separated from whatever the stack already
+  held; wiping the stack is a separate decision the agent takes only
+  when the mission needs an empty store, and it says so. A base URL
   or a named secret the manifest leaves open is passed at mission time
   and recorded by name;
 - **observe**: someone else runs it, the agent only watches the

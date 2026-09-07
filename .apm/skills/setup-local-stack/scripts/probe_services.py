@@ -125,8 +125,12 @@ def probe_identity(svc: str) -> dict:
             ".data",
         ]
     )
-    if code != 0 or not isinstance(data, list) or not data:
+    if code != 0 or not isinstance(data, list):
         return {"present": False, "error": err or f"exit {code}"}
+    if not data:
+        # The query ran and the service has no target_info: an absent
+        # signal is a result, not a failed probe.
+        return {"present": False, "instances": [], "attributes": {}}
     keep = (
         "deployment_environment_name",
         "service_instance_id",
@@ -226,7 +230,9 @@ def probe_baseline(svc: str, names: list[str]) -> dict:
             return name, None
 
     if counters:
-        with ThreadPoolExecutor(max_workers=len(counters)) as pool:
+        # A service publishing dozens of cumulative names would otherwise
+        # spawn one gcx process each, on the always-on baseline path.
+        with ThreadPoolExecutor(max_workers=min(len(counters), 8)) as pool:
             for name, value in pool.map(one, counters):
                 if value is not None:
                     out[name] = value

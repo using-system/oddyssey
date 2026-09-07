@@ -218,3 +218,39 @@ def test_cli_renders_json_end_to_end(tmp_path, monkeypatch):
     assert report["services"][0]["traces"]["count"] == 2
     assert report["services"][0]["baseline"] == {"orders_total": 5.0}
     assert report["profile_types"]["types"] == ["cpu"]
+
+
+def test_an_absent_identity_is_a_result_not_a_failed_probe(
+    probe, tmp_path, monkeypatch
+):
+    """A service with no target_info is a finding; reporting it as a
+    failure sends the caller back to composing the queries by hand."""
+    monkeypatch.setenv("PATH", prepend(fake_gcx(tmp_path, "print('[]')\n")))
+    result = probe.probe_identity("svc")
+    assert result == {"present": False, "instances": [], "attributes": {}}
+    assert "error" not in result
+
+
+def test_the_exit_status_stays_zero_when_a_signal_is_merely_absent(tmp_path):
+    body = (
+        "a = sys.argv\n"
+        "if 'traces' in a: print('{\"n\": 0, \"roots\": []}')\n"
+        "elif 'list-profile-types' in a: print('{\"profileTypes\": []}')\n"
+        "elif 'profiles' in a: print('{\"names\": []}')\n"
+        "elif 'logs' in a: print('[]')\n"
+        "else: print('[]')\n"
+    )
+    config = tmp_path / "gcx.yaml"
+    config.write_text("current-context: local\n")
+    env = dict(os.environ)
+    env["GCX_CONFIG"] = str(config)
+    env["PATH"] = str(fake_gcx(tmp_path, body)) + os.pathsep + env["PATH"]
+    p = subprocess.run(
+        [sys.executable, str(SCRIPT), "svc"],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert "ABSENT" in p.stdout

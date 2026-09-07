@@ -62,8 +62,11 @@ harnessing** section. This skill is how you prove one landed.
 
    Its whole surface, so `--help` has nothing to add: `--model`,
    `--tag`, `--phase`, one of `--prompt` / `--prompt-file`, `--out`,
-   plus `--variant` (default `medium`), `--timeout` (default 2700 s) and
-   `--keep-running` to let the run continue past the phase. It records
+   plus `--end-pattern` (a regular expression over the run's own log
+   lines, for a mission with no k6 drive to mark the phase - a post-hoc
+   observation, a scenario the mission names), `--variant` (default
+   `medium`), `--timeout` (default 2700 s) and `--keep-running` to let
+   the run continue past the phase. It records
    the run's own id at launch, stops at the phase's marker, and exits
    non-zero rather than return a fast wrong number when the phase never
    closed.
@@ -74,8 +77,8 @@ harnessing** section. This skill is how you prove one landed.
    python3 <this skill's directory>/scripts/analyze_run.py --record <study dir>/<tag>.record.json
    ```
 
-   Surface: `--record`, or `--run-id` with `--start`; `--gap`
-   (default 60 s) sets the gap it reports; `--json`. It prints the
+   Surface: `--record`, or `--run-id`; `--gap` (default 60 s) sets the
+   gap it reports; `--json`. It prints the
    commands, the
    turns, the generation time and the median turn, then the four
    behaviours a harnessing change removes — scripts the run authored,
