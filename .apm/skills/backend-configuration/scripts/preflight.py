@@ -85,11 +85,17 @@ def repo(root: Path) -> dict:
     branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=root)
     head = run(["git", "rev-parse", "--short", "HEAD"], cwd=root)
     dirty = run(["git", "status", "--porcelain"], cwd=root)
+    paths = [ln[2:].lstrip() for ln in dirty.splitlines()] if dirty else []
     return {
         "branch": branch or "unknown",
         "head": head or "unknown",
-        "clean": not dirty,
-        "dirty_paths": len(dirty.splitlines()) if dirty else 0,
+        "clean": not paths,
+        "dirty_paths": len(paths),
+        # The paths themselves, not only how many: a caller ruling on
+        # whether code changed cannot do it from a count, and would run
+        # `git status` again to get them.
+        "dirty": paths[:40],
+        "dirty_truncated": max(0, len(paths) - 40),
     }
 
 
@@ -157,6 +163,10 @@ def render(report: dict) -> str:
     r = report["repo"]
     state = "clean" if r["clean"] else f"dirty ({r['dirty_paths']} paths)"
     lines.append(f"  repo       branch {r['branch']}  head {r['head']}  {state}")
+    for path in r.get("dirty", []):
+        lines.append(f"             {path}")
+    if r.get("dirty_truncated"):
+        lines.append(f"             ... and {r['dirty_truncated']} more")
     if report["containers"]:
         lines.append("  containers")
         for c in report["containers"]:

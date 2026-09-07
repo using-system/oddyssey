@@ -235,7 +235,7 @@ def test_a_detached_run_records_k6s_real_exit_status(benchmark, tmp_path):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     stub = bin_dir / "k6"
-    stub.write_text("#!/bin/sh\necho 'checks.........: 12.00%'\nexit 99\n")
+    stub.write_text("#!/bin/sh\necho '     checks_succeeded...: 12.00%'\nexit 99\n")
     stub.chmod(0o755)
     out = tmp_path / "detached"
     e = dict(os.environ)
@@ -263,15 +263,79 @@ def test_a_detached_run_records_k6s_real_exit_status(benchmark, tmp_path):
         time.sleep(0.1)
     assert (out / "done").is_file(), "the detached run never finished"
 
-    record = json.loads((out / "replay-record.json").read_text())
+    # --status is how the record is read, and what finalises it
+    status = subprocess.run(
+        [sys.executable, str(SCRIPT), "--status", str(out), "--json"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert status.returncode == 0, status.stderr
+    record = json.loads(status.stdout)
     assert record["exit_code"] == 99
     assert record["end_utc"]
+    assert record["finished"] is True
     assert any("checks" in line for line in record["k6"])
 
-    status = subprocess.run(
+    human = subprocess.run(
         [sys.executable, str(SCRIPT), "--status", str(out)],
         capture_output=True,
         text=True,
         check=False,
     )
-    assert "exit 99" in status.stdout
+    assert "exit 99" in human.stdout
+
+
+def test_both_forms_of_the_record_carry_the_same_shapes(benchmark, tmp_path):
+    """An agent reading --json must not get a string here and a list there."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stub = bin_dir / "k6"
+    stub.write_text(
+        "#!/bin/sh\necho '     checks_succeeded...: 100.00%'\necho 'oops' >&2\nexit 0\n"
+    )
+    stub.chmod(0o755)
+    e = dict(os.environ)
+    e["PATH"] = str(bin_dir) + os.pathsep + e["PATH"]
+
+    fg = json.loads(
+        subprocess.run(
+            [sys.executable, str(SCRIPT), str(benchmark), "--run-slug", "f", "--json"],
+            capture_output=True,
+            text=True,
+            env=e,
+            check=False,
+        ).stdout
+    )
+    out = tmp_path / "d"
+    subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            str(benchmark),
+            "--run-slug",
+            "d",
+            "--detach",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
+        env=e,
+        check=False,
+    )
+    for _ in range(100):
+        if (out / "done").is_file():
+            break
+        time.sleep(0.1)
+    bg = json.loads(
+        subprocess.run(
+            [sys.executable, str(SCRIPT), "--status", str(out), "--json"],
+            capture_output=True,
+            text=True,
+            env=e,
+            check=False,
+        ).stdout
+    )
+    for key in ("k6", "stderr", "exit_code", "start_utc", "end_utc"):
+        assert type(fg[key]) is type(bg[key]), key
+    assert fg["k6"] and fg["k6"] == bg["k6"]

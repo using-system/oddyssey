@@ -76,6 +76,21 @@ def base_url_defaults(text: str) -> dict[str, str]:
     return pairs
 
 
+def summarise(stdout: str, stderr: str) -> dict:
+    """The evidence lines a record carries, whichever form produced it.
+
+    The foreground and detached paths must yield the same shapes for the
+    same keys, or an agent reading --json gets a string here and a list
+    there for `stderr`.
+    """
+    lines = [
+        ln.strip()
+        for ln in stdout.splitlines()
+        if re.search(r"checks_succeeded|http_req_failed|^\s+iterations", ln)
+    ]
+    return {"k6": lines, "stderr": stderr.strip()[:2000]}
+
+
 def git(args: list[str], cwd: Path) -> str:
     out = subprocess.run(
         ["git", *args], cwd=cwd, capture_output=True, text=True, check=False
@@ -99,7 +114,7 @@ def detach(cmd: list[str], repo: Path, out: Path, record: dict, as_json: bool) -
 
     runner = out / "runner.py"
     runner.write_text(
-        "import json, subprocess, datetime, pathlib\n"
+        "import json, subprocess, pathlib\n"
         f"o = pathlib.Path({str(out)!r})\n"
         f"cmd = {cmd!r}\n"
         "so = (o / 'k6-stdout.log').open('w')\n"
@@ -107,17 +122,8 @@ def detach(cmd: list[str], repo: Path, out: Path, record: dict, as_json: bool) -
         f"p = subprocess.run(cmd, cwd={str(repo)!r}, stdout=so, stderr=se,"
         " check=False)\n"
         "so.close(); se.close()\n"
-        "r = json.loads((o / 'replay-record.json').read_text())\n"
-        "r['end_utc'] = datetime.datetime.now(datetime.timezone.utc)"
-        ".strftime('%Y-%m-%dT%H:%M:%SZ')\n"
-        "r['exit_code'] = p.returncode\n"
-        "lines = (o / 'k6-stdout.log').read_text().splitlines()\n"
-        "keep = ('checks', 'http_req', 'iterations', 'vus', 'data_')\n"
-        "r['k6'] = [ln for ln in lines if ln.strip().startswith(keep)][-12:]\n"
-        "err = (o / 'k6-stderr.log').read_text().strip()\n"
-        "r['stderr'] = err.splitlines()[-5:] if err else []\n"
-        "(o / 'replay-record.json').write_text(json.dumps(r, indent=2))\n"
-        "(o / 'done').write_text(r['end_utc'])\n"
+        "(o / 'k6-exit.code').write_text(str(p.returncode))\n"
+        "(o / 'done').write_text('1')\n"
     )
     proc = subprocess.Popen(
         [sys.executable, str(runner)],
@@ -145,6 +151,18 @@ def report_status(out: Path, as_json: bool) -> int:
         return 1
     record = json.loads(record_path.read_text())
     done = (out / "done").is_file()
+    if done and "exit_code" not in record:
+        record["end_utc"] = datetime.datetime.fromtimestamp(
+            (out / "done").stat().st_mtime, datetime.timezone.utc
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        record["exit_code"] = int((out / "k6-exit.code").read_text().strip())
+        record.update(
+            summarise(
+                (out / "k6-stdout.log").read_text(),
+                (out / "k6-stderr.log").read_text(),
+            )
+        )
+        record_path.write_text(json.dumps(record, indent=2))
     record["finished"] = done
     if as_json:
         print(json.dumps(record, indent=2))
@@ -294,13 +312,7 @@ def main() -> int:
     record["end_utc"] = utc()
     record["exit_code"] = proc.returncode
 
-    tail = [
-        ln
-        for ln in proc.stdout.splitlines()
-        if re.search(r"checks_succeeded|http_req_failed|^\s+iterations", ln)
-    ]
-    record["k6"] = [ln.strip() for ln in tail]
-    record["stderr"] = proc.stderr.strip()[:2000]
+    record.update(summarise(proc.stdout, proc.stderr))
 
     if args.json:
         print(json.dumps(record, indent=2))

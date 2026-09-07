@@ -15,7 +15,7 @@ It also counts the behaviours a harnessing change is meant to remove:
 shell scripts the run authored, stack resets, machine questions already
 answered upstream, and `--help` calls on shipped scripts.
 
-    analyze_run.py --run-id 85496389 --start 2026-09-07T19:35:50Z
+    analyze_run.py --run-id 85496389
     analyze_run.py --record /tmp/study/g6.record.json --json
 """
 

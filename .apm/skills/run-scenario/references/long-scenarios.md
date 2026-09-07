@@ -49,12 +49,19 @@ re-invoked when a background task finishes).
 A job running 15–30 minutes cannot be polled inside a single tool call
 on hosts with a hard tool timeout (some enforce ~10 minutes): the call
 dies mid-wait and takes its observations with it. The working shape is
-a **detached poller**: start the job, then launch a small script with
-`nohup` (survives the tool call that spawned it) that polls the job and
-appends timestamped progress to a file; later tool calls only read that
-file. The scenario record cites the poller script and its output file
-verbatim — they are part of the protocol, and a replay re-runs the same
-poller, not a hand-watched approximation.
+a **detached job with a polled record**: start the job so it survives
+the tool call that spawned it, have it write its progress and its
+outcome to a file, and let later tool calls read that file.
+
+**A stored benchmark needs none of this written**: its replay script
+already ships that shape (`--detach` starts it, `--status` reports it),
+and authoring a poller for it is writing a command the package
+supplies. What follows is for an **ad-hoc** scenario, which has no such
+script. Start the job, then launch a small script with `nohup` that
+polls it and appends timestamped progress to a file. The scenario
+record cites the poller script and its output file verbatim — they are
+part of the protocol, and a replay re-runs the same poller, not a
+hand-watched approximation.
 
 The poller, its state and its output live in the same scratchpad
 subdirectory as every other file of the run (step 5): the directory the

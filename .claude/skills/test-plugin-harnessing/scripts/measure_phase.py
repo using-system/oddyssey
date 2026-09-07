@@ -71,7 +71,9 @@ def find_run_id(model: str, since: float) -> str | None:
         for line in handle:
             if model not in line:
                 continue
-            stamp = line.partition("timestamp=")[2][:20]
+            # "2026-09-07T20:26:06.229Z" - 23 characters before the Z;
+            # a shorter slice ends on the separator and never parses.
+            stamp = line.partition("timestamp=")[2][:23]
             try:
                 when = (
                     datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%S.%f")

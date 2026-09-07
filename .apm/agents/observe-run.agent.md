@@ -222,8 +222,9 @@ whole, 19 K by section). List a file's headings first (one `grep -n
   is not possible, the reset that is forbidden. A clean run is the
   expensive path, and those carve-outs are what say when not to take
   it: reading the rule without them turns "start from a clean base"
-  into "reset the stack every time", which costs minutes and throws
-  away the window the mission was going to observe. In **drive** mode
+  into "reset the stack every time", which costs its ~6 s plus the
+  flush wait it restarts, on every run, and throws away the window the
+  mission was going to observe. In **drive** mode
   without a stored benchmark, its `SKILL.md` (the `## Read by
   situation` router, then the method, steps 1 to 5),
   `references/run-identity.md` by the block that
@@ -473,8 +474,9 @@ record then cites the benchmark by name and git revision, the single
 `k6 run` command, k6's exit status and summary, and the manifest's
 stage boundaries that carve the steady-state sub-window. Drive the
 scenario to completion **inside your turn** — the skill owns the wait
-method (one blocking foreground command, or its detached poller for a
-run longer than a tool call — the job detaches, the wait never does;
+method (the replay script's blocking foreground form, or its
+`--detach` / `--status` for a run longer than a tool call - never a
+poller you write — the job detaches, the wait never does;
 a bounded wait — the flush wait of that skill's step 5 included — is a
 `sleep` inside a helper script run in the foreground, inside the turn:
 the scenario may have to run as a background job, the wait never
@@ -487,7 +489,7 @@ the observed process and give it the slug as its `service.instance.id`.
 That is the clean base, and it is the default. That slug, plus the drive's own start and
 end, already separates this run from everything the store held:
 `odd_stack_reset` on top of it buys an empty store and nothing else,
-while costing a container recreation and its health wait inside the
+while costing its ~6 s and the flush wait it restarts, inside the
 preflight. `odd_stack_reset` is a **separate, heavier decision**, and wanting the
 run isolated is not a reason to take it — the slug already isolates it.
 Take it only when the mission itself asks for an empty store, or when a

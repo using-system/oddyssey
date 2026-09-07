@@ -5,8 +5,8 @@ description: Investigate a service and author a k6 load-test benchmark plan as c
 Before dispatching anything: ensure the `k6` binary is present, per
 the `k6-guides` skill's `install.md` auto-install step - authoring
 validates the script with `k6 inspect` and a one-iteration smoke, both
-need it. Take it from the preflight script's `k6=` line rather than
-asking again; when it reported it missing, run `brew install k6`
+need it, and this prompt runs no preflight that would already have
+said so: `command -v k6`; when it is missing, run `brew install k6`
 directly when Homebrew is available (no confirmation - k6 needs no
 account and no configuration), otherwise follow that reference's
 non-interactive path for the platform or hand the remaining steps to
