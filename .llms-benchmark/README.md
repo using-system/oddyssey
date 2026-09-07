@@ -10,9 +10,9 @@ row. The protocol is fixed and the only variable is the model.
 
 | Rank | Model | Preflight | Drive | Observation | Total | Turns | Median turn | Input | Output | Cache | Cost | $/confirmed | Signals | Kind | Confirmed / reported | oddyssey |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **#1** | `z-ai/glm-5.3` | 6m38s | 2m02s | 22m21s | **31m01s** | 49 | 19.7s | 6,986,615 | 188,492 | 6,445,056 | $2.49 | $0.113 | 4/4 | tel 13 · perf 5 · beh 4 | **22 / 23** | 1.11.3 |
+| **#1** | `z-ai/glm-5.3` | 6m38s | 2m02s | 22m21s | **31m01s** | 49 | 19.7s | 6,986,615 | 188,492 | 6,445,056 | $2.49 | **$0.113** | 4/4 | tel 13 · perf 5 · beh 4 | **22 / 23** | 1.11.3 |
 | **#2** | `google/gemini-3.7-flash` | 3m06s | 2m02s | 8m24s | **13m32s** | 121 | **3.2s** | 11,160,741 | 53,221 | 10,232,989 | $1.66 | $0.166 | 4/4 | tel 5 · perf 5 · beh 0 | **10 / 10** | 1.11.3 |
-| **#3** | `qwen/qwen3.8-27b` ⚠︎ | 14m27s | 2m02s | 51m08s | 1h07m37s | 67 | 44.8s | 13,897,126 | 220,744 | 12,769,392 | $2.22 | **$0.089** | 4/4 | tel 18 · perf 4 · beh 3 | **25 / 26** | 1.11.3 |
+| **#3** | `qwen/qwen3.8-27b` | 15m40s | 2m01s | 51m52s | 1h09m33s | 70 | 39.2s | 13,840,099 | 192,867 | 10,093,488 | $3.01 | $0.201 | 4/4 | tel 7 · perf 4 · beh 4 | **15 / 15** | 1.11.3 |
 | **#4** | `openai/gpt-6-astra` | 3m08s | 2m02s | 18m17s | 23m27s | 103 | 4.5s | 11,423,140 | 53,822 | 11,422,831 | **$19.58** | $1.305 | 4/4 | tel 8 · beh 4 · perf 3 | **15 / 15** | 1.11.3 |
 
 **Rank** is the answer to the question in the title, in one column. It
@@ -24,8 +24,12 @@ one that barely looks. Adding or updating a model re-sorts the whole
 table, never just inserts a line, and the pull request that does it
 argues the placement on those three axes.
 
-⚠︎ marks a row measured under an earlier revision of the protocol, whose
-placement is therefore provisional until it is re-run.
+A row measured under an earlier revision of the protocol is marked ⚠︎ and
+its placement is provisional until it is re-run. What that is worth was
+settled once: `qwen/qwen3.8-27b` scored 25 of 26 when it was allowed to
+read the application before observing it, and **15 of 15** on the same
+scenario once it was not. Ten of its findings came from the code, not
+from the telemetry.
 
 **How the reported count is arrived at.** A report splits its findings
 between an anomalies section and a telemetry-gaps section, and the two

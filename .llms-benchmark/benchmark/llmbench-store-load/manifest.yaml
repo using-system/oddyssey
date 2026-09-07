@@ -47,7 +47,7 @@ target:
       base_url_env: AGENT_URL
       base_url_default: http://localhost:8012
   launcher:
-    command: docker compose -f docker-compose/.llms-benchmark/docker-compose.yml up -d --build
+    command: docker compose -f docker-compose/llms-benchmark/docker-compose.yml up -d --build
     working_directory: . # the repository root
     does: >
       Builds and starts the three containers of the demo stack - api, mcp
@@ -60,7 +60,7 @@ target:
       in the shell that runs the command - the compose file names the
       variable and refuses to start without it; no value for it is ever
       stored here. Stop the stack with `docker compose -f
-      docker-compose/.llms-benchmark/docker-compose.yml down` when the run
+      docker-compose/llms-benchmark/docker-compose.yml down` when the run
       is over.
   launcher_env_required: [OPENAI_API_KEY] # named, never valued: exported in the launching shell (compose refuses to start without it)
   launcher_env_optional: [OTLP_HTTP_ENDPOINT, PYROSCOPE_ENDPOINT, DEPLOYMENT_ENV, MODEL_NAME, CATALOG_SIZE]
@@ -498,6 +498,16 @@ validation:
     result: passed - this file is valid YAML; re-run on every later edit
   note: a recorded smoke is a record, never authorization for the next one - re-authorized at mission time on every update
   history:
+    - >-
+      2026-09-07 the launcher path was corrected from
+      docker-compose/.llms-benchmark/ to docker-compose/llms-benchmark/
+      (issue #497). The dot was introduced by the tree rename of #482,
+      whose search-and-replace reached inside a compose path that was not
+      being renamed, leaving the recorded launcher pointing at a file that
+      does not exist. Found by an observation run reading this manifest,
+      not by a check. Only the two lines spelling that path changed; the
+      script is untouched, and the recorded validations still describe
+      it. Re-parsed after the edit: PyYAML safe_load exit 0.
     - >-
       2026-09-06 the tree moved from llms-benchmark/ to .llms-benchmark/
       (issue #482) - the fixture leaves the repository's product surface.
