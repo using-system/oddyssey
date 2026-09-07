@@ -99,8 +99,21 @@ def run_errored(run_id: str) -> bool:
     return log_has(run_id, "level=ERROR")
 
 
-def phase_reached(phase: str, run_id: str | None, started: float) -> bool:
-    """The marker that closes the phase under measurement."""
+def phase_reached(
+    phase: str, run_id: str | None, started: float, pattern: str | None
+) -> bool:
+    """The marker that closes the phase under measurement.
+
+    A mission without a k6 drive needs its own marker - the first
+    telemetry query, the one request it was told to send - so a caller
+    can name it as a regular expression over the run's log lines.
+    """
+    if pattern:
+        if not run_id or not LOG.is_file():
+            return False
+        needle = re.compile(pattern)
+        with LOG.open(errors="replace") as handle:
+            return any(f"run={run_id}" in ln and needle.search(ln) for ln in handle)
     if phase == "preflight":
         return k6_driving()
     if phase == "drive":
@@ -124,6 +137,11 @@ def main() -> int:
     group.add_argument("--prompt", help="the mission, verbatim")
     group.add_argument("--prompt-file", help="a file holding the mission")
     ap.add_argument("--out", required=True, help="directory for this study's records")
+    ap.add_argument(
+        "--end-pattern",
+        help="a regular expression over this run's log lines that closes the "
+        "phase - for a mission with no k6 drive to mark it",
+    )
     ap.add_argument("--variant", default="medium")
     ap.add_argument("--timeout", type=int, default=2700, help="seconds (default 2700)")
     ap.add_argument(
@@ -180,7 +198,7 @@ def main() -> int:
         if run_id and run_errored(run_id):
             note = "the run logged an error - the number would be meaningless"
             break
-        if phase_reached(args.phase, run_id, started_at):
+        if phase_reached(args.phase, run_id, started_at, args.end_pattern):
             reached = True
             break
         time.sleep(POLL)
@@ -203,6 +221,7 @@ def main() -> int:
         "seconds": seconds,
         "reached": reached,
         "note": note,
+        "end_pattern": args.end_pattern,
     }
     (out / f"{args.tag}.record.json").write_text(json.dumps(record, indent=2))
     print(json.dumps(record, indent=2))
