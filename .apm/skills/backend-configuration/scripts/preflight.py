@@ -81,11 +81,25 @@ def containers(name_filter: str | None) -> list[dict]:
     return rows
 
 
+def porcelain_path(line: str) -> str:
+    """The path a `git status --porcelain` entry is about.
+
+    A rename arrives as `old -> new`: the caller judges an entry by
+    whether that path can change runtime behavior, so a rename reported
+    by its source reads as documentation when a file landed under the
+    code.
+    """
+    path = line[2:].lstrip()
+    if " -> " in path:
+        return path.split(" -> ", 1)[1]
+    return path
+
+
 def repo(root: Path) -> dict:
     branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=root)
     head = run(["git", "rev-parse", "--short", "HEAD"], cwd=root)
     dirty = run(["git", "status", "--porcelain"], cwd=root)
-    paths = [ln[2:].lstrip() for ln in dirty.splitlines()] if dirty else []
+    paths = [porcelain_path(ln) for ln in dirty.splitlines()] if dirty else []
     return {
         "branch": branch or "unknown",
         "head": head or "unknown",

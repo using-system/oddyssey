@@ -258,15 +258,25 @@ Stages (UTC): offsets converted from the first request row 10:04:12 — ramp-up 
 Started (UTC): 2026-09-02T10:04:12Z
 Ended   (UTC): 2026-09-02T10:25:42Z
 Query points: 1 (after Ended)
-Poller:    /tmp/poll-k6-orders-run-0902.sh -> /tmp/k6-poll-orders-run-0902.log, every 30 s, reads the k6 log only (no request at the service)
+Poller:    none written - the replay ran detached and was polled with --status
 Command:
-  K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run .odd/benchmarks/orders-read-heavy/script.js -o opentelemetry --summary-export /tmp/k6-summary-orders-run-0902.json -e BASE_URL=http://127.0.0.1:8080 -e RUN_SLUG=orders-run-0902   # -o opentelemetry and its env: local stack only
+  python3 <skills>/k6-guides/scripts/replay_benchmark.py .odd/benchmarks/orders-read-heavy --run-slug orders-run-0902 --otel --detach <scratch>/orders-run-0902   # --otel: local stack only
+  k6 run .odd/benchmarks/orders-read-heavy/script.js --summary-export <scratch>/k6-summary-orders-run-0902.json -e BASE_URL=http://127.0.0.1:8080 -e RUN_SLUG=orders-run-0902 -o opentelemetry   # what it ran, from the record it printed
 k6:        exit 0, 4210 requests, checks 100%, dropped iterations 0, script errors 0 (summary file transient, numbers above are the record)
 Not reproducible: none
 ```
 
+Both `Command:` blocks carry two lines on purpose: **what you ran** -
+always the replay script - and **what it ran**, copied from the record
+that script printed. Never compose the second line yourself; the script
+is where the mapping lives (`--otel` for the local stack's OTLP output,
+`--send-traceparent` for the gated header on a remote drive,
+`-e KEY=value` for a mission-time input, `--detach` when the run
+outlasts a tool call). A flag that is not on its surface is not a flag
+this replay has.
+
 The same record for a remote drive, carrying the four changes above —
-and short enough to need no poller:
+and short enough to run in the foreground:
 
 ```text
 Scenario:  benchmark orders-api-spike (remote drive, authorized in the mission)
@@ -281,9 +291,10 @@ Stages (UTC): read off the stage tag, no arithmetic — baseline 08:30:11–08:3
 Started (UTC): 2026-09-06T08:30:11Z
 Ended   (UTC): 2026-09-06T08:32:01Z
 Query points: 1 (after Ended + the backend's ingest wait, proven by a bounded count query)
-Poller:    none (the run fits one tool call)
+Poller:    none (the run fits one tool call, so the replay ran in the foreground)
 Command:
-  k6 run .odd/benchmarks/orders-api-spike/script.js --tag run=observe-spike-0906 --summary-export /tmp/k6-summary-observe-spike-0906.json -e BASE_URL=https://orders.example.com -e RUN_SLUG=observe-spike-0906 -e SEND_TRACEPARENT=1
+  python3 <skills>/k6-guides/scripts/replay_benchmark.py .odd/benchmarks/orders-api-spike --run-slug observe-spike-0906 -e BASE_URL=https://orders.example.com --send-traceparent
+  k6 run .odd/benchmarks/orders-api-spike/script.js --summary-export <scratch>/k6-summary-observe-spike-0906.json -e BASE_URL=https://orders.example.com -e RUN_SLUG=observe-spike-0906 -e SEND_TRACEPARENT=1   # what it ran, from the record it printed
 k6:        exit 0, 4812 requests, checks 100%, dropped iterations 52 (generator: maxVUs saturated while the server p95 stayed flat), script errors 0
 Not reproducible: none
 ```

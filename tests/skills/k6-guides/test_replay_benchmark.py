@@ -339,3 +339,56 @@ def test_both_forms_of_the_record_carry_the_same_shapes(benchmark, tmp_path):
     for key in ("k6", "stderr", "exit_code", "start_utc", "end_utc"):
         assert type(fg[key]) is type(bg[key]), key
     assert fg["k6"] and fg["k6"] == bg["k6"]
+
+
+def test_a_reused_directory_does_not_report_the_previous_runs_outcome(
+    benchmark, tmp_path
+):
+    """A retry, or a verify replaying the baseline's slug, lands in a
+    directory that already holds a finished run."""
+    out = tmp_path / "reused"
+    out.mkdir()
+    for name, body in (
+        ("done", "1"),
+        ("k6-exit.code", "99"),
+        ("k6-stdout.log", "     checks_succeeded...: 12.00%\n"),
+        ("k6-stderr.log", "old failure\n"),
+    ):
+        (out / name).write_text(body)
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stub = bin_dir / "k6"
+    stub.write_text("#!/bin/sh\nsleep 5\n")
+    stub.chmod(0o755)
+    e = dict(os.environ)
+    e["PATH"] = str(bin_dir) + os.pathsep + e["PATH"]
+
+    p = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            str(benchmark),
+            "--run-slug",
+            "s",
+            "--detach",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
+        env=e,
+        check=False,
+    )
+    assert p.returncode == 0, p.stderr
+
+    status = json.loads(
+        subprocess.run(
+            [sys.executable, str(SCRIPT), "--status", str(out), "--json"],
+            capture_output=True,
+            text=True,
+            env=e,
+            check=False,
+        ).stdout
+    )
+    assert status["finished"] is False
+    assert "exit_code" not in status

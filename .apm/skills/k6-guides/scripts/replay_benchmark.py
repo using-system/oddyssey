@@ -108,6 +108,11 @@ def detach(cmd: list[str], repo: Path, out: Path, record: dict, as_json: bool) -
     as a pass would be worse than no record at all.
     """
     out.mkdir(parents=True, exist_ok=True)
+    # A directory reused by a retry, or by a verify replaying the
+    # baseline's slug, still holds the previous run's outcome - and
+    # --status would report it, confidently, one second after launch.
+    for stale in ("done", "k6-exit.code", "k6-stdout.log", "k6-stderr.log"):
+        (out / stale).unlink(missing_ok=True)
     record["start_utc"] = utc()
     record["detached_in"] = str(out)
     (out / "replay-record.json").write_text(json.dumps(record, indent=2))

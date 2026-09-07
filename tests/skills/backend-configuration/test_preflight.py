@@ -180,3 +180,19 @@ def test_cli_exits_zero_even_when_everything_is_missing(tmp_path):
     report = json.loads(p.stdout)
     assert report["clis"]["gcx"]["present"] is False
     assert report["containers"] == []
+
+
+@pytest.mark.parametrize(
+    "line, expected",
+    [
+        (" M .odd/report.md", ".odd/report.md"),
+        ("?? .claude/hooks/", ".claude/hooks/"),
+        ("M  src/app.py", "src/app.py"),
+        ("R  docs/old.md -> src/new.py", "src/new.py"),
+        ("RM docs/a.md -> docs/b.md", "docs/b.md"),
+    ],
+)
+def test_a_porcelain_entry_resolves_to_the_path_it_is_about(preflight, line, expected):
+    """A rename reported by its source would read as documentation when a
+    file actually landed under the code."""
+    assert preflight.porcelain_path(line) == expected
