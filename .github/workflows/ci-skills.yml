@@ -15,6 +15,8 @@ permissions:
 
 env:
   RUFF_VERSION: "0.16.4"
+  # The replay script builds a k6 command; its tests need the binary.
+  K6_VERSION: "2.2.0"
 
 jobs:
   lint:
@@ -42,6 +44,11 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           cache-suffix: ci-skills-unit-tests-${{ matrix.python }}
+      - name: Install k6
+        run: |
+          curl -sSfL "https://github.com/grafana/k6/releases/download/v${K6_VERSION}/k6-v${K6_VERSION}-linux-amd64.tar.gz" \
+            | tar -xz --strip-components=1 -C /usr/local/bin "k6-v${K6_VERSION}-linux-amd64/k6"
+          k6 version
       - name: Run the skill script tests
         env:
           PYTHON_VERSION: ${{ matrix.python }}
