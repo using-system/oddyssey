@@ -6,7 +6,19 @@ Invoke the `observe-run` agent. It owns the whole method and the report
 contract - this prompt only hands it a well-formed mission.
 
 Preflight first - in the main conversation, before any dispatch (the
-steps needing the user cannot happen inside a subagent):
+steps needing the user cannot happen inside a subagent).
+
+**Start with the `backend-configuration` skill's `scripts/preflight.py`**
+(add `--benchmark <dir>` when the arguments name a stored benchmark,
+`--containers <name>` when the observed services run in containers). One
+call answers every mechanical question below - which CLIs are installed
+and at which version, what is running, the repository's branch and
+cleanliness, what each `.odd/` store already holds, and the named
+benchmark's target service and base URLs. Read its output; never ask the
+same questions one shell command at a time. What it does **not** answer
+is the part that takes judgment, and that is what the numbered steps
+below are for: resolving the stack, and reading the backend's own
+configuration.
 
 1. Resolve the target stack: the configured one (`odd_config_get`), or
    the one the arguments name - a stack is one of the values the
@@ -45,12 +57,12 @@ steps needing the user cannot happen inside a subagent):
    agent then reads the reference's other sections only (never the
    preflight's four: CLI binary, Setup, Configuration display, What to
    persist) and never re-proves what the preflight proved.
-3. When the arguments name a stored benchmark, read its manifest under
-   `.odd/benchmarks/<name>/` for the target service (the service the
-   mission uses unless the arguments name one), and - unless the
-   arguments say someone else is running it - ensure the `k6` binary
-   is present, per the `k6-guides` skill's `install.md` auto-install
-   step: `command -v k6`; when it is missing, run `brew install k6`
+3. When the arguments name a stored benchmark, the preflight script
+   above already read its manifest - take the target service from its
+   output (the service the mission uses unless the arguments name one),
+   and its `k6=` line for the binary. Unless the arguments say someone
+   else is running it, k6 must be present, per the `k6-guides` skill's
+   `install.md` auto-install step; when the script reported it absent, run `brew install k6`
    directly when Homebrew is available (no confirmation - k6 needs no
    account and no configuration), otherwise follow that reference's
    non-interactive path for the platform or hand the remaining steps
@@ -73,12 +85,16 @@ steps needing the user cannot happen inside a subagent):
 Build the mission block from the arguments below, applying the agent's own
 defaults for every field not specified:
 
-- `Skills: <directory>` - the parent directory of this package's
-  installed skills: the base directory the host prints when one of
-  them is invoked (`backend-configuration` in the preflight above),
-  minus that skill's own directory name. The agent opens the skills'
-  files there, by section, and never searches for them. Derived at run
-  time, always carried, never guessed.
+- `Skills: <directory>` - the `skills` line of the `package-layout`
+  skill's `scripts/layout.py` - reachable because the preflight above
+  already invoked a skill, and the host prints that skill's directory
+  when it does: `package-layout` is its sibling. The script answers
+  from its own location and is therefore exact wherever the package is
+  installed. Run it once
+  in the preflight and copy the line. Always carried, never guessed:
+  the agent opens the skills' files there, by section, and an agent
+  left to find them itself searches the repository and reads whatever
+  it meets on the way.
 - Arguments: $ARGUMENTS
 - Expected fields (any order, free-form): service name(s), stack
   (defaults to the configured one - the preflight resolved it), mode

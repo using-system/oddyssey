@@ -10,7 +10,22 @@ the numbers in an observation report produce the numbers that verify the
 fix. A scenario that cannot be replayed verbatim makes before/after
 comparison an impression, not a measurement.
 
+**A step this package ships a script for is run, never rewritten.** The
+replay of a stored benchmark is `k6-guides`' script; the machine
+preflight and the service probe are their own skills'. Authoring a shell
+script that redoes one of them costs turns before it runs and yields a
+different command each time — two runs then measure two things.
+
+
 ## Read by situation
+
+**The two mechanical parts are scripts, not prose.** Replaying a stored
+benchmark is `scripts/replay_benchmark.py` (see
+[`references/benchmark-replay.md`](references/benchmark-replay.md)), and
+pointing gcx at the local stack is the `setup-local-stack` skill's
+`scripts/gcx_local.py`. Run them; do not rebuild them. What is left in
+these files is what you have to decide, which is the only part worth
+reading.
 
 This file is the method every scenario follows — steps 1 to 5 and the
 rules. What depends on the situation lives in a reference, read by the
@@ -19,7 +34,7 @@ block that applies, never whole:
 | Situation | Reference |
 | --- | --- |
 | Every drive: the clean-base order and the identity the queries are qualified by, and the run's t0 after the warmup — a process the run launches, a port already served, a remote target the run cannot launch, a reset that is forbidden, a run whose stages are carved from timestamps | [references/run-identity.md](references/run-identity.md), the block that applies |
-| An iteration that is expensive or non-deterministic, a wait that must stay inside the turn, a scenario longer than a tool call | [references/long-scenarios.md](references/long-scenarios.md) |
+| An iteration that is expensive or non-deterministic, a wait that must stay inside the turn, an **ad-hoc** scenario longer than a tool call (a stored benchmark's own replay script detaches for you - see the row below) | [references/long-scenarios.md](references/long-scenarios.md) |
 | A stored k6 benchmark under `.odd/benchmarks/<name>/` — driven here, or driven elsewhere and only watched | [references/benchmark-replay.md](references/benchmark-replay.md), in place of the ad-hoc commands; its watching section for a run someone else drives |
 
 Start with the identity reference, then follow the steps below.

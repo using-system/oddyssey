@@ -13,127 +13,39 @@ mode, someone else running the script — is the last section, read with
 this one and never instead of it. What
 differs is how the load is generated and how the record cites it:
 
-## Confirm k6 is installed before anything else
+## Replaying is the `k6-guides` skill's job
 
-Before the clean-base reset (`references/run-identity.md`):
-`command -v k6`, per the `k6-guides` skill's `install.md`. Reached
-from a prompt's preflight (the nominal case, inside `observe-run`),
-the binary is already there — a still-missing one is a contract
-failure to report with the reference's install steps, never a reason
-to install from a subagent. Entered directly in the main
-conversation, with no preflight behind it, run that reference's
-auto-install step first. Either way, when k6 is absent the observed
-process and the store stay untouched: never restart or reset for a
-run you cannot perform, never approximate the script with a curl
-loop. `running-tests.md` in the same skill carries the flags, the
-output surface, the exit codes and the summary export cited below.
+Do not build a k6 command here. `k6-guides` owns everything k6 in this
+package — the knowledge and the tooling — and its `## Running` section
+carries the replay script, what it refuses, and what the caller still
+decides (the run slug, the run-time inputs, and whether a traceparent
+goes out). Run it and bring back its record.
 
-## Read the manifest, then run the script unmodified
+What belongs to this side is what happens **around** the replay: the
+clean base below, the warmup the manifest's stages define, waiting for
+the flush before querying, and the fact that k6's own exit status is
+evidence and never the verdict — the verdict comes from the telemetry.
+## The clean base is the run slug; the reset is a separate decision
 
-The benchmark
-directory holds one k6 script and one manifest
-(the `benchmark` reference's layout): the script is `script.js`
-unless the manifest names another file. Run it from the repository
-root, as one blocking foreground command (or the detached poller
-below when the run outlasts a tool call), with k6's end-of-test
-summary exported to a scratch file:
+For a local drive, the clean base is `references/run-identity.md`'s
+order **without** its wipe: restart the observed process with the run
+slug as its `service.instance.id`, and the run is separated from
+everything the store already held — the slug qualifies the cumulative
+metrics, and the replay's own recorded window scopes the trace and log
+queries to this run. That is the default, and it costs nothing.
 
-```text
-k6 run .odd/benchmarks/<name>/script.js --summary-export <summary-file>
-```
-
-Inputs the manifest leaves to mission time (a base URL, a named
-environment variable) are passed through k6's `-e KEY=value` or the
-environment, and recorded by name — a credential's value never lands
-in the record. Never edit the script or the manifest to make the run
-nicer: a benchmark that cannot run as stored is a reported failure,
-and a change to it goes through `/odd-instrument-bench`'s reviewed
-diff, never through the run.
-- **The manifest's `identity:` block is the authority on how the run
-  is selected.** It declares the `user_agent` the script's requests
-  carry, the `run_slug_env` variable the run slug travels in, the
-  request tags (`name`, and a per-request `stage` where the manifest
-  has one), whether a `traceparent` is sent and the variable that
-  gates it — never assume any of them. Pass the slug through the
-  variable the manifest names, every run (`-e RUN_SLUG=<slug>` in the
-  stored benchmarks): without it every replay sends the same
-  User-Agent and the runs merge. **The `traceparent` has a second
-  gate, and it is the drive that decides it**: set the variable the
-  block names for a **remote** drive, where the requests are the only
-  identity there is, and leave it **unset** for a **local** one, where
-  the launched process already carries `service.instance.id` and a
-  synthetic parent would cost the run its trace roots for nothing. The
-  gate is read by **presence, whatever its value** (the manifest says
-  so): `-e <VAR>=0` turns the header **on**, since k6 passes every `-e`
-  value as a string and the script tests that the variable is there —
-  there is no value meaning off, only leaving it out of the command.
-  Where it is set, the run is selectable on the trace-id prefix as
-  well as on the User-Agent: put the prefix the **manifest records**
-  on the `Identity:` line beside the User-Agent — a stored script
-  bakes its prefix in at authoring time, so that literal is what the
-  rows carry even where the protocol has since named another — and
-  read latency from the User-Agent identity all the same, since the
-  synthetic parent leaves those traces rootless
-  (`references/run-identity.md`). The record's `Identity:` line quotes
-  the form the rows actually carry — the launched process's
-  `service.instance.id` and that User-Agent — and
-  `references/run-identity.md`'s stored-benchmark paragraph carries the
-  rest, including why `--user-agent` is the wrong lever against a
-  script that sets the header itself.
-- **Which flags a replay may add.** A flag that only names the run,
-  carries an input the manifest left to mission time, or writes an
-  extra output is not a modification: `-e KEY=value` (the base URL, the
-  manifest's `run_slug_env`, and its `traceparent` gate on a remote
-  drive — above), `--tag <key>=<value>`,
-  `--summary-export`, `--summary-trend-stats` (the way to make k6
-  export a percentile outside its six defaults when the script may not
-  be edited — `running-tests.md`), `-o opentelemetry` with its
-  `K6_OTEL_*` env (local stack only, below), and `--user-agent` only
-  when the manifest declares no `user_agent` of its own (above). Each one goes
-  verbatim into the record's `Command:` line. A flag that moves the
-  **load** or the **criteria** is an edit by another name and is
-  refused like one: `--vus`, `--iterations`, `--duration`, `--stage`
-  (such flags replace the script's `options.scenarios` entirely —
-  `running-tests.md`), `--rps` (a global request-rate cap the
-  benchmark's own pacing never declared), `--execution-segment` and
-  `--execution-segment-sequence` (they run a fraction of the load),
-  `--no-thresholds`, `--no-setup`/`--no-teardown` (flag names verified
-  on k6 v2.2.0, 2026-09-06). A run that needs one
-  of those to finish is a reported failure and a
-  `/odd-instrument-bench` diff, never a flag added at mission time.
-- **The record cites the benchmark by name and git revision, not by
-  commands.** The revision that counts is the **benchmark's own** — the
-  last commit touching its directory
-  (`git log -1 --format=%h -- .odd/benchmarks/<name>/`), whatever
-  `HEAD` is: on a shared checkout another mission commits while a long
-  run is in flight and `HEAD` moves under it (observed on a 20-minute
-  soak). Record both, plus whether the benchmark's directory is clean
-  (`git status --porcelain .odd/benchmarks/<name>/` prints nothing). A
-  dirty benchmark has no revision to replay at — say so in the record.
-  A replay runs the same benchmark at the same revision; when the
-  stored benchmark moved between the two runs (a diff-reviewed update
-  landed), the load may have changed with it. The record then says
-  what moved: findings against the benchmark itself (a script defect,
-  an unattainable threshold) are ruled on the new revision, while the
-  service's before/after numbers compare only when the requests,
-  pacing, and stages are the same — otherwise the second run's numbers
-  open the service's new baseline, stated as such, never a before/after
-  against the first.
-
-## The clean base is the reset, unless the caller needs the store
-
-For a local drive, `references/run-identity.md`'s clean-base order is
-the default and a silent mission does not turn it off: another
-lineage's telemetry sitting in the store is not history the caller
-asked to keep, and a fresh `service.instance.id` is a weaker isolation
-rather than a substitute — it qualifies the cumulative metrics, it does
-not empty the store the trace and log queries search. The reset is
-dropped only when the caller needs that history or an env forbids it;
-then `run-identity.md`'s forbidden-reset block is the protocol
-(time-scope every query to the recorded window, qualify by the
-identity, read cumulative metrics as window-edge deltas), and the
-record's `Backend:` line says which of the two the run had. A remote
-drive has no reset at all (below).
+`odd_stack_reset` on top of it buys an empty store and nothing else,
+while costing a container recreation and its health wait **inside the
+preflight** and destroying the history a later post-hoc comparison
+would have read. Take it only when the mission asks for an empty store,
+when a baseline is expressed in absolute counts rather than deltas, or
+when retention would drown the run's own data — and say which of the
+three in the record. When a reset is taken, `run-identity.md`'s order
+is load-bearing; when an env forbids one, its forbidden-reset block is
+the protocol (time-scope every query to the recorded window, qualify by
+the identity, read cumulative metrics as window-edge deltas). The
+record's `Backend:` line says which case the run had. A remote drive
+has no reset at all (below).
 
 ## Warmup is the manifest's stage boundaries
 
@@ -248,17 +160,23 @@ instead — **received against scheduled**, the scheduled count being the
 integral of the manifest's stage rates over the run — and say in the
 report that this is what the number is.
 
-## A run longer than a tool call uses the detached poller of `references/long-scenarios.md`
+## A run longer than a tool call is the replay script's `--detach`
 
-A
-staged benchmark routinely exceeds one tool call's budget; the poller
-script and its output file are part of the record, on its `Poller:`
-line. **The poller watches the run, it does not drive the service**: it
-tails k6's own output and the process, and sends no request the
+A staged benchmark routinely exceeds one tool call's budget. That is
+what `k6-guides`' replay script's `--detach` is for: it starts the run
+in its own session and returns at once, and `--status <dir>` answers
+"still running" or the finished record with its UTC window and k6's
+real exit status. **Never author a poller for this** — a shell script
+of your own puts the flags back in your hands, which is what running
+the shipped command prevents, and it is one more thing to write before
+the drive starts.
+
+Whatever watches the run **watches it, it does not drive the service**:
+it reads k6's own output and the process, and sends no request the
 benchmark did not. When a liveness probe is genuinely needed, it goes
 to a route the benchmark excludes, at a fixed interval, and its route,
-interval and total count go on that line — load a replay repeats and
-the measured numbers leave out.
+interval and total count go on the record's `Poller:` line — load a
+replay repeats and the measured numbers leave out.
 
 ## Reading a breakpoint run
 
@@ -340,15 +258,25 @@ Stages (UTC): offsets converted from the first request row 10:04:12 — ramp-up 
 Started (UTC): 2026-09-02T10:04:12Z
 Ended   (UTC): 2026-09-02T10:25:42Z
 Query points: 1 (after Ended)
-Poller:    /tmp/poll-k6-orders-run-0902.sh -> /tmp/k6-poll-orders-run-0902.log, every 30 s, reads the k6 log only (no request at the service)
+Poller:    none written - the replay ran detached and was polled with --status
 Command:
-  K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run .odd/benchmarks/orders-read-heavy/script.js -o opentelemetry --summary-export /tmp/k6-summary-orders-run-0902.json -e BASE_URL=http://127.0.0.1:8080 -e RUN_SLUG=orders-run-0902   # -o opentelemetry and its env: local stack only
+  python3 <skills>/k6-guides/scripts/replay_benchmark.py .odd/benchmarks/orders-read-heavy --run-slug orders-run-0902 --otel --detach <scratch>/orders-run-0902   # --otel: local stack only
+  k6 run .odd/benchmarks/orders-read-heavy/script.js --summary-export <scratch>/k6-summary-orders-run-0902.json -e BASE_URL=http://127.0.0.1:8080 -e RUN_SLUG=orders-run-0902 -o opentelemetry   # what it ran, from the record it printed
 k6:        exit 0, 4210 requests, checks 100%, dropped iterations 0, script errors 0 (summary file transient, numbers above are the record)
 Not reproducible: none
 ```
 
+Both `Command:` blocks carry two lines on purpose: **what you ran** -
+always the replay script - and **what it ran**, copied from the record
+that script printed. Never compose the second line yourself; the script
+is where the mapping lives (`--otel` for the local stack's OTLP output,
+`--send-traceparent` for the gated header on a remote drive,
+`-e KEY=value` for a mission-time input, `--detach` when the run
+outlasts a tool call). A flag that is not on its surface is not a flag
+this replay has.
+
 The same record for a remote drive, carrying the four changes above —
-and short enough to need no poller:
+and short enough to run in the foreground:
 
 ```text
 Scenario:  benchmark orders-api-spike (remote drive, authorized in the mission)
@@ -363,9 +291,10 @@ Stages (UTC): read off the stage tag, no arithmetic — baseline 08:30:11–08:3
 Started (UTC): 2026-09-06T08:30:11Z
 Ended   (UTC): 2026-09-06T08:32:01Z
 Query points: 1 (after Ended + the backend's ingest wait, proven by a bounded count query)
-Poller:    none (the run fits one tool call)
+Poller:    none (the run fits one tool call, so the replay ran in the foreground)
 Command:
-  k6 run .odd/benchmarks/orders-api-spike/script.js --tag run=observe-spike-0906 --summary-export /tmp/k6-summary-observe-spike-0906.json -e BASE_URL=https://orders.example.com -e RUN_SLUG=observe-spike-0906 -e SEND_TRACEPARENT=1
+  python3 <skills>/k6-guides/scripts/replay_benchmark.py .odd/benchmarks/orders-api-spike --run-slug observe-spike-0906 -e BASE_URL=https://orders.example.com --send-traceparent
+  k6 run .odd/benchmarks/orders-api-spike/script.js --summary-export <scratch>/k6-summary-observe-spike-0906.json -e BASE_URL=https://orders.example.com -e RUN_SLUG=observe-spike-0906 -e SEND_TRACEPARENT=1   # what it ran, from the record it printed
 k6:        exit 0, 4812 requests, checks 100%, dropped iterations 52 (generator: maxVUs saturated while the server p95 stayed flat), script errors 0
 Not reproducible: none
 ```
