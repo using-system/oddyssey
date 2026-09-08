@@ -486,8 +486,8 @@ record then cites the benchmark by name and git revision, the single
 `k6 run` command, k6's exit status and summary, and the manifest's
 stage boundaries that carve the steady-state sub-window. Drive the
 scenario to completion **inside your turn** — the skill owns the wait
-method (the replay script's blocking foreground form, or its
-`--detach` / `--status` for a run longer than a tool call - never a
+method (the replay script's `--detach`, always, then its `--status`
+until it reports finished - never its foreground form, never a
 poller you write — the job detaches, the wait never does;
 a bounded wait — the flush wait of that skill's step 5 included — is a
 `sleep` inside a helper script run in the foreground, inside the turn:
