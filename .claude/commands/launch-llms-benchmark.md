@@ -191,9 +191,9 @@ Steps:
      drive through a helper script it writes, and then that pattern never
      appears at all — it stayed at zero for the whole of #489's run. The
      scratch directory (under the system temp dir, named after the run)
-     fills with the run's query outputs and carries a `drive-window.txt`
-     with the drive's own start and end once it is done; those two
-     timestamps are what step 7 needs.
+     fills with the run's query outputs, and its `k6-summary.json` appears
+     when the drive ends. The drive's own boundaries are what step 7
+     needs; where to read them is settled there.
    - the session in the store (step 7's identification): its `cost` and
      token counters climb while the run works.
 
@@ -274,14 +274,23 @@ Steps:
    - the **three phase durations**, not just the total: preflight
      (your launch timestamp → the drive's start), drive, and observation
      (drive end → your end timestamp). The total alone hides which of
-     the three a model spends itself in. A run may leave a
-     file in its scratch directory carrying both drive timestamps — but
-     that is a convention each run invents for itself: three runs used
-     three different names (`drive-window.txt`, `timestamps.env`,
-     `run-timestamps.txt`) and one wrote none at all. When it is absent, take the boundaries from the k6
-     artefacts the run does leave: the creation time of the script it
-     drove with, and the last write to the k6 stdout capture. Check the
-     span against k6's own reported run duration.
+     the three a model spends itself in. The drive's boundaries are the
+     `window:` field of the report's own frontmatter: the contract
+     requires it, so it is on every report, and it says what the run
+     itself considered the drive — which is what the other rows were
+     measured on. Cross-check it before trusting it, from the run's
+     `k6-summary.json`: `http_reqs.count` divided by `http_reqs.rate` is
+     k6's own duration, and the file's mtime is the drive's end, so the
+     two together reconstruct the window without the run's help. They
+     agreed to the second on the run of #505.
+
+     Do not expect a file to hand you the window. The packaged
+     `replay_benchmark.py` writes `replay-record.json` **only under
+     `--detach`**; run synchronously it prints the window to stdout and
+     leaves nothing behind — one run of #505 took each path, and only the
+     detached one left a record. Earlier runs that composed their own
+     wrapper each invented a name (`drive-window.txt`, `timestamps.env`,
+     `run-timestamps.txt`) and one wrote none at all.
    - the **turns** — assistant messages across the whole session tree,
      same recursion as the cost — and the **median** per-turn latency
      from each message's `time.created` / `time.completed`. Use the
@@ -336,6 +345,14 @@ Steps:
      the prompt inflation it causes on one line where another split them
      across two; one line is not one finding.
 
+   **Aggregate a profile the way the report did.** A CPU percentage
+   quoted off a flamegraph is almost always **self** time, and a grader
+   who sums or maxes each frame's *total* gets a different number for the
+   same profile — on the run of #505 the same frame read 88.4% as self
+   time and 79.0% as the largest total, which is the difference between
+   ruling a finding exact and ruling it wrong. Reproduce the report's
+   figure under both readings before calling it unsupported.
+
    A finding is confirmed when both checks hold. It is not confirmed when
    the evidence does not support it, when the cited query returns
    something else, when the code does not do that, or when the finding is
@@ -359,10 +376,26 @@ Steps:
      more than three means a second stack is up.
      Leave the oddyssey stack up — it is the user's, and it was probably
      up before the run.
+   - **delete the run's scratch directory under the system temp dir**
+     (`$TMPDIR/opencode/`), every run's, not only this one's. Runs name
+     that directory themselves and the names collide: one run of #505
+     picked a name an earlier session had already used and inherited 248
+     files — another model's query outputs, its trace dumps and its
+     analysis scripts. That run happened never to read them, which was
+     luck, not design: a single `ls` of its own scratch would have handed
+     it a worked answer key, which is exactly what step 9 refuses to let
+     the observation report carry into the repository. The directory is
+     the same hazard with none of the protection, so clear it, and clear
+     it after the run rather than during — the run writes its own k6
+     summary there.
    - delete the untracked files step 3's install created and revert its
      edits to tracked files, against the `git status --porcelain` you
      recorded — leave anything that existed before untouched, the
-     gitignored `.env` included;
+     gitignored `.env` included. Delete what the install added, never the
+     directory that holds it: the install writes `.agents/skills/`, but
+     `.agents/` also holds the tracked `plugins/` build artifact, and
+     removing the parent takes it with it. `git status --porcelain` must
+     come back empty afterwards — that is the check, not the deletion;
    - the run may have committed its observation report to the work
      branch. It does not ship: it names the defects it found, which is
      exactly what must not enter this repository, since the next model to
