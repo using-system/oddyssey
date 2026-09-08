@@ -22,10 +22,10 @@ different command each time — two runs then measure two things.
 **The two mechanical parts are scripts, not prose.** Replaying a stored
 benchmark is `scripts/replay_benchmark.py` (see
 [`references/benchmark-replay.md`](references/benchmark-replay.md)), and
-pointing gcx at the local stack is the `setup-local-stack` skill's
-`scripts/gcx_local.py`. Run them; do not rebuild them. What is left in
-these files is what you have to decide, which is the only part worth
-reading.
+pointing the query CLI at the local stack is the `setup-local-stack`
+skill's — its `## Configure an isolated context` ships it as one
+command. Run them; do not rebuild them. What is left in these files is
+what you have to decide, which is the only part worth reading.
 
 This file is the method every scenario follows — steps 1 to 5 and the
 rules. What depends on the situation lives in a reference, read by the
@@ -45,10 +45,11 @@ In order of preference:
 
 1. **The caller's list** — endpoints, payloads, and counts given in the
    mission. Use them as-is; do not "improve" them.
-2. **Traces already in the stack** — the operations Tempo has seen for this
-   service (`gcx traces query` on `{resource.service.name="<svc>"}`, group by
-   span name) are what the service actually serves. Configure gcx against
-   the local stack with the `setup-local-stack` skill first.
+2. **Traces already in the stack** — the operations the stack's traces
+   name for this service are what the service actually serves: the
+   service probe (the `setup-local-stack` skill's) and the backend
+   reference's discovery script both list them — read that output
+   rather than querying again.
 3. **The service's own contract** — an OpenAPI/Swagger document, a route
    table, a CLI entry point in the repository (read-only).
 
@@ -121,10 +122,10 @@ never stored and must be passed again on the replay.
 
 Telemetry lags the last request. On the local stack:
 
-- **~10 s** for metrics to be exported and written into Prometheus (the stack is push-based);
-- **~60 s** for traces to become searchable in Tempo (a full trace fetch by
-  ID may work before search does — cross-check a suspicious search result
-  against a fetch).
+- **~10 s** for metrics to be exported and written into the metrics store (the stack is push-based);
+- **~60 s** for traces to become searchable in the trace store (a full
+  trace fetch by ID may work before search does — cross-check a suspicious
+  search result against a fetch).
 
 **The wait is paid once per query point, after the last request that
 point reads — never once per query, never once per request batch.**

@@ -50,7 +50,7 @@ Start a clean run in this order — the reverse of what feels natural:
    long-lived process dumps its whole counter history into a
    seconds-old store) separable instead of merely suspected. The
    substitutes above stay the fallback for services that cannot opt in.
-   The OTel attribute never reaches a Pyroscope SDK: when the service
+   The OTel attribute never reaches a profiling SDK: when the service
    pushes profiles, pass the same slug to the profiler as a tag
    (`service_instance_id=<run slug>`) so its profiles are attributable
    too — otherwise its profiles fall back to `process.runtime.version`
@@ -133,9 +133,9 @@ and never in only one of them:
   the sequence alone is the **same set of ids on every replay**, and
   the backend merges the runs under them (observed: one trace id, two
   instances, two User-Agents). Two runs may share a prefix, never an
-  id. A trace store may print the id **without its leading zeros** —
-  Tempo does (`0ddc0ffe…` reads `ddc0ffe…` in `gcx traces query`
-  output, while Loki keeps the 32 hex; verified 2026-09-05) — so a
+  id. A trace store may print the id **without its leading zeros**
+  (observed 2026-09-05: `0ddc0ffe…` read `ddc0ffe…` in one store's
+  trace search output while its log store kept the 32 hex) — so a
   prefix check on such output strips them on both sides
   (`sub("^0+"; "")`), and pads them back when the id is then passed to
   a flag that validates its width.

@@ -193,9 +193,14 @@ shipped.
 
 **A contract names only what it owns.** The agents and the prompts are
 backend-agnostic: they route to "the backend's reference" and to "the
-scripts it ships", and never name a backend, its reference file, its
-CLI or one of its scripts — a backend's specifics live in that backend's
-reference and nowhere else. The same holds between skills: each stays
+scripts it ships", and never name a backend's reference file, its CLI,
+one of its scripts, or a fact about it (which series it derives, which
+signal it lacks, what its profiles carry) — a backend's specifics live
+in that backend's reference and nowhere else. Naming a backend is
+routing, not specifics, exactly where routing needs the name: the list
+of the stacks the package supports, a configuration value and its
+example (`stack: grafana`), and the configuration prompt whose job is
+switching between them. The same holds between skills: each stays
 inside its responsibility (the scenario skill knows nothing of a
 backend, the memory skill describes a shipped query script generically,
 the local-stack skill points at the backend reference it is built on

@@ -127,6 +127,8 @@ def cmd_sample(ns) -> tuple[int, dict]:
         pipe.append("|= " + _logql_string(ns.contains))
     if ns.severity:
         pipe.append("| severity_text =~ " + _logql_string(ns.severity))
+    if ns.pipeline:
+        pipe.append(ns.pipeline.strip())
     lines, results, truncated = logs_all(ns.selector, frm, to, " ".join(pipe))
     err = errors(results)
     return (1 if err else 0), {
@@ -198,6 +200,11 @@ def main() -> int:
         if name == "sample":
             p.add_argument("--contains", default="")
             p.add_argument("--severity", default="")
+            p.add_argument(
+                "--pipeline",
+                default="",
+                help="raw LogQL appended after the selector and the two filters above",
+            )
             p.add_argument(
                 "--show", type=int, default=20, help="lines to print (default 20)"
             )

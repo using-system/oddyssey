@@ -34,6 +34,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from grafana_gcx import run_gcx
@@ -57,7 +58,10 @@ def session_path(stack: str) -> str:
     d = os.path.join(tempfile.gettempdir(), "oddyssey")
     os.makedirs(d, exist_ok=True)
     safe = re.sub(r"[^A-Za-z0-9_.-]", "_", stack)
-    return os.path.join(d, f"gcx-session-{safe}-{int(time.time())}-{os.getpid()}.yaml")
+    return os.path.join(
+        d,
+        f"gcx-session-{safe}-{int(time.time())}-{os.getpid()}-{uuid.uuid4().hex[:8]}.yaml",
+    )
 
 
 def pick_uid(datasources: list[dict], kind: str) -> str:

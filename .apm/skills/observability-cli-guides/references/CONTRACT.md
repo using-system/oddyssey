@@ -75,7 +75,9 @@ agents like any other, never by the preflight or the switch.
 - **No secrets, no real identifiers**: placeholders only, and the
   `### Display` section names what must never be echoed.
 - **Linked, not remembered**: every command traces to the backend's
-  documentation, linked from the section that uses it.
+  documentation, linked from the section that uses it — the checker
+  refuses a `## Query by signal` that links nothing (a section routing
+  to another file links that file).
 
 ## A custom stack file
 

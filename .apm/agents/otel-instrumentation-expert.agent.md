@@ -116,7 +116,7 @@ yours.
    - zero-code agent vs instrumentation libraries vs manual API;
    - which signals to enable first (traces / metrics / logs, with their
      maturity in that language), and whether continuous profiling is
-     available for it (Pyroscope SDKs, eBPF) — list profiling as an
+     available for it (an in-process profiling SDK, eBPF) — list profiling as an
      optional signal, not a default one;
    - the resource attributes: `service.name`, `service.version`,
      `deployment.environment.name`;
@@ -223,11 +223,11 @@ return it along with its stored path:
    check a query's **form** against data the stack already holds (an
    adjacent service's series; the planned signals do not exist yet,
    and you never start the stack for it), do it through the
-   `setup-local-stack` skill's isolated gcx context (its `## Configure
+   `setup-local-stack` skill's isolated CLI context (its `## Configure
    an isolated context`, `## Datasources` and `## This stack is
    push-based` sections), never through a datasource's raw HTTP API:
-   Pyroscope's endpoints answer 404 or demand a time range gcx supplies
-   for you. Compute every `--from`, `--to` and report timestamp with
+   a raw endpoint answers 404 or demands what the CLI supplies for
+   you. Compute every `--from`, `--to` and report timestamp with
    `date -u`: a session crossing local midnight while UTC has not
    rejects the query ("start time is after end time") and misdates the
    report. State every check in a **replayable form** — one check per
@@ -237,12 +237,13 @@ return it along with its stored path:
    the attribution evidence**: the identity the check filters on
    (`service.instance.id` set through `OTEL_RESOURCE_ATTRIBUTES` for
    traces, metrics and logs; for profiles, a per-run tag mirroring it,
-   since Pyroscope SDK profiles carry no instance identity, plus the
+   where the stack's reference says SDK-pushed profiles carry no
+   instance identity, plus the
    application frames the flamegraph must show — as **anchored** frame
    names read off the emitting process's own flamegraph, never a
    module-path regex, since frame naming is the profiler's own —
-   pyroscope-io names frames `Class.method` or bare, never by module
-   path — and `urlopen`-style names are shared with helper code) — so
+   `Class.method` or a bare name, never a module path — and
+   `urlopen`-style names are shared with helper code) — so
    a later
    `/odd-verify` run can rule **closed / present, unattributed / still
    missing** on each item without interpreting prose (the `observe-run`

@@ -147,8 +147,14 @@ def _span_quantiles(keys, frm: str, to: str, settle: str) -> tuple[dict, list, b
             except (KeyError, IndexError, TypeError, ValueError):
                 raw.append(None)
         if raw[1] is not None:
-            e["span_calls"] = round(raw[1] - (raw[0] or 0.0))
             present = True
+            if raw[0] is not None and raw[1] < raw[0]:
+                # the generator restarted inside the window: a
+                # subtraction would print a negative call count
+                e["span_calls"] = None
+                e["span_calls_reset"] = True
+            else:
+                e["span_calls"] = round(raw[1] - (raw[0] or 0.0))
         else:
             e["span_calls"] = None
         out[key] = e
@@ -384,9 +390,10 @@ def render(o: dict) -> str:
                 f"{k:44s} {_f(e['rooted_traces']):>6} {_f(e.get('span_p50_ms')):>8} {_f(e.get('span_p95_ms')):>7} {_f(e.get('span_p99_ms')):>7} {_f(e.get('span_calls')):>6} | "
                 f"{_f(e['trace_p50_ms']):>9} {_f(e['trace_p95_ms']):>7} {_f(e['trace_max_ms']):>7} | {e['worst_containing_trace']} ({_f(e['worst_containing_ms'])} ms)"
                 f"{'  TRUNCATED' if e['truncated'] else ''}"
+                f"{'  RESET inside the window (calls withheld)' if e.get('span_calls_reset') else ''}"
             )
         out.append(
-            "  span p50/p95/p99 and calls: span metrics, settled (exact span latency; calls = raw settled - raw start)"
+            "  span p50/p95/p99 and calls: span metrics, settled (exact span latency; calls = raw settled - raw start, withheld on a reset)"
             + (
                 ""
                 if o.get("span_metrics_present")

@@ -6,7 +6,10 @@ lists, in its first fenced block, the headings every stack file must
 carry: ``##`` sections, each followed by the ``###`` subsections it must
 contain. This script reads that block - the contract is the list - and
 checks the files it is given. Order is free; a missing heading, or a
-subsection found under another section, fails the check.
+subsection found under another section, fails the check. The
+contract's "linked, not remembered" rule is checked too: ``## Query by
+signal`` carries at least one link - to the backend's documentation, or
+to the file it routes to.
 
 Two callers, one checker:
 
@@ -113,6 +116,37 @@ def sections_of(text: str) -> dict[str, list[str]]:
     return found
 
 
+LINKED_SECTION = "Query by signal"
+LINK_RE = re.compile(r"\]\((https?://|[^)\s]+\.md)")
+
+
+def section_text(body: str, section: str) -> str | None:
+    """The lines under ``## <section>`` up to the next ``##``, None if absent."""
+    lines = body.splitlines()
+    start = None
+    for index, line in enumerate(lines):
+        match = HEADING_RE.match(line)
+        if match and match.group(1) == "##":
+            if start is not None:
+                return "\n".join(lines[start:index])
+            if match.group(2) == section:
+                start = index + 1
+    return "\n".join(lines[start:]) if start is not None else None
+
+
+def check_links(body: str) -> list[str]:
+    """The query section links its commands' documentation or its route."""
+    text = section_text(body, LINKED_SECTION)
+    if text is not None and not LINK_RE.search(text):
+        return [
+            (
+                f"`## {LINKED_SECTION}` links nothing: every command traces to the "
+                "backend's documentation (or the section routes to another file)"
+            )
+        ]
+    return []
+
+
 def check_headings(body: str, required: dict[str, list[str]]) -> list[str]:
     found = sections_of(body)
     problems = []
@@ -123,7 +157,7 @@ def check_headings(body: str, required: dict[str, list[str]]) -> list[str]:
         for subsection in subsections:
             if subsection not in found[section]:
                 problems.append(f"missing `### {subsection}` under `## {section}`")
-    return problems
+    return problems + check_links(body)
 
 
 def _parse_fields(value: str, following: list[str]) -> list | None:

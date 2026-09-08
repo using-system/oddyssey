@@ -27,6 +27,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -172,9 +173,17 @@ def commands(results: list[Result]) -> list[str]:
     return [r.command for r in results]
 
 
+_POSITION = re.compile(r"\b\d+:\d+\b")
+
+
 def errors(results: list[Result]) -> str:
-    """The distinct errors, once each - nine identical parse errors are one."""
-    return "; ".join(dict.fromkeys(r.error for r in results if not r.ok))
+    """The distinct errors, once each - nine parse errors differing only by
+    their `line:column` position are one fact, printed once."""
+    seen: dict[str, str] = {}
+    for r in results:
+        if not r.ok:
+            seen.setdefault(_POSITION.sub("N:N", r.error), r.error)
+    return "; ".join(seen.values())
 
 
 # --- envelopes ---------------------------------------------------------------
@@ -551,11 +560,47 @@ def emit(obj, as_json: bool, render=None) -> None:
         print(render(obj))
 
 
+def collapse_commands(cmds: list[str]) -> list[str]:
+    """The commands with their repeats folded, losslessly: commands that
+    differ in exactly one whitespace-separated token are printed once with
+    the alternatives as `{a|b|c}` at that position (three quantiles, three
+    services), an exact duplicate once. Expanding the braces gives back the
+    verbatim list, which `--json` carries as is."""
+    groups: list[list] = []  # [tokens, slot, alternatives]
+    for c in dict.fromkeys(cmds):
+        toks = c.split(" ")
+        for g in groups:
+            base, slot, alts = g
+            if len(base) != len(toks):
+                continue
+            diff = [i for i, (a, b) in enumerate(zip(base, toks)) if a != b]
+            if len(diff) == 1 and slot in (None, diff[0]):
+                g[1] = diff[0]
+                if toks[diff[0]] not in alts:
+                    alts.append(toks[diff[0]])
+                break
+        else:
+            groups.append([toks, None, []])
+    out = []
+    for base, slot, alts in groups:
+        toks = list(base)
+        if slot is not None:
+            toks[slot] = "{" + "|".join([base[slot], *alts]) + "}"
+        out.append(" ".join(toks))
+    return out
+
+
 def render_commands(o: dict) -> list[str]:
     cmds = o.get("commands") or []
     if not cmds:
         return []
-    return ["queries run (record these):"] + ["  " + c for c in cmds]
+    folded = collapse_commands(cmds)
+    head = "queries run (record these):"
+    if len(folded) < len(cmds):
+        head = (
+            f"queries run (record these; {len(cmds)} calls, repeats folded as {{a|b}}):"
+        )
+    return [head] + ["  " + c for c in folded]
 
 
 def fmt_ms(x) -> str:

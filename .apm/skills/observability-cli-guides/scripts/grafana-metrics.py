@@ -142,6 +142,51 @@ def cmd_names(ns) -> tuple[int, dict]:
     }
 
 
+def cmd_labels(ns) -> tuple[int, dict]:
+    """A label's values (--label) or the label names behind a selector."""
+    frm, to = resolve_window(ns)
+    if ns.label:
+        # An instant query at the window's end, over the whole window:
+        # `count by` over `last_over_time` lists every value that carried
+        # a sample in the window, stale series included.
+        at, win = _settled(frm, to, "0s")
+        expr = f"count by ({ns.label}) (last_over_time({ns.match}{win}))"
+        r = run_gcx(["metrics", "query", expr, "--time", at])
+        values: dict[str, int] = {}
+        for x in prom_result(r.data) if r.ok else []:
+            try:
+                v = x.get("metric", {}).get(ns.label, "")
+                values[v] = values.get(v, 0) + int(float(x["value"][1]))
+            except (KeyError, IndexError, TypeError, ValueError):
+                continue
+        return (0 if r.ok else 1), {
+            "error": r.error,
+            "label": ns.label,
+            "values": dict(sorted(values.items(), key=lambda kv: -kv[1])),
+            "commands": [r.command],
+        }
+    r = run_gcx(["metrics", "series", ns.match, "--from", frm, "--to", to])
+    names: dict[str, int] = {}
+    for s in prom_series(r.data) if r.ok else []:
+        for k in s:
+            if k != "__name__":
+                names[k] = names.get(k, 0) + 1
+    return (0 if r.ok else 1), {
+        "error": r.error,
+        "label": None,
+        "values": dict(sorted(names.items(), key=lambda kv: -kv[1])),
+        "commands": [r.command],
+    }
+
+
+def sort_key(kv) -> float:
+    """Busiest row first: the run's own count, or the increase() when the
+    count is withheld by a reset."""
+    e = kv[1]
+    count = e.get("count")
+    return -(count if count is not None else (e.get("count_increase") or 0.0))
+
+
 def cmd_histogram(ns) -> tuple[int, dict]:
     frm, to = resolve_window(ns)
     sel = ("{" + ns.selector + "}") if ns.selector else ""
@@ -186,13 +231,20 @@ def cmd_histogram(ns) -> tuple[int, dict]:
     for e in table.values():
         c0, c1 = e.get("count_at_start"), e.get("count_settled")
         s0, s1 = e.get("sum_at_start"), e.get("sum_settled")
+        # A raw value that fell inside the window is a reset: the
+        # subtraction would print a negative request count, so it is
+        # withheld like counter's delta, and the increase() stands in.
+        if (c0 is not None and c1 is not None and c1 < c0) or (
+            s0 is not None and s1 is not None and s1 < s0
+        ):
+            e["reset"] = True
+            e["count"] = e["sum"] = None
+            continue
         if c1 is not None:
             e["count"] = c1 - (c0 or 0.0)
-            if c0 is not None and c1 < c0:
-                e["reset"] = True
         if s1 is not None:
             e["sum"] = s1 - (s0 or 0.0)
-        if e.get("count") and e.get("sum") is not None and not e.get("reset"):
+        if e.get("count") and e.get("sum") is not None:
             e["mean"] = e["sum"] / e["count"]
     err = errors(results)
     return (1 if err else 0), {
@@ -200,8 +252,8 @@ def cmd_histogram(ns) -> tuple[int, dict]:
         "window": win,
         "evaluated_at": at,
         "error": err,
-        "rows": dict(sorted(table.items(), key=lambda kv: -(kv[1].get("count") or 0))),
-        "note": "count and sum are raw settled - raw start (the run's own); *_increase is increase() over the window, an extrapolation; reset=true means the raw value fell inside the window - trust the increase then",
+        "rows": dict(sorted(table.items(), key=sort_key)),
+        "note": "count and sum are raw settled - raw start (the run's own); *_increase is increase() over the window, an extrapolation; reset=true means the raw value fell inside the window - count and sum are withheld, take the increase then",
         "commands": commands(results),
     }
 
@@ -254,6 +306,9 @@ def render(o: dict) -> str:
     out = []
     if "names" in o:
         out += [f"{n}  ({c} series)" for n, c in o["names"].items()] or ["(no series)"]
+    elif "values" in o:
+        unit = "series" if o["label"] else "series carry it"
+        out += [f"{v}  ({c} {unit})" for v, c in o["values"].items()] or ["(no series)"]
     elif isinstance(o.get("rows"), dict):
         cols = [
             c
@@ -321,6 +376,10 @@ def main() -> int:
     c = sub.add_parser("names")
     c.add_argument("--match", action="append", required=True)
     add_window(c)
+    lb = sub.add_parser("labels")
+    lb.add_argument("--match", required=True)
+    lb.add_argument("--label")
+    add_window(lb)
     for name in ("histogram", "counter"):
         p = sub.add_parser(name)
         p.add_argument("base" if name == "histogram" else "name")
@@ -335,6 +394,7 @@ def main() -> int:
         "instant": cmd_instant,
         "range": cmd_range,
         "names": cmd_names,
+        "labels": cmd_labels,
         "histogram": cmd_histogram,
         "counter": cmd_counter,
     }[ns.cmd](ns)

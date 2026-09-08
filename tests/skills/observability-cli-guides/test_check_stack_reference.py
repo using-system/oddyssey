@@ -58,7 +58,14 @@ def conforming_body() -> str:
     """A body carrying every heading the contract requires, nothing else."""
     lines = []
     for section, subsections in REQUIRED.items():
-        lines.append(f"## {section}\n\nprose\n")
+        # the query section must link its documentation (the contract's
+        # "linked, not remembered" rule, checked mechanically)
+        prose = (
+            "[docs](https://example.test/cli.md)"
+            if section == "Query by signal"
+            else "prose"
+        )
+        lines.append(f"## {section}\n\n{prose}\n")
         for subsection in subsections:
             lines.append(f"### {subsection}\n\nprose\n")
     return "\n".join(lines)
@@ -97,6 +104,20 @@ def test_builtin_references_follow_the_contract():
 
 
 # --- headings ------------------------------------------------------------
+
+
+def test_a_query_section_that_links_nothing_is_refused():
+    body = conforming_body()
+    assert checker.check_headings(body, REQUIRED) == []
+    unlinked = body.replace(
+        "[docs](https://example.test/cli.md)", "run `tool query` and read it"
+    )
+    assert unlinked != body
+    assert any("links nothing" in p for p in checker.check_headings(unlinked, REQUIRED))
+    routed = body.replace(
+        "## Query by signal\n", "## Query by signal\nSee [grafana.md](grafana.md).\n"
+    )
+    assert checker.check_headings(routed, REQUIRED) == []
 
 
 def test_a_missing_section_is_named():

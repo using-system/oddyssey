@@ -403,9 +403,83 @@ def test_counter_reset_inside_the_window_withholds_the_delta(fake_gcx, monkeypat
     )
     assert "RESET" in run("grafana-metrics", "counter", "orders_total", *WIN).stdout
     r = run("grafana-metrics", "histogram", "h", *WIN, "--json")
-    rows = json.loads(r.stdout)["rows"].values()
+    rows = list(json.loads(r.stdout)["rows"].values())
     row = next(e for e in rows if "count_settled" in e)
     assert row.get("reset") is True and "mean" not in row
+    assert row["count"] is None and row["sum"] is None
+    assert row["count_increase"] > 0
+    text = run("grafana-metrics", "histogram", "h", *WIN).stdout
+    assert "RESET" in text and "count=-" not in text and "sum=-" not in text
+    # the span-metrics counter behind `ops` is guarded the same way
+    r = run("grafana-traces", "ops", "--service", "llmbench-api", *WIN, "--json")
+    ops = json.loads(r.stdout)["operations"]
+    assert r.returncode == 0 and ops
+    assert all(
+        e["span_calls"] is None and e.get("span_calls_reset") is True
+        for e in ops.values()
+    )
+    assert (
+        "RESET"
+        in run("grafana-traces", "ops", "--service", "llmbench-api", *WIN).stdout
+    )
+
+
+def test_histogram_rows_sort_busiest_first_even_when_a_row_reset():
+    metrics = load("grafana-metrics")
+    rows = {
+        "quiet": {"count": 3.0, "count_increase": 3.0},
+        "reset": {"count": None, "reset": True, "count_increase": 500.0},
+        "busy": {"count": 40.0, "count_increase": 41.0},
+    }
+    assert [k for k, _ in sorted(rows.items(), key=metrics.sort_key)] == [
+        "reset",
+        "busy",
+        "quiet",
+    ]
+
+
+def test_metrics_labels_lists_values_and_names_from_verified_queries(fake_gcx):
+    r = run("grafana-metrics", "labels", "--match", '{service_name="svc"}', *WIN)
+    assert r.returncode == 0 and "series carry it" in r.stdout
+    assert "metrics series" in fake_gcx.read_text()
+    r = run(
+        "grafana-metrics",
+        "labels",
+        "--match",
+        '{service_name="svc"}',
+        "--label",
+        "http_route",
+        *WIN,
+        "--json",
+    )
+    o = json.loads(r.stdout)
+    assert r.returncode == 0 and o["label"] == "http_route"
+    assert "count by (http_route) (last_over_time(" in o["commands"][0]
+
+
+def test_errors_are_one_per_fact_and_commands_fold_losslessly():
+    gcx = load("grafana_gcx")
+    bad = [
+        gcx.Result(args=["c"], ok=False, error=f"parse error at 1:{n}: bad")
+        for n in (58, 97, 98)
+    ]
+    assert gcx.errors(bad) == "parse error at 1:58: bad"
+    cmds = [
+        'gcx metrics query "histogram_quantile(0.5, x)" --time T',
+        'gcx metrics query "histogram_quantile(0.95, x)" --time T',
+        'gcx metrics query "histogram_quantile(0.99, x)" --time T',
+        "gcx traces get 1",
+        "gcx traces get 2",
+        "gcx traces get 1",
+        "gcx logs query x --limit 5000",
+    ]
+    assert gcx.collapse_commands(cmds) == [
+        'gcx metrics query {"histogram_quantile(0.5,|"histogram_quantile(0.95,|"histogram_quantile(0.99,} x)" --time T',
+        "gcx traces get {1|2}",
+        "gcx logs query x --limit 5000",
+    ]
+    lines = gcx.render_commands({"commands": cmds})
+    assert lines[0].startswith("queries run (record these; 7 calls")
 
 
 def test_traces_ops_ranks_root_operations_with_span_metrics_and_exemplars(
@@ -589,6 +663,12 @@ def test_context_makes_the_stack_current_in_a_private_copy_and_never_edits_the_o
     assert again["config"] != o["config"]
 
 
+def test_session_paths_never_collide_inside_one_second(tmp_path, monkeypatch):
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    context = load("grafana-context")
+    assert len({context.session_path("prod") for _ in range(20)}) == 20
+
+
 def test_context_refuses_a_name_that_is_a_stack_but_not_a_context(
     fake_gcx, tmp_path, monkeypatch
 ):
@@ -615,27 +695,69 @@ def _flags_of(help_text: str) -> set[str]:
     }
 
 
+SCRIPTS_STATED = (
+    "grafana-discover",
+    "grafana-metrics",
+    "grafana-traces",
+    "grafana-logs",
+    "grafana-profiles",
+    "grafana-context",
+)
+
+
+def _accepted_flags(script: str) -> tuple[set[str], list[str]]:
+    """(every flag the script's parsers accept, its subcommand names)."""
+    top = run(script, "--help")
+    assert top.returncode == 0, top.stderr
+    subs = re.findall(r"\{([a-z,]+)\}", top.stdout)
+    names = subs[0].split(",") if subs else []
+    helps = [top.stdout] + [run(script, sub, "--help").stdout for sub in names]
+    return set().union(*(_flags_of(h) for h in helps)), names
+
+
+def _reference_sections() -> dict[str, str]:
+    """{script: the reference text that documents it} - each `###` under
+    `## Query by signal` (and the remote-missions section) whose fenced
+    block invokes one grafana-*.py script."""
+    text = REFERENCE.read_text(encoding="utf-8")
+    sections: dict[str, str] = {}
+    for chunk in re.split(r"^##+ ", text, flags=re.MULTILINE):
+        scripts = set(re.findall(r"scripts/(grafana-[a-z]+)\.py", chunk))
+        if len(scripts) == 1:
+            name = scripts.pop()
+            sections[name] = sections.get(name, "") + "\n" + chunk
+    return sections
+
+
 def test_every_flag_a_script_accepts_is_stated_in_the_reference():
     reference = REFERENCE.read_text(encoding="utf-8")
     missing = []
-    for script in (
-        "grafana-discover",
-        "grafana-metrics",
-        "grafana-traces",
-        "grafana-logs",
-        "grafana-profiles",
-        "grafana-context",
-    ):
-        top = run(script, "--help")
-        assert top.returncode == 0, top.stderr
-        subs = re.findall(r"\{([a-z,]+)\}", top.stdout)
-        helps = [top.stdout] + [
-            run(script, sub, "--help").stdout
-            for sub in (subs[0].split(",") if subs else [])
-        ]
-        for flag in set().union(*(_flags_of(h) for h in helps)):
+    for script in SCRIPTS_STATED:
+        flags, _ = _accepted_flags(script)
+        for flag in flags:
             if flag not in reference:
                 missing.append(f"{script}: {flag}")
     assert not missing, "flags the reference does not state: " + ", ".join(
         sorted(missing)
     )
+
+
+def test_every_flag_and_subcommand_the_reference_states_exists():
+    """The reverse guard: a flag or subcommand written in a script's section
+    that no parser accepts is the defect a run meets as `unrecognized
+    arguments` (the shape F14 had)."""
+    sections = _reference_sections()
+    assert set(sections) == set(SCRIPTS_STATED), sorted(sections)
+    phantom = []
+    for script, text in sections.items():
+        flags, subs = _accepted_flags(script)
+        # a gcx command quoted whole (`gcx login … --config <path>`) carries
+        # gcx's flags, not the script's
+        text = re.sub(r"`(gcx|config|metrics|traces|logs|profiles) [^`]*`", "", text)
+        for flag in _flags_of(text):
+            if flag not in flags:
+                phantom.append(f"{script}: {flag}")
+        for sub in re.findall(rf"{script}\.py ([a-z]+)", text):
+            if sub not in subs and subs:
+                phantom.append(f"{script}: subcommand {sub}")
+    assert not phantom, "stated but not implemented: " + ", ".join(sorted(phantom))

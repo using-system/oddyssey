@@ -41,7 +41,7 @@ the report.
   property that names the service there, said in section 1. Downstream services discovered in the traces are in
   scope for correlation even when they are not named in the mission.
 - **Stack** —
-  - **local**: the oddyssey stack — Grafana and OTLP on the configured
+  - **local**: the oddyssey stack — its UI and OTLP on the configured
     host ports (read them from `odd_stack_up`'s result or
     `odd_config_get`, never assume defaults), piloted through the MCP
     tools;
@@ -52,8 +52,8 @@ the report.
     if access is missing, stop and say exactly what is needed.
   - Default when the mission is silent: the **configured stack**
     (`odd_config_get`) — `local` is the local stack (the default), and
-    every other value names a remote backend (for `grafana`, the gcx
-    context says which instance). By the time you run, the caller's
+    every other value names a remote backend (the preflight handoff's
+    context line says which instance). By the time you run, the caller's
     preflight (the `backend-configuration` skill's `## Check`) has proven the CLI
     connected:
     never attempt to authenticate a CLI yourself — a broken or missing
@@ -181,7 +181,7 @@ spends turns re-deriving it. Look there first; probe the machine
 yourself only for something that line does not carry, and say what.
 
 **Never author a shell script for a step this package already ships one
-for.** The machine preflight, the gcx context, the service probe and a
+for.** The machine preflight, the CLI context, the service probe and a
 stored benchmark's replay are shipped commands with documented flags:
 run them, and read their output. Writing your own version costs several
 turns before it runs at all, and it produces a different command on
@@ -323,12 +323,11 @@ run record.
    oddyssey MCP tool `odd_stack_status`, then `odd_stack_up` if needed, and
    query through the `setup-local-stack` skill's isolated CLI context —
    the handoff's `context:` path is that file, already written and
-   proven: reuse it (regenerate it only when `gcx config check` fails
-   on it) and read only the skill's `## Datasources` and `## This stack
-   is push-based` sections, plus `## Inventory the services, in one
-   command` for step 3's probe script; without a handoff, its
-   `## Configure an isolated context` section too. gcx is the stack's
-   mandatory query CLI.
+   proven: reuse it (regenerate it only when the skill's connection
+   proof fails on it) and read only the skill's `## Datasources` and
+   `## This stack is push-based` sections, plus `## Inventory the
+   services, in one command` for step 3's probe script; without a
+   handoff, its `## Configure an isolated context` section too.
 3. **Preflight every named service.** Before any analysis, prove its
    telemetry exists in the window, with the backend's own query surface.
    **When the backend's reference ships a probe script, run it and read
@@ -561,10 +560,12 @@ Every service emits its **own** metrics, spans, and logs — **discover
 first, then query what you found; never assume names**. When the
 backend's reference ships the discovery as one script — every service,
 every signal, one call, the commands it ran printed for the record — the
-discovery **is** that invocation, and nothing below this sentence is
-written: the shape it describes is the one the script already has
-inside. **Only on a backend whose reference ships no discovery script**
-do you write it yourself, as follows. The five
+discovery **is** that invocation, and the five discoveries below with
+the shell batch that runs them are not written: that shape is the one
+the script already has inside (the helper-file and bash rules after
+them hold for every batch of this mission, on every backend). **Only on
+a backend whose reference ships no discovery script** do you write the
+discoveries yourself, as follows. The five
 discoveries below are independent of each other: **run them
 concurrently inside one shell tool call, never delegated** — each
 command backgrounded with `&` and its PID captured, its **stdout**
@@ -645,9 +646,9 @@ Then query per signal from what came back:
   dimensions, metadata), then query the discovered series: rates, error
   ratios, latency distributions and their quantiles.
 - **Span-derived metrics** — some backends derive per-operation RED
-  metrics and a service graph from the traces themselves (the local
-  stack's Tempo metrics-generator does: `traces_spanmetrics_*`,
-  `traces_service_graph_*`). When the backend offers them, they give
+  metrics and a service graph from the traces themselves; the backend's
+  reference says whether this one does and names the series. When the
+  backend offers them, they give
   per-operation rate, error ratio, and latency quantiles plus who-calls-
   whom even when the app exports no metrics of its own — build the summary
   table from them.
@@ -658,14 +659,16 @@ Then query per signal from what came back:
   query them with the backend's filter language, correlating on trace IDs
   where the logs carry them.
 - **Profiles** — always check whether the stack collects continuous
-  profiles for the service (the local stack has Pyroscope). If it does,
-  report the top functions by CPU and by allocations for the hottest
-  operations and correlate them with the slow spans. If it does not, that
-  is a line in **Telemetry gaps**, not a silent omission. Profiles
-  pushed by a Pyroscope SDK carry no `service.instance.id`: qualify
-  them by the per-run tag the service was launched with (run-scenario's
-  `run-identity.md`), or, absent one, by `process.runtime.version` plus frames
-  from the application's own code — and say which.
+  profiles for the service (the backend's reference says whether it
+  can). If it does, report the top functions by CPU and by allocations
+  for the hottest operations and correlate them with the slow spans. If
+  it does not, that is a line in **Telemetry gaps**, not a silent
+  omission. Where the reference says SDK-pushed profiles carry no
+  `service.instance.id`, qualify them by the per-run tag the service
+  was launched with (run-scenario's `run-identity.md`), or, absent one,
+  by whatever the reference says separates two emitters (a runtime
+  version label, frames from the application's own code) — and say
+  which.
 
 Then go from aggregates to explanations:
 
@@ -677,8 +680,9 @@ Then go from aggregates to explanations:
   at, picks their p50 and worst exemplars, fetches them concurrently and
   summarises them — that invocation is the step, searches and fetches
   both, and an error exemplar is that reference's error search followed
-  by its fetch; nothing below this sentence is written then. **Only on a
-  backend whose reference ships no such script**, the worst-duration
+  by its fetch; the searches and the batched fetch below are not written
+  then — the diff that closes this bullet is, on every backend. **Only
+  on a backend whose reference ships no such script**, the worst-duration
   search is **at most two searches per
   operation**, never a filter tightened over successive searches: one
   search scoped to the service and the operation with a single
