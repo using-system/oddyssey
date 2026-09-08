@@ -40,7 +40,7 @@ configuration.
    for an undeclared stack. A local mission on a non-local stack
    switches to `local` - the local stack is self-serve, nothing to
    authenticate; every other **built-in** stack value names a remote
-   backend (for `grafana`, the gcx context says which instance), and a
+   backend (the preflight handoff says which instance), and a
    custom stack is whatever its file targets.
 
 2. Run the `backend-configuration` skill's `## Check`: show the CLI's effective

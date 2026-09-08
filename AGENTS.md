@@ -191,6 +191,33 @@ composing the queries". Never fold a stack's specifics into a shared
 script, and never leave a run to compose what a stack could have
 shipped.
 
+**A contract names only what it owns.** The agents and the prompts are
+backend-agnostic: they route to "the backend's reference" and to "the
+scripts it ships", and never name a backend's reference file, its CLI,
+one of its scripts, or a fact about it (which series it derives, which
+signal it lacks, what its profiles carry) — a backend's specifics live
+in that backend's reference and nowhere else. Naming a backend is
+routing, not specifics, exactly where routing needs the name: the list
+of the stacks the package supports, a configuration value and its
+example (`stack: grafana`), and the configuration prompt whose job is
+switching between them. The same holds between skills: each stays
+inside its responsibility (the scenario skill knows nothing of a
+backend, the memory skill describes a shipped query script generically,
+the local-stack skill points at the backend reference it is built on
+instead of restating it), and a skill's scripts are enumerated by that
+skill's own reference, never by another skill's file. A generic contract
+that names a backend's script has fused two files that change at
+different times, and the next backend added would have to edit a file
+that should not know it exists.
+
+**A stack reference is a list, never an essay.** It states each
+shipped invocation with its whole flag surface, one line per fact a
+script cannot absorb (a trap, a verified limit, a fix that is the
+user's), and nothing that narrates what the script prints — the output
+says that itself, once, at run time. A paragraph explaining a script is
+prose the run reads on every turn and a second contract the script can
+drift from; a reference grows by a bullet, never by a paragraph.
+
 **Contracts that agree are run; contracts that disagree are read.**
 Two files stating the same rule differently do not average out — the
 run opens both to arbitrate, and pays for the reading and for the

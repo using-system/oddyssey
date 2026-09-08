@@ -84,7 +84,9 @@ rather than guessing.
    custom stack, whether the run changed the stack file, with the
    commit that carries the change.
 2. **Observed behavior** — the per-operation table (requests, rate,
-   p50/p95/p99, errors), every number with the query that produced it;
+   p50/p95/p99, errors), every number with the query that produced it —
+   for a query run through a backend's shipped script, the script
+   invocation plus the backend commands it printed;
    the deltas against the previous report; the service graph.
 3. **Anomalies and probable causes** — the ranked findings, each
    `confirmed` or `suspected`, with evidence and expected gain.

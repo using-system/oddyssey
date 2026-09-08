@@ -30,16 +30,15 @@ if a script or command predates v2.
 ## Ensure k6 is present - auto-install
 
 The criterion for installing a CLI rather than offering it: no
-account, no credentials, no tenant behind it. The backend CLIs (`aws`,
-`az`, `gcx` against a remote instance, ...) are offered and never
-installed silently (`backend-configuration`'s rule), because
-each is tied to an account, credentials, and a tenant the user must
-set up regardless - the install is one step of a setup only they can
-finish. k6 has none of that: no account, no login, no configuration
-file - the binary existing is the entire setup, the same reasoning
-`setup-local-stack` applies to a missing gcx on the self-serve local
-stack ("install it if missing"), the one other CLI this package
-installs itself. So a missing k6 is a step to run, not a stop to
+account, no credentials, no tenant behind it. The backend CLIs against
+a remote instance are offered and never installed silently
+(`backend-configuration`'s rule), because each is tied to an account,
+credentials, and a tenant the user must set up regardless - the install
+is one step of a setup only they can finish. k6 has none of that: no
+account, no login, no configuration file - the binary existing is the
+entire setup, the same reasoning `setup-local-stack` applies to its own
+CLI missing on the self-serve local stack ("install it if missing"), the
+one other CLI this package installs itself. So a missing k6 is a step to run, not a stop to
 report:
 
 1. **Detect** - `command -v k6`. Present: done, cite `k6 version`.

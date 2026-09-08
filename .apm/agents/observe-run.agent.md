@@ -41,7 +41,7 @@ the report.
   property that names the service there, said in section 1. Downstream services discovered in the traces are in
   scope for correlation even when they are not named in the mission.
 - **Stack** —
-  - **local**: the oddyssey stack — Grafana and OTLP on the configured
+  - **local**: the oddyssey stack — its UI and OTLP on the configured
     host ports (read them from `odd_stack_up`'s result or
     `odd_config_get`, never assume defaults), piloted through the MCP
     tools;
@@ -52,8 +52,8 @@ the report.
     if access is missing, stop and say exactly what is needed.
   - Default when the mission is silent: the **configured stack**
     (`odd_config_get`) — `local` is the local stack (the default), and
-    every other value names a remote backend (for `grafana`, the gcx
-    context says which instance). By the time you run, the caller's
+    every other value names a remote backend (the preflight handoff's
+    context line says which instance). By the time you run, the caller's
     preflight (the `backend-configuration` skill's `## Check`) has proven the CLI
     connected:
     never attempt to authenticate a CLI yourself — a broken or missing
@@ -181,7 +181,7 @@ spends turns re-deriving it. Look there first; probe the machine
 yourself only for something that line does not carry, and say what.
 
 **Never author a shell script for a step this package already ships one
-for.** The machine preflight, the gcx context, the service probe and a
+for.** The machine preflight, the CLI context, the service probe and a
 stored benchmark's replay are shipped commands with documented flags:
 run them, and read their output. Writing your own version costs several
 turns before it runs at all, and it produces a different command on
@@ -189,11 +189,23 @@ every run — which is exactly what makes two observations
 incomparable. The same holds for re-deriving by hand what one of them
 just printed. A small helper for something no shipped script covers is
 fine; name it in section 1's run record, with what it did and why
-nothing shipped covered it. **A query is not that case**: a handful of
-`gcx` calls is a shell command with its jobs backgrounded, not a file
-you author, and the service probe already answers presence, identity
-and the counter baseline — check its output before deciding you need
-anything at all.
+nothing shipped covered it. **A query is not that case either.** When
+the backend's reference ships a script for a query step — what a window
+holds, per-operation latency with its exemplars fetched, a trace's span
+tree, exact log counts, top profile frames, whichever it ships — the
+query is that script's invocation, with the flags the reference states,
+and a query runner or an envelope parser you would write is one of them
+rebuilt: run the script, and when it lacks a shape of the work, record
+that in section 1 rather than wrap it. **Every flag of every shipped
+script is stated in the reference's `## Query by signal`, with a
+copy-pasteable invocation per subcommand** — read that section once,
+when the investigation starts, and take the invocations from it:
+`--help` on a shipped script answers nothing the section does not, and
+costs a turn per script. On a backend whose reference ships none, a
+handful of CLI calls is a shell command with its jobs backgrounded, not
+a file you author. Either way the service probe already answers
+presence, identity and the counter baseline — check its output before
+deciding you need anything at all.
 
 **Setup reads only what setup uses.** A section you will not need until
 the investigation is a section read then, not now: the backend's query
@@ -277,22 +289,22 @@ run record.
    repository, `.odd/observability-stacks/<name>.md`, read by the same
    sections — and what the run teaches it goes back into it, the
    section before the report says how. Everything else is yours: the query surface
-   per signal, output reading, remote targeting, resource discovery,
+   per signal (the scripts it names, when it ships them), remote targeting, resource discovery,
    planning notes — the discovery and query commands come from there,
    not from memory; when a reference routes a section elsewhere,
    follow the routing to the named sections and read nothing else of
    either file — on the local stack, with the preflight handoff in
-   hand, `local.md` carries nothing of yours beyond its `## Query by
-   signal` and `## Planning notes` routing notes, both pointing at
-   `grafana.md`: read them, then `grafana.md`'s `## Query by signal`
-   with its subsections and its `## Planning notes`, once each; never
-   `local.md` whole, never `grafana.md` whole, and never
-   its `## Remote missions — targeting without touching the user's
-   config` (a remote backend's section). **When the mission drives a
-   scenario, that query surface is due at investigation time, not
+   hand, the local reference carries nothing of yours beyond its
+   `## Query by signal` and `## Planning notes` routing notes, both
+   pointing at the backend reference it is built on: read them, then
+   that reference's `## Query by signal` with its subsections and its
+   `## Planning notes`, once each; never either file whole, and never a
+   section the reference marks as remote-only. **When the mission drives
+   a scenario, that query surface is due at investigation time, not
    here**: setup proves the services with step 3's probe script, which
-   needs none of it — read `grafana.md`'s sections once the drive has
-   started, so the turns between setup and the drive do not carry them. The mission block's
+   needs none of it — read the reference's query sections once the drive
+   has started, so the turns between setup and the drive do not carry
+   them. The mission block's
    `Preflight:` handoff (the caller's `backend-configuration` `## Check`
    run) already carries what the preflight's sections resolve — the
    binary, the CLI context, the target's values, the connection proof
@@ -305,17 +317,17 @@ run record.
    order and run the probe yourself; if it is not connected, stop and
    report ("CLI not configured for <backend>") — never authenticate
    from here.
-2. **Local stack.** The local stack is a Grafana (LGTM) stack —
-   use the Grafana reference and gcx: call the
+2. **Local stack.** The local stack is the package's own — its reference
+   routes to the backend reference it is built on, and the
+   `setup-local-stack` skill owns its CLI context: call the
    oddyssey MCP tool `odd_stack_status`, then `odd_stack_up` if needed, and
-   query through the `setup-local-stack` skill's isolated gcx context —
+   query through the `setup-local-stack` skill's isolated CLI context —
    the handoff's `context:` path is that file, already written and
-   proven: reuse it (regenerate it only when `gcx config check` fails
-   on it) and read only the skill's `## Datasources` and `## This stack
-   is push-based` sections, plus `## Inventory the services, in one
-   command` for step 3's probe script; without a handoff, its
-   `## Configure an isolated context` section too. gcx is the stack's
-   mandatory query CLI.
+   proven: reuse it (regenerate it only when the skill's connection
+   proof fails on it) and read only the skill's `## Datasources` and
+   `## This stack is push-based` sections, plus `## Inventory the
+   services, in one command` for step 3's probe script; without a
+   handoff, its `## Configure an isolated context` section too.
 3. **Preflight every named service.** Before any analysis, prove its
    telemetry exists in the window, with the backend's own query surface.
    **When the backend's reference ships a probe script, run it and read
@@ -474,8 +486,8 @@ record then cites the benchmark by name and git revision, the single
 `k6 run` command, k6's exit status and summary, and the manifest's
 stage boundaries that carve the steady-state sub-window. Drive the
 scenario to completion **inside your turn** — the skill owns the wait
-method (the replay script's blocking foreground form, or its
-`--detach` / `--status` for a run longer than a tool call - never a
+method (the replay script's `--detach`, always, then its `--status`
+until it reports finished - never its foreground form, never a
 poller you write — the job detaches, the wait never does;
 a bounded wait — the flush wait of that skill's step 5 included — is a
 `sleep` inside a helper script run in the foreground, inside the turn:
@@ -545,7 +557,15 @@ last poll; `Started`/`Ended` carry the run's own, and they are what the
 `window` frontmatter holds.
 
 Every service emits its **own** metrics, spans, and logs — **discover
-first, then query what you found; never assume names**. The five
+first, then query what you found; never assume names**. When the
+backend's reference ships the discovery as one script — every service,
+every signal, one call, the commands it ran printed for the record — the
+discovery **is** that invocation, and the five discoveries below with
+the shell batch that runs them are not written: that shape is the one
+the script already has inside (the helper-file and bash rules after
+them hold for every batch of this mission, on every backend). **Only on
+a backend whose reference ships no discovery script** do you write the
+discoveries yourself, as follows. The five
 discoveries below are independent of each other: **run them
 concurrently inside one shell tool call, never delegated** — each
 command backgrounded with `&` and its PID captured, its **stdout**
@@ -626,9 +646,9 @@ Then query per signal from what came back:
   dimensions, metadata), then query the discovered series: rates, error
   ratios, latency distributions and their quantiles.
 - **Span-derived metrics** — some backends derive per-operation RED
-  metrics and a service graph from the traces themselves (the local
-  stack's Tempo metrics-generator does: `traces_spanmetrics_*`,
-  `traces_service_graph_*`). When the backend offers them, they give
+  metrics and a service graph from the traces themselves; the backend's
+  reference says whether this one does and names the series. When the
+  backend offers them, they give
   per-operation rate, error ratio, and latency quantiles plus who-calls-
   whom even when the app exports no metrics of its own — build the summary
   table from them.
@@ -639,21 +659,31 @@ Then query per signal from what came back:
   query them with the backend's filter language, correlating on trace IDs
   where the logs carry them.
 - **Profiles** — always check whether the stack collects continuous
-  profiles for the service (the local stack has Pyroscope). If it does,
-  report the top functions by CPU and by allocations for the hottest
-  operations and correlate them with the slow spans. If it does not, that
-  is a line in **Telemetry gaps**, not a silent omission. Profiles
-  pushed by a Pyroscope SDK carry no `service.instance.id`: qualify
-  them by the per-run tag the service was launched with (run-scenario's
-  `run-identity.md`), or, absent one, by `process.runtime.version` plus frames
-  from the application's own code — and say which.
+  profiles for the service (the backend's reference says whether it
+  can). If it does, report the top functions by CPU and by allocations
+  for the hottest operations and correlate them with the slow spans. If
+  it does not, that is a line in **Telemetry gaps**, not a silent
+  omission. Where the reference says SDK-pushed profiles carry no
+  `service.instance.id`, qualify them by the per-run tag the service
+  was launched with (run-scenario's `run-identity.md`), or, absent one,
+  by whatever the reference says separates two emitters (a runtime
+  version label, frames from the application's own code) — and say
+  which.
 
 Then go from aggregates to explanations:
 
 - **Exemplars** — for each operation that matters, fetch three traces: one
   p50-representative, the worst-duration one, and an error one if errors
   exist (at `quick` depth, the worst-duration one only — the Depth
-  section). The worst-duration search is **at most two searches per
+  section). When the backend's reference ships this whole step as a
+  script — one that ranks a service's operations from the window's
+  traces, picks their p50 and worst exemplars, fetches them concurrently and
+  summarises them — that invocation is the step, searches and fetches
+  both, and an error exemplar is that reference's error search followed
+  by its fetch; the searches and the batched fetch below are not written
+  then — the diff that closes this bullet is, on every backend. **Only
+  on a backend whose reference ships no such script**, the worst-duration
+  search is **at most two searches per
   operation**, never a filter tightened over successive searches: one
   search scoped to the service and the operation with a single
   span-duration predicate at the p99 already measured for that
@@ -664,9 +694,9 @@ Then go from aggregates to explanations:
   with the same scope and window, no duration predicate, at an
   **explicit** result limit taken from the reference — never the CLI's
   silent default page — take the longest span it returns and fetch its
-  trace, and record the limit so the verify run carves the same way. Run the
-  searches for all operations first, then **fetch every exemplar in one
-  shell tool call** — one backgrounded fetch per trace ID, its
+  trace, and record the limit so the verify run carves the same way. Run
+  the searches for all operations first, then **fetch every exemplar in
+  one shell tool call** — one backgrounded fetch per trace ID, its
   stdout into its own file, its stderr into another, one `wait` per
   PID — the same shape as the discoveries: each fetch returns KBs of
   OTLP JSON, and one per turn is the slow shape.

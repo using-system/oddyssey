@@ -72,27 +72,25 @@ line marked `!` names it.
 
 ## Datasources
 
-| Signal | Backend | UID | Query with | Language |
-| --- | --- | --- | --- | --- |
-| Traces | Tempo | `tempo` | `gcx traces labels/query/get -d tempo` | TraceQL |
-| Metrics | Prometheus | `prometheus` | `gcx metrics labels/series/metadata/query` | PromQL |
-| Logs | Loki | `loki` | `gcx logs labels/series/query` | LogQL |
-| Profiles | Pyroscope | `pyroscope` | `gcx profiles list-profile-types/labels/query -d pyroscope` | profile selector |
+| Signal | Backend | UID | Language |
+| --- | --- | --- | --- |
+| Traces | Tempo | `tempo` | TraceQL |
+| Metrics | Prometheus | `prometheus` | PromQL |
+| Logs | Loki | `loki` | LogQL |
+| Profiles | Pyroscope | `pyroscope` | profile selector |
 
-Verified against gcx v1.0.0 and v1.2.0, Grafana 13.1.3 and 13.2.0, all
-four signals round-tripped. The gcx command surface moves between
-versions: when a documented command errors, trust `gcx <group> --help`
-over this table.
+The UIDs are the isolated context's datasource defaults, so nothing that
+queries through it names a datasource. Verified against gcx v1.0.0 and
+v1.2.0, Grafana 13.1.3 and 13.2.0, all four signals round-tripped.
 
 Discovery across the four signals is what `probe_services.py` above
-already ran — read its output rather than re-deriving it. Past it, when a
-finding needs a query the probe does not cover (`gcx metrics labels` /
-`metadata`, `gcx traces labels`, a batch of `gcx traces get` after a
-search), those calls are independent of each other: **run them
-concurrently in one shell call**, each backgrounded with its own output
-file and one `wait` per job, never serially and never one tool call each.
-`gcx metrics series` and `gcx logs series` are not discovery commands —
-bare, they error; both need at least one selector.
+already ran — read its output rather than re-deriving it. Past it, the
+query surface is the `observability-cli-guides` skill's Grafana reference
+and the scripts it names in its `## Query by signal` — one invocation per
+question, each running its own gcx calls concurrently — **never a batch
+script of `gcx` calls backgrounded with `&` and a `wait`**, and never one
+gcx call per tool call: a run that writes that runner is rebuilding what
+that reference ships.
 
 ## This stack is push-based
 

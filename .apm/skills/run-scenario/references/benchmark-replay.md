@@ -160,13 +160,16 @@ instead — **received against scheduled**, the scheduled count being the
 integral of the manifest's stage rates over the run — and say in the
 report that this is what the number is.
 
-## A run longer than a tool call is the replay script's `--detach`
+## The replay is always detached
 
-A staged benchmark routinely exceeds one tool call's budget. That is
-what `k6-guides`' replay script's `--detach` is for: it starts the run
-in its own session and returns at once, and `--status <dir>` answers
-"still running" or the finished record with its UTC window and k6's
-real exit status. **Never author a poller for this** — a shell script
+**Every replay runs with `--detach <dir>`, whatever the benchmark's
+length** — never in the foreground. The script starts the run in its own
+session and returns at once, and `--status <dir>` answers "still
+running" or the finished record with its UTC window and k6's real exit
+status; a short benchmark costs one `--status` call more, a long one no
+longer dies with the tool call that launched it (a foreground replay
+killed at the host's timeout leaves k6 running and no record, and the
+next move is a second drive). **Never author a poller for this** — a shell script
 of your own puts the flags back in your hands, which is what running
 the shipped command prevents, and it is one more thing to write before
 the drive starts.
@@ -271,12 +274,10 @@ always the replay script - and **what it ran**, copied from the record
 that script printed. Never compose the second line yourself; the script
 is where the mapping lives (`--otel` for the local stack's OTLP output,
 `--send-traceparent` for the gated header on a remote drive,
-`-e KEY=value` for a mission-time input, `--detach` when the run
-outlasts a tool call). A flag that is not on its surface is not a flag
-this replay has.
+`-e KEY=value` for a mission-time input, `--detach <dir>` always). A
+flag that is not on its surface is not a flag this replay has.
 
-The same record for a remote drive, carrying the four changes above —
-and short enough to run in the foreground:
+The same record for a remote drive, carrying the four changes above:
 
 ```text
 Scenario:  benchmark orders-api-spike (remote drive, authorized in the mission)
@@ -291,9 +292,9 @@ Stages (UTC): read off the stage tag, no arithmetic — baseline 08:30:11–08:3
 Started (UTC): 2026-09-06T08:30:11Z
 Ended   (UTC): 2026-09-06T08:32:01Z
 Query points: 1 (after Ended + the backend's ingest wait, proven by a bounded count query)
-Poller:    none (the run fits one tool call, so the replay ran in the foreground)
+Poller:    none written - the replay ran detached and was polled with --status
 Command:
-  python3 <skills>/k6-guides/scripts/replay_benchmark.py .odd/benchmarks/orders-api-spike --run-slug observe-spike-0906 -e BASE_URL=https://orders.example.com --send-traceparent
+  python3 <skills>/k6-guides/scripts/replay_benchmark.py .odd/benchmarks/orders-api-spike --run-slug observe-spike-0906 -e BASE_URL=https://orders.example.com --send-traceparent --detach <scratch>/observe-spike-0906
   k6 run .odd/benchmarks/orders-api-spike/script.js --summary-export <scratch>/k6-summary-observe-spike-0906.json -e BASE_URL=https://orders.example.com -e RUN_SLUG=observe-spike-0906 -e SEND_TRACEPARENT=1   # what it ran, from the record it printed
 k6:        exit 0, 4812 requests, checks 100%, dropped iterations 52 (generator: maxVUs saturated while the server p95 stayed flat), script errors 0
 Not reproducible: none
