@@ -169,10 +169,12 @@ operation reads 0 there); plus the worst trace *containing* the operation,
 which is where a fan-out shows. `--fetch` also retrieves each operation's
 p50, worst-rooted and worst-containing exemplar and prints its summary:
 root, duration, span count, per-`(service, name)` counts with the longest
-span, error spans, GenAI token totals. `get` takes trace ids in either form
-gcx prints (padded or not) and prints that summary; `--spans` prints every
-span with its parent, kind, duration and attributes instead; `--out <dir>`
-keeps the raw documents. `count` counts the traces a TraceQL selector
+span, error spans, GenAI token totals. `get` takes **several** trace ids in one
+invocation — in either form gcx prints, padded or not — fetches them
+concurrently and prints one summary each (a loop of one `get` per id is
+the serial shape it exists to remove); `--spans` prints every span with
+its parent, kind, duration and attributes instead; `--out <dir>` keeps
+the raw documents. `count` counts the traces a TraceQL selector
 matches over a window in `--bin` slices (default `30s`), deduplicated on
 trace id — a trace overlapping two bins is listed in both — and says when
 a bin hit the 1 000 ceiling (narrow the bin or split the selector).
