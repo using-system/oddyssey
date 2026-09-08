@@ -189,11 +189,19 @@ every run — which is exactly what makes two observations
 incomparable. The same holds for re-deriving by hand what one of them
 just printed. A small helper for something no shipped script covers is
 fine; name it in section 1's run record, with what it did and why
-nothing shipped covered it. **A query is not that case**: a handful of
-`gcx` calls is a shell command with its jobs backgrounded, not a file
-you author, and the service probe already answers presence, identity
-and the counter baseline — check its output before deciding you need
-anything at all.
+nothing shipped covered it. **A query is not that case either.** When
+the backend's reference ships a script per signal — `grafana.md` does,
+for a remote Grafana and the local stack alike: what a window holds,
+per-operation latency with its exemplars fetched, a trace's span tree,
+exact log counts, top profile frames — the query is that script's
+invocation, with the flags the reference states, and a query runner or
+an envelope parser you would write is one of them rebuilt: run the
+script, and when it lacks a shape of the work, record that in section
+1 rather than wrap it. On a backend whose reference ships none, a
+handful of CLI calls is a shell command with its jobs backgrounded, not
+a file you author. Either way the service probe already answers
+presence, identity and the counter baseline — check its output before
+deciding you need anything at all.
 
 **Setup reads only what setup uses.** A section you will not need until
 the investigation is a section read then, not now: the backend's query
@@ -545,7 +553,12 @@ last poll; `Started`/`Ended` carry the run's own, and they are what the
 `window` frontmatter holds.
 
 Every service emits its **own** metrics, spans, and logs — **discover
-first, then query what you found; never assume names**. The five
+first, then query what you found; never assume names**. When the
+reference ships the discovery as a script (`grafana.md`'s
+`grafana-discover.py`: every service, every signal, one call), that
+script **is** the one shell call and the block below is the shape it
+already has inside; write the block yourself only on a backend whose
+reference ships no script. The five
 discoveries below are independent of each other: **run them
 concurrently inside one shell tool call, never delegated** — each
 command backgrounded with `&` and its PID captured, its **stdout**
@@ -664,7 +677,12 @@ Then go from aggregates to explanations:
   with the same scope and window, no duration predicate, at an
   **explicit** result limit taken from the reference — never the CLI's
   silent default page — take the longest span it returns and fetch its
-  trace, and record the limit so the verify run carves the same way. Run the
+  trace, and record the limit so the verify run carves the same way. When
+  the reference ships this whole step as a script — `grafana.md`'s
+  `grafana-traces.py ops … --fetch <dir>` ranks every operation, picks
+  its p50, worst-rooted and worst-containing exemplars and fetches
+  them, concurrently, in one invocation — that invocation is the step,
+  searches and fetches both. Elsewhere, run the
   searches for all operations first, then **fetch every exemplar in one
   shell tool call** — one backgrounded fetch per trace ID, its
   stdout into its own file, its stderr into another, one `wait` per

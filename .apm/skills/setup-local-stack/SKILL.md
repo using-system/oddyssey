@@ -85,14 +85,17 @@ versions: when a documented command errors, trust `gcx <group> --help`
 over this table.
 
 Discovery across the four signals is what `probe_services.py` above
-already ran — read its output rather than re-deriving it. Past it, when a
-finding needs a query the probe does not cover (`gcx metrics labels` /
-`metadata`, `gcx traces labels`, a batch of `gcx traces get` after a
-search), those calls are independent of each other: **run them
-concurrently in one shell call**, each backgrounded with its own output
-file and one `wait` per job, never serially and never one tool call each.
-`gcx metrics series` and `gcx logs series` are not discovery commands —
-bare, they error; both need at least one selector.
+already ran — read its output rather than re-deriving it. Past it, the
+queries are the `observability-cli-guides` skill's `grafana-*` scripts,
+named per signal in `grafana.md`'s `## Query by signal`: what a window
+holds, per-operation latency with its exemplars fetched, the span tree of
+a trace, exact log counts and severities, top profile frames. They run
+their gcx calls concurrently on their own, so one invocation is one tool
+call — **never a batch script of `gcx` calls backgrounded with `&` and a
+`wait`**, and never one gcx call per tool call: a run that writes that
+runner is rebuilding a shipped script. `gcx metrics series` and
+`gcx logs series` are not discovery commands — bare, they error; both
+need at least one selector — and the scripts pass one.
 
 ## This stack is push-based
 
