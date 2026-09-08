@@ -203,7 +203,13 @@ Four subcommands, the whole surface. `ops` (`--service` repeatable,
 `--name` repeatable to add operations the window's roots do not show,
 `--limit` default 1000, `--settle` default `90s` as for the metrics,
 `--fetch <dir>`, a window) prints, per operation each service's traces
-are rooted at, **two latency readings that are not the same number**: the
+are rooted at — and, for a service that is **never a root** in the window
+(every caller instrumented: the root is the caller's client span; the
+output says so), per span name the store's span metrics carry for it, in
+one query, the trace-level columns then reading the traces *containing*
+the operation (verified 2026-09-08 on Cloud: seven operations for a
+service with zero rooted traces) — **two latency readings that are not
+the same number**: the
 span-level p50/p95/p99 and call count from the store's span metrics
 (`traces_spanmetrics_latency_bucket`, settled, exact — present on the
 local stack and on Cloud when the metrics generator is on; the output

@@ -526,6 +526,30 @@ def test_traces_ops_ranks_root_operations_with_span_metrics_and_exemplars(
     )
 
 
+def test_traces_ops_takes_a_never_rooted_services_operations_from_its_span_metrics(
+    fake_gcx,
+):
+    # the fixture's traces are all rooted at llmbench-*: orders-api is never a
+    # root, so its operations come from the span-metrics names, in one query
+    r = run("grafana-traces", "ops", "--service", "orders-api", *WIN, "--json")
+    o = json.loads(r.stdout)
+    assert r.returncode == 0, r.stdout
+    assert (
+        "orders-api" in o["never_rooted"]
+        and "span metrics" in o["never_rooted"]["orders-api"]
+    )
+    assert o["operations"], "operations expected from the span metrics"
+    row = next(iter(o["operations"].values()))
+    assert row["rooted_traces"] == 0 and row["containing_traces"] > 0
+    assert row["worst_containing_trace"] and "span_p50_ms" in row
+    calls = fake_gcx.read_text()
+    assert (
+        "count by (span_name) (last_over_time(traces_spanmetrics_calls_total" in calls
+    )
+    text = run("grafana-traces", "ops", "--service", "orders-api", *WIN).stdout
+    assert "never a trace's root" in text
+
+
 def test_traces_get_summarises_and_count_deduplicates_bins(fake_gcx):
     r = run("grafana-traces", "get", "9ed9a7b6ce4b233f8c6cf373c079811", "--json")
     assert r.returncode == 0
