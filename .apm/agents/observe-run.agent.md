@@ -294,17 +294,17 @@ run record.
    not from memory; when a reference routes a section elsewhere,
    follow the routing to the named sections and read nothing else of
    either file — on the local stack, with the preflight handoff in
-   hand, `local.md` carries nothing of yours beyond its `## Query by
-   signal` and `## Planning notes` routing notes, both pointing at
-   `grafana.md`: read them, then `grafana.md`'s `## Query by signal`
-   with its subsections and its `## Planning notes`, once each; never
-   `local.md` whole, never `grafana.md` whole, and never
-   its `## Remote missions — targeting without touching the user's
-   config` (a remote backend's section). **When the mission drives a
-   scenario, that query surface is due at investigation time, not
+   hand, the local reference carries nothing of yours beyond its
+   `## Query by signal` and `## Planning notes` routing notes, both
+   pointing at the backend reference it is built on: read them, then
+   that reference's `## Query by signal` with its subsections and its
+   `## Planning notes`, once each; never either file whole, and never a
+   section the reference marks as remote-only. **When the mission drives
+   a scenario, that query surface is due at investigation time, not
    here**: setup proves the services with step 3's probe script, which
-   needs none of it — read `grafana.md`'s sections once the drive has
-   started, so the turns between setup and the drive do not carry them. The mission block's
+   needs none of it — read the reference's query sections once the drive
+   has started, so the turns between setup and the drive do not carry
+   them. The mission block's
    `Preflight:` handoff (the caller's `backend-configuration` `## Check`
    run) already carries what the preflight's sections resolve — the
    binary, the CLI context, the target's values, the connection proof
@@ -317,10 +317,11 @@ run record.
    order and run the probe yourself; if it is not connected, stop and
    report ("CLI not configured for <backend>") — never authenticate
    from here.
-2. **Local stack.** The local stack is a Grafana (LGTM) stack —
-   use the Grafana reference and gcx: call the
+2. **Local stack.** The local stack is the package's own — its reference
+   routes to the backend reference it is built on, and the
+   `setup-local-stack` skill owns its CLI context: call the
    oddyssey MCP tool `odd_stack_status`, then `odd_stack_up` if needed, and
-   query through the `setup-local-stack` skill's isolated gcx context —
+   query through the `setup-local-stack` skill's isolated CLI context —
    the handoff's `context:` path is that file, already written and
    proven: reuse it (regenerate it only when `gcx config check` fails
    on it) and read only the skill's `## Datasources` and `## This stack

@@ -72,30 +72,25 @@ line marked `!` names it.
 
 ## Datasources
 
-| Signal | Backend | UID | Query with (the `observability-cli-guides` skill's script) | Language |
-| --- | --- | --- | --- | --- |
-| Traces | Tempo | `tempo` | `grafana-traces.py` (`ops`, `get`, `search`, `count`) | TraceQL |
-| Metrics | Prometheus | `prometheus` | `grafana-metrics.py` (`histogram`, `counter`, `names`, `instant`, `range`) | PromQL |
-| Logs | Loki | `loki` | `grafana-logs.py` (`severity`, `sample`, `correlate`, `count`) | LogQL |
-| Profiles | Pyroscope | `pyroscope` | `grafana-profiles.py` (`top`, `check`, `labels`, `types`) | profile selector |
+| Signal | Backend | UID | Language |
+| --- | --- | --- | --- |
+| Traces | Tempo | `tempo` | TraceQL |
+| Metrics | Prometheus | `prometheus` | PromQL |
+| Logs | Loki | `loki` | LogQL |
+| Profiles | Pyroscope | `pyroscope` | profile selector |
 
-The UIDs are the isolated context's datasource defaults, so no script
-takes a `-d`. Verified against gcx v1.0.0 and v1.2.0, Grafana 13.1.3 and
-13.2.0, all four signals round-tripped; the scripts were exercised live
-on 1.2.0.
+The UIDs are the isolated context's datasource defaults, so nothing that
+queries through it names a datasource. Verified against gcx v1.0.0 and
+v1.2.0, Grafana 13.1.3 and 13.2.0, all four signals round-tripped.
 
 Discovery across the four signals is what `probe_services.py` above
 already ran — read its output rather than re-deriving it. Past it, the
-queries are the `observability-cli-guides` skill's `grafana-*` scripts,
-named per signal in `grafana.md`'s `## Query by signal`: what a window
-holds, per-operation latency with its exemplars fetched, the span tree of
-a trace, exact log counts and severities, top profile frames. They run
-their gcx calls concurrently on their own, so one invocation is one tool
-call — **never a batch script of `gcx` calls backgrounded with `&` and a
-`wait`**, and never one gcx call per tool call: a run that writes that
-runner is rebuilding a shipped script. `gcx metrics series` and
-`gcx logs series` are not discovery commands — bare, they error; both
-need at least one selector — and the scripts pass one.
+query surface is the `observability-cli-guides` skill's Grafana reference
+and the scripts it names in its `## Query by signal` — one invocation per
+question, each running its own gcx calls concurrently — **never a batch
+script of `gcx` calls backgrounded with `&` and a `wait`**, and never one
+gcx call per tool call: a run that writes that runner is rebuilding what
+that reference ships.
 
 ## This stack is push-based
 
