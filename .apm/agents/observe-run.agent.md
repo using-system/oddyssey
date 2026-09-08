@@ -289,7 +289,7 @@ run record.
    repository, `.odd/observability-stacks/<name>.md`, read by the same
    sections — and what the run teaches it goes back into it, the
    section before the report says how. Everything else is yours: the query surface
-   per signal, output reading, remote targeting, resource discovery,
+   per signal (on a Grafana stack, the scripts it names), remote targeting, resource discovery,
    planning notes — the discovery and query commands come from there,
    not from memory; when a reference routes a section elsewhere,
    follow the routing to the named sections and read nothing else of
@@ -557,12 +557,13 @@ last poll; `Started`/`Ended` carry the run's own, and they are what the
 `window` frontmatter holds.
 
 Every service emits its **own** metrics, spans, and logs — **discover
-first, then query what you found; never assume names**. When the
-reference ships the discovery as a script (`grafana.md`'s
-`grafana-discover.py`: every service, every signal, one call), that
-script **is** the one shell call and the block below is the shape it
-already has inside; write the block yourself only on a backend whose
-reference ships no script. The five
+first, then query what you found; never assume names**. On a Grafana
+stack, remote or local, the discovery **is** one invocation of
+`grafana.md`'s `grafana-discover.py` — every service, every signal, one
+call, the commands it ran printed for the record — and nothing below
+this sentence is written: the shape it describes is the one the script
+already has inside. **Only on a backend whose reference ships no
+discovery script** do you write it yourself, as follows. The five
 discoveries below are independent of each other: **run them
 concurrently inside one shell tool call, never delegated** — each
 command backgrounded with `&` and its PID captured, its **stdout**
@@ -670,7 +671,15 @@ Then go from aggregates to explanations:
 - **Exemplars** — for each operation that matters, fetch three traces: one
   p50-representative, the worst-duration one, and an error one if errors
   exist (at `quick` depth, the worst-duration one only — the Depth
-  section). The worst-duration search is **at most two searches per
+  section). On a Grafana stack this whole step — the ranking, the
+  searches and the fetches — is **one invocation** of `grafana.md`'s
+  `grafana-traces.py ops … --fetch <dir>`: it ranks every operation the
+  window's traces are rooted at, picks its p50, worst-rooted and
+  worst-containing exemplars, fetches them concurrently and summarises
+  them; an error exemplar is one `grafana-traces.py search '{ status =
+  error }'` then `get`. Nothing below this sentence is written on a
+  Grafana stack. **Only on a backend whose reference ships no such
+  script**, the worst-duration search is **at most two searches per
   operation**, never a filter tightened over successive searches: one
   search scoped to the service and the operation with a single
   span-duration predicate at the p99 already measured for that
@@ -681,14 +690,9 @@ Then go from aggregates to explanations:
   with the same scope and window, no duration predicate, at an
   **explicit** result limit taken from the reference — never the CLI's
   silent default page — take the longest span it returns and fetch its
-  trace, and record the limit so the verify run carves the same way. When
-  the reference ships this whole step as a script — `grafana.md`'s
-  `grafana-traces.py ops … --fetch <dir>` ranks every operation, picks
-  its p50, worst-rooted and worst-containing exemplars and fetches
-  them, concurrently, in one invocation — that invocation is the step,
-  searches and fetches both. Elsewhere, run the
-  searches for all operations first, then **fetch every exemplar in one
-  shell tool call** — one backgrounded fetch per trace ID, its
+  trace, and record the limit so the verify run carves the same way. Run
+  the searches for all operations first, then **fetch every exemplar in
+  one shell tool call** — one backgrounded fetch per trace ID, its
   stdout into its own file, its stderr into another, one `wait` per
   PID — the same shape as the discoveries: each fetch returns KBs of
   OTLP JSON, and one per turn is the slow shape.

@@ -3,9 +3,10 @@
 
 The queries are fixed by the inputs - service names and a window - so nothing
 here is for an agent to compose: per service it lists the metric names the
-store carries, the operations its traces name (root spans, with counts), its
-log line count and severities, and whether a CPU profile exists. Presence and
-absence are reported with the same weight.
+store carries, the operations its traces are rooted at (with counts), its
+log line count and severities, and whether a CPU profile exists. Presence
+and absence are reported with the same weight, and every gcx command run is
+printed so the report can record it.
 
     grafana-discover.py svc-a svc-b --from 2026-09-08T16:40:53Z --to 2026-09-08T16:42:55Z
     grafana-discover.py svc-a --since 30m --json
@@ -27,21 +28,22 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from grafana_gcx import (
     CPU_PROFILE,
-    LOG_LIMIT,
     TRACE_LIMIT,
     add_window,
+    commands,
     emit,
     flame_frames,
     label_names,
-    logs_lines,
+    logs_all,
     prom_series,
+    resolve_window,
     run_many,
     traces_list,
-    window_args,
 )
 
 
-def probe(services: list[str], win: list[str], key: str = "service_name") -> dict:
+def probe(services: list[str], frm: str, to: str, key: str = "service_name") -> dict:
+    win = ["--from", frm, "--to", to]
     calls = []
     for s in services:
         calls += [
@@ -55,14 +57,6 @@ def probe(services: list[str], win: list[str], key: str = "service_name") -> dic
                 str(TRACE_LIMIT),
             ],
             [
-                "logs",
-                "query",
-                f'{{{key}="{s}"}}',
-                *win,
-                "--limit",
-                str(LOG_LIMIT),
-            ],
-            [
                 "profiles",
                 "query",
                 f'{{{key}="{s}"}}',
@@ -73,17 +67,20 @@ def probe(services: list[str], win: list[str], key: str = "service_name") -> dic
         ]
     calls.append(["profiles", "labels", "--label", key, *win])
     results = run_many(calls)
+    all_results = list(results)
     prof_services = label_names(results[-1].data) if results[-1].ok else []
     report = {
-        "window": win,
+        "window": [frm, to],
         "services": {},
         "failed": [],
         "profiled_services": prof_services,
     }
     for i, s in enumerate(services):
-        m, t, l, p = results[i * 4 : i * 4 + 4]
+        m, t, p = results[i * 3 : i * 3 + 3]
+        lines, log_results, log_truncated = logs_all(f'{{{key}="{s}"}}', frm, to)
+        all_results += log_results
         entry: dict = {}
-        for r in (m, t, l, p):
+        for r in (m, t, p, *log_results):
             if not r.ok:
                 report["failed"].append({"command": r.command, "error": r.error})
         names = (
@@ -93,15 +90,16 @@ def probe(services: list[str], win: list[str], key: str = "service_name") -> dic
         )
         entry["metrics"] = {"names": len(names), "list": names}
         traces = traces_list(t.data) if t.ok else []
+        rooted = [x for x in traces if x.get("rootServiceName") == s]
         ops: dict[str, int] = {}
-        for x in traces:
+        for x in rooted:
             ops[x.get("rootTraceName", "")] = ops.get(x.get("rootTraceName", ""), 0) + 1
         entry["traces"] = {
-            "roots": len(traces),
+            "matching": len(traces),
+            "rooted_here": len(rooted),
             "truncated": len(traces) >= TRACE_LIMIT,
             "operations": dict(sorted(ops.items(), key=lambda kv: -kv[1])),
         }
-        lines = logs_lines(l.data) if l.ok else []
         sev: dict[str, int] = {}
         for ln in lines:
             k = (
@@ -112,7 +110,7 @@ def probe(services: list[str], win: list[str], key: str = "service_name") -> dic
             sev[k] = sev.get(k, 0) + 1
         entry["logs"] = {
             "lines": len(lines),
-            "truncated": len(lines) >= LOG_LIMIT,
+            "truncated": log_truncated,
             "severity": sev,
         }
         total, frames = flame_frames(p.data) if p.ok else (0, {})
@@ -122,6 +120,7 @@ def probe(services: list[str], win: list[str], key: str = "service_name") -> dic
             "frames": len(frames),
         }
         report["services"][s] = entry
+    report["commands"] = commands(all_results)
     return report
 
 
@@ -129,30 +128,45 @@ def render(r: dict) -> str:
     out = []
     for s, e in r["services"].items():
         out.append(f"== {s}")
+        m = e["metrics"]
         out.append(
-            f"  metrics   {e['metrics']['names']} names"
+            f"  metrics   {m['names']} names"
             + (
-                ": "
-                + ", ".join(e["metrics"]["list"][:12])
-                + (" ..." if e["metrics"]["names"] > 12 else "")
-                if e["metrics"]["names"]
+                ": " + ", ".join(m["list"][:12]) + (" ..." if m["names"] > 12 else "")
+                if m["names"]
                 else "  (none)"
             )
         )
         t = e["traces"]
         out.append(
-            f"  traces    {t['roots']} root traces{' (truncated at the search ceiling - count in bins)' if t['truncated'] else ''}"
+            f"  traces    {t['matching']} traces carry a span of this service, {t['rooted_here']} rooted at it"
+            + (
+                " (search ceiling reached - count with grafana-traces.py count)"
+                if t["truncated"]
+                else ""
+            )
         )
         for op, n in list(t["operations"].items())[:15]:
             out.append(f"              {n:6d}  {op}")
         lg = e["logs"]
         out.append(
-            f"  logs      {lg['lines']} lines{' (truncated)' if lg['truncated'] else ''}  "
+            f"  logs      {lg['lines']} lines"
+            + (
+                " (still truncated after splitting - narrow the window)"
+                if lg["truncated"]
+                else ""
+            )
+            + "  "
             + " ".join(f"{k}={v}" for k, v in sorted(lg["severity"].items()))
         )
         pc = e["profile_cpu"]
         out.append(
-            f"  profiles  {'cpu ' + str(round(pc['total_ns'] / 1e9, 2)) + ' s over ' + str(pc['frames']) + ' frames' if pc['present'] else 'no cpu profile in the window'}"
+            "  profiles  "
+            + (
+                f"cpu {round(pc['total_ns'] / 1e9, 2)} s over {pc['frames']} frames"
+                if pc["present"]
+                else "no cpu profile in the window"
+            )
         )
     if r["profiled_services"]:
         out.append(
@@ -160,6 +174,7 @@ def render(r: dict) -> str:
         )
     for f in r["failed"]:
         out.append(f"FAILED  {f['command']}\n        {f['error']}")
+    out += ["queries run (record these):"] + ["  " + c for c in r.get("commands", [])]
     return "\n".join(out)
 
 
@@ -173,7 +188,8 @@ def main() -> int:
     )
     add_window(ap)
     ns = ap.parse_args()
-    r = probe(ns.services, window_args(ns), ns.label_key)
+    frm, to = resolve_window(ns)
+    r = probe(ns.services, frm, to, ns.label_key)
     emit(r, ns.json, render)
     return 2 if r["failed"] else 0
 

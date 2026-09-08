@@ -4,10 +4,10 @@ Every trap this module absorbs was measured on gcx 1.2.0 and is written
 down in grafana.md's history; the scripts import it so no agent has to
 re-apply one by hand:
 
-- gcx prints a ``{"class":"hint",...}`` line on stderr (on stdout on older
-  builds) before the payload, and pretty-prints its JSON over many lines -
-  stdout is parsed whole, never line by line, and the hint is dropped
-  wherever it landed;
+- gcx prints a ``{"class":"hint",...}`` line before the payload - on stderr
+  on the current build, on stdout on older ones - and pretty-prints its
+  JSON over many lines: hint lines are dropped wherever they landed, then
+  stdout is parsed whole, never line by line;
 - a large answer is not on stdout at all: gcx writes a
   ``gcx.spill_reference`` object naming a file, which is read in its place;
 - an error is a single ``gcx.error`` object on stdout with exit 1 - it is
@@ -15,7 +15,9 @@ re-apply one by hand:
 - ``traces query`` prints trace ids unpadded (31 hex), ``traces get`` carries
   them as base64 - both are normalised to the padded 32-hex form;
 - profile flamegraphs are flat string quadruples ``[offset, total, self,
-  nameIndex]`` per level - summed per frame here, once.
+  nameIndex]`` per level - summed per frame here, once;
+- Loki answers at most 5 000 lines per query, server-side: a window that
+  holds more is split until every piece fits, and the pieces are merged.
 
 Only the standard library is used, so the scripts run wherever python3 does.
 """
@@ -26,16 +28,21 @@ import base64
 import json
 import os
 import subprocess
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 TIMEOUT = 180
 WORKERS = 8
 # The one ceiling gcx enforces on a trace search (Grafana Cloud refuses more).
 TRACE_LIMIT = 1000
-# Loki's default page; the raw-count form must pass an explicit, larger one.
+# Loki's server-side maximum per query (max_entries_limit_per_query); a
+# larger --limit is refused, so a bigger window is read in pieces instead.
 LOG_LIMIT = 5000
+LOG_SPLIT_DEPTH = 6
 CPU_PROFILE = "process_cpu:cpu:nanoseconds:cpu:nanoseconds"
+HINT_PREFIX = '{"class":"hint"'
 
 
 @dataclass
@@ -62,29 +69,28 @@ def _quote(a: str) -> str:
 
 
 def _parse_stdout(text: str):
-    """Whole-document first; then the last JSON line, skipping any hint."""
-    text = text.strip()
-    if not text:
+    """Drop hint lines wherever they landed, then parse the rest whole."""
+    lines = [ln for ln in text.splitlines() if not ln.strip().startswith(HINT_PREFIX)]
+    body = "\n".join(lines).strip()
+    if not body:
         return None
     try:
-        return json.loads(text)
+        return json.loads(body)
     except ValueError:
         pass
-    for line in reversed(text.splitlines()):
+    # An error object on the last line after non-JSON noise.
+    for line in reversed(lines):
         line = line.strip()
-        if not line or line.startswith('{"class":"hint"'):
-            continue
-        try:
-            return json.loads(line)
-        except ValueError:
-            continue
+        if line.startswith("{"):
+            try:
+                return json.loads(line)
+            except ValueError:
+                continue
     return None
 
 
 def run_gcx(args: list[str], timeout: int = TIMEOUT, env: dict | None = None) -> Result:
     """Run one gcx command and return its parsed payload, spill followed."""
-    import time
-
     if "-o" not in args and "--output" not in args:
         args = [*args, "-o", "json"]
     started = time.monotonic()
@@ -132,7 +138,7 @@ def run_gcx(args: list[str], timeout: int = TIMEOUT, env: dict | None = None) ->
         )
     if proc.returncode != 0:
         tail = (proc.stderr or proc.stdout).strip().splitlines()
-        tail = [t for t in tail if not t.startswith('{"class":"hint"')]
+        tail = [t for t in tail if not t.strip().startswith(HINT_PREFIX)]
         return Result(
             args,
             False,
@@ -159,6 +165,16 @@ def run_many(
         return []
     with ThreadPoolExecutor(max_workers=min(workers, len(calls))) as pool:
         return list(pool.map(lambda a: run_gcx(a, timeout=timeout), calls))
+
+
+def commands(results: list[Result]) -> list[str]:
+    """The gcx commands a subcommand ran, for the report's replay line."""
+    return [r.command for r in results]
+
+
+def errors(results: list[Result]) -> str:
+    """The distinct errors, once each - nine identical parse errors are one."""
+    return "; ".join(dict.fromkeys(r.error for r in results if not r.ok))
 
 
 # --- envelopes ---------------------------------------------------------------
@@ -220,6 +236,58 @@ def logs_lines(data) -> list[dict]:
                 )
     out.sort(key=lambda r: int(r["timestamp"] or 0))
     return out
+
+
+def logs_all(
+    selector: str, frm: str, to: str, pipeline: str = "", limit: int = LOG_LIMIT
+) -> tuple[list[dict], list[Result], bool]:
+    """Every line of a window, read in pieces when one query saturates the cap.
+
+    Returns (lines, the gcx results run, still_truncated). A piece that comes
+    back with exactly `limit` lines is split in two and read again, down to
+    LOG_SPLIT_DEPTH; lines are deduplicated on (timestamp, line).
+    """
+    expr = selector + (" " + pipeline if pipeline else "")
+    results: list[Result] = []
+    lines: dict[tuple, dict] = {}
+    truncated = False
+    pending = [(parse_ts(frm), parse_ts(to), 0)]
+    while pending:
+        batch, pending = pending, []
+        calls = [
+            [
+                "logs",
+                "query",
+                expr,
+                "--from",
+                iso(a),
+                "--to",
+                iso(b),
+                "--limit",
+                str(limit),
+            ]
+            for a, b, _ in batch
+        ]
+        got = run_many(calls)
+        results += got
+        for (a, b, depth), r in zip(batch, got):
+            if not r.ok:
+                continue
+            got_lines = logs_lines(r.data)
+            if (
+                len(got_lines) >= limit
+                and depth < LOG_SPLIT_DEPTH
+                and (b - a) > timedelta(seconds=2)
+            ):
+                mid = a + (b - a) / 2
+                pending += [(a, mid, depth + 1), (mid, b, depth + 1)]
+                continue
+            if len(got_lines) >= limit:
+                truncated = True
+            for ln in got_lines:
+                lines[(ln["timestamp"], ln["line"])] = ln
+    out = sorted(lines.values(), key=lambda r: int(r["timestamp"] or 0))
+    return out, results, truncated
 
 
 def profile_types(data) -> list[str]:
@@ -365,7 +433,7 @@ def trace_summary(spans: list[dict]) -> dict:
 
 
 def flame_frames(data) -> tuple[int, dict[str, dict]]:
-    """flamegraph -> (total, {frame: {self, total_max, total_sum}}) in the profile's unit."""
+    """flamegraph -> (total, {frame: {self, total_max}}) in the profile's unit."""
     fg = (data or {}).get("flamegraph") or {}
     names = fg.get("names") or []
     try:
@@ -383,59 +451,111 @@ def flame_frames(data) -> tuple[int, dict[str, dict]]:
                 continue
             if idx >= len(names):
                 continue
-            e = frames.setdefault(
-                names[idx], {"self": 0, "total_max": 0, "total_sum": 0}
-            )
+            e = frames.setdefault(names[idx], {"self": 0, "total_max": 0})
             e["self"] += slf
             e["total_max"] = max(e["total_max"], tot)
-            e["total_sum"] += tot
     frames.pop("total", None)
     return total, frames
 
 
-# --- numbers -----------------------------------------------------------------
+# --- numbers and time --------------------------------------------------------
+
+
+def percentile_index(n: int, q: float) -> int:
+    """The one index every percentile and every exemplar pick uses."""
+    return min(n - 1, max(0, round(q * (n - 1))))
 
 
 def percentiles(values: list[float], qs=(0.5, 0.95, 0.99)) -> dict:
     if not values:
         return {f"p{int(q * 100)}": None for q in qs} | {"max": None, "count": 0}
     v = sorted(values)
-    out = {}
-    for q in qs:
-        i = min(len(v) - 1, max(0, round(q * (len(v) - 1))))
-        out[f"p{int(q * 100)}"] = v[i]
+    out = {f"p{int(q * 100)}": v[percentile_index(len(v), q)] for q in qs}
     out["max"] = v[-1]
     out["count"] = len(v)
     return out
 
 
-def window_args(ns) -> list[str]:
-    """--from/--to or --since -> the gcx flags, in the form every family accepts."""
-    if getattr(ns, "since", None):
-        return ["--since", ns.since]
-    if getattr(ns, "frm", None) and getattr(ns, "to", None):
-        return ["--from", ns.frm, "--to", ns.to]
-    raise SystemExit(
-        "a window is required: --from <RFC3339> --to <RFC3339>, or --since <duration>"
-    )
+def parse_duration(s: str) -> int:
+    """'90s', '30m', '2h' -> seconds; anything else is a usage error, not a traceback."""
+    s = (s or "").strip()
+    units = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+    if len(s) < 2 or s[-1] not in units:
+        raise SystemExit(
+            f"a duration is <number><s|m|h|d>, e.g. 90s or 30m - got {s!r}"
+        )
+    try:
+        return int(float(s[:-1]) * units[s[-1]])
+    except ValueError:
+        raise SystemExit(
+            f"a duration is <number><s|m|h|d>, e.g. 90s or 30m - got {s!r}"
+        ) from None
 
 
-def add_window(ap, required: bool = True):
+def parse_ts(s: str) -> datetime:
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        raise SystemExit(
+            f"a timestamp is RFC3339 UTC, e.g. 2026-09-08T16:40:53Z - got {s!r}"
+        ) from None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def iso(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def add_window(ap):
     ap.add_argument(
         "--from",
         dest="frm",
         help="window start, RFC3339 UTC (e.g. 2026-09-08T16:40:53Z)",
     )
     ap.add_argument("--to", help="window end, RFC3339 UTC")
-    ap.add_argument("--since", help="lookback instead of --from/--to (e.g. 30m)")
+    ap.add_argument(
+        "--since", help="lookback ending now instead of --from/--to (e.g. 30m)"
+    )
     ap.add_argument("--json", action="store_true", help="machine-readable output")
+
+
+def resolve_window(ns) -> tuple[str, str]:
+    """--from/--to or --since -> concrete RFC3339 (from, to), always both."""
+    if getattr(ns, "since", None):
+        end = datetime.now(timezone.utc).replace(microsecond=0)
+        return iso(end - timedelta(seconds=parse_duration(ns.since))), iso(end)
+    if getattr(ns, "frm", None) and getattr(ns, "to", None):
+        a, b = parse_ts(ns.frm), parse_ts(ns.to)
+        if b <= a:
+            raise SystemExit("--to must be after --from")
+        return iso(a), iso(b)
+    raise SystemExit(
+        "a window is required: --from <RFC3339> --to <RFC3339>, or --since <duration>"
+    )
+
+
+def window_args(ns) -> list[str]:
+    """The window as the --from/--to flags every gcx family accepts."""
+    frm, to = resolve_window(ns)
+    return ["--from", frm, "--to", to]
+
+
+def window_seconds(frm: str, to: str) -> int:
+    return max(1, int((parse_ts(to) - parse_ts(frm)).total_seconds()))
 
 
 def emit(obj, as_json: bool, render=None) -> None:
     if as_json or render is None:
-        print(json.dumps(obj, indent=2, default=str))
+        print(json.dumps(obj, indent=1, default=str))
     else:
         print(render(obj))
+
+
+def render_commands(o: dict) -> list[str]:
+    cmds = o.get("commands") or []
+    if not cmds:
+        return []
+    return ["queries run (record these):"] + ["  " + c for c in cmds]
 
 
 def fmt_ms(x) -> str:

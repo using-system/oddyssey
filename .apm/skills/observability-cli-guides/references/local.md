@@ -2,7 +2,7 @@
 
 The local stack is a Grafana (LGTM) stack in one container, brought up
 by `odd_stack_up`, queried with `gcx` exactly like a remote Grafana: the
-query surface is [grafana.md](grafana.md) — CLI binary, output reading,
+query surface is [grafana.md](grafana.md) — CLI binary, the scripts per signal,
 query by signal — and the ready-made isolated gcx context, the
 datasource UIDs, and the push-model caveats are the `setup-local-stack`
 skill's, which owns the local method end to end. This file carries what

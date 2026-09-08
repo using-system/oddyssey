@@ -72,17 +72,17 @@ line marked `!` names it.
 
 ## Datasources
 
-| Signal | Backend | UID | Query with | Language |
+| Signal | Backend | UID | Query with (the `observability-cli-guides` skill's script) | Language |
 | --- | --- | --- | --- | --- |
-| Traces | Tempo | `tempo` | `gcx traces labels/query/get -d tempo` | TraceQL |
-| Metrics | Prometheus | `prometheus` | `gcx metrics labels/series/metadata/query` | PromQL |
-| Logs | Loki | `loki` | `gcx logs labels/series/query` | LogQL |
-| Profiles | Pyroscope | `pyroscope` | `gcx profiles list-profile-types/labels/query -d pyroscope` | profile selector |
+| Traces | Tempo | `tempo` | `grafana-traces.py` (`ops`, `get`, `search`, `count`) | TraceQL |
+| Metrics | Prometheus | `prometheus` | `grafana-metrics.py` (`histogram`, `counter`, `names`, `instant`, `range`) | PromQL |
+| Logs | Loki | `loki` | `grafana-logs.py` (`severity`, `sample`, `correlate`, `count`) | LogQL |
+| Profiles | Pyroscope | `pyroscope` | `grafana-profiles.py` (`top`, `check`, `labels`, `types`) | profile selector |
 
-Verified against gcx v1.0.0 and v1.2.0, Grafana 13.1.3 and 13.2.0, all
-four signals round-tripped. The gcx command surface moves between
-versions: when a documented command errors, trust `gcx <group> --help`
-over this table.
+The UIDs are the isolated context's datasource defaults, so no script
+takes a `-d`. Verified against gcx v1.0.0 and v1.2.0, Grafana 13.1.3 and
+13.2.0, all four signals round-tripped; the scripts were exercised live
+on 1.2.0.
 
 Discovery across the four signals is what `probe_services.py` above
 already ran — read its output rather than re-deriving it. Past it, the

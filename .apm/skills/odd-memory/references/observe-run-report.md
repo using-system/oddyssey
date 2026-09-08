@@ -435,6 +435,13 @@ recall or by a caller naming a stored report.
   mission block's `Preflight:` handoff and a live `odd_config_get` or
   CLI excerpt are the likeliest sources — never restate the
   identifiers they carry.
+- **A query run through a backend's shipped script is recorded as the
+  script invocation, followed by the backend queries the script printed**
+  (every `grafana-*.py` subcommand ends with `queries run (record
+  these):` and one gcx command per line): the invocation is what a
+  verify run replays, the printed commands are what a reader without the
+  script replays — never one without the other, and never a query
+  re-derived by hand from what the script computed.
 - **A recorded query is a contract only once shown to work**: a check is
   authored against *broken* data, so "returns NaN/empty" and "the query
   is wrong" are indistinguishable at authoring time (measured: `rate()`
