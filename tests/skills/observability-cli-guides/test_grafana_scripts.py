@@ -769,6 +769,13 @@ def test_current_context_reads_quoted_commented_and_absent_values(tmp_path):
     )
     assert context.context_defaults(str(f), "prod") == {"loki", "prometheus"}
     assert context.context_defaults(str(f), "other") == {"tempo"}
+    g = tmp_path / "e.yaml"
+    g.write_text(
+        'contexts:\n  local:\n    stack: local\n    default-prometheus-datasource: prometheus\n    default-tempo-datasource: tempo\n  inline:\n    datasources: {loki: l, "pyroscope": p}\ncurrent-context: local\n',
+        encoding="utf-8",
+    )
+    assert context.context_defaults(str(g), "local") == {"prometheus", "tempo"}
+    assert context.context_defaults(str(g), "inline") == {"loki", "pyroscope"}
 
 
 def test_session_paths_never_collide_inside_one_second(tmp_path, monkeypatch):

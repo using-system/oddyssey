@@ -202,9 +202,18 @@ Four subcommands, the whole surface above (`--since <duration>` replaces
 - `ops` on a service never rooted in the window (its callers are
   instrumented, or nothing carries it): the output says which, with the
   callers named; its operations are its `--top` busiest span-metric names
-  (capped is said), its rooted columns stay empty, the median containing
-  trace is its p50 exemplar (verified 2026-09-08 on Cloud: seven
-  operations, zero rooted).
+  by the counter's settled value (capped is said; the settle lag can admit
+  a name active only after the window, shown with 0 containing traces),
+  its rooted columns stay empty, the median containing trace is its p50
+  exemplar (verified 2026-09-08 on Cloud: seven operations, zero rooted).
+- The two latency readings are **not the same number**: a trace search
+  returns the *trace* duration, so an operation nested under a slow
+  parent inherits the parent's time — the trace columns are computed over
+  the rooted traces only, and the worst *containing* trace is where a
+  fan-out shows.
+- `durationMs` from a search is a truncated integer: a sub-millisecond
+  operation reads 0 in the trace columns; the span metrics carry its real
+  latency.
 - `get` — several ids in one call, either form gcx prints; one summary
   each, `--spans` every span with parent, kind, duration and attributes,
   `--out` keeps the raw documents; no window.

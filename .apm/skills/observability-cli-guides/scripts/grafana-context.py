@@ -121,8 +121,23 @@ def context_defaults(path: str, context: str) -> set[str]:
             if in_ctx and re.match(r"^    datasources:\s*$", ln):
                 in_ds = True
                 continue
-            if in_ctx and re.match(r"^    \S", ln):
-                in_ds = False
+            if in_ctx:
+                # the inline form `datasources: {loki: l, tempo: t}` and the
+                # `default-<kind>-datasource: <uid>` form the local context uses
+                m = re.match(r"^    datasources:\s*\{(.*)\}", ln)
+                if m:
+                    kinds |= {
+                        k.strip().strip("\"'")
+                        for k in re.findall(
+                            r"[\"']?([A-Za-z0-9_-]+)[\"']?\s*:", m.group(1)
+                        )
+                    }
+                    continue
+                m = re.match(r"^    default-([a-z]+)-datasource:", ln)
+                if m:
+                    kinds.add(m.group(1))
+                if re.match(r"^    \S", ln):
+                    in_ds = False
             if in_ds:
                 m = re.match(r'^      "?([A-Za-z0-9_-]+)"?:', ln)
                 if m:

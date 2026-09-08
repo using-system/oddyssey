@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """Tempo through gcx: per-operation latency with exemplars, span trees, exact counts.
 
-    grafana-traces.py ops --service svc --from ... --to ... [--fetch DIR]
+    grafana-traces.py ops --service svc --from ... --to ... [--fetch DIR] [--top 15]
     grafana-traces.py get 9ed9a7b6ce4b233f8c6cf373c079811 [ID ...] [--out DIR] [--spans]
     grafana-traces.py search '{ status = error }' --from ... --to ... [--limit 1000]
     grafana-traces.py count '{ resource.service.name = "svc" }' --from ... --to ... [--bin 30s]
 
 Whole surface - ops: --service (repeatable), a window (--from/--to or
---since), --limit (default 1000, the search ceiling), --name (repeatable;
-default: every operation the window's traces are rooted at), --settle
+--since), --limit (default 1000, the search ceiling), --name (repeatable,
+adds an operation to those the window's traces are rooted at), --settle
 (default 90s, the export lag for the span metrics, as grafana-metrics.py),
---fetch DIR (also fetch each operation's p50, worst-rooted and
-worst-containing exemplar and summarise them). get: trace ids in either form
+--top (default 15: for a service never rooted in the window - the output
+says why, from the root scan - its operations are the busiest span-metric
+names by the counter's settled value, capped there), --fetch DIR (also
+fetch each operation's p50, worst-rooted and worst-containing exemplar and
+summarise them; a never-rooted operation's p50 exemplar is its median
+containing trace, flagged as such). get: trace ids in either form
 gcx prints (padded or not), several at once, --out DIR to keep the raw
 documents, --spans to print every span instead of the summary; no window.
 search: TRACEQL, a window, --limit. count: TRACEQL, a window, --bin (default
@@ -191,6 +195,8 @@ def cmd_ops(ns) -> tuple[int, dict]:
                 ops[(s, t["rootTraceName"])] = None
             else:
                 root = t.get("rootServiceName") or "?"
+                if root == s:
+                    root = "<no root name>"
                 other_roots[s][root] = other_roots[s].get(root, 0) + 1
     # Decided on the root scan alone: a --name adds an operation, it never
     # switches the discovery off.
@@ -246,7 +252,7 @@ def cmd_ops(ns) -> tuple[int, dict]:
                 why = f"its {seen[s]} traces are rooted at {roots}" + (
                     f" - {len(names)} operations taken from its span metrics"
                     + (
-                        f" (the top {len(names)} of {len(ranked)} by calls; --top raises it)"
+                        f" (the top {len(names)} of {len(ranked)} by the counter's settled value; --top raises it)"
                         if len(ranked) > len(names)
                         else ""
                     )
