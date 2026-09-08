@@ -376,6 +376,18 @@ Steps:
      more than three means a second stack is up.
      Leave the oddyssey stack up — it is the user's, and it was probably
      up before the run.
+   - **delete the run's scratch directory under the system temp dir**
+     (`$TMPDIR/opencode/`), every run's, not only this one's. Runs name
+     that directory themselves and the names collide: one run of #505
+     picked a name an earlier session had already used and inherited 248
+     files — another model's query outputs, its trace dumps and its
+     analysis scripts. That run happened never to read them, which was
+     luck, not design: a single `ls` of its own scratch would have handed
+     it a worked answer key, which is exactly what step 9 refuses to let
+     the observation report carry into the repository. The directory is
+     the same hazard with none of the protection, so clear it, and clear
+     it after the run rather than during — the run writes its own k6
+     summary there.
    - delete the untracked files step 3's install created and revert its
      edits to tracked files, against the `git status --porcelain` you
      recorded — leave anything that existed before untouched, the
