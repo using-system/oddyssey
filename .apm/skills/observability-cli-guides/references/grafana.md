@@ -107,7 +107,11 @@ python3 <Skills>/observability-cli-guides/scripts/grafana-discover.py <svc> [<sv
 Per service: the metric names the store carries, the root operations its
 traces name with their counts, its log line count and severities, and
 whether a CPU profile exists — presence and absence with the same weight.
-Surface: service names (positional), a window, `--json`. Nothing else.
+Surface: service names (positional), a window, `--label-key` (the label a
+service is named by on metrics, logs and profiles — default `service_name`,
+the OTel resource convention; a scrape-based Prometheus names it `job`;
+traces are always selected on `resource.service.name`), `--json`. Nothing
+else.
 This is the observation-time counterpart of the `setup-local-stack`
 skill's `probe_services.py` (which answers the preflight's "is this
 service emitting at all, under which identity" over a lookback); this one

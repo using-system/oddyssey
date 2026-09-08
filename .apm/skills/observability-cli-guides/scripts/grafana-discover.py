@@ -11,8 +11,11 @@ absence are reported with the same weight.
     grafana-discover.py svc-a --since 30m --json
 
 Whole surface: service names (positional, required), a window (--from/--to or
---since), --json. Reads GCX_CONFIG. Exit 0 when every probe ran, 2 when one
-failed outright (the failure is in the output).
+--since), --label-key (the label a service is named by on metrics, logs and
+profiles - default service_name, the OTel resource convention; a scrape-based
+Prometheus names it job), --json. Traces are always selected on the resource
+attribute service.name. Reads GCX_CONFIG. Exit 0 when every probe ran, 2 when
+one failed outright (the failure is in the output).
 """
 
 from __future__ import annotations
@@ -38,11 +41,11 @@ from grafana_gcx import (
 )
 
 
-def probe(services: list[str], win: list[str]) -> dict:
+def probe(services: list[str], win: list[str], key: str = "service_name") -> dict:
     calls = []
     for s in services:
         calls += [
-            ["metrics", "series", f'{{service_name="{s}"}}', *win],
+            ["metrics", "series", f'{{{key}="{s}"}}', *win],
             [
                 "traces",
                 "query",
@@ -54,7 +57,7 @@ def probe(services: list[str], win: list[str]) -> dict:
             [
                 "logs",
                 "query",
-                f'{{service_name="{s}"}}',
+                f'{{{key}="{s}"}}',
                 *win,
                 "--limit",
                 str(LOG_LIMIT),
@@ -62,13 +65,13 @@ def probe(services: list[str], win: list[str]) -> dict:
             [
                 "profiles",
                 "query",
-                f'{{service_name="{s}"}}',
+                f'{{{key}="{s}"}}',
                 "--profile-type",
                 CPU_PROFILE,
                 *win,
             ],
         ]
-    calls.append(["profiles", "labels", "--label", "service_name", *win])
+    calls.append(["profiles", "labels", "--label", key, *win])
     results = run_many(calls)
     prof_services = label_names(results[-1].data) if results[-1].ok else []
     report = {
@@ -163,9 +166,14 @@ def render(r: dict) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("services", nargs="+")
+    ap.add_argument(
+        "--label-key",
+        default="service_name",
+        help="label naming a service on metrics, logs and profiles (default service_name)",
+    )
     add_window(ap)
     ns = ap.parse_args()
-    r = probe(ns.services, window_args(ns))
+    r = probe(ns.services, window_args(ns), ns.label_key)
     emit(r, ns.json, render)
     return 2 if r["failed"] else 0
 

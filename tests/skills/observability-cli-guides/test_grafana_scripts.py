@@ -214,6 +214,13 @@ def test_discover_reports_presence_and_absence_per_service(fake_gcx):
     calls = fake_gcx.read_text().splitlines()
     assert sum(1 for c in calls if c.startswith("profiles labels")) == 1
     assert all("--limit 1000" in c for c in calls if c.startswith("traces query"))
+    r = run("grafana-discover", "svc", *WIN, "--label-key", "job", "--json")
+    assert r.returncode == 0, r.stderr
+    calls = fake_gcx.read_text().splitlines()
+    assert any(c.startswith('metrics series {job="svc"}') for c in calls)
+    assert any(c.startswith('logs query {job="svc"}') for c in calls)
+    assert any(c.startswith("profiles labels --label job") for c in calls)
+    assert any('resource.service.name = "svc"' in c for c in calls)
 
 
 def test_metrics_subcommands_compose_the_documented_queries(fake_gcx):
