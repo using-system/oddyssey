@@ -190,18 +190,18 @@ incomparable. The same holds for re-deriving by hand what one of them
 just printed. A small helper for something no shipped script covers is
 fine; name it in section 1's run record, with what it did and why
 nothing shipped covered it. **A query is not that case either.** When
-the backend's reference ships a script per signal — `grafana.md` does,
-for a remote Grafana and the local stack alike: what a window holds,
-per-operation latency with its exemplars fetched, a trace's span tree,
-exact log counts, top profile frames — the query is that script's
-invocation, with the flags the reference states, and a query runner or
-an envelope parser you would write is one of them rebuilt: run the
-script, and when it lacks a shape of the work, record that in section
-1 rather than wrap it. **Every flag of every one of them is stated in
-that reference's `## Query by signal`, with a copy-pasteable invocation
-per subcommand** — read that section once, when the investigation
-starts, and take the invocations from it: `--help` on a shipped script
-answers nothing the section does not, and costs a turn per script. On a backend whose reference ships none, a
+the backend's reference ships a script for a query step — what a window
+holds, per-operation latency with its exemplars fetched, a trace's span
+tree, exact log counts, top profile frames, whichever it ships — the
+query is that script's invocation, with the flags the reference states,
+and a query runner or an envelope parser you would write is one of them
+rebuilt: run the script, and when it lacks a shape of the work, record
+that in section 1 rather than wrap it. **Every flag of every shipped
+script is stated in the reference's `## Query by signal`, with a
+copy-pasteable invocation per subcommand** — read that section once,
+when the investigation starts, and take the invocations from it:
+`--help` on a shipped script answers nothing the section does not, and
+costs a turn per script. On a backend whose reference ships none, a
 handful of CLI calls is a shell command with its jobs backgrounded, not
 a file you author. Either way the service probe already answers
 presence, identity and the counter baseline — check its output before
@@ -289,7 +289,7 @@ run record.
    repository, `.odd/observability-stacks/<name>.md`, read by the same
    sections — and what the run teaches it goes back into it, the
    section before the report says how. Everything else is yours: the query surface
-   per signal (on a Grafana stack, the scripts it names), remote targeting, resource discovery,
+   per signal (the scripts it names, when it ships them), remote targeting, resource discovery,
    planning notes — the discovery and query commands come from there,
    not from memory; when a reference routes a section elsewhere,
    follow the routing to the named sections and read nothing else of
@@ -557,13 +557,13 @@ last poll; `Started`/`Ended` carry the run's own, and they are what the
 `window` frontmatter holds.
 
 Every service emits its **own** metrics, spans, and logs — **discover
-first, then query what you found; never assume names**. On a Grafana
-stack, remote or local, the discovery **is** one invocation of
-`grafana.md`'s `grafana-discover.py` — every service, every signal, one
-call, the commands it ran printed for the record — and nothing below
-this sentence is written: the shape it describes is the one the script
-already has inside. **Only on a backend whose reference ships no
-discovery script** do you write it yourself, as follows. The five
+first, then query what you found; never assume names**. When the
+backend's reference ships the discovery as one script — every service,
+every signal, one call, the commands it ran printed for the record — the
+discovery **is** that invocation, and nothing below this sentence is
+written: the shape it describes is the one the script already has
+inside. **Only on a backend whose reference ships no discovery script**
+do you write it yourself, as follows. The five
 discoveries below are independent of each other: **run them
 concurrently inside one shell tool call, never delegated** — each
 command backgrounded with `&` and its PID captured, its **stdout**
@@ -671,15 +671,14 @@ Then go from aggregates to explanations:
 - **Exemplars** — for each operation that matters, fetch three traces: one
   p50-representative, the worst-duration one, and an error one if errors
   exist (at `quick` depth, the worst-duration one only — the Depth
-  section). On a Grafana stack this whole step — the ranking, the
-  searches and the fetches — is **one invocation** of `grafana.md`'s
-  `grafana-traces.py ops … --fetch <dir>`: it ranks every operation the
-  window's traces are rooted at, picks its p50, worst-rooted and
-  worst-containing exemplars, fetches them concurrently and summarises
-  them; an error exemplar is one `grafana-traces.py search '{ status =
-  error }'` then `get`. Nothing below this sentence is written on a
-  Grafana stack. **Only on a backend whose reference ships no such
-  script**, the worst-duration search is **at most two searches per
+  section). When the backend's reference ships this whole step as a
+  script — one that ranks the operations the window's traces are rooted
+  at, picks their p50 and worst exemplars, fetches them concurrently and
+  summarises them — that invocation is the step, searches and fetches
+  both, and an error exemplar is that reference's error search followed
+  by its fetch; nothing below this sentence is written then. **Only on a
+  backend whose reference ships no such script**, the worst-duration
+  search is **at most two searches per
   operation**, never a filter tightened over successive searches: one
   search scoped to the service and the operation with a single
   span-duration predicate at the p99 already measured for that
