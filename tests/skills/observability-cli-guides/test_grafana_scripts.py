@@ -534,20 +534,56 @@ def test_traces_ops_takes_a_never_rooted_services_operations_from_its_span_metri
     r = run("grafana-traces", "ops", "--service", "orders-api", *WIN, "--json")
     o = json.loads(r.stdout)
     assert r.returncode == 0, r.stdout
-    assert (
-        "orders-api" in o["never_rooted"]
-        and "span metrics" in o["never_rooted"]["orders-api"]
-    )
-    assert o["operations"], "operations expected from the span metrics"
+    nr = o["never_rooted"]["orders-api"]
+    assert nr["traces_seen"] > 0 and "llmbench-api" in nr["roots"]
+    assert nr["operations_from_span_metrics"] and "rooted at llmbench-api" in nr["why"]
     row = next(iter(o["operations"].values()))
     assert row["rooted_traces"] == 0 and row["containing_traces"] > 0
     assert row["worst_containing_trace"] and "span_p50_ms" in row
-    calls = fake_gcx.read_text()
+    assert row["p50_exemplar_is_containing"] and len(row["p50_trace"]) == 32
     assert (
-        "count by (span_name) (last_over_time(traces_spanmetrics_calls_total" in calls
+        "sum by (span_name) (last_over_time(traces_spanmetrics_calls_total"
+        in fake_gcx.read_text()
     )
     text = run("grafana-traces", "ops", "--service", "orders-api", *WIN).stdout
-    assert "never a trace's root" in text
+    assert "never a trace's root" in text and "contain" in text.splitlines()[0]
+    # --name adds an operation and never switches the discovery off
+    r = run(
+        "grafana-traces",
+        "ops",
+        "--service",
+        "orders-api",
+        "--name",
+        "X",
+        *WIN,
+        "--json",
+    )
+    o = json.loads(r.stdout)
+    assert "orders-api X" in o["operations"]
+    assert o["never_rooted"]["orders-api"]["operations_from_span_metrics"]
+    # --top caps the list by calls, and says so
+    r = run(
+        "grafana-traces", "ops", "--service", "orders-api", "--top", "1", *WIN, "--json"
+    )
+    nr = json.loads(r.stdout)["never_rooted"]["orders-api"]
+    assert len(nr["operations_from_span_metrics"]) == 1 and "top 1 of" in nr["why"]
+
+
+def test_traces_ops_tells_no_traces_from_no_span_metrics_and_stays_quiet_when_rooted(
+    fake_gcx,
+):
+    # "nope" in the selector -> the trace search answers nothing at all
+    r = run("grafana-traces", "ops", "--service", "nope-svc", *WIN, "--json")
+    nr = json.loads(r.stdout)["never_rooted"]["nope-svc"]
+    assert nr["traces_seen"] == 0 and "check the service name" in nr["why"]
+    assert "callers" not in nr["why"] and "rooted at" not in nr["why"]
+    # traces rooted elsewhere but "no_such" -> the span-metrics query answers nothing
+    r = run("grafana-traces", "ops", "--service", "no_such-svc", *WIN, "--json")
+    nr = json.loads(r.stdout)["never_rooted"]["no_such-svc"]
+    assert nr["traces_seen"] > 0 and "pass --name" in nr["why"]
+    # a rooted service carries no never_rooted entry
+    r = run("grafana-traces", "ops", "--service", "llmbench-api", *WIN, "--json")
+    assert json.loads(r.stdout)["never_rooted"] == {}
 
 
 def test_traces_get_summarises_and_count_deduplicates_bins(fake_gcx):
@@ -709,6 +745,30 @@ def test_context_uses_the_users_config_in_place_when_it_is_already_current(
     assert not list(tmp_path.glob("oddyssey/gcx-session-*"))
     text = run("grafana-context", "--stack", "prod").stdout
     assert "in place, nothing written" in text and "connected" in text
+    assert "tempo=tempo (not a context default" in text and "loki=loki," in text
+    assert json.loads(run("grafana-context", "--json").stdout)["context_defaults"] == [
+        "loki"
+    ]
+
+
+def test_current_context_reads_quoted_commented_and_absent_values(tmp_path):
+    context = load("grafana-context")
+    for body, want in (
+        ('current-context: "prod"\n', "prod"),
+        ("current-context: 'prod' # the one\n", "prod"),
+        ("current-context: prod   # comment\n", "prod"),
+        ("contexts:\n  prod:\n    stack: prod\n", ""),
+    ):
+        f = tmp_path / "c.yaml"
+        f.write_text(body, encoding="utf-8")
+        assert context.current_context(str(f)) == want, body
+    f = tmp_path / "d.yaml"
+    f.write_text(
+        "contexts:\n  prod:\n    stack: prod\n    datasources:\n      loki: l\n      prometheus: p\n  other:\n    datasources:\n      tempo: t\ncurrent-context: prod\n",
+        encoding="utf-8",
+    )
+    assert context.context_defaults(str(f), "prod") == {"loki", "prometheus"}
+    assert context.context_defaults(str(f), "other") == {"tempo"}
 
 
 def test_session_paths_never_collide_inside_one_second(tmp_path, monkeypatch):

@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
-"""A per-session gcx context for a remote Grafana, without touching the user's config.
+"""The gcx context a remote mission queries through, proved, without touching the user's config.
 
-    grafana-context.py --stack prod
+    grafana-context.py
     grafana-context.py --stack prod --json
 
 Whole surface: --stack NAME (the gcx context to target; default the user's
-current one), --json. It copies the user's gcx config to a session path of
-its own (one per stack and session, never shared), makes NAME the copy's
-current context, reads `gcx datasources list` on it and writes the default
-datasource UID per signal into the copy (so no later call pays `-d <uid>`),
-then proves the copy with `gcx config check`. Prints the export line to put
-in front of every later call, the context, and the four UIDs. Exit 0 when
-the check passed, 1 when it did not - the message says what to do, and it
-is the user's to do: keychain-backed credentials are bound to the original
-file's path and reject the copy; the fix is `gcx login <stack> --config
-<the session path>`, run by the user, then this script again. Never copies a
+current one), --json. When NAME is the user's current context, the user's
+config is used in place - nothing copied, nothing written: gcx resolves a
+signal's datasource from the stack when the context carries no default, and
+a keychain-bound credential answers only from the file it was bound to.
+When NAME is another context, the user's config is copied to a session path
+of its own (one per stack and session, never shared), NAME is made the
+copy's current context and the default datasource UID per signal is written
+into the copy. Both paths read `gcx datasources list`, prove the context
+with `gcx config check --context NAME`, and print the export line to put in
+front of every later call, the context, and the four UIDs (marked when a
+UID is not a context default but what the stack resolves). Exit 0 when the
+check passed, 1 when it did not - the message says what to do, and it is
+the user's to do (a re-login; on the copy path with `--config <the session
+path>`, since a keychain-bound credential rejects the copy). Never copies a
 credential out of the keychain, never writes into the user's file, and there
 is no other fallback: the scripts resolve their datasource from the context
 and take no `-d`.
@@ -92,6 +96,38 @@ def current_context(path: str) -> str:
             if m:
                 return m.group(1)
     return ""
+
+
+def context_defaults(path: str, context: str) -> set[str]:
+    """The datasource kinds `contexts.<context>.datasources` already names."""
+    kinds: set[str] = set()
+    top = None
+    in_ctx = in_ds = False
+    with open(path, encoding="utf-8") as fh:
+        for ln in fh.read().splitlines():
+            key = _top_key(ln)
+            if key is not None:
+                top = key
+                in_ctx = in_ds = False
+                continue
+            if top != "contexts":
+                continue
+            if re.match(rf'^  "?{re.escape(context)}"?:\s*$', ln):
+                in_ctx, in_ds = True, False
+                continue
+            if re.match(r"^  \S", ln):
+                in_ctx = in_ds = False
+                continue
+            if in_ctx and re.match(r"^    datasources:\s*$", ln):
+                in_ds = True
+                continue
+            if in_ctx and re.match(r"^    \S", ln):
+                in_ds = False
+            if in_ds:
+                m = re.match(r'^      "?([A-Za-z0-9_-]+)"?:', ln)
+                if m:
+                    kinds.add(m.group(1))
+    return kinds
 
 
 def set_context(path: str, context: str, uids: dict[str, str]) -> None:
@@ -173,14 +209,22 @@ def main() -> int:
         shutil.copyfile(src, dst)
     env = {"GCX_CONFIG": dst}
     ds = run_gcx(["datasources", "list", "--context", context], env=env)
+    relogin = (
+        f"gcx login {context}" if in_place else f"gcx login {context} --config {dst}"
+    )
     if not ds.ok:
-        hint = f"the copy at {dst} was rejected - if the message names the keychain, run `gcx login {context} --config {dst}` yourself, then this script again"
+        hint = (
+            f"your current context could not be queried - if the message names the credential, run `{relogin}` yourself, then this script again"
+            if in_place
+            else f"the copy at {dst} was rejected - if the message names the keychain, run `{relogin}` yourself, then this script again"
+        )
         print(
             json.dumps(
                 {
                     "ok": False,
                     "context": context,
                     "config": dst,
+                    "in_place": in_place,
                     "error": ds.error,
                     "hint": hint,
                 }
@@ -190,6 +234,7 @@ def main() -> int:
         )
         return 1
     uids = {k: pick_uid((ds.data or {}).get("datasources") or [], k) for k in KINDS}
+    defaults = context_defaults(src, context) if in_place else set(KINDS)
     if not in_place:
         set_context(dst, context, uids)
     check = subprocess.run(
@@ -207,6 +252,7 @@ def main() -> int:
         "in_place": in_place,
         "export": f"export GCX_CONFIG={dst}",
         "datasources": uids,
+        "context_defaults": sorted(defaults),
         "check": (check.stdout + check.stderr).strip().splitlines()[-1:],
     }
     if ns.json:
@@ -224,15 +270,19 @@ def main() -> int:
         )
         print(
             "datasources: "
-            + ", ".join(f"{k}={v or '(none found)'}" for k, v in uids.items())
+            + ", ".join(
+                f"{k}={v or '(none found)'}"
+                + (
+                    ""
+                    if k in defaults or not v
+                    else " (not a context default - gcx resolves it from the stack)"
+                )
+                for k, v in uids.items()
+            )
         )
         print(
             ("connected" if ok else "NOT connected - " + " ".join(result["check"]))
-            + (
-                f"; the fix is yours: gcx login {context} --config {dst}, then run this again"
-                if not ok
-                else ""
-            )
+            + (f"; the fix is yours: {relogin}, then run this again" if not ok else "")
         )
     return 0 if ok else 1
 

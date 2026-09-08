@@ -36,45 +36,33 @@ identical either way.
 
 ## Remote missions — targeting without touching the user's config
 
-A remote mission runs on the user's own gcx context and must never write
-into it. Every query script resolves its datasource from the context's
-`datasources.<kind>` defaults, and takes no `-d` — so a mission needs a
-context that carries those defaults and is current. This skill ships the
-remote mirror of the local pattern:
-
 ```bash
-python3 <Skills>/observability-cli-guides/scripts/grafana-context.py --stack <context name>
+python3 <Skills>/observability-cli-guides/scripts/grafana-context.py [--stack <context name>] [--json]
 ```
 
-That is the whole surface — `--stack <name>` (the gcx context to target;
-default the user's current one) and `--json`. **When `<name>` is the
-user's current context, it uses the user's config in place** — nothing
-copied, nothing written: gcx resolves each signal's datasource from the
-stack when the context carries no default (verified 2026-09-08 on Cloud,
-all four signals answered with `loki` and `prometheus` the only defaults
-set), and a keychain-bound credential answers only from the file it was
-bound to. Only when `<name>` is another context does it copy the user's
-config to a session path of its own (one per stack and session, never
-shared), make `<name>` the copy's current context (its [`config view`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_config_view.md) is
-the read), reads that context's [`datasources list`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_datasources_list.md), writes the
-default datasource UID per signal into the copy, proves it with
-[`config check --context <name>`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_config_check.md), and prints
-the `export GCX_CONFIG=…` line to put in front of every later call plus
-the four UIDs. The user's file is never touched and the copy dies with
-the session. On Grafana Cloud `datasources list` returns `"type": ""` for
-every datasource (observed 2026-08), so the script maps by type first and
-then by the stock `…-prom` / `-traces` / `-logs` / `-profiles` UID naming.
+Whole surface: `--stack` (default: the user's current context), `--json`.
+Prints the `export GCX_CONFIG=…` line to put in front of every later
+call, the context, and the four datasource UIDs (marked when a UID is
+not a context default: gcx then resolves it from the stack). Exit 0 =
+proved with [`config check --context`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_config_check.md); exit 1 =
+the message names the fix, which is the user's, never the mission's.
 
-Exit 1 on the copy path is the copy being rejected, and the message says
-so: keychain-backed credentials (OAuth sign-in, `gcx login`-stored
-tokens) are bound to the config file's path — "the keychain reference does not match this config
-source" (verified 1.2.0). The fix is the user's, never the mission's:
-`gcx login <stack> --config <the session path the script printed>`, then
-the script again. **There is no other fallback**: the scripts take no
-datasource flag, so a mission with no proved session copy stops and says
-so rather than querying whatever context happens to be current. Never
-copy a credential out of the keychain or the user's file, and never write
-into the user's config to "just add" the defaults.
+- Target is the user's current context (the usual case): the user's
+  file is used in place, nothing copied, nothing written — a
+  keychain-bound credential answers only from the file it was bound to,
+  and no default is needed (verified 2026-09-08 on Cloud: four signals
+  answered with `loki` and `prometheus` the only defaults set). Fix on
+  exit 1: `gcx login <stack>`.
+- Target is another context: the user's file is copied to a session path
+  (one per stack and session), the copy gets that context and the
+  default UID per signal from [`datasources list`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_datasources_list.md).
+  Fix on exit 1 ("the keychain reference does not match this config
+  source", verified 1.2.0): `gcx login <stack> --config <the session path>`.
+- No other fallback: the scripts take no `-d`; a mission with no proved
+  context stops. Never copy a credential, never write into the user's
+  file. On Cloud, `datasources list` returns `"type": ""` (observed
+  2026-08): UIDs are mapped by type, then by the `…-prom` / `-traces` /
+  `-logs` / `-profiles` naming.
 
 ## Query by signal
 
@@ -193,50 +181,39 @@ and [`metrics series`](https://raw.githubusercontent.com/grafana/gcx/main/docs/r
 ### Traces
 
 ```bash
-python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py ops --service <svc> [--service <svc>] --from <start> --to <end> --fetch <dir>
-python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py get <trace id> [<trace id> ...] [--spans] [--out <dir>]
-python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py count '<TraceQL>' --from <start> --to <end> --bin 30s
-python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py search '<TraceQL>' --from <start> --to <end> --limit 1000
+python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py ops --service <svc> [--service <svc> ...] [--name <operation> ...] --from <start> --to <end> [--fetch <dir>] [--limit 1000] [--settle 90s] [--top 15] [--json]
+python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py get <trace id> [<trace id> ...] [--spans] [--out <dir>] [--json]
+python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py count '<TraceQL>' --from <start> --to <end> [--bin 30s] [--json]
+python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py search '<TraceQL>' --from <start> --to <end> [--limit 1000] [--json]
 ```
 
-Four subcommands, the whole surface. `ops` (`--service` repeatable,
-`--name` repeatable to add operations the window's roots do not show,
-`--limit` default 1000, `--settle` default `90s` as for the metrics,
-`--fetch <dir>`, a window) prints, per operation each service's traces
-are rooted at — and, for a service that is **never a root** in the window
-(every caller instrumented: the root is the caller's client span; the
-output says so), per span name the store's span metrics carry for it, in
-one query, the trace-level columns then reading the traces *containing*
-the operation (verified 2026-09-08 on Cloud: seven operations for a
-service with zero rooted traces) — **two latency readings that are not
-the same number**: the
-span-level p50/p95/p99 and call count from the store's span metrics
-(`traces_spanmetrics_latency_bucket`, settled, exact — present on the
-local stack and on Cloud when the metrics generator is on; the output
-says when it is absent for an operation, and flags `RESET` with the
-calls withheld when the generator restarted inside the window), and the
-trace-level p50/p95/max
-over the traces *rooted* at the operation (integer milliseconds — a
-sub-millisecond operation reads 0 there); plus the worst trace
-*containing* the operation, which is where a fan-out shows. `--fetch` also
-retrieves each operation's p50, worst-rooted and worst-containing
-exemplar and prints its summary: root, duration, span count,
-per-`(service, name)` counts with the longest span, error spans, GenAI
-token totals. `get` takes **several** trace ids in one invocation — in
-either form gcx prints, padded or not — fetches them concurrently and
-prints one summary each (a loop of one `get` per id is the serial shape
-it exists to remove); `--spans` prints every span with its parent, kind,
-duration and attributes instead; `--out <dir>` keeps the raw documents;
-it takes no window. `count` counts the traces a TraceQL selector matches
-over a window in `--bin` slices (default `30s`), deduplicated on trace id
-— a trace overlapping two bins is listed in both — and says when a bin
-hit the 1 000 ceiling (narrow the bin or split the selector). `search`
-runs a raw TraceQL expression over a window with `--limit` and lists what
-it matched, ids padded. Compose a TraceQL filter inside one pair of
-braces — `{ resource.service.name = "svc" && span.http.status_code >= 500 }`
-— never as two brace groups joined by `&&` (a parse error). Behind the
-four: [`traces query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_query.md), [`traces get`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_get.md) and, for the span metrics,
+Four subcommands, the whole surface above (`--since <duration>` replaces
+`--from/--to` everywhere). Behind them: [`traces query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_query.md),
+[`traces get`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_get.md) and, for the span metrics,
 [`metrics query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_query.md).
+
+- `ops` — per operation of each service: rooted and containing trace
+  counts, span-level p50/p95/p99 and calls (span metrics, settled,
+  bucket-interpolated; `RESET` and calls withheld when the counter fell
+  inside the window; absence said), trace-level p50/p95/max over the
+  rooted traces (integer ms), the worst containing trace. `--fetch` adds
+  each operation's p50, worst-rooted and worst-containing exemplar with
+  its summary. `--name` adds an operation the roots do not show.
+- `ops` on a service never rooted in the window (its callers are
+  instrumented, or nothing carries it): the output says which, with the
+  callers named; its operations are its `--top` busiest span-metric names
+  (capped is said), its rooted columns stay empty, the median containing
+  trace is its p50 exemplar (verified 2026-09-08 on Cloud: seven
+  operations, zero rooted).
+- `get` — several ids in one call, either form gcx prints; one summary
+  each, `--spans` every span with parent, kind, duration and attributes,
+  `--out` keeps the raw documents; no window.
+- `count` — traces matching a TraceQL selector per `--bin`, deduplicated
+  on trace id (a trace overlapping two bins is listed in both); says when
+  a bin hit the 1 000 ceiling (narrow the bin or split the selector).
+- `search` — a raw TraceQL expression, ids padded. One pair of braces:
+  `{ resource.service.name = "svc" && span.http.status_code >= 500 }` —
+  two brace groups joined by `&&` is a parse error.
 
 ### Logs
 

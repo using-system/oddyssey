@@ -180,19 +180,29 @@ def cmd_ops(ns) -> tuple[int, dict]:
     )
     all_results = list(first)
     ops: dict[tuple[str, str], None] = {}
+    seen: dict[str, int] = {}  # traces carrying a span of the service
+    other_roots: dict[str, dict[str, int]] = {}  # who the roots belong to instead
     for s, r in zip(services, first):
+        seen[s] = 0
+        other_roots[s] = {}
         for t in traces_list(r.data) if r.ok else []:
+            seen[s] += 1
             if t.get("rootServiceName") == s and t.get("rootTraceName"):
                 ops[(s, t["rootTraceName"])] = None
+            else:
+                root = t.get("rootServiceName") or "?"
+                other_roots[s][root] = other_roots[s].get(root, 0) + 1
+    # Decided on the root scan alone: a --name adds an operation, it never
+    # switches the discovery off.
+    unrooted = [s for s in services if not any(k[0] == s for k in ops)]
     for s in services:
         for n in ns.name or []:
             ops[(s, n)] = None
     # A service that is never a trace's root in the window (a server whose
     # every caller is instrumented: the root is the caller's client span)
     # has no root operation to rank. Its operations are then the span names
-    # the store's span metrics carry for it - exact, and one query.
-    unrooted = [s for s in services if not any(k[0] == s for k in ops)]
-    from_span_metrics: dict[str, list[str]] = {}
+    # the store's span metrics carry for it, ranked by calls, in one query.
+    never_rooted: dict[str, dict] = {}
     if unrooted:
         lag = parse_duration(ns.settle)
         at = iso(parse_ts(to) + timedelta(seconds=lag))
@@ -202,7 +212,7 @@ def cmd_ops(ns) -> tuple[int, dict]:
                 [
                     "metrics",
                     "query",
-                    f'count by (span_name) (last_over_time(traces_spanmetrics_calls_total{{service="{s}"}}{swin}))',
+                    f'sum by (span_name) (last_over_time(traces_spanmetrics_calls_total{{service="{s}"}}{swin}))',
                     "--time",
                     at,
                 ]
@@ -211,16 +221,45 @@ def cmd_ops(ns) -> tuple[int, dict]:
         )
         all_results += named
         for s, r in zip(unrooted, named):
-            names = sorted(
-                {
-                    x.get("metric", {}).get("span_name", "")
-                    for x in (prom_result(r.data) if r.ok else [])
-                }
-                - {""}
-            )
-            from_span_metrics[s] = names
+            calls_by_name: dict[str, float] = {}
+            for x in prom_result(r.data) if r.ok else []:
+                n = x.get("metric", {}).get("span_name", "")
+                try:
+                    v = float(x["value"][1])
+                except (KeyError, IndexError, TypeError, ValueError):
+                    v = 0.0
+                if n:
+                    calls_by_name[n] = calls_by_name.get(n, 0.0) + v
+            ranked = sorted(calls_by_name, key=lambda n: -calls_by_name[n])
+            names = ranked[: ns.top]
             for n in names:
                 ops[(s, n)] = None
+            if seen[s] == 0:
+                why = "no trace carries a span of it in this window - check the service name and the window before reading anything below"
+            else:
+                roots = ", ".join(
+                    f"{k} ({v})"
+                    for k, v in sorted(other_roots[s].items(), key=lambda kv: -kv[1])[
+                        :3
+                    ]
+                )
+                why = f"its {seen[s]} traces are rooted at {roots}" + (
+                    f" - {len(names)} operations taken from its span metrics"
+                    + (
+                        f" (the top {len(names)} of {len(ranked)} by calls; --top raises it)"
+                        if len(ranked) > len(names)
+                        else ""
+                    )
+                    if names
+                    else " - and no span metrics carry it: pass --name <operation>"
+                )
+            never_rooted[s] = {
+                "traces_seen": seen[s],
+                "roots": other_roots[s],
+                "operations_from_span_metrics": names,
+                "span_metrics_names": len(ranked),
+                "why": why,
+            }
     keys = list(ops)
     results = run_many(
         [
@@ -255,9 +294,17 @@ def cmd_ops(ns) -> tuple[int, dict]:
             max(traces, key=lambda t: t.get("durationMs", 0)) if traces else None
         )
         p50_t = by_dur[percentile_index(len(by_dur), 0.5)] if by_dur else None
+        # never rooted: the median containing trace stands in as the p50
+        # exemplar, and is marked as such
+        cont_by_dur = sorted(traces, key=lambda t: t.get("durationMs", 0))
+        p50_is_containing = False
+        if p50_t is None and cont_by_dur:
+            p50_t = cont_by_dur[percentile_index(len(cont_by_dur), 0.5)]
+            p50_is_containing = True
         table[f"{s} {n}"] = {
             "rooted_traces": st["count"],
             "containing_traces": len(traces),
+            "p50_exemplar_is_containing": p50_is_containing,
             "truncated": len(traces) >= ns.limit,
             "trace_p50_ms": st["p50"],
             "trace_p95_ms": st["p95"],
@@ -276,14 +323,7 @@ def cmd_ops(ns) -> tuple[int, dict]:
     out = {
         "window": [frm, to],
         "span_metrics_present": span_present,
-        "never_rooted": {
-            s: (
-                f"{len(names)} operations taken from the span metrics"
-                if names
-                else "no root operation and no span metrics - pass --name"
-            )
-            for s, names in from_span_metrics.items()
-        },
+        "never_rooted": never_rooted,
         "operations": dict(
             sorted(table.items(), key=lambda kv: -(kv[1]["containing_traces"] or 0))
         ),
@@ -425,27 +465,32 @@ def render(o: dict) -> str:
     out = []
     if "operations" in o:
         out.append(
-            f"{'operation':44s} {'rooted':>6} {'span p50':>8} {'p95':>7} {'p99':>7} {'calls':>6} | {'trace p50':>9} {'p95':>7} {'max':>7} | worst containing"
+            f"{'operation':44s} {'rooted':>6} {'contain':>7} {'span p50':>8} {'p95':>7} {'p99':>7} {'calls':>6} | {'trace p50':>9} {'p95':>7} {'max':>7} | worst containing"
         )
         for k, e in o["operations"].items():
             out.append(
-                f"{k:44s} {_f(e['rooted_traces']):>6} {_f(e.get('span_p50_ms')):>8} {_f(e.get('span_p95_ms')):>7} {_f(e.get('span_p99_ms')):>7} {_f(e.get('span_calls')):>6} | "
+                f"{k:44s} {_f(e['rooted_traces']):>6} {_f(e['containing_traces']):>7} {_f(e.get('span_p50_ms')):>8} {_f(e.get('span_p95_ms')):>7} {_f(e.get('span_p99_ms')):>7} {_f(e.get('span_calls')):>6} | "
                 f"{_f(e['trace_p50_ms']):>9} {_f(e['trace_p95_ms']):>7} {_f(e['trace_max_ms']):>7} | {e['worst_containing_trace']} ({_f(e['worst_containing_ms'])} ms)"
                 f"{'  TRUNCATED' if e['truncated'] else ''}"
                 f"{'  RESET inside the window (calls withheld)' if e.get('span_calls_reset') else ''}"
             )
-        for s, why in (o.get("never_rooted") or {}).items():
+        for s, nr in (o.get("never_rooted") or {}).items():
             out.append(
-                f"  {s}: never a trace's root in this window (its callers are instrumented) - {why}; the trace-level columns read the traces containing each operation"
+                f"  {s}: never a trace's root in this window - {nr['why']}"
+                + (
+                    "; its rooted columns are empty - the containing count, the worst containing trace and the median containing trace (the p50 exemplar) are its trace-level reading"
+                    if nr.get("operations_from_span_metrics")
+                    else ""
+                )
             )
         out.append(
-            "  span p50/p95/p99 and calls: span metrics, settled (exact span latency; calls = raw settled - raw start, withheld on a reset)"
+            "  span p50/p95/p99 and calls: span metrics, settled (bucket-interpolated latency; calls = raw settled - raw start, withheld on a reset)"
             + (
                 ""
                 if o.get("span_metrics_present")
                 else " - ABSENT on this store for these operations, only the trace-level reading is available"
             )
-            + "; trace p50/p95/max: search over traces rooted at the operation (integer ms); exemplar ids in --json"
+            + "; rooted/contain: traces rooted at / containing the operation; trace p50/p95/max: over the rooted ones (integer ms); exemplar ids in --json"
         )
         for tid, s in (o.get("exemplars") or {}).items():
             tok = (
@@ -509,6 +554,12 @@ def main() -> int:
     a.add_argument("--limit", type=int, default=TRACE_LIMIT)
     a.add_argument("--settle", default="90s")
     a.add_argument("--fetch")
+    a.add_argument(
+        "--top",
+        type=int,
+        default=15,
+        help="operations kept from the span metrics for a never-rooted service, by calls (default 15)",
+    )
     add_window(a)
     b = sub.add_parser("get")
     b.add_argument("ids", nargs="+")

@@ -676,8 +676,8 @@ Then go from aggregates to explanations:
   p50-representative, the worst-duration one, and an error one if errors
   exist (at `quick` depth, the worst-duration one only — the Depth
   section). When the backend's reference ships this whole step as a
-  script — one that ranks the operations the window's traces are rooted
-  at, picks their p50 and worst exemplars, fetches them concurrently and
+  script — one that ranks a service's operations from the window's
+  traces, picks their p50 and worst exemplars, fetches them concurrently and
   summarises them — that invocation is the step, searches and fetches
   both, and an error exemplar is that reference's error search followed
   by its fetch; the searches and the batched fetch below are not written

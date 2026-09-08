@@ -210,6 +210,14 @@ that names a backend's script has fused two files that change at
 different times, and the next backend added would have to edit a file
 that should not know it exists.
 
+**A stack reference is a list, never an essay.** It states each
+shipped invocation with its whole flag surface, one line per fact a
+script cannot absorb (a trap, a verified limit, a fix that is the
+user's), and nothing that narrates what the script prints — the output
+says that itself, once, at run time. A paragraph explaining a script is
+prose the run reads on every turn and a second contract the script can
+drift from; a reference grows by a bullet, never by a paragraph.
+
 **Contracts that agree are run; contracts that disagree are read.**
 Two files stating the same rule differently do not average out — the
 run opens both to arbitrate, and pays for the reading and for the
