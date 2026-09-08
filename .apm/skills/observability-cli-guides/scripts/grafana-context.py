@@ -84,6 +84,16 @@ def _top_key(line: str) -> str | None:
     return m.group(1) if m else None
 
 
+def current_context(path: str) -> str:
+    """The file's top-level `current-context`, "" when it has none."""
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            m = re.match(r"^current-context:\s*[\"']?([^\"'\s#]+)", line)
+            if m:
+                return m.group(1)
+    return ""
+
+
 def set_context(path: str, context: str, uids: dict[str, str]) -> None:
     """Make `context` current and give it datasource defaults - inside `contexts:` only."""
     with open(path, encoding="utf-8") as fh:
@@ -144,17 +154,23 @@ def main() -> int:
         msg = f"no gcx config at {src} - run `gcx login <stack> --server <url>` first (yours to run)"
         print(json.dumps({"ok": False, "error": msg}) if ns.json else msg)
         return 1
-    context = ns.stack
-    if not context:
-        view = run_gcx(["config", "view"], env={"GCX_CONFIG": src})
-        context = (view.data or {}).get("current-context", "") if view.ok else ""
+    current = current_context(src)
+    context = ns.stack or current
     if not context:
         print(
             "no gcx context selected - pass --stack <name> (see `gcx config list-contexts`)"
         )
         return 1
-    dst = session_path(context)
-    shutil.copyfile(src, dst)
+    in_place = context == current
+    if in_place:
+        # The user's own current context: use the file where it is. gcx
+        # resolves each signal's datasource from the stack when the context
+        # carries no default, and a keychain-bound credential works only
+        # from the file it was bound to - a copy would be refused.
+        dst = src
+    else:
+        dst = session_path(context)
+        shutil.copyfile(src, dst)
     env = {"GCX_CONFIG": dst}
     ds = run_gcx(["datasources", "list", "--context", context], env=env)
     if not ds.ok:
@@ -174,7 +190,8 @@ def main() -> int:
         )
         return 1
     uids = {k: pick_uid((ds.data or {}).get("datasources") or [], k) for k in KINDS}
-    set_context(dst, context, uids)
+    if not in_place:
+        set_context(dst, context, uids)
     check = subprocess.run(
         ["gcx", "config", "check", "--context", context],
         capture_output=True,
@@ -187,6 +204,7 @@ def main() -> int:
         "ok": ok,
         "context": context,
         "config": dst,
+        "in_place": in_place,
         "export": f"export GCX_CONFIG={dst}",
         "datasources": uids,
         "check": (check.stdout + check.stderr).strip().splitlines()[-1:],
@@ -195,7 +213,15 @@ def main() -> int:
         print(json.dumps(result, indent=1))
     else:
         print(result["export"])
-        print("context: " + context + " (now the copy's current context)")
+        print(
+            "context: "
+            + context
+            + (
+                " (your current context, your config used in place, nothing written)"
+                if in_place
+                else " (now the copy's current context)"
+            )
+        )
         print(
             "datasources: "
             + ", ".join(f"{k}={v or '(none found)'}" for k, v in uids.items())

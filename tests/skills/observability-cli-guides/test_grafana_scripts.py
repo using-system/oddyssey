@@ -663,6 +663,30 @@ def test_context_makes_the_stack_current_in_a_private_copy_and_never_edits_the_o
     assert again["config"] != o["config"]
 
 
+def test_context_uses_the_users_config_in_place_when_it_is_already_current(
+    fake_gcx, tmp_path, monkeypatch
+):
+    src = tmp_path / "config.yaml"
+    src.write_text(
+        "stacks:\n  prod:\n    grafana:\n      server: https://example.grafana.net\n      oauth-token: keychain:not-a-real-ref\n"
+        "contexts:\n  prod:\n    stack: prod\n    datasources:\n      loki: loki\ncurrent-context: prod\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GCX_CONFIG", str(src))
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    before = src.read_text()
+    for args in (("--stack", "prod"), ()):
+        r = run("grafana-context", *args, "--json")
+        o = json.loads(r.stdout)
+        assert r.returncode == 0 and o["ok"] and o["in_place"], r.stdout
+        assert o["config"] == str(src) and o["export"].endswith(str(src))
+        assert o["datasources"]["tempo"] == "tempo"
+    assert src.read_text() == before
+    assert not list(tmp_path.glob("oddyssey/gcx-session-*"))
+    text = run("grafana-context", "--stack", "prod").stdout
+    assert "in place, nothing written" in text and "connected" in text
+
+
 def test_session_paths_never_collide_inside_one_second(tmp_path, monkeypatch):
     monkeypatch.setenv("TMPDIR", str(tmp_path))
     context = load("grafana-context")

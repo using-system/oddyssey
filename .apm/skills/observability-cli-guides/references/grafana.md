@@ -47,9 +47,15 @@ python3 <Skills>/observability-cli-guides/scripts/grafana-context.py --stack <co
 ```
 
 That is the whole surface — `--stack <name>` (the gcx context to target;
-default the user's current one) and `--json`. It copies the user's config
-to a session path of its own (one per stack and session, never shared),
-makes `<name>` the copy's current context (its [`config view`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_config_view.md) is
+default the user's current one) and `--json`. **When `<name>` is the
+user's current context, it uses the user's config in place** — nothing
+copied, nothing written: gcx resolves each signal's datasource from the
+stack when the context carries no default (verified 2026-09-08 on Cloud,
+all four signals answered with `loki` and `prometheus` the only defaults
+set), and a keychain-bound credential answers only from the file it was
+bound to. Only when `<name>` is another context does it copy the user's
+config to a session path of its own (one per stack and session, never
+shared), make `<name>` the copy's current context (its [`config view`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_config_view.md) is
 the read), reads that context's [`datasources list`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_datasources_list.md), writes the
 default datasource UID per signal into the copy, proves it with
 [`config check --context <name>`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_config_check.md), and prints
@@ -59,9 +65,9 @@ the session. On Grafana Cloud `datasources list` returns `"type": ""` for
 every datasource (observed 2026-08), so the script maps by type first and
 then by the stock `…-prom` / `-traces` / `-logs` / `-profiles` UID naming.
 
-Exit 1 is the copy being rejected, and the message says so: keychain-backed
-credentials (OAuth sign-in, `gcx login`-stored tokens) are bound to the
-config file's path — "the keychain reference does not match this config
+Exit 1 on the copy path is the copy being rejected, and the message says
+so: keychain-backed credentials (OAuth sign-in, `gcx login`-stored
+tokens) are bound to the config file's path — "the keychain reference does not match this config
 source" (verified 1.2.0). The fix is the user's, never the mission's:
 `gcx login <stack> --config <the session path the script printed>`, then
 the script again. **There is no other fallback**: the scripts take no
