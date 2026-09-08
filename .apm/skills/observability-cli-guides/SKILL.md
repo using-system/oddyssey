@@ -38,6 +38,14 @@ For the **local oddyssey stack** (the Grafana case), the `setup-local-stack`
 skill carries the ready-made gcx context — isolated config and datasource
 UIDs. gcx is the stack's mandatory query CLI.
 
+For Grafana — remote or local — the query commands are **scripts**, not
+prose: `scripts/grafana-discover.py`, `grafana-metrics.py`,
+`grafana-traces.py`, `grafana-logs.py`, `grafana-profiles.py` (one per
+signal, plus the window inventory) and `grafana-context.py` (a per-session
+context for a remote instance). `grafana.md`'s `## Query by signal` names
+each one with its whole flag surface; a mission invokes them and never
+composes the gcx calls they wrap.
+
 ## Rules
 
 - Recommendations and commands must come from the reference's linked docs,
