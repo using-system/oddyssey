@@ -205,14 +205,14 @@ as an observation and nothing more. k6's own verdict is the exit code
 
   | Variable | Default | Notes |
   | --- | --- | --- |
-  | `K6_OTEL_SERVICE_NAME` | `k6` | the OTel `service.name` k6's own metrics carry - **verified live: lands as `service_name="k6"`, `job="k6"` in Prometheus** when exported to oddyssey's local stack. Distinguishable from the target service's own labels, never mistake one for the other. |
+  | `K6_OTEL_SERVICE_NAME` | `k6` | the OTel `service.name` k6's own metrics carry - **verified live: lands as `service_name="k6"`, `job="k6"` in the metrics store** when exported to oddyssey's local stack. Distinguishable from the target service's own labels, never mistake one for the other. |
   | `K6_OTEL_GRPC_EXPORTER_ENDPOINT` | `localhost:4317` | **matches oddyssey's local stack's default OTLP gRPC port exactly** - verified live: `K6_OTEL_GRPC_EXPORTER_INSECURE=true k6 run -o opentelemetry script.js` against a running local stack needs no endpoint override at all. |
   | `K6_OTEL_GRPC_EXPORTER_INSECURE` | (unset = TLS required) | set `true` for the local stack (no TLS) - without it the exporter fails to connect. |
   | `K6_OTEL_HTTP_EXPORTER_ENDPOINT` | `localhost:4318` | for `K6_OTEL_EXPORTER_PROTOCOL=http/protobuf` instead of the grpc default |
   | `K6_OTEL_METRIC_PREFIX` | (empty) | prefix every exported metric name |
   | `K6_OTEL_EXPORT_INTERVAL` | `10s` | how often metrics flush to the collector |
 
-  Verified live metric names landing in Prometheus:
+  Verified live metric names landing in the metrics store:
   `http_reqs_total`, `http_req_duration_milliseconds_{sum,count,bucket}`,
   `http_req_blocked_milliseconds_{sum,count,bucket}` - the `_bucket`
   suffix confirms k6's Trend metrics (like `http_req_duration`) export
@@ -222,7 +222,7 @@ as an observation and nothing more. k6's own verdict is the exit code
 
   Three things about reading those series back, recorded during the
   2026-09-06 benchmark campaign (k6 v2.2.0, this output read from a
-  Prometheus-compatible store):
+  PromQL-speaking store):
 
   - **Select on `service_name="k6"`, never on a name prefix.** The
     names above are the whole convention - `K6_OTEL_METRIC_PREFIX` is

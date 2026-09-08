@@ -308,7 +308,9 @@ def render(o: dict) -> str:
         out += [f"{n}  ({c} series)" for n, c in o["names"].items()] or ["(no series)"]
     elif "values" in o:
         unit = "series" if o["label"] else "series carry it"
-        out += [f"{v}  ({c} {unit})" for v, c in o["values"].items()] or ["(no series)"]
+        out += [f"{v or '(unset)'}  ({c} {unit})" for v, c in o["values"].items()] or [
+            "(no series)"
+        ]
     elif isinstance(o.get("rows"), dict):
         cols = [
             c
