@@ -213,7 +213,8 @@ return it along with its stored path:
    scenario, and confirm each signal arrives. Every query the protocol
    states comes from the export stack's reference in the
    `observability-cli-guides` skill, never from memory — the local
-   reference routes to grafana.md's query sections; a custom stack's
+   reference routes to the query sections of the backend reference it
+   is built on; a custom stack's
    reference is `.odd/observability-stacks/<name>.md` in the observed
    repository, and a documented command your form check finds wrong is
    a proposed diff to its query section, persisted as `odd-memory`'s
