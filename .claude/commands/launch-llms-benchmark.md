@@ -308,6 +308,16 @@ Steps:
 
 8. **Grade the report — this is your job, not the model's.**
 
+   **A run that never produced a turn produces no row either.** The
+   provider can accept the request and then stream nothing: the process
+   stays alive, the log shows one `message=process` and no bash command,
+   and the only other line is a `stream error` minutes later. One run of
+   this campaign sat that way for 30 minutes, was re-launched with the
+   identical mission against a freshly recreated stack, and repeated it.
+   Two attempts is the rule, the same as for a run that declines to drive;
+   after that "the provider did not stream" is the result, recorded with
+   its timestamps in the pull request and with no row in the table.
+
    **First, check the run actually drove the scenario.** The report's
    frontmatter window must fall *after* your launch timestamp, and its
    mode must be a driven one. A run that reads `mode: post-hoc`, or whose
@@ -352,6 +362,14 @@ Steps:
    time and 79.0% as the largest total, which is the difference between
    ruling a finding exact and ruling it wrong. Reproduce the report's
    figure under both readings before calling it unsupported.
+
+   **A large response is not on stdout.** `gcx traces get` on a wide trace
+   answers with a `gcx.spill_reference` object naming a file it wrote
+   instead of the trace; a grader that parses stdout gets a key error and
+   can rule a true finding unsupported on nothing but that. Read the
+   `spilled_to` path when the type says so. Reports also cite traces by an
+   eight-character prefix, which `gcx traces get` does not accept: resolve
+   the prefix against a `gcx traces query` listing first.
 
    A finding is confirmed when both checks hold. It is not confirmed when
    the evidence does not support it, when the cited query returns
@@ -454,7 +472,19 @@ Steps:
     used. It also notes three things the table has no column for: how
     many source files the run read **before** the drive, whether it drove
     any traffic of its own outside the stored scenario, and whether its
-    report carries a replayable verification protocol. **It carries no API key and no list of the stack's defects** —
+    report carries a replayable verification protocol.
+
+    **Count the file reads inside the run's own scripts, not only in the
+    log.** The log records a helper script's invocation, never the reads
+    inside it, so a run that greps the sources from a `batch*.sh` looks
+    like a run that never opened them: one run of this campaign read three
+    source files that way and its log named none. Grep the run's scratch
+    directory for the source paths as well, and date each read against the
+    drive. Judge the traffic question the same way: a `curl` before the
+    drive may be a health probe rather than traffic, and one after it may
+    be fetching documentation — read the command before counting it.
+
+    **It carries no API key and no list of the stack's defects** —
     the rulings read as "the report's finding N held up / did not hold
     up, because <evidence>", never as a catalogue of what the application
     gets wrong.
