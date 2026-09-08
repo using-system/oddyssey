@@ -197,7 +197,11 @@ exact log counts, top profile frames — the query is that script's
 invocation, with the flags the reference states, and a query runner or
 an envelope parser you would write is one of them rebuilt: run the
 script, and when it lacks a shape of the work, record that in section
-1 rather than wrap it. On a backend whose reference ships none, a
+1 rather than wrap it. **Every flag of every one of them is stated in
+that reference's `## Query by signal`, with a copy-pasteable invocation
+per subcommand** — read that section once, when the investigation
+starts, and take the invocations from it: `--help` on a shipped script
+answers nothing the section does not, and costs a turn per script. On a backend whose reference ships none, a
 handful of CLI calls is a shell command with its jobs backgrounded, not
 a file you author. Either way the service probe already answers
 presence, identity and the counter baseline — check its output before
