@@ -109,6 +109,12 @@ discoveries in 0.33 s against 1.56 s serial, 32 `traces get` at once with
 no failure) — so one call for three services costs one call. `<Skills>`
 is the `skills` line the preflight handoff carries (the `package-layout`
 skill's `scripts/layout.py`).
+Every subcommand prints a text rendering to read as is — the columns
+its `Output` line below names — and with `--json` one object carrying
+the keys that line names, plus `error` (empty on success) and
+`commands` (the gcx calls it ran). That is the whole output: a script's
+source is never opened to learn a shape, and a `--json` answer is never
+re-parsed by hand for a value the text form already prints.
 
 ### First, in one call: what the window holds
 
@@ -131,6 +137,10 @@ observation-time counterpart of the `setup-local-stack` skill's
 `probe_services.py` (which answers the preflight's "is this service
 emitting at all, under which identity" over a lookback); this one is per
 window and per signal, on any Grafana.
+Output: `services{<svc>: metrics{names, list[]}, traces{matching,
+rooted_here, truncated, operations{<op>: n}}, logs{lines, truncated,
+severity{<LEVEL>: n}}, profile_cpu{present, total_ns, frames}}`,
+`window`, `failed[]`, `profiled_services[]`.
 
 ### Metrics
 
@@ -180,6 +190,15 @@ than two export intervals is a window problem before it is an absence:
 widen it before ruling anything absent. Behind the six:
 [`metrics query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_query.md) (an instant query, or a range one)
 and [`metrics series`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_series.md).
+Output: `histogram` and `counter` — `rows{<label=value, ...>: ...}`
+keyed by the `--by` labels, with `metric`, `window`, `evaluated_at`,
+`note`; a histogram row carries `p50 p95 p99 count sum mean
+count_at_start count_settled count_increase sum_at_start sum_settled
+sum_increase reset`, a counter row `at_start at_end settled delta
+increase reset`. `names` — `names{<name>: series}`. `labels` —
+`values{<value, or label name>: series}`, `label`. `instant` —
+`rows[{labels{}, value}]`. `range` — `rows[{labels{}, samples,
+first[ts, v], last[ts, v], max, values[[ts, v]]}]`.
 
 ### Traces
 
@@ -227,6 +246,26 @@ Four subcommands, the whole surface above (`--since <duration>` replaces
   `{ resource.service.name = "svc" && span.http.status_code >= 500 }` —
   two brace groups joined by `&&` is a parse error.
 
+Output: `ops` — `operations{<svc> <op>: rooted_traces,
+containing_traces, truncated, trace_p50_ms, trace_p95_ms, trace_p99_ms,
+trace_max_ms, span_p50_ms, span_p95_ms, span_p99_ms, span_calls,
+span_calls_reset, p50_trace, worst_rooted_trace, worst_containing_trace,
+worst_containing_ms}`, `never_rooted{}`, `span_metrics_present`, and
+with `--fetch` `exemplars{<trace id>: summary}`. `get` —
+`traces[{summary, spans}]`: a summary is `trace_id, root, duration_ms,
+spans, services[], errors, by_name{<svc> <name>: count, max_ms},
+longest[{service, name, duration_ms}], gen_ai_tokens`; with `--spans`
+each span is `span_id, parent_id, service, scope, name, kind (SERVER,
+CLIENT, INTERNAL, PRODUCER, CONSUMER), start_ns, end_ns, duration_ms,
+status (UNSET, STATUS_CODE_OK, STATUS_CODE_ERROR), attrs{<key>:
+value}` — the text form prints each as `<ms> <service> <name> [<kind>]
+parent=<id> <its first six attrs>`, and `--json` carries the status and
+every attribute (a root's `http.response.status_code`, a child's
+`peer.service` or `db.system`): read them there, never off a raw
+document. `search` — `count, truncated, traces[{traceID,
+rootServiceName, rootTraceName, startTimeUnixNano, durationMs}]`.
+`count` — `total, capped_bins, bins[{from, to, listed, new, capped}]`.
+
 ### Logs
 
 ```bash
@@ -263,6 +302,12 @@ forms are the pipeline filters `| severity_text =~ "WARN.*|ERROR"` and
 `--pipeline` takes verbatim. The only stream labels are `service_name`,
 `service_instance_id` and `deployment_environment_name`. Behind the
 four: [`logs query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_query.md).
+Output: `count` — `lines, truncated, by_stream{<instance or
+service>: n}`. `severity` — `lines, truncated, severity{<LEVEL>: n},
+samples{<LEVEL>: [line]}`. `correlate` — `lines, with_trace_id,
+without, truncated, orphan_samples[]`. `sample` — `lines, truncated,
+samples[{ts, level, trace_id, line}]`, printed as `<level> <trace id>
+<line>` in the text form.
 
 ### Profiles
 
@@ -304,6 +349,10 @@ matched a FastAPI service where `uvicorn|app\.main` matched nothing, and
 an unanchored `urlopen` false-positived on a healthy server — issue #265).
 Behind the four: [`profiles query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_query.md), [`profiles labels`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_labels.md) and
 [`profiles list-profile-types`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_list-profile-types.md).
+Output: `top` — `total, total_seconds, frames, top_self[{frame, self,
+pct}], top_total[{frame, total_max, pct}]`, `selector`, `type`, `unit`.
+`check` — `verdict, rows[{variant, selector, total}]`. `labels` —
+`names[]`, `label`. `types` — `types[]`.
 
 ### When a gcx call is still composed by hand
 
