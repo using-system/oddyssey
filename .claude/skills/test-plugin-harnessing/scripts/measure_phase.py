@@ -166,9 +166,9 @@ def main() -> int:
     # pays when the command is typed, and one that pollutes every phase
     # number. The record says which form was used.
     command = None
-    match = re.match(r"^/([A-Za-z0-9_-]+)\s*(.*)$", mission, re.DOTALL)
+    match = re.match(r"^/([A-Za-z0-9_-]+)(?:\s+(.*))?$", mission, re.DOTALL)
     if match:
-        command, mission = match.group(1), match.group(2).strip()
+        command, mission = match.group(1), (match.group(2) or "").strip()
 
     purge_k6()
     started_at = time.time()

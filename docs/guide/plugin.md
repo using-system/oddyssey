@@ -141,8 +141,8 @@ Preflights in the main conversation - the stack through
 `odd_config_get`/`odd_config_set`, the CLI through
 `backend-configuration`'s `## Check`, `k6` through `k6-guides` when a
 benchmark is named - then dispatches `observe-run` and closes with
-the `observe-run-report` reference's `## Show` synthesis
-(`odd-memory`). `observe-run` reads `otel-guides`' generative AI
+the synthesis `odd-memory`'s `odd_report.py show` renders from the
+stored report. `observe-run` reads `otel-guides`' generative AI
 reference when the traces carry `gen_ai.*` spans.
 `otel-instrumentation-expert`
 is a boundary node, recommended when a service emits no telemetry.
@@ -234,8 +234,8 @@ the report's `stack` (never `odd_config_set` here), follows
 the `observe-run-report` reference's verification rules
 (`odd-memory`), ensures `k6` when a
 drive replay carries a benchmark, dispatches `observe-run`, and closes
-with the `observe-run-report` reference's `## Show` synthesis
-(`odd-memory`). `observe-run` reads `otel-guides`' generative AI
+with the synthesis `odd-memory`'s `odd_report.py show` renders from the
+stored report. `observe-run` reads `otel-guides`' generative AI
 reference when the traces carry `gen_ai.*` spans, as in `/odd-observe`.
 `otel-instrumentation-expert`
 is the same boundary node as in `/odd-observe`.
@@ -438,8 +438,8 @@ skills), and closes with a show skill's synthesis of what was stored.
 | --- | --- | --- |
 | [`/odd-instrument-otel`](../../.apm/prompts/odd-instrument-otel.prompt.md) | Entry point: point the `otel-instrumentation-expert` agent at a codebase | `package-layout` (`layout.py`, for the mission block's `Skills:` line); `otel-instrumentation-expert`; `odd-memory` (the `otel-instrumentation-report` reference's `## Show`) |
 | [`/odd-instrument-bench`](../../.apm/prompts/odd-instrument-bench.prompt.md) | Entry point: ask what only a human decides, ensure `k6`, then point the `k6-benchmark-expert` agent at a service | `package-layout` (`layout.py`, for the mission block's `Skills:` line); `k6-benchmark-expert`; `k6-guides` (`authoring-inputs.md`, `install.md`); `odd-memory` (the `benchmark` reference: its `## Show`, and its recall when new-versus-update is ambiguous) |
-| [`/odd-observe`](../../.apm/prompts/odd-observe.prompt.md) | Entry point: resolve the stack - built-in or custom - prove the CLI connected, resolve the depth, build the mission and invoke the `observe-run` agent | `package-layout` (`layout.py`, for the mission block's `Skills:` line); `observe-run`; `backend-configuration` (`## Check`; `## Switch` step 3 for a named custom stack); `observability-cli-guides` (`builtin-stacks.md`); `k6-guides` (`install.md`); `odd-memory` (the `observe-run-report` reference's `## Show`); `odd_config_get`, `odd_config_set`; reads `.odd/benchmarks/`, `.odd/observability-stacks/` |
-| [`/odd-verify`](../../.apm/prompts/odd-verify.prompt.md) | Entry point: replay a stored report's protocol through the `observe-run` agent and rule on everything it recorded; preflights against the report's stack and asks before a remote drive replay | `package-layout` (`layout.py`, for the mission block's `Skills:` line); `observe-run`; `backend-configuration` (`## Check`); `k6-guides` (`install.md`); `odd-memory` (the `observe-run-report` reference: its `## Show`, and its verification rules); `odd_config_get`; reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/` |
+| [`/odd-observe`](../../.apm/prompts/odd-observe.prompt.md) | Entry point: resolve the stack - built-in or custom - prove the CLI connected, resolve the depth, build the mission and invoke the `observe-run` agent | `package-layout` (`layout.py`, for the mission block's `Skills:` line); `observe-run`; `backend-configuration` (`## Check`; `## Switch` step 3 for a named custom stack); `observability-cli-guides` (`builtin-stacks.md`); `k6-guides` (`install.md`); `odd-memory` (`odd_report.py show` on the stored report, for the closing synthesis); `odd_config_get`, `odd_config_set`; reads `.odd/benchmarks/`, `.odd/observability-stacks/` |
+| [`/odd-verify`](../../.apm/prompts/odd-verify.prompt.md) | Entry point: replay a stored report's protocol through the `observe-run` agent and rule on everything it recorded; preflights against the report's stack and asks before a remote drive replay | `package-layout` (`layout.py`, for the mission block's `Skills:` line); `observe-run`; `backend-configuration` (`## Check`); `k6-guides` (`install.md`); `odd-memory` (the `observe-run-report` reference's verification rules; `odd_report.py show` on the stored report, for the closing synthesis); `odd_config_get`; reads `.odd/observe-run-reports/`, `.odd/otel-instrumentation-reports/` |
 | [`/odd-status`](../../.apm/prompts/odd-status.prompt.md) | Where is the loop? Rendered from the `.odd/` history and git alone — one screen by default, the full tables on request; records the maintainer's rulings — a decision on a finding, a tree entry classified runtime or non-runtime. Dispatches no agent | `get-status`; `odd-memory` (the `decisions` reference) when, and only when, the user asks for a ruling, then re-renders |
 | [`/odd-config`](../../.apm/prompts/odd-config.prompt.md) | Show the configured backend - stack, targeted instance, connection proof - guide a backend switch, and create or complete a custom stack file for a backend the package does not ship | `backend-configuration` (`## Check` to display, `## Switch` when the user picks a backend); `observability-cli-guides` (`builtin-stacks.md`, `CONTRACT.md` and its check script for a custom file); `odd-memory` (the `observability-stack` reference, to persist and show a custom file); writes `.odd/observability-stacks/` |
 

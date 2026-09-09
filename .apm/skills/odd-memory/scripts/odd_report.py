@@ -769,6 +769,15 @@ def baseline_path(root: Path, verifies: str) -> Path:
     return root / verifies if "/" in verifies else root / OBSERVATION_DIR / verifies
 
 
+LOCAL_PATH_RE = re.compile(r"^(?:[/.~]|[A-Za-z]:[\\/])")
+
+
+def local_paths(value: Any) -> list[str]:
+    """The values of a ``repository`` field that name a local path."""
+    values = value.values() if isinstance(value, dict) else [value]
+    return [str(v) for v in values if v and LOCAL_PATH_RE.match(str(v).strip())]
+
+
 def check_body(report: dict, root: Path) -> list[str]:
     """What the body lacks at write time: the numbered sections, no
     placeholder left, and on a replay one ruling per baseline finding."""
@@ -796,6 +805,17 @@ def check_body(report: dict, root: Path) -> list[str]:
             flagged.add(current)
             problems.append(f"placeholder left {current}")
     fm = report.get("frontmatter") or {}
+    if report["kind"] == "observation":
+        lines = body.splitlines()
+        first = next(
+            (i for i, ln in enumerate(lines) if ln.startswith("## ")), len(lines)
+        )
+        if not any(ln.startswith("# ") for ln in lines[:first]):
+            problems.append("title absent before section 1 (a `# ` line)")
+        if not any(ln.strip() and not ln.startswith("#") for ln in lines[:first]):
+            problems.append("headline absent before section 1 (one paragraph)")
+    for value in local_paths(fm.get("repository")):
+        problems.append(f"repository carries a local path, never a value: {value}")
     mode = str(fm.get("mode"))
     verifies = fm.get("verifies")
     if report["kind"] == "observation" and mode in REPLAY_MODES and verifies:
@@ -943,14 +963,14 @@ def skeleton(fields: dict, baseline: list[dict] | None, verdict_fill: bool) -> s
                     title_cell = (finding["title"] or "").replace("|", "\\|")
                     lines.append(
                         f"| {finding['id']} | {title_cell} | "
-                        f"<fill: {' | '.join(VERDICTS)}> | <fill> |"
+                        f"<fill: {' / '.join(VERDICTS)}> | <fill> |"
                     )
                 lines.append("")
         if number == 5 and baseline is not None and verdict_fill:
             gaps = gap_bullets(baseline)
             if gaps:
                 for gap, query in gaps:
-                    fate = f"<fill: {' | '.join(f for f in FATES if f != 'new')}>"
+                    fate = f"<fill: {' / '.join(f for f in FATES if f != 'new')}>"
                     lines.append(f"- {gap}{GAP_SPLIT}{fate}{GAP_SPLIT}{query}".rstrip())
                 lines.append("")
                 continue
@@ -958,7 +978,17 @@ def skeleton(fields: dict, baseline: list[dict] | None, verdict_fill: bool) -> s
     return "\n".join(lines)
 
 
-def new_report(args: argparse.Namespace) -> tuple[Path, list[str]]:
+def repository_value(text: str) -> Any:
+    value = parse_value(text)
+    for path in local_paths(value):
+        raise Refusal(
+            f"--repository carries a local path, never a value: {path} (the "
+            "origin remote normalized, host then path; omit it with no remote)"
+        )
+    return value
+
+
+def new_report(args: argparse.Namespace) -> tuple[Path, str, list[str]]:
     notes: list[str] = []
     if args.kind != "observation":
         raise Refusal(
@@ -985,6 +1015,8 @@ def new_report(args: argparse.Namespace) -> tuple[Path, list[str]]:
         raise Refusal(f"--depth is one of {', '.join(DEPTHS)}, not {args.depth!r}")
     # the two instants a query script printed (--from START --to END) are
     # the window as recorded, pasted as they are: never recomputed by hand
+    if args.window and (args.start or args.end):
+        raise Refusal("--window and --from/--to are two forms of one value; pass one")
     if not args.window and args.start and args.end:
         args.window = f"{args.start.strip()}/{args.end.strip()}"
     window = WINDOW_RE.match(args.window or "")
@@ -1095,7 +1127,7 @@ def new_report(args: argparse.Namespace) -> tuple[Path, list[str]]:
         fields["revision"] = git(repo_root, "rev-parse", "--short", "HEAD")
         fields["tree_anchor"] = ls_tree(repo_root, "HEAD")
         if args.repository:
-            fields["repository"] = parse_value(args.repository)
+            fields["repository"] = repository_value(args.repository)
         else:
             fields["repository"] = repo_identity(repo_root)
             if fields["repository"] is None:
@@ -1103,7 +1135,7 @@ def new_report(args: argparse.Namespace) -> tuple[Path, list[str]]:
                     "no origin remote: repository omitted (never a local path)"
                 )
     elif args.repository:
-        fields["repository"] = parse_value(args.repository)
+        fields["repository"] = repository_value(args.repository)
     if args.workload:
         fields["workload"] = args.workload
     if args.instance:
@@ -1367,6 +1399,10 @@ def locate(path: Path) -> tuple[Path | None, str]:
 # --- show ------------------------------------------------------------------------
 
 
+def plural(count: int, noun: str, nouns: str | None = None) -> str:
+    return f"{count} {noun if count == 1 else (nouns or noun + 's')}"
+
+
 def verdict_counts(rows: list[list[str]]) -> tuple[int, int, int]:
     passed = sum(bool(PASS_RE.search(r[3])) and not FAIL_RE.search(r[3]) for r in rows)
     failed = sum(bool(FAIL_RE.search(r[3])) for r in rows)
@@ -1410,7 +1446,10 @@ def render_headline(data: dict) -> str:
             else f"re-measure — {len(data['findings'])} findings re-measured"
         )
     else:
-        text = f"{len(findings)} anomalies ({high} high, {confirmed} confirmed), {gaps} telemetry gaps"
+        text = (
+            f"{plural(len(findings), 'anomaly', 'anomalies')} ({high} high, "
+            f"{confirmed} confirmed), {plural(gaps, 'telemetry gap')}"
+        )
         if data["baseline_name"]:
             text += f", vs baseline {data['baseline_name']}"
         elif data["no_baseline"]:
@@ -1443,6 +1482,17 @@ def render_show(data: dict, rel: str, commit: str | None) -> str:
     out += [f"{key}: {value}" for key, value in run]
     out.append("")
     if data["replay"]:
+        if data["mode"] == "re-measure" or not (data["checks"] or data["rulings"]):
+            rows = [
+                [
+                    cap(r[2], MAX_CELL)[0],
+                    cap(r[3], MAX_CELL)[0],
+                    cap(r[1], MAX_TITLE_CELL)[0],
+                ]
+                for r in data["findings"]
+            ]
+            out += table_lines(["Severity", "Confidence", "Finding"], rows, MAX_ROWS)
+            out.append("")
         if data["checks"]:
             rows = [[cap(c, MAX_CELL)[0] for c in r] for r in data["checks"]]
             out += table_lines(
@@ -1502,7 +1552,11 @@ def next_action(data: dict) -> str:
     if mode == "re-measure":
         return "no fix was under test; build the fix plan from the baseline report, then replay its protocol with /odd-verify."
     if data["decisions"]:
-        return f"settle the {len(data['decisions'])} open decisions, then build the fix plan from the report; replay its protocol with /odd-verify once the fix lands."
+        return (
+            f"settle the {plural(len(data['decisions']), 'open decision')}, then "
+            "build the fix plan from the report; replay its protocol with "
+            "/odd-verify once the fix lands."
+        )
     return "build the fix plan from the report; replay its protocol with /odd-verify once the fix lands."
 
 
@@ -1525,10 +1579,21 @@ def splice_body(path: Path, draft: Path) -> list[str]:
         notes.append(
             "the draft opened with a frontmatter block: dropped, the file's kept"
         )
-    head = frontmatter_lines(path.read_text(encoding="utf-8"))
+    before = path.read_text(encoding="utf-8")
+    head = frontmatter_lines(before)
     if not head:
         raise Refusal(f"{path.name} carries no frontmatter to keep; run new first")
     path.write_text("\n".join(head) + "\n\n" + text.strip() + "\n", encoding="utf-8")
+    problems = check_file(path, written_now=True, body=True)
+    if problems:
+        # the file keeps what new wrote - a replay's pre-filled rulings and
+        # gaps included - and the draft is what the run fixes
+        path.write_text(before, encoding="utf-8")
+        raise Refusal(
+            f"the draft does not follow the memory contract - {path.name} kept as "
+            "new wrote it, fix the draft and persist again:\n"
+            + "\n".join(f"  {draft.name}: {p}" for p in problems)
+        )
     return notes
 
 

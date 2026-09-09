@@ -740,8 +740,9 @@ def test_persist_body_splices_a_draft_under_the_frontmatter(repo, report):
     )  # the draft is never committed
 
 
-def test_persist_body_refuses_a_draft_that_breaks_the_contract_and_keeps_it(repo):
+def test_persist_body_refuses_a_broken_draft_and_keeps_what_new_wrote(repo):
     path = new(repo)
+    before = path.read_text(encoding="utf-8")
     draft = repo.root / "draft.md"
     draft.write_text(
         "# Observation report\n\n## 1. Mission and run record\n\nonly one\n",
@@ -749,9 +750,63 @@ def test_persist_body_refuses_a_draft_that_breaks_the_contract_and_keeps_it(repo
     )
     proc = run(repo, "persist", str(path), "--body", str(draft))
     assert proc.returncode == 2
-    assert "section 2 absent" in proc.stderr
-    assert "only one" in path.read_text(encoding="utf-8")  # spliced, left to fix
+    assert "section 2 absent" in proc.stderr and "draft.md" in proc.stderr
+    assert path.read_text(encoding="utf-8") == before  # the skeleton stays as written
     assert repo.git("log", "-1", "--format=%s") == "feat: initial"
+
+
+def test_persist_body_keeps_a_replay_ruling_table_when_the_draft_fails(repo, report):
+    name = baseline(repo)
+    path = new(repo, "--mode", "verify", "--verifies", name, run_name=None)
+    draft = repo.root / "draft.md"
+    sections = "\n\n".join(
+        f"## {n}. {t}\n\nx" for n, t in enumerate(report.SECTION_TITLES, 1)
+    )
+    draft.write_text("# Observation report\n\n**x**\n\n" + sections, encoding="utf-8")
+    proc = run(repo, "persist", str(path), "--body", str(draft))
+    assert proc.returncode == 2 and "F1" in proc.stderr
+    assert "| F1 |" in path.read_text(encoding="utf-8")
+
+
+def test_check_requires_a_title_and_a_headline_before_section_1(repo):
+    path = new(repo)
+    fill(path)
+    head, body = path.read_text(encoding="utf-8").split("---\n\n", 1)
+    path.write_text(head + "---\n\n## 1." + body.split("## 1.", 1)[1], encoding="utf-8")
+    proc = run(repo, "check", str(path))
+    assert proc.returncode == 2
+    assert "title absent" in proc.stderr and "headline absent" in proc.stderr
+
+
+def test_a_local_path_is_never_a_repository_value(repo):
+    base = (*NEW, "--repo", str(repo.root), "--run-name", "a", "--repository")
+    proc = run(repo, *base, "/Users/example-user/code/thing")
+    assert proc.returncode == 2 and "local path" in proc.stderr
+    proc = run(repo, *base, "{a: github.com/example-org/checkout, b: ../payment}")
+    assert proc.returncode == 2 and "local path" in proc.stderr
+
+
+def test_window_and_from_to_together_are_refused(repo):
+    proc = run(
+        repo,
+        *NEW,
+        "--repo",
+        str(repo.root),
+        "--run-name",
+        "a",
+        "--from",
+        "2026-08-10T10:04:12Z",
+        "--to",
+        "2026-08-10T10:05:03Z",
+    )
+    assert proc.returncode == 2 and "pass one" in proc.stderr
+
+
+def test_show_renders_a_re_measure_findings_table(store):
+    proc = run(store, "show", f"{OBS}/2026-09-03-1756-remeasure-mcp-read-tools.md")
+    assert proc.returncode == 0, proc.stderr
+    assert "| Severity | Confidence | Finding |" in proc.stdout
+    assert proc.stdout.count("\n| ") >= 4
 
 
 def test_persist_commits_on_a_work_branch_it_is_already_on(repo):
@@ -809,7 +864,7 @@ def test_persist_outside_a_repository_states_it(tmp_path):
     assert "commit: not committed (not a git repository)" in proc.stdout
 
 
-def test_persist_prints_the_synthesis_block_after_the_commit(repo):
+def test_persist_prints_the_headline_never_the_synthesis_block(repo):
     path = new(repo)
     fill(path)
     proc = run(repo, "persist", str(path))

@@ -309,13 +309,11 @@ Then build the mission block from that report:
   - every telemetry gap it listed: now filled or still missing, with the
     discovery query.
 
-Close the mission with the `## Show` of `odd-memory`'s
-`observe-run-report` reference: run
+Close the mission by running
 `python3 <Skills>/odd-memory/scripts/odd_report.py show <the stored path the agent's reply carries>`
-(that is its whole surface; nothing to read before the reply arrives)
-and print the rendering as the final answer, translated to the
-conversation's language - the verdict-first headline leads; the script
-is the one read of the file just written. The report file, stored in
+(its whole surface) and printing the rendering as the final answer,
+translated to the conversation's language, with the stack file's fate
+from the reply when the run changed one. The report file, stored in
 `.odd/observe-run-reports/`, remains the versioned record that the
 fix - or the planned instrumentation - was measured, not assumed:
 never re-dump the raw report in the conversation, and never let the

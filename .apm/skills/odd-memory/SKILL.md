@@ -59,8 +59,10 @@ report reference is what the persistence hands the caller, and what
   actually executed — defaults applied, not as requested. The kind's
   reference lists the fields and their meaning.
 - The body is the producing agent's artifact **as-is**, whole: the
-  section contract belongs to the agent, not to the persistence,
-  and a summary cannot feed a later diff.
+  section contract belongs to the agent, not to the persistence —
+  except the numbered headings and the few machine-read shapes a
+  kind's script fixes and checks (its reference names them) — and a
+  summary cannot feed a later diff.
 
 ## Append-only, with one exception
 

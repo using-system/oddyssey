@@ -11,7 +11,7 @@ the next `odd_stack_reset` — when in doubt, record the number.
 ## The script owns the format
 
 ```bash
-python3 <this skill's directory>/scripts/odd_report.py new --repo <observed repo> \
+python3 <this skill's directory>/scripts/odd_report.py new [--repo <observed repo>] \
   --service <name> [--service <name> ...] --stack <stack> --env <detected environment> \
   --mode <drive|observe|post-hoc|verify|re-measure> --depth <quick|full> \
   --window <start>/<end> | --from <start> --to <end> --run-name <slug> \
@@ -19,16 +19,17 @@ python3 <this skill's directory>/scripts/odd_report.py new --repo <observed repo
   [--process-restarted <true|false|service=true|false> ...] [--repository <value>] \
   [--at <UTC instant>] [--no-revision]
 python3 <this skill's directory>/scripts/odd_report.py check <path>
-python3 <this skill's directory>/scripts/odd_report.py read <path> --sections 1,2,3,7 [--record]
+python3 <this skill's directory>/scripts/odd_report.py read <path> [--sections 1,2,3,7] [--record]
 python3 <this skill's directory>/scripts/odd_report.py persist <path> --body <draft> [--no-commit]
 python3 <this skill's directory>/scripts/odd_report.py synthesis <path>
 python3 <this skill's directory>/scripts/odd_report.py show <path>
 ```
 
 That is the whole surface; `--help` adds nothing and the file has
-nothing to read. `--service` is repeated per service (never two names
-after one flag); `--kind` exists and defaults to `observation`, the
-only kind `new` writes.
+nothing to read. `--repo` defaults to the working directory and
+`--sections` to `1,2,3,7`; `--service` is repeated per service, or one
+comma-separated value; `--kind` exists and defaults to `observation`,
+the only kind `new` writes.
 
 - `new` prints the report's path. It names the file
   (`YYYY-MM-DD-HHmm-<run_name>.md` from the window's UTC start, the
@@ -50,7 +51,8 @@ only kind `new` writes.
   `--record` reduces section 1 to its scenario record and replay notes.
 - `persist --body <draft>` writes the draft under the file's
   frontmatter (a frontmatter the draft carries is dropped), runs
-  `check` — a failing file stays in place to fix, nothing committed —
+  `check` — a failing draft leaves the file as `new` wrote it, rulings
+  and gaps included, and names what the draft lacks; nothing committed —
   leaves the default branch for `docs/odd-observe-run-report-<run_name>`,
   commits the file alone (`docs(odd): observation report <run_name>`,
   the verification and re-measure subjects for a replay), and prints the
@@ -183,33 +185,19 @@ shapes are machine-read and fixed here:
 ## Return value
 
 `persist` prints it: `path:`, `commit:` (or `not committed` with the
-reason), `branch:` and `subject:` when it committed, and `headline:` —
-five lines. The reply carries them verbatim, plus, on a custom stack,
-the stack file's fate (the `observability-stack` reference's learning
+reason), `headline:`, plus `branch:` and `subject:` when it committed.
+The reply carries those lines verbatim, plus, on a custom stack, the
+stack file's fate (the `observability-stack` reference's learning
 rule) — and nothing of the body: the synthesis is rendered once, by the
-caller's `show` from the stored file, and the next wave reads the file
-at the stored path. `synthesis <path>` prints the block `show` renders
-from — the frontmatter, section 1's recalled-baseline line with its
-dropped-baseline or provisional note, section 2's delta lines (a
-replay's check rulings instead: check, before, after, verdict), section
-3's ruling table on a replay and its findings table (id, finding,
-severity, confidence — never the evidence), section 5's not-queried line
-and gap bullets, section 6's open decisions — for a reader who wants
-the inputs rather than the rendering.
+caller's `show`, and the next wave reads the file at the stored path.
+`synthesis <path>` prints the inputs `show` renders from, quoted from
+the file, for a reader who wants them rather than the rendering.
 
 ## Show
 
 `show <path>` renders the closing synthesis from the stored file and
-its carrying commit (`git log -1 --format=%h -- <path>`), in English —
-the caller prints it translated to the conversation's language, and
-adds the stack file's fate from the reply when the run changed one. In
-order: the headline shaped by `mode` (counts and the baseline for an
-observation, `PASS`/`FAIL` with the check counts for a verification,
-drift for a re-measure, `quick` and the unqueried signals stated), where
-the file lives, the run block (services, stack, mode, depth, window,
-environment, repository, baseline), the core by kind — the findings
-table or the verdict table and the rulings, then the gaps — capped at
-ten rows with `+N more in the report`, the open decisions, and the
-loop's next action. Everything comes from the stored file; the synthesis
-never replaces it — the next wave consumes the file, whose path the
-reply states.
+its carrying commit, in English, one screen; what running it cannot
+tell the caller: print it translated to the conversation's language,
+add the stack file's fate from the reply when the run changed one, and
+never let it replace the file — the next wave consumes the file, whose
+path the reply states.

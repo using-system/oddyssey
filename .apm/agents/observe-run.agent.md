@@ -74,9 +74,9 @@ the report.
     the identity is a stop-and-report ("no run observed in the window"),
     never an analysis of an empty one. An observed run's report is named
     for the run **and for you**, whether or not a benchmark is in the
-    mission — `run_name` `<what the run analyzed>-observe-<stack>`, the
-    persistence reference's naming — since another mission may be
-    watching the same run from another backend;
+    mission — the run name names what the run analyzed, and the
+    persistence script appends `-observe-<stack>` — since another
+    mission may be watching the same run from another backend;
   - **post-hoc** (default): analyze a run that already happened.
 - **Benchmark** — optional: a stored k6 benchmark, named by its
   directory under `.odd/benchmarks/<name>/` or by that path. It composes
@@ -869,18 +869,20 @@ that section, never `--help` (it answers nothing the section does not)
 — and run it with the run's values (the services, the stack, the
 detected environment, the mode, the depth, the window, the run name,
 the replayed report, the identity). It prints the path of the file it
-wrote, then the file's body: the seven headings, each followed by a
-`<fill>`. Write that body, filled, to a **draft file of your own**
+wrote, then the file's body: the title, a `<fill>` for the one-line
+headline, then the seven headings, each followed by a `<fill>`. Write
+that body, filled, to a **draft file of your own**
 with your file tool — the seven sections in this order (at `quick`
 depth, in the collapsed shape the Depth section gives sections 3 to
 6), every `<fill>` replaced, the headings kept — never open, read or
 edit the report file itself, never rewrite its frontmatter — then run
 the reference's `persist --body <draft>` on the path: it writes the
 draft under the frontmatter, checks the file, commits it alone on the
-work branch, and prints the return value — five lines: the stored
-path, the carrying commit, the branch, the subject, the headline. Your
-reply carries those lines verbatim and nothing of the report: the
-caller renders the closing synthesis from the stored file, once.
+work branch, and prints the return value — the stored path, the
+carrying commit, the headline, plus the branch and the subject when it
+committed. Your reply carries those lines verbatim and nothing of the
+report: the caller renders the closing synthesis from the stored file,
+once.
 
 1. **Mission and run record** — the mission as understood (services,
    stack and backend, mode, window, focus, expectations) and every
