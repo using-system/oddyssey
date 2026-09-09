@@ -144,6 +144,16 @@ turns and the context went (per-phase accounting, the reads of every
 file the change touched, the calls the new invocation caused), fix the
 cause, and measure again.
 
+**Under review, measure once, at the end.** The fix waves a reviewer
+asks for are not measured one by one: apply them, run the suites, and
+measure the branch as it will be merged once the reviewer is green —
+two samples minimum, against the numbers that sent it to review. A
+wave that changes what the run reads or runs (a line the run copies, a
+shape it used as a source, a new invocation) is the exception: measure
+it before the next round, because the measured 2026-09-09 case cost the
+whole gain and only the numbers said so. A loss at the end reopens the
+review with the mechanism named, never a re-run alone.
+
 **When the phase reaches the report, the findings are a metric too.**
 A harness change that cuts turns and loses findings moved the cost
 onto the reader. For every sample that wrote a report, count what it
