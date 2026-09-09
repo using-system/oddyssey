@@ -111,8 +111,10 @@ is the `skills` line the preflight handoff carries (the `package-layout`
 skill's `scripts/layout.py`).
 Every subcommand prints a text rendering to read as is — the columns
 its `Output` line below names — and with `--json` one object carrying
-the keys that line names, plus `error` (empty on success) and
-`commands` (the gcx calls it ran). That is the whole output: a script's
+the keys that line names, plus `commands` (the gcx calls it ran) and
+`error` (empty on success; `discover` lists what failed under `failed`
+instead), and `note` wherever the text form ends on an advisory line.
+That is the whole output: a script's
 source is never opened to learn a shape, and a `--json` answer is never
 re-parsed by hand for a value the text form already prints.
 
@@ -191,8 +193,7 @@ widen it before ruling anything absent. Behind the six:
 [`metrics query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_query.md) (an instant query, or a range one)
 and [`metrics series`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_series.md).
 Output: `histogram` and `counter` — `rows{<label=value, ...>: ...}`
-keyed by the `--by` labels, with `metric`, `window`, `evaluated_at`,
-`note`; a histogram row carries `p50 p95 p99 count sum mean
+keyed by the `--by` labels, with `metric`, `window`, `evaluated_at`; a histogram row carries `p50 p95 p99 count sum mean
 count_at_start count_settled count_increase sum_at_start sum_settled
 sum_increase reset`, a counter row `at_start at_end settled delta
 increase reset`. `names` — `names{<name>: series}`. `labels` —
@@ -244,30 +245,38 @@ Five subcommands, the whole surface above (`--since <duration>` replaces
   on trace id (a trace overlapping two bins is listed in both); says when
   a bin hit the 1 000 ceiling (narrow the bin or split the selector).
 - `search` — a raw TraceQL expression, ids padded; the header names the
-  first and last trace of the window and the root operations with their
-  counts. One pair of braces:
+  start time of the window's first and last trace and the root
+  operations with their counts. One pair of braces:
   `{ resource.service.name = "svc" && span.http.status_code >= 500 }` —
   two brace groups joined by `&&` is a parse error.
-- `breakdown` — over the traces rooted at the service in the window (or
-  matching `--traceql`; the newest `--sample` are fetched, concurrently):
-  per root operation, the trace count, the root's status and its
-  `http.response.status_code` distribution (`absent` when the root
-  carries none), root p50/p95/max, and every child span by `<service>
-  <name> [<kind>]` with its count per trace, p50/p95/max, errors and
-  attribute keys — the outcome-and-children table an observation builds
-  per operation, in one call, never by fetching the traces and reading
-  the documents yourself.
+- `breakdown` — over the traces rooted at the service in the window
+  (`--traceql` narrows the search, the table still keeps the traces
+  rooted at `--service` — a service never rooted is said, with the
+  services its traces are rooted at, and `ops` names its operations;
+  the newest `--sample` are fetched, concurrently): per root operation,
+  the trace count, the root's status and its `http.response.status_code`
+  distribution (`http.status_code` on an old-semconv service, `absent`
+  when the root carries neither), root p50/p95/max, and every child
+  span by `<service> <name> [<kind>]` with its count per trace,
+  p50/p95/max, errors and attribute keys — the outcome-and-children
+  table an observation builds per operation, in one call, never by
+  fetching the traces and reading the documents yourself. A get that
+  fails among many is listed under `failed`, the table is built from
+  the rest. Its text form records the search and `gcx traces get <id>
+  -o json xN`, one per trace the search listed — the ids are the
+  search's own answer, verbatim in `--json`.
 
-Output: `ops` — `operations{<svc> <op>: rooted_traces,
+Output: `ops` — `window`, `operations{<svc> <op>: rooted_traces,
 containing_traces, truncated, trace_p50_ms, trace_p95_ms, trace_p99_ms,
 trace_max_ms, span_p50_ms, span_p95_ms, span_p99_ms, span_calls,
-span_calls_reset, p50_trace, worst_rooted_trace, worst_containing_trace,
-worst_containing_ms}`, `never_rooted{}`, `span_metrics_present`, and
-with `--fetch` `exemplars{<trace id>: summary}`. `get` —
+span_calls_reset, p50_trace, p50_exemplar_is_containing,
+worst_rooted_trace, worst_containing_trace, worst_containing_ms}`,
+`never_rooted{}`, `span_metrics_present`, and with `--fetch`
+`exemplars{<trace id>: summary}`. `get` —
 `traces[{summary, spans}]`: a summary is `trace_id, root, duration_ms,
 spans, services[], errors, by_name{<svc> <name>: count, max_ms},
 longest[{service, name, duration_ms}], gen_ai_tokens`; with `--spans`
-each span is `span_id, parent_id, service, scope, name, kind (SERVER,
+each span is `trace_id, span_id, parent_id, service, scope, name, kind (SERVER,
 CLIENT, INTERNAL, PRODUCER, CONSUMER), start_ns, end_ns, duration_ms,
 status (UNSET, STATUS_CODE_OK, STATUS_CODE_ERROR), attrs{<key>:
 value}` — the text form prints each as `<ms> <service> <name> [<kind>]
@@ -276,12 +285,13 @@ and peer first>` (a root's `http.response.status_code`, a child's
 `peer.service` or `db.system` are on that line). `search` — `count,
 truncated, first, last, roots{<svc> <op>: n}, traces[{traceID,
 rootServiceName, rootTraceName, startTimeUnixNano, durationMs}]`.
-`count` — `total, capped_bins, bins[{from, to, listed, new, capped}]`.
-`breakdown` — `listed, rooted, fetched, truncated, breakdown{<svc> <op>:
-traces, root_status{<UNSET or OK or ERROR>: n}, http_status{<code or
-absent>: n}, root_p50_ms, root_p95_ms, root_max_ms, root_attrs[],
-children{<svc> <name> [<kind>]: count, in_traces, per_trace, errors,
-p50_ms, p95_ms, max_ms, attrs[]}}`.
+`count` — `traceql, bin, total, capped_bins, bins[{from, to, listed,
+new, capped}]`. `breakdown` — `window, traceql, service, listed, rooted,
+rooted_elsewhere{<svc>: n}, truncated, fetched, failed[{trace_id,
+error}], breakdown{<svc> <op>: traces, root_status{<UNSET or OK or
+ERROR>: n}, http_status{<code or absent>: n}, root_p50_ms, root_p95_ms,
+root_max_ms, root_attrs[], children{<svc> <name> [<kind>]: count,
+in_traces, per_trace, errors, p50_ms, p95_ms, max_ms, attrs[]}}`.
 
 ### Logs
 
@@ -368,8 +378,8 @@ Behind the four: [`profiles query`](https://raw.githubusercontent.com/grafana/gc
 [`profiles list-profile-types`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_list-profile-types.md).
 Output: `top` — `total, total_seconds, frames, top_self[{frame, self,
 pct}], top_total[{frame, total_max, pct}]`, `selector`, `type`, `unit`.
-`check` — `verdict, rows[{variant, selector, total}]`. `labels` —
-`names[]`, `label`. `types` — `types[]`.
+`check` — `type, verdict, rows[{variant, selector, total, error}]`.
+`labels` — `names[]`, `label`. `types` — `types[]`.
 
 ### When a gcx call is still composed by hand
 

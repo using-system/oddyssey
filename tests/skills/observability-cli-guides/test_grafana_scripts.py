@@ -82,8 +82,15 @@ if a[:2] == ["metrics", "query"]:
     out(d)
 if a[:2] == ["metrics", "series"]: out(fx("m_series"))
 if a[:2] == ["traces", "query"]:
-    out(fx("t_empty") if "nope" in a[2] else fx("t_query"))
-if a[:2] == ["traces", "get"]: out(fx("t_get"), spill=os.environ.get("FAKE_SPILL") == "1")
+    if "nope" in a[2]: out(fx("t_empty"))
+    q = fx("t_query")
+    if os.environ.get("FAKE_T_QUERY_REVERSE") == "1": q["traces"].reverse()
+    if os.environ.get("FAKE_BAD_ID") == "1":
+        q["traces"].append({"traceID": "bad" + "0" * 29, "rootServiceName": "llmbench-api", "rootTraceName": "GET /stats", "startTimeUnixNano": "1788885680000000000", "durationMs": 1})
+    out(q)
+if a[:2] == ["traces", "get"]:
+    if a[2].startswith("bad"): err()
+    out(fx("t_get"), spill=os.environ.get("FAKE_SPILL") == "1")
 if a[:2] == ["traces", "metrics"]: out(fx("t_metrics"))
 if a[:2] == ["logs", "query"]:
     if os.environ.get("FAKE_LOG_SAT") == "1":
@@ -634,6 +641,88 @@ def test_traces_breakdown_tables_each_root_operations_outcome_and_children(fake_
     r = run("grafana-traces", "breakdown", "--service", "nobody", *WIN, "--json")
     o = json.loads(r.stdout)
     assert r.returncode == 0 and o["rooted"] == 0 and o["breakdown"] == {}
+    # a never-rooted service is said, with where its traces are rooted
+    assert o["rooted_elsewhere"] == {"llmbench-api": 5}
+    text = run("grafana-traces", "breakdown", "--service", "nobody", *WIN).stdout
+    assert "none rooted at the service - their roots: llmbench-api (5)" in text
+    # --traceql narrows the search, the table still keeps the rooted traces
+    r = run(
+        "grafana-traces",
+        "breakdown",
+        "--service",
+        "llmbench-api",
+        "--traceql",
+        "{ nope }",
+        *WIN,
+        "--json",
+    )
+    o = json.loads(r.stdout)
+    assert r.returncode == 0 and o["listed"] == 0 and "{ nope }" in o["commands"][0]
+
+
+def test_traces_breakdown_keeps_the_table_when_one_get_fails_and_samples_newest_first(
+    fake_gcx,
+):
+    """One failing get among many is listed, never the whole answer lost;
+    --sample takes the newest traces whatever order the search answered."""
+    r = run(
+        "grafana-traces",
+        "breakdown",
+        "--service",
+        "llmbench-api",
+        *WIN,
+        "--json",
+        env={"FAKE_BAD_ID": "1"},
+    )
+    o = json.loads(r.stdout)
+    assert r.returncode == 0 and o["error"] == "", o["error"]
+    assert o["listed"] == o["rooted"] == 6 and o["fetched"] == 5
+    assert [f["trace_id"] for f in o["failed"]] == ["bad" + "0" * 29]
+    assert o["breakdown"]["llmbench-api GET /stats"]["traces"] == 5
+    text = run(
+        "grafana-traces",
+        "breakdown",
+        "--service",
+        "llmbench-api",
+        *WIN,
+        env={"FAKE_BAD_ID": "1"},
+    ).stdout
+    assert "6 listed, 5 fetched, 1 gets FAILED" in text and "   failed: bad" in text
+    # the text form records the search and the gets as one line, never 200 ids
+    assert "queries run (record these; 7 calls):" in text
+    assert "gcx traces get <id> -o json  x6, one per trace" in text
+    assert text.count("gcx traces get") == 1
+    # newest first, even when the search answered oldest first
+    r = run(
+        "grafana-traces",
+        "breakdown",
+        "--service",
+        "llmbench-api",
+        *WIN,
+        "--sample",
+        "2",
+        "--json",
+        env={"FAKE_T_QUERY_REVERSE": "1"},
+    )
+    o = json.loads(r.stdout)
+    fetched = [c.split()[3] for c in o["commands"][1:]]
+    newest = sorted(
+        fixture("t_query")["traces"], key=lambda t: -int(t["startTimeUnixNano"])
+    )[:2]
+    assert (
+        fetched == [t["traceID"].rjust(32, "0") for t in newest] and o["fetched"] == 2
+    )
+    # a usage mistake is refused, never a silently different sample
+    r = run(
+        "grafana-traces",
+        "breakdown",
+        "--service",
+        "llmbench-api",
+        *WIN,
+        "--sample",
+        "0",
+    )
+    assert r.returncode == 2 and "at least 1" in r.stderr
 
 
 def test_traces_search_names_the_windows_edges_and_roots_and_get_prints_the_outcome(

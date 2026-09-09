@@ -19,10 +19,16 @@ summarise them; a never-rooted operation's p50 exemplar is its median
 containing trace, flagged as such). get: trace ids in either form
 gcx prints (padded or not), several at once, --out DIR to keep the raw
 documents, --spans to print every span instead of the summary; no window.
-search: TRACEQL, a window, --limit (the header names the first and last
-trace and the root operations with their counts). count: TRACEQL, a window,
---bin (default 30s) - counts in bins deduplicated on trace id, because a
-trace overlapping two bins is listed in both, and says when a bin hit the ceiling. --json
+search: TRACEQL, a window, --limit (the header names the start time of
+the first and last trace and the root operations with their counts).
+count: TRACEQL, a window, --bin (default 30s) - counts in bins deduplicated
+on trace id, because a trace overlapping two bins is listed in both, and
+says when a bin hit the ceiling. breakdown: --service (required: the
+traces rooted at it are the table), --traceql (narrows the search; the
+table still keeps the traces rooted at --service), a window, --limit
+(default 1000), --sample (default 200: the newest traces fetched, at least
+1) - a get that fails among many is listed under failed and costs nothing
+else, the table is built from the rest. --json
 everywhere. Every subcommand prints the gcx commands it ran, so the report
 can record them. Reads GCX_CONFIG. Exit 0 on success, 1 when gcx errored -
 and then nothing but the error is printed.
@@ -104,6 +110,13 @@ def attrs_line(attrs: dict, n: int = 8) -> str:
 
 def _status(s: str) -> str:
     return s.replace("STATUS_CODE_", "")
+
+
+def _ns_int(value) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _ns_iso(value) -> str | None:
@@ -532,8 +545,19 @@ def cmd_breakdown(ns) -> tuple[int, dict]:
         return 1, {"error": r.error, "commands": [r.command]}
     listed = traces_list(r.data)
     rows = [t for t in listed if t.get("rootServiceName") == ns.service]
+    rows.sort(key=lambda t: -_ns_int(t.get("startTimeUnixNano")))
     ids = [hex_trace_id(t.get("traceID", "")) for t in rows][: ns.sample]
     docs, results = fetch_traces(ids, None)
+    failed = [
+        {"trace_id": d.get("trace_id"), "error": d.get("error")}
+        for d in docs
+        if d.get("error")
+    ]
+    rooted_by: dict[str, int] = {}
+    if not rows:
+        for t in listed:
+            k = t.get("rootServiceName") or "?"
+            rooted_by[k] = rooted_by.get(k, 0) + 1
     ops: dict[str, dict] = {}
     for d in docs:
         spans = d.get("spans") or []
@@ -603,20 +627,30 @@ def cmd_breakdown(ns) -> tuple[int, dict]:
             "root_attrs": sorted(e["root_attrs"]),
             "children": children,
         }
-    err = errors([r] + results)
+    # one failing get among many is listed, never the whole answer lost
+    err = "" if docs and len(failed) < len(docs) else errors(results)
     return (1 if err else 0), {
         "window": [frm, to],
         "traceql": traceql,
         "service": ns.service,
         "listed": len(listed),
         "rooted": len(rows),
+        "rooted_elsewhere": rooted_by,
         "truncated": len(listed) >= ns.limit,
-        "fetched": len(ids),
+        "fetched": len(docs) - len(failed),
+        "failed": failed,
         "breakdown": table,
         "error": err,
-        "note": "http_status is the root span's http.response.status_code (absent = the root carries none); a child's per_trace is its count over the operation's traces",
+        "note": "http_status is the root span's http.response.status_code, or http.status_code on an old-semconv service (absent = the root carries neither); a child's per_trace is its count over the operation's traces",
         "commands": commands([r] + results),
     }
+
+
+def _positive(value: str) -> int:
+    n = int(value)
+    if n < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return n
 
 
 def _f(v) -> str:
@@ -674,8 +708,17 @@ def render(o: dict) -> str:
     elif "breakdown" in o:
         out.append(
             f"{o['rooted']} traces rooted at {o['service']} of {o['listed']} listed, {o['fetched']} fetched"
+            + (f", {len(o['failed'])} gets FAILED" if o["failed"] else "")
             + ("  TRUNCATED at --limit" if o["truncated"] else "")
         )
+        for f in o["failed"][:10]:
+            out.append(f"   failed: {f['trace_id']}  {f['error']}")
+        if o["listed"] and not o["rooted"]:
+            out.append(
+                "   none rooted at the service - their roots: "
+                + ", ".join(f"{k} ({n})" for k, n in o["rooted_elsewhere"].items())
+                + "; grafana-traces.py ops names a never-rooted service's operations from its span metrics"
+            )
         for k, e in o["breakdown"].items():
             out.append(
                 f"== {k}  n={e['traces']}  root p50 {_f(e['root_p50_ms'])} p95 {_f(e['root_p95_ms'])} max {_f(e['root_max_ms'])} ms"
@@ -689,9 +732,19 @@ def render(o: dict) -> str:
                     + (f"  errors={c['errors']}" if c["errors"] else "")
                     + f"  attrs: {', '.join(c['attrs']) or '(none)'}"
                 )
-        if not o["breakdown"]:
-            out.append("  (no trace rooted at the service in this window)")
+        if not o["rooted"] and not o["listed"]:
+            out.append("  (no trace matched in this window)")
+        elif not o["breakdown"] and o["rooted"]:
+            out.append("  (nothing fetched - see failed, or --sample)")
         out.append("  " + o["note"])
+        cmds = o.get("commands") or []
+        out.append(f"queries run (record these; {len(cmds)} calls):")
+        out.append("  " + cmds[0] if cmds else "  (none)")
+        if len(cmds) > 1:
+            out.append(
+                f"  gcx traces get <id> -o json  x{len(cmds) - 1}, one per trace the search above listed, newest first - the ids are its answer and travel verbatim in --json"
+            )
+        return "\n".join(out)
     elif "traces" in o and o.get("count") is not None:
         out.append(
             f"{o['count']} traces{'  TRUNCATED at --limit' if o['truncated'] else ''}"
@@ -777,7 +830,7 @@ def main() -> int:
     e.add_argument("--limit", type=int, default=TRACE_LIMIT)
     e.add_argument(
         "--sample",
-        type=int,
+        type=_positive,
         default=200,
         help="traces fetched, newest first (default 200)",
     )
