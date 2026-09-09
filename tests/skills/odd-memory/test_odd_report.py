@@ -137,7 +137,7 @@ def new(repo: Repo, *extra: str, run_name: str | None = "checkout-sweep") -> Pat
         args += ["--run-name", run_name]
     proc = run(repo, *args)
     assert proc.returncode == 0, proc.stderr
-    path = Path(proc.stdout.strip())
+    path = Path(proc.stdout.splitlines()[0])
     assert path.is_file(), proc.stdout
     return path
 
@@ -167,6 +167,18 @@ def test_new_names_the_file_from_the_window_start_and_the_slug(repo, report):
     assert fm["run_name"] == "checkout-sweep"
     assert fm["date"] == "2026-08-10"
     assert fm["window"] == WINDOW
+
+
+def test_new_prints_the_skeleton_after_the_path(repo):
+    proc = run(repo, *NEW, "--repo", str(repo.root), "--run-name", "a")
+    assert proc.returncode == 0, proc.stderr
+    lines = proc.stdout.splitlines()
+    assert lines[0].endswith("2026-08-10-1004-a.md")
+    assert lines[1].startswith("--- the file below its frontmatter")
+    body = "\n".join(lines[2:])
+    written = Path(lines[0]).read_text(encoding="utf-8")
+    assert body == written.split("---\n\n", 1)[1].rstrip()
+    assert body.count("<fill>") == 8
 
 
 def test_new_at_overrides_the_stamp(repo, report):
@@ -313,7 +325,7 @@ def test_code_in_no_repository_omits_the_three_fields(tmp_path, report):
     store.mkdir()
     proc = run(store, *NEW, "--repo", str(store), "--run-name", "a", "--no-revision")
     assert proc.returncode == 0, proc.stderr
-    fm = frontmatter(report, Path(proc.stdout.strip()))
+    fm = frontmatter(report, Path(proc.stdout.splitlines()[0]))
     assert not {"revision", "tree_anchor", "repository"} & set(fm)
 
 
@@ -535,7 +547,7 @@ def test_a_replay_inherits_the_baseline_depth_and_quick_when_it_has_none(repo, r
         name,
     )
     assert proc.returncode == 0, proc.stderr
-    assert frontmatter(report, Path(proc.stdout.strip()))["depth"] == "full"
+    assert frontmatter(report, Path(proc.stdout.splitlines()[0]))["depth"] == "full"
     repo.write(f"{OBS}/{name}", BASELINE.replace("depth: full\n", ""))
     proc = run(
         repo,
@@ -558,7 +570,7 @@ def test_a_replay_inherits_the_baseline_depth_and_quick_when_it_has_none(repo, r
         "2026-08-11T10:00:00Z",
     )
     assert proc.returncode == 0, proc.stderr
-    assert frontmatter(report, Path(proc.stdout.strip()))["depth"] == "quick"
+    assert frontmatter(report, Path(proc.stdout.splitlines()[0]))["depth"] == "quick"
     assert "quick" in proc.stderr
 
 
@@ -618,7 +630,7 @@ def test_a_replay_of_an_instrumentation_report_names_it_by_path(repo, report):
         rel,
     )
     assert proc.returncode == 0, proc.stderr
-    path = Path(proc.stdout.strip())
+    path = Path(proc.stdout.splitlines()[0])
     assert path.name == "2026-08-10-1004-verify-app-python.md"
     fm = frontmatter(report, path)
     assert fm["verifies"] == rel
@@ -715,7 +727,7 @@ def test_persist_outside_a_repository_states_it(tmp_path):
     store = tmp_path / "plain"
     store.mkdir()
     proc = run(store, *NEW, "--repo", str(store), "--run-name", "a", "--no-revision")
-    path = Path(proc.stdout.strip())
+    path = Path(proc.stdout.splitlines()[0])
     fill(path)
     proc = run(store, "persist", str(path))
     assert proc.returncode == 0, proc.stderr

@@ -396,9 +396,10 @@ run record.
 5. **Recall the memory.** When the mission already names a baseline
    report, use that report as the recalled baseline and skip the
    matching. Otherwise load the baseline with the recall of
-   `odd-memory`'s `observe-run-report` reference — the reference
-   owns the matching rules, which include the environment step 4
-   detected. However the baseline was obtained — named or recalled —
+   `odd-memory`'s `observe-run-report` reference — its `## Recall`
+   states the recall script's invocation, whole surface included
+   (`--help` answers nothing it does not), and owns the matching
+   rules, which include the environment step 4 detected. However the baseline was obtained — named or recalled —
    read it **by section, never whole**, with the `read` invocation
    that reference's `## Recall` step 3 states, sections per the
    baseline's kind and the mission's mode. Read beyond that set only
@@ -862,16 +863,19 @@ the commit.
 ## The report (your only deliverable)
 
 The report file is the persistence script's: `odd-memory`'s
-`observe-run-report` reference states its `new` invocation — run it
-with the run's values (the services, the stack, the detected
-environment, the mode, the depth, the window, the run name, the
-replayed report, the identity) and it prints the path of a file
-carrying the frontmatter and the seven headings. Fill these seven
-sections, in this order (at `quick` depth, in the collapsed shape the
-Depth section gives sections 3 to 6), replacing every `<fill>` the
-skeleton left — never rewrite the frontmatter or the headings, never
-compose the file by hand — then run the reference's `persist` on the
-path: it checks the file, commits it alone on the work branch, and
+`observe-run-report` reference states its `new` invocation, whole
+flag surface included, in its `## The script owns the format` — read
+that section, never `--help` (it answers nothing the section does not)
+— and run it with the run's values (the services, the stack, the
+detected environment, the mode, the depth, the window, the run name,
+the replayed report, the identity). It prints the path of the file it
+wrote, then the file's body: the seven headings, each followed by a
+`<fill>`. Fill these seven sections from that printed text, in this
+order (at `quick` depth, in the collapsed shape the Depth section
+gives sections 3 to 6), replacing every `<fill>` — never read the file
+back to find them, never rewrite the frontmatter or the headings,
+never compose the file by hand — then run the reference's `persist` on
+the path: it checks the file, commits it alone on the work branch, and
 prints the return value. Your reply carries that output verbatim — the
 stored path, the carrying commit, the synthesis block — and never the
 report body: the caller renders the closing synthesis from the stored

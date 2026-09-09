@@ -20,6 +20,7 @@ read by one module.
 
     odd_report.py new --service S [--service S ...] --stack S --env E
                       --mode M --depth D --window START/END --run-name SLUG
+                      (prints the path, then the skeleton to fill)
                       [--verifies FILE] [--workload W] [--instance K=V ...]
                       [--process-restarted true|false|K=V ...]
                       [--repository VALUE] [--at UTC] [--no-revision] [--repo PATH]
@@ -102,6 +103,8 @@ LEGACY_PREFIX = "depth absent (predates"
 MAX_FINDING_TITLE = 80
 MAX_ROWS = 10  # the synthesis's cap per table, the rest behind "+N more"
 MAX_LINE = 200
+MAX_CELL = 48  # a severity, confidence or check cell on the screen
+MAX_TITLE_CELL = 140
 ELLIPSIS = "…"
 
 SECTION_RE = re.compile(r"^##\s+(\d+)\.\s*(.*?)\s*$")
@@ -1104,11 +1107,9 @@ def new_report(args: argparse.Namespace) -> tuple[Path, list[str]]:
         )
 
     store.mkdir(parents=True, exist_ok=True)
-    text = (
-        format_frontmatter(fields) + "\n" + skeleton(fields, baseline_sections, replay)
-    )
-    path.write_text(text, encoding="utf-8")
-    return path, notes
+    body = skeleton(fields, baseline_sections, replay)
+    path.write_text(format_frontmatter(fields) + "\n" + body, encoding="utf-8")
+    return path, body, notes
 
 
 # --- read ------------------------------------------------------------------------
@@ -1430,8 +1431,9 @@ def render_show(data: dict, rel: str, commit: str | None) -> str:
     out.append("")
     if data["replay"]:
         if data["checks"]:
+            rows = [[cap(c, MAX_CELL)[0] for c in r] for r in data["checks"]]
             out += table_lines(
-                ["Check", "Before", "After", "Pass/fail"], data["checks"], MAX_ROWS
+                ["Check", "Before", "After", "Pass/fail"], rows, MAX_ROWS
             )
             out.append("")
         if data["rulings"]:
@@ -1442,7 +1444,14 @@ def render_show(data: dict, rel: str, commit: str | None) -> str:
                 out.append(f"+{len(data['rulings']) - MAX_ROWS} more in the report")
             out.append("")
     else:
-        rows = [[r[2], r[3], r[1]] for r in data["findings"]]
+        rows = [
+            [
+                cap(r[2], MAX_CELL)[0],
+                cap(r[3], MAX_CELL)[0],
+                cap(r[1], MAX_TITLE_CELL)[0],
+            ]
+            for r in data["findings"]
+        ]
         out += table_lines(["Severity", "Confidence", "Finding"], rows, MAX_ROWS)
         out.append("")
     if data["not_queried"]:
@@ -1582,9 +1591,21 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--service", action="append", default=[], help="repeatable")
     p.add_argument("--stack")
     p.add_argument("--env", help="the detected environment (local, prod, unknown, ...)")
-    p.add_argument("--mode", help="drive | observe | post-hoc | verify | re-measure")
-    p.add_argument("--depth", help="quick | full (a replay inherits the baseline's)")
-    p.add_argument("--window", help="<start>/<end> in UTC")
+    p.add_argument(
+        "--mode",
+        metavar="MODE",
+        help="drive | observe | post-hoc | verify | re-measure",
+    )
+    p.add_argument(
+        "--depth",
+        metavar="DEPTH",
+        help="quick | full (a replay inherits the baseline's)",
+    )
+    p.add_argument(
+        "--window",
+        metavar="START/END",
+        help="<start>/<end> in UTC (YYYY-MM-DDTHH:MM:SSZ)",
+    )
     p.add_argument("--run-name", help="the slug (a replay inherits the baseline's)")
     p.add_argument(
         "--verifies", help="the replayed report: a filename, or a repo-relative path"
@@ -1642,8 +1663,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "new":
-            path, notes = new_report(args)
+            path, body, notes = new_report(args)
+            # the path first, then the body as written: the run replaces
+            # every <fill> from this text and never reads the file back
             print(path)
+            print(
+                "--- the file below its frontmatter; replace every <fill>, "
+                "keep the headings:"
+            )
+            print(body.rstrip())
             for note in notes:
                 print(note, file=sys.stderr)
             return 0
