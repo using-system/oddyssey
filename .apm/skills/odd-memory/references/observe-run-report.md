@@ -183,16 +183,19 @@ shapes are machine-read and fixed here:
 ## Return value
 
 `persist` prints it: `path:`, `commit:` (or `not committed` with the
-reason), `branch:` and `subject:` when it committed, then the synthesis
-block — the frontmatter whole, section 1's recalled-baseline line with
-its dropped-baseline or provisional note, section 2's delta lines (a
+reason), `branch:` and `subject:` when it committed, and `headline:` —
+five lines. The reply carries them verbatim, plus, on a custom stack,
+the stack file's fate (the `observability-stack` reference's learning
+rule) — and nothing of the body: the synthesis is rendered once, by the
+caller's `show` from the stored file, and the next wave reads the file
+at the stored path. `synthesis <path>` prints the block `show` renders
+from — the frontmatter, section 1's recalled-baseline line with its
+dropped-baseline or provisional note, section 2's delta lines (a
 replay's check rulings instead: check, before, after, verdict), section
 3's ruling table on a replay and its findings table (id, finding,
 severity, confidence — never the evidence), section 5's not-queried line
-and gap bullets, section 6's open decisions. The reply carries it
-verbatim, plus, on a custom stack, the stack file's fate (the
-`observability-stack` reference's learning rule) — and never the report
-body: the next wave reads the file at the stored path.
+and gap bullets, section 6's open decisions — for a reader who wants
+the inputs rather than the rendering.
 
 ## Show
 

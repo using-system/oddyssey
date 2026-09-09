@@ -814,8 +814,8 @@ def test_persist_prints_the_synthesis_block_after_the_commit(repo):
     fill(path)
     proc = run(repo, "persist", str(path))
     assert proc.returncode == 0, proc.stderr
-    assert "--- frontmatter" in proc.stdout
-    assert "run_name: checkout-sweep" in proc.stdout
+    assert "headline: **" in proc.stdout
+    assert "--- frontmatter" not in proc.stdout  # the caller's show renders, once
 
 
 # --- read, synthesis and show, on stored reports ---------------------------------------

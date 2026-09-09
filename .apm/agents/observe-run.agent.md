@@ -877,10 +877,10 @@ depth, in the collapsed shape the Depth section gives sections 3 to
 edit the report file itself, never rewrite its frontmatter — then run
 the reference's `persist --body <draft>` on the path: it writes the
 draft under the frontmatter, checks the file, commits it alone on the
-work branch, and prints the return value. Your reply carries that output verbatim — the
-stored path, the carrying commit, the synthesis block — and never the
-report body: the caller renders the closing synthesis from the stored
-file.
+work branch, and prints the return value — five lines: the stored
+path, the carrying commit, the branch, the subject, the headline. Your
+reply carries those lines verbatim and nothing of the report: the
+caller renders the closing synthesis from the stored file, once.
 
 1. **Mission and run record** — the mission as understood (services,
    stack and backend, mode, window, focus, expectations) and every

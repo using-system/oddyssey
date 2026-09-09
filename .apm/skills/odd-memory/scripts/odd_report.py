@@ -1593,7 +1593,9 @@ def persist(
                 lines.append(f"commit: {commit}")
                 lines.append(f"branch: {branch}")
                 lines.append(f"subject: {subject}")
-    lines.append(synthesis_text(synthesis_data(text)).rstrip())
+    # the headline alone: the caller's show renders the synthesis from the
+    # file once, so the block never travels through two more contexts
+    lines.append(f"headline: {render_headline(synthesis_data(text))}")
     return lines, notes
 
 

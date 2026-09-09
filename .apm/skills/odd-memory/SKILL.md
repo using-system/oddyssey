@@ -174,15 +174,16 @@ section; everywhere else it is applied by hand:
 
 ## The reply and the synthesis
 
-- The persistence's return value — printed by the kind's script when
-  it ships one — carries the stored path, the
-  carrying commit, and the **synthesis inputs** its `## Show` renders
-  from — quoted from the artifact where the artifact carries the
-  value, never rephrased; the kind's reference lists them — and never the
-  artifact's body: an observation report runs 300 to 500 lines, the
-  reply travels back into the caller's context, and the synthesis is
-  its only reader. What the next wave needs is in the file, at the
-  stored path.
+- The persistence's return value carries the stored path, the
+  carrying commit, and what its `## Show` needs to render — the
+  **synthesis inputs**, quoted from the artifact where the artifact
+  carries the value, never rephrased, the kind's reference lists them;
+  or, when the kind ships a script that renders the synthesis from the
+  stored file, the headline alone, so the block never travels through
+  the reply — and never the artifact's body: an observation report
+  runs 300 to 500 lines, the reply travels back into the caller's
+  context, and the synthesis is its only reader. What the next wave
+  needs is in the file, at the stored path.
 - `## Show` renders from that return value, or reads a stored
   artifact the caller names from disk, by section, with its carrying
   commit from git (`git log -1 --format=%h -- <path>`) — never from the
