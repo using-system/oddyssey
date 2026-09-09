@@ -91,9 +91,21 @@ recalled by name, each ledger is one file; their references own that:
 
 - Run the recall script this skill carries,
   `python3 <this skill's directory>/scripts/odd_recall.py --repo <path>`
-  with the mission's scope as flags — the kind's reference says which:
-  it reads every stored frontmatter (a benchmark's manifest) in Python
-  and prints the matches newest first, one line each, nothing else; a
+  with the mission's scope as flags — the kind's reference says which.
+  **The invocation may travel with the mission**: a caller's preflight
+  that already resolved the scope writes it into the mission block as
+  `Recall: python3 <this skill's directory>/scripts/odd_recall.py --repo <path> --service <name> [--service <name> ...] --stack <stack> --depth <depth>`
+  (the observation form — one `--service` per name, `--env` left for
+  the agent to append once it has detected the environment; a benchmark
+  is recalled by `--kind benchmark --service <name>` alone, an
+  instrumentation report by `--kind instrumentation --project <scope>`),
+  and the agent runs that line as is — never re-derived, never a flag
+  guessed. The whole surface is `--repo`, `--kind <observation |
+  instrumentation | benchmark>` (default `observation`), `--service`,
+  `--stack`, `--env`, `--depth`, `--mode` (repeatable) and `--project`
+  — nothing else: `--help` has nothing to add and the file has nothing
+  to read. The script reads every stored frontmatter (a benchmark's manifest) in
+  Python and prints the matches newest first, one line each; a
   report the frontmatter contract flags, or a benchmark whose manifest
   it cannot read, is listed and reported, never skipped silently. No
   frontmatter reaches the conversation until the baseline is chosen.

@@ -163,16 +163,27 @@ report that this is what the number is.
 ## The replay is always detached
 
 **Every replay runs with `--detach <dir>`, whatever the benchmark's
-length** — never in the foreground. The script starts the run in its own
-session and returns at once, and `--status <dir>` answers "still
-running" or the finished record with its UTC window and k6's real exit
-status; a short benchmark costs one `--status` call more, a long one no
-longer dies with the tool call that launched it (a foreground replay
+length** — never in the foreground:
+
+```bash
+python3 <skills>/k6-guides/scripts/replay_benchmark.py <benchmark dir> --run-slug <slug> --detach <scratch>/<slug> [--otel] [-e KEY=value ...] [--send-traceparent]
+python3 <skills>/k6-guides/scripts/replay_benchmark.py --status <scratch>/<slug> --wait <the benchmark's length plus a margin, e.g. 5m>
+```
+
+The first starts the run in its own session and returns at once; the
+second blocks until it finishes and prints the finished record with its
+UTC window and k6's real exit status (exit 3 when the bound passes with
+the run still going: run it again). The whole surface is those two lines
+plus `--summary <file>`, `--dry-run` and `--json`; `--otel` is the local
+stack's OTLP output, `--send-traceparent` the gated header of a remote
+drive, `-e KEY=value` a mission-time input. Nothing else: `--help` has
+nothing to add and the file has nothing to read. When the mission block
+carries a `Replay:` line, it is this invocation with every value filled
+in — run it as is, under your own scratch directory. A foreground replay
 killed at the host's timeout leaves k6 running and no record, and the
-next move is a second drive). **Never author a poller for this** — a shell script
-of your own puts the flags back in your hands, which is what running
-the shipped command prevents, and it is one more thing to write before
-the drive starts.
+next move is a second drive. **Never author a poller for this** — a
+loop on `--status`, a `sleep` in a helper — it is a command the package
+ships, written again, and one more thing to write before the drive.
 
 Whatever watches the run **watches it, it does not drive the service**:
 it reads k6's own output and the process, and sends no request the
@@ -261,9 +272,9 @@ Stages (UTC): offsets converted from the first request row 10:04:12 — ramp-up 
 Started (UTC): 2026-09-02T10:04:12Z
 Ended   (UTC): 2026-09-02T10:25:42Z
 Query points: 1 (after Ended)
-Poller:    none written - the replay ran detached and was polled with --status
+Poller:    none written - the replay ran detached and --status --wait blocked until it finished
 Command:
-  python3 <skills>/k6-guides/scripts/replay_benchmark.py .odd/benchmarks/orders-read-heavy --run-slug orders-run-0902 --otel --detach <scratch>/orders-run-0902   # --otel: local stack only
+  python3 <skills>/k6-guides/scripts/replay_benchmark.py .odd/benchmarks/orders-read-heavy --run-slug orders-run-0902 --otel --detach <scratch>/orders-run-0902   # --otel: local stack only; then --status <scratch>/orders-run-0902 --wait 25m
   k6 run .odd/benchmarks/orders-read-heavy/script.js --summary-export <scratch>/k6-summary-orders-run-0902.json -e BASE_URL=http://127.0.0.1:8080 -e RUN_SLUG=orders-run-0902 -o opentelemetry   # what it ran, from the record it printed
 k6:        exit 0, 4210 requests, checks 100%, dropped iterations 0, script errors 0 (summary file transient, numbers above are the record)
 Not reproducible: none
@@ -272,10 +283,9 @@ Not reproducible: none
 Both `Command:` blocks carry two lines on purpose: **what you ran** -
 always the replay script - and **what it ran**, copied from the record
 that script printed. Never compose the second line yourself; the script
-is where the mapping lives (`--otel` for the local stack's OTLP output,
-`--send-traceparent` for the gated header on a remote drive,
-`-e KEY=value` for a mission-time input, `--detach <dir>` always). A
-flag that is not on its surface is not a flag this replay has.
+is where the mapping lives (the surface stated in `## The replay is
+always detached`). A flag that is not on its surface is not a flag this
+replay has.
 
 The same record for a remote drive, carrying the four changes above:
 
@@ -292,9 +302,9 @@ Stages (UTC): read off the stage tag, no arithmetic — baseline 08:30:11–08:3
 Started (UTC): 2026-09-06T08:30:11Z
 Ended   (UTC): 2026-09-06T08:32:01Z
 Query points: 1 (after Ended + the backend's ingest wait, proven by a bounded count query)
-Poller:    none written - the replay ran detached and was polled with --status
+Poller:    none written - the replay ran detached and --status --wait blocked until it finished
 Command:
-  python3 <skills>/k6-guides/scripts/replay_benchmark.py .odd/benchmarks/orders-api-spike --run-slug observe-spike-0906 -e BASE_URL=https://orders.example.com --send-traceparent --detach <scratch>/observe-spike-0906
+  python3 <skills>/k6-guides/scripts/replay_benchmark.py .odd/benchmarks/orders-api-spike --run-slug observe-spike-0906 -e BASE_URL=https://orders.example.com --send-traceparent --detach <scratch>/observe-spike-0906   # then --status <scratch>/observe-spike-0906 --wait 5m
   k6 run .odd/benchmarks/orders-api-spike/script.js --summary-export <scratch>/k6-summary-observe-spike-0906.json -e BASE_URL=https://orders.example.com -e RUN_SLUG=observe-spike-0906 -e SEND_TRACEPARENT=1   # what it ran, from the record it printed
 k6:        exit 0, 4812 requests, checks 100%, dropped iterations 52 (generator: maxVUs saturated while the server p95 stayed flat), script errors 0
 Not reproducible: none

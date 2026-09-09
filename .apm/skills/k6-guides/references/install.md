@@ -97,3 +97,20 @@ tooling, never installing from a subagent. This project's README
 Prerequisites section lists k6 on those terms: needed to author (to
 validate) and to run a benchmark, installed on the spot when missing
 and Homebrew is available; authoring never runs one.
+
+## The replay line a preflight hands the mission
+
+A preflight that names a stored benchmark may write into the mission
+block, filled from what it resolved:
+
+```text
+Replay: python3 <this skill's directory>/scripts/replay_benchmark.py <benchmark dir> --run-slug <benchmark name>-<YYYYMMDD-HHMM, UTC now> --detach <scratch>/<that slug>
+```
+
+plus `--otel` on the local stack - the invocation of
+[running-tests.md](running-tests.md), which states its whole surface,
+with every value in. The agent runs it as is under its own scratch
+directory, then `--status <that directory> --wait <the manifest's
+duration plus a margin>` (`run-scenario`'s `benchmark-replay.md`
+receives it). Optional: a mission block without the line runs the same
+invocation from that reference.

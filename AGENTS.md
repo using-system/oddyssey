@@ -218,6 +218,19 @@ says that itself, once, at run time. A paragraph explaining a script is
 prose the run reads on every turn and a second contract the script can
 drift from; a reference grows by a bullet, never by a paragraph.
 
+**An agent or a prompt routes to a skill and restates none of its
+mechanics.** An invocation, a flag surface, a wait, a file layout
+belong to the skill that ships them and are stated there, once — "where
+it is invoked", above, is that contract, the one that owns the
+invocation; an agent that routes to it is not an invocation site. The
+agent and the prompt name the skill and the section. Measured on five
+preflights of one model (2026-09-09): copying two invocations into the
+prompt and the agent removed two or three `--help` calls, about twenty
+seconds, inside the run-to-run noise, at the price of two more contracts
+to keep true — not worth it. The lever that removes them without a copy
+is a script composing the lines from the preflight's values, when the
+number justifies it.
+
 **Contracts that agree are run; contracts that disagree are read.**
 Two files stating the same rule differently do not average out — the
 run opens both to arbitrate, and pays for the reading and for the

@@ -27,14 +27,17 @@ hands — which is what this script exists to prevent.
 
 ```bash
 python3 <...>/replay_benchmark.py <benchmark dir> --run-slug <slug> --detach <dir>
-python3 <...>/replay_benchmark.py --status <dir>     # poll until it says finished
+python3 <...>/replay_benchmark.py --status <dir> --wait <the benchmark's length plus a margin, e.g. 5m>
 ```
 
 `--detach` starts k6 in its own session and returns at once, writing
 `replay-record.json`, `k6-stdout.log` and `k6-stderr.log` into `<dir>`;
 `--status` answers "still running" or the finished record with its UTC
-window and exit status — the same record the foreground form prints. The
-whole flag surface is those two plus `--run-slug`, `-e KEY=value`,
+window and exit status — the same record the foreground form prints —
+and `--status --wait <duration>` blocks until the run finishes (exit 0)
+or the bound passes (exit 3, the status printed, run it again): the
+wait is shipped, never authored. The
+whole flag surface is those three plus `--run-slug`, `-e KEY=value`,
 `--summary`, `--send-traceparent`, `--otel` (which sets the exporter
 environment the local stack needs, not only `-o opentelemetry`),
 `--dry-run` and `--json`:

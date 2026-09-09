@@ -217,6 +217,121 @@ def test_detach_returns_at_once_and_status_tracks_it(benchmark, tmp_path, monkey
     assert json.loads(status.stdout)["finished"] is False
 
 
+def test_status_wait_blocks_until_finished_and_is_bounded(benchmark, tmp_path):
+    """--status --wait is the wait the contracts describe, shipped: no poller
+    to author. It returns 0 once the run finished, 3 at the bound."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stub = bin_dir / "k6"
+    stub.write_text("#!/bin/sh\nsleep 2\n")
+    stub.chmod(0o755)
+    out = tmp_path / "detached"
+    e = dict(os.environ)
+    e["PATH"] = str(bin_dir) + os.pathsep + e["PATH"]
+    run = [sys.executable, str(SCRIPT)]
+    p = subprocess.run(
+        [*run, str(benchmark), "--run-slug", "s", "--detach", str(out)],
+        capture_output=True,
+        text=True,
+        env=e,
+        check=False,
+    )
+    assert p.returncode == 0, p.stderr
+    bound = subprocess.run(
+        [*run, "--status", str(out), "--wait", "1s"],
+        capture_output=True,
+        text=True,
+        env=e,
+        check=False,
+    )
+    assert bound.returncode == 3 and "still running" in bound.stdout
+    assert "bounded on purpose" in bound.stderr
+    done = subprocess.run(
+        [*run, "--status", str(out), "--wait", "20s", "--json"],
+        capture_output=True,
+        text=True,
+        env=e,
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr
+    record = json.loads(done.stdout)
+    assert record["finished"] is True and "exit_code" in record
+    bare = subprocess.run(
+        [*run, "--status", str(out), "--wait", "1"],
+        capture_output=True,
+        text=True,
+        env=e,
+        check=False,
+    )
+    assert bare.returncode == 0, bare.stderr  # a bare number is seconds
+    alone = subprocess.run(
+        [*run, "--wait", "1s"], capture_output=True, text=True, env=e, check=False
+    )
+    assert alone.returncode == 2 and "--wait goes with --status" in alone.stderr
+    bad = subprocess.run(
+        [*run, "--status", str(out), "--wait", "5x"],
+        capture_output=True,
+        text=True,
+        env=e,
+        check=False,
+    )
+    assert bad.returncode == 2 and "<number>[s|m|h]" in bad.stderr
+    missing = subprocess.run(
+        [*run, "--status", str(tmp_path / "nowhere"), "--wait", "1s"],
+        capture_output=True,
+        text=True,
+        env=e,
+        check=False,
+    )
+    assert missing.returncode == 1 and "no detached replay" in missing.stderr
+
+
+def test_parse_wait_reads_every_unit(replay):
+    assert replay.parse_wait("20m") == 1200
+    assert replay.parse_wait("1h") == 3600
+    assert replay.parse_wait("300s") == 300 and replay.parse_wait("7") == 7
+    with pytest.raises(SystemExit):
+        replay.parse_wait("5x")
+
+
+def test_status_wait_stops_at_once_when_the_runner_is_gone(benchmark, tmp_path):
+    """A killed run never writes `done`: the wait says so instead of
+    sitting on the bound."""
+    import signal
+    import time as _time
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stub = bin_dir / "k6"
+    stub.write_text("#!/bin/sh\nsleep 30\n")
+    stub.chmod(0o755)
+    out = tmp_path / "detached"
+    e = dict(os.environ)
+    e["PATH"] = str(bin_dir) + os.pathsep + e["PATH"]
+    run = [sys.executable, str(SCRIPT)]
+    p = subprocess.run(
+        [*run, str(benchmark), "--run-slug", "s", "--detach", str(out)],
+        capture_output=True,
+        text=True,
+        env=e,
+        check=False,
+    )
+    assert p.returncode == 0, p.stderr
+    pid = int((out / "runner.pid").read_text())
+    os.killpg(pid, signal.SIGKILL)
+    _time.sleep(0.5)
+    started = _time.monotonic()
+    gone = subprocess.run(
+        [*run, "--status", str(out), "--wait", "30s"],
+        capture_output=True,
+        text=True,
+        env=e,
+        check=False,
+    )
+    assert gone.returncode == 1 and "gone without a record" in gone.stderr
+    assert _time.monotonic() - started < 10
+
+
 def test_the_benchmark_is_still_required_for_a_replay(tmp_path):
     p = subprocess.run(
         [sys.executable, str(SCRIPT), "--run-slug", "s", "--dry-run"],
