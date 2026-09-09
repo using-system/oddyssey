@@ -134,6 +134,18 @@ turns and the context went (per-phase accounting, the reads of every
 file the change touched, the calls the new invocation caused), fix the
 cause, and measure again.
 
+**When the phase reaches the report, the findings are a metric too.**
+A harness change that cuts turns and loses findings moved the cost
+onto the reader. For every sample that wrote a report, count what it
+found - section 3's ranked findings by severity and confidence, section
+5's gaps - on the baseline and on the change alike (the report script's
+`synthesis` prints both lists), and **review them before comparing**:
+re-run the query each finding cites, open what it accuses, and rule it
+confirmed or not - the way `launch-llms-benchmark` grades a row, on
+evidence, never on the report's own confidence label. State the
+confirmed count next to the reported one, per side, in the study and
+in the PR; a change that reports more but confirms less is worse.
+
 **Two samples minimum before claiming a wall-clock gain**, and state
 both. The spread between two runs of one configuration reached 17 s in
 practice; a single sample below the baseline proves nothing.
