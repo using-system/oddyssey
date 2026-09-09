@@ -637,7 +637,12 @@ name; no word starting with `=` — zsh looks up a command named `===` for
 `echo ====` and fails with `=== not found` where bash prints it — write
 `echo "----- $f"`.
 
-Then query per signal from what came back:
+Then query per signal from what came back — keyed by **operation**,
+the smallest unit the service serves distinctly: on an HTTP server the
+method and the route together, never the route alone (a 2.5 ms `GET`
+and a 62 ms `DELETE` on one route fold into a p95 that belongs to
+neither); on any other surface that surface's own unit — the RPC
+method and the tool it names, the topic a consumer reads:
 
 - **Metrics** — discover what the service exports (metric names, labels or
   dimensions, metadata), then query the discovered series: rates, error
@@ -648,12 +653,7 @@ Then query per signal from what came back:
   backend offers them, they give
   per-operation rate, error ratio, and latency quantiles plus who-calls-
   whom even when the app exports no metrics of its own — build the summary
-  table from them. An **operation** is the smallest unit the service
-  serves distinctly: on an HTTP server the method and the route
-  together, never the route alone (a 2.5 ms `GET` and a 62 ms `DELETE`
-  on one route fold into a p95 that belongs to neither); on any other
-  surface that surface's own unit — the RPC method and the tool it
-  names, the topic a consumer reads.
+  table from them.
 - **Traces** — discover the span attributes, search for interesting traces
   (by service, duration threshold, error status, attribute filters), then
   fetch full span trees with attributes and events.

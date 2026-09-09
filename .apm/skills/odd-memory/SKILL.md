@@ -59,10 +59,11 @@ report reference is what the persistence hands the caller, and what
   actually executed — defaults applied, not as requested. The kind's
   reference lists the fields and their meaning.
 - The body is the producing agent's judgment **as-is**, whole: what
-  each section carries is the agent's contract, stated once in the
-  kind's reference beside the format it fills and read at report time
-  — the persistence adds nothing to it beyond the numbered headings
-  and the few machine-read shapes its script fixes and checks — and a
+  each section carries is the agent's contract, stated once where the
+  kind's reference says — in that reference, beside the format, or in
+  the agent — and read at report time; the persistence adds nothing to
+  it beyond the numbered headings and the few machine-read shapes a
+  kind's script fixes and checks (its reference names them), and a
   summary cannot feed a later diff.
 
 ## Append-only, with one exception

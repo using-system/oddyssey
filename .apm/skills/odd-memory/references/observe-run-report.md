@@ -107,7 +107,11 @@ Seven numbered sections, read by number by the recall, the status and
 `show`. What each carries is the calling agent's judgment, stated here
 beside the format it fills and read at report time — its Investigation
 gathers the evidence, its Depth section collapses sections 3 to 6 at
-`quick` depth:
+`quick` depth. Three shapes in it are the script's, never yours to
+vary: section 3's ruling table on a replay (`new` pre-fills it,
+`check` wants one row per baseline finding), section 5's
+`- <gap> — <fate> — <query>` bullets and its not-queried line, and
+section 2's `### GenAI` heading:
 
 1. **Mission and run record** — the mission as understood (services,
    stack and backend, mode, window, focus, expectations) and every
