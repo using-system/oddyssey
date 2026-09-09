@@ -79,6 +79,10 @@ rather than guessing.
 
 ### Body — seven sections
 
+A title line, then one paragraph — the headline, how the run went in
+one sentence — then the seven numbered sections; the skill's script
+refuses to persist a report missing any of the three.
+
 1. **Mission and run record** — the mission as understood and, in
    drive mode, the scenario record that replays it verbatim; on a
    custom stack, whether the run changed the stack file, with the

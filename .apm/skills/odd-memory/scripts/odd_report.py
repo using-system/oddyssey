@@ -1436,14 +1436,17 @@ def render_headline(data: dict) -> str:
             if unruled:
                 text += f", {unruled} not ruled (quick)"
         else:
-            text = f"verify — {len(data['rulings'])} baseline findings ruled, no check table"
+            text = (
+                f"verify — {plural(len(data['rulings']), 'baseline finding')} ruled, "
+                "no check table"
+            )
     elif mode == "re-measure":
         passed, failed, unruled = verdict_counts(data["checks"])
         total = len(data["checks"])
         text = (
             f"{'drift' if failed else 'no drift'} — {passed}/{total} checks within range"
             if total
-            else f"re-measure — {len(data['findings'])} findings re-measured"
+            else f"re-measure — {plural(len(data['findings']), 'finding')} re-measured"
         )
     else:
         text = (
@@ -1584,15 +1587,20 @@ def splice_body(path: Path, draft: Path) -> list[str]:
     if not head:
         raise Refusal(f"{path.name} carries no frontmatter to keep; run new first")
     path.write_text("\n".join(head) + "\n\n" + text.strip() + "\n", encoding="utf-8")
+    frontmatter_problems = check_file(path, written_now=True)
     problems = check_file(path, written_now=True, body=True)
     if problems:
         # the file keeps what new wrote - a replay's pre-filled rulings and
-        # gaps included - and the draft is what the run fixes
+        # gaps included - and the draft is what the run fixes; a problem of
+        # the frontmatter is the file's, never the draft's
         path.write_text(before, encoding="utf-8")
         raise Refusal(
             f"the draft does not follow the memory contract - {path.name} kept as "
             "new wrote it, fix the draft and persist again:\n"
-            + "\n".join(f"  {draft.name}: {p}" for p in problems)
+            + "\n".join(
+                f"  {path.name if p in frontmatter_problems else draft.name}: {p}"
+                for p in problems
+            )
         )
     return notes
 
@@ -1602,7 +1610,8 @@ def persist(
 ) -> tuple[list[str], list[str]]:
     """The return value's lines (stdout) and the notes (stderr)."""
     spliced = splice_body(path, body) if body is not None else []
-    problems = check_file(path, written_now=True, body=True)
+    # a spliced draft was checked as it landed; a file persisted as it is is checked here
+    problems = [] if body is not None else check_file(path, written_now=True, body=True)
     if problems:
         raise Refusal(
             "the report does not follow the memory contract - fix it before "
