@@ -20,7 +20,7 @@ python3 <this skill's directory>/scripts/odd_report.py new --repo <observed repo
   [--at <UTC instant>] [--no-revision]
 python3 <this skill's directory>/scripts/odd_report.py check <path>
 python3 <this skill's directory>/scripts/odd_report.py read <path> --sections 1,2,3,7 [--record]
-python3 <this skill's directory>/scripts/odd_report.py persist <path> [--no-commit]
+python3 <this skill's directory>/scripts/odd_report.py persist <path> --body <draft> [--no-commit]
 python3 <this skill's directory>/scripts/odd_report.py synthesis <path>
 python3 <this skill's directory>/scripts/odd_report.py show <path>
 ```
@@ -37,8 +37,10 @@ only kind `new` writes.
   fills `date`, `revision`, `tree_anchor` and `repository` from the
   repository itself, writes the frontmatter and the seven-section
   skeleton, and on a replay pre-fills section 3's ruling table and
-  section 5's gaps from the baseline. Every `<fill>` it leaves is yours
-  to replace: the sections are the judgment.
+  section 5's gaps from the baseline, and prints that body after the
+  path. Every `<fill>` it leaves is yours to replace: the sections are
+  the judgment — written, filled, to a **draft** file of your own with
+  your file tool, never by editing the report file.
 - `check` runs the memory contract's checks — what a host's hook
   enforces after a write, plus no placeholder left and, on a replay,
   one ruling row per baseline finding with a verdict from the contract.
@@ -46,10 +48,13 @@ only kind `new` writes.
   fails it.
 - `read` prints the frontmatter and the named sections, nothing else;
   `--record` reduces section 1 to its scenario record and replay notes.
-- `persist` leaves the default branch for
-  `docs/odd-observe-run-report-<run_name>`, commits the file alone
-  (`docs(odd): observation report <run_name>`, the verification and
-  re-measure subjects for a replay), and prints the return value below.
+- `persist --body <draft>` writes the draft under the file's
+  frontmatter (a frontmatter the draft carries is dropped), runs
+  `check` — a failing file stays in place to fix, nothing committed —
+  leaves the default branch for `docs/odd-observe-run-report-<run_name>`,
+  commits the file alone (`docs(odd): observation report <run_name>`,
+  the verification and re-measure subjects for a replay), and prints the
+  return value below. Without `--body` it persists the file as it is.
   `--no-commit` when the caller said not to; outside a repository it
   says `not committed` and why.
 - `synthesis` prints the synthesis block of a stored report; `show`

@@ -28,7 +28,7 @@ read by one module.
     odd_report.py read PATH --sections 1,2,3,7 [--record]
     odd_report.py synthesis PATH
     odd_report.py show PATH
-    odd_report.py persist PATH [--no-commit]
+    odd_report.py persist PATH [--body DRAFT] [--no-commit]
 
 Standard library and git only. stdout carries the answer (a path, the
 report's text, the synthesis); stderr carries the notes and the
@@ -1496,8 +1496,34 @@ def next_action(data: dict) -> str:
 # --- persist ---------------------------------------------------------------------
 
 
-def persist(path: Path, no_commit: bool) -> tuple[list[str], list[str]]:
+def splice_body(path: Path, draft: Path) -> list[str]:
+    """The draft's text under the report's frontmatter, replacing the body.
+
+    The run writes its seven sections to a draft with its file tool and
+    never edits the report file: the frontmatter stays the script's. A
+    frontmatter block the draft opens with is dropped, and said."""
+    notes: list[str] = []
+    try:
+        text = draft.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise Refusal(f"cannot read the draft {draft}: {exc}") from exc
+    if text.lstrip().startswith("---"):
+        _, text, _ = split_frontmatter(text.lstrip())
+        notes.append(
+            "the draft opened with a frontmatter block: dropped, the file's kept"
+        )
+    head = frontmatter_lines(path.read_text(encoding="utf-8"))
+    if not head:
+        raise Refusal(f"{path.name} carries no frontmatter to keep; run new first")
+    path.write_text("\n".join(head) + "\n\n" + text.strip() + "\n", encoding="utf-8")
+    return notes
+
+
+def persist(
+    path: Path, no_commit: bool, body: Path | None = None
+) -> tuple[list[str], list[str]]:
     """The return value's lines (stdout) and the notes (stderr)."""
+    spliced = splice_body(path, body) if body is not None else []
     problems = check_file(path, written_now=True, body=True)
     if problems:
         raise Refusal(
@@ -1509,7 +1535,7 @@ def persist(path: Path, no_commit: bool) -> tuple[list[str], list[str]]:
     run_name = str(fm.get("run_name"))
     mode = str(fm.get("mode"))
     root, rel = locate(path)
-    notes: list[str] = []
+    notes: list[str] = list(spliced)
     lines = [f"path: {rel}"]
     commit = None
     if root is None:
@@ -1657,6 +1683,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("path")
     p.add_argument(
+        "--body",
+        help="a draft holding the report's body (the title, the headline and the "
+        "seven sections): written under the frontmatter in place of the file's body",
+    )
+    p.add_argument(
         "--no-commit", action="store_true", help="write nothing to git; say so"
     )
 
@@ -1668,8 +1699,8 @@ def main(argv: list[str] | None = None) -> int:
             # every <fill> from this text and never reads the file back
             print(path)
             print(
-                "--- the file below its frontmatter; replace every <fill>, "
-                "keep the headings:"
+                "--- the file below its frontmatter: write it filled (every <fill> "
+                "replaced, the headings kept) to a draft, then persist --body it:"
             )
             print(body.rstrip())
             for note in notes:
@@ -1705,7 +1736,9 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 sys.stdout.write(render_show(data, rel, commit))
             return 0
-        lines, notes = persist(path, args.no_commit)
+        lines, notes = persist(
+            path, args.no_commit, Path(args.body) if args.body else None
+        )
         sys.stdout.write("\n".join(lines) + "\n")
         for note in notes:
             print(note, file=sys.stderr)

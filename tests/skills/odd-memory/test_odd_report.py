@@ -175,6 +175,7 @@ def test_new_prints_the_skeleton_after_the_path(repo):
     lines = proc.stdout.splitlines()
     assert lines[0].endswith("2026-08-10-1004-a.md")
     assert lines[1].startswith("--- the file below its frontmatter")
+    assert "persist --body" in lines[1]
     body = "\n".join(lines[2:])
     written = Path(lines[0]).read_text(encoding="utf-8")
     assert body == written.split("---\n\n", 1)[1].rstrip()
@@ -677,6 +678,44 @@ def test_persist_leaves_the_default_branch_and_commits_the_report_alone(repo, re
     assert f"commit: {sha}" in proc.stdout
     assert f"path: {OBS}/2026-08-10-1004-checkout-sweep.md" in proc.stdout
     assert "branch: docs/odd-observe-run-report-checkout-sweep" in proc.stdout
+
+
+def test_persist_body_splices_a_draft_under_the_frontmatter(repo, report):
+    path = new(repo)
+    before = frontmatter(report, path)
+    draft = repo.root / "draft.md"
+    body = "\n\n".join(
+        ["# Observation report — checkout-sweep", "**Fine.**"]
+        + [f"## {n}. {t}\n\ntext {n}" for n, t in enumerate(report.SECTION_TITLES, 1)]
+    )
+    draft.write_text("---\nstack: other\n---\n" + body + "\n", encoding="utf-8")
+    proc = run(repo, "persist", str(path), "--body", str(draft))
+    assert proc.returncode == 0, proc.stderr
+    assert "frontmatter block: dropped" in proc.stderr
+    assert frontmatter(report, path) == before
+    text = path.read_text(encoding="utf-8")
+    assert "<fill>" not in text and "text 7" in text and "stack: other" not in text
+    assert (
+        repo.git("log", "-1", "--format=%s")
+        == "docs(odd): observation report checkout-sweep"
+    )
+    assert "draft.md" in repo.git(
+        "status", "--porcelain"
+    )  # the draft is never committed
+
+
+def test_persist_body_refuses_a_draft_that_breaks_the_contract_and_keeps_it(repo):
+    path = new(repo)
+    draft = repo.root / "draft.md"
+    draft.write_text(
+        "# Observation report\n\n## 1. Mission and run record\n\nonly one\n",
+        encoding="utf-8",
+    )
+    proc = run(repo, "persist", str(path), "--body", str(draft))
+    assert proc.returncode == 2
+    assert "section 2 absent" in proc.stderr
+    assert "only one" in path.read_text(encoding="utf-8")  # spliced, left to fix
+    assert repo.git("log", "-1", "--format=%s") == "feat: initial"
 
 
 def test_persist_commits_on_a_work_branch_it_is_already_on(repo):

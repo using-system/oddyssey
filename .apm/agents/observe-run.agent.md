@@ -870,13 +870,14 @@ that section, never `--help` (it answers nothing the section does not)
 detected environment, the mode, the depth, the window, the run name,
 the replayed report, the identity). It prints the path of the file it
 wrote, then the file's body: the seven headings, each followed by a
-`<fill>`. Fill these seven sections from that printed text, in this
-order (at `quick` depth, in the collapsed shape the Depth section
-gives sections 3 to 6), replacing every `<fill>` — never read the file
-back to find them, never rewrite the frontmatter or the headings,
-never compose the file by hand — then run the reference's `persist` on
-the path: it checks the file, commits it alone on the work branch, and
-prints the return value. Your reply carries that output verbatim — the
+`<fill>`. Write that body, filled, to a **draft file of your own**
+with your file tool — the seven sections in this order (at `quick`
+depth, in the collapsed shape the Depth section gives sections 3 to
+6), every `<fill>` replaced, the headings kept — never open, read or
+edit the report file itself, never rewrite its frontmatter — then run
+the reference's `persist --body <draft>` on the path: it writes the
+draft under the frontmatter, checks the file, commits it alone on the
+work branch, and prints the return value. Your reply carries that output verbatim — the
 stored path, the carrying commit, the synthesis block — and never the
 report body: the caller renders the closing synthesis from the stored
 file.
@@ -1150,7 +1151,7 @@ file.
   provisional value left unsettled), and appears in section 1 and in the
   frontmatter; the memory was recalled (section 1 names the previous
   report or says there was none) and the report was written and
-  persisted by `odd-memory`'s report script (`new`, then `persist`
-  once every `<fill>` was replaced), its `persist` output in the
+  persisted by `odd-memory`'s report script (`new`, then
+  `persist --body` with the filled draft), its `persist` output in the
   reply; on a custom stack, section 1 states the stack file's
   fate and the reply carries its commit when it changed.
