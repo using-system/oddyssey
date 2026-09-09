@@ -751,6 +751,7 @@ def test_persist_body_refuses_a_broken_draft_and_keeps_what_new_wrote(repo):
     proc = run(repo, "persist", str(path), "--body", str(draft))
     assert proc.returncode == 2
     assert "section 2 absent" in proc.stderr and "draft.md" in proc.stderr
+    assert "could not be persisted" in proc.stderr
     assert path.read_text(encoding="utf-8") == before  # the skeleton stays as written
     assert repo.git("log", "-1", "--format=%s") == "feat: initial"
 
@@ -784,6 +785,27 @@ def test_a_local_path_is_never_a_repository_value(repo):
     assert proc.returncode == 2 and "local path" in proc.stderr
     proc = run(repo, *base, "{a: github.com/example-org/checkout, b: ../payment}")
     assert proc.returncode == 2 and "local path" in proc.stderr
+
+
+def test_a_frontmatter_problem_is_the_file_s_never_the_draft_s(repo, report):
+    path = new(repo)
+    text = path.read_text(encoding="utf-8")
+    path.write_text(
+        text.replace(
+            "repository: github.com/example-org/checkout",
+            "repository: /Users/someone/x",
+        ),
+        encoding="utf-8",
+    )
+    draft = repo.root / "draft.md"
+    sections = "\n\n".join(
+        f"## {n}. {t}\n\nx" for n, t in enumerate(report.SECTION_TITLES, 1)
+    )
+    draft.write_text("# Observation report\n\n**x**\n\n" + sections, encoding="utf-8")
+    proc = run(repo, "persist", str(path), "--body", str(draft))
+    assert proc.returncode == 2
+    assert f"{path.name}: repository carries a local path" in proc.stderr
+    assert "draft.md: repository" not in proc.stderr
 
 
 def test_window_and_from_to_together_are_refused(repo):

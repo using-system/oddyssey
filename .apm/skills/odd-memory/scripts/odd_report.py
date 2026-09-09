@@ -1595,10 +1595,10 @@ def splice_body(path: Path, draft: Path) -> list[str]:
         # the frontmatter is the file's, never the draft's
         path.write_text(before, encoding="utf-8")
         raise Refusal(
-            f"the draft does not follow the memory contract - {path.name} kept as "
-            "new wrote it, fix the draft and persist again:\n"
+            f"the report could not be persisted - {path.name} kept as new wrote "
+            "it, fix what each line names and persist again:\n"
             + "\n".join(
-                f"  {path.name if p in frontmatter_problems else draft.name}: {p}"
+                f"  {path.name if p in frontmatter_problems or p.startswith('repository ') else draft.name}: {p}"
                 for p in problems
             )
         )
