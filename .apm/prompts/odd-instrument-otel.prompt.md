@@ -1,5 +1,6 @@
 ---
 description: Investigate a codebase and get every input needed to plan OpenTelemetry instrumentation for it
+argument-hint: "[path or repo] [export stack] [context]"
 ---
 
 Invoke the `otel-instrumentation-expert` agent. It owns the investigation

@@ -1,5 +1,6 @@
 ---
 description: "Display the current oddyssey backend configuration - configured stack, targeted instance, connection proof - then offer to change it: pick a backend from the full list, built-in or custom, and route the switch to the backend-configuration skill's Switch. Also creates or completes a custom stack file for a backend the package does not ship - from the documentation the user points at, their instructions, or web research - checked against the reference contract and persisted through odd-memory"
+argument-hint: "switch to <stack> (local | grafana | datadog | dynatrace | azure-monitor | cloudwatch | a custom stack) | persist <value> for <stack> | create <name> from <url or notes> | complete <name>"
 ---
 
 Answer "where do my missions point?" - and let the user change the

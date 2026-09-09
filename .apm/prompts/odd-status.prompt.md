@@ -1,5 +1,6 @@
 ---
 description: Where is the ODD loop? Read the repository's .odd/ history and render it as a one-screen synthesis - the loop state per lineage, its burn-down, the next recommended action - or, on request, the full tables (per-service loop state, findings ledger, trends, open telemetry gaps) - reports read-only, no backend queries, no report written; can record finding decisions (wontfix) into .odd/decisions.md and tree-entry classifications (runtime / non-runtime) into .odd/entry-classifications.md
+argument-hint: "[full] [<service | stack | env>] [wontfix <finding>: <why>] [<entry> is runtime | non-runtime]"
 ---
 
 Answer "where is the loop?" for this repository, from its committed

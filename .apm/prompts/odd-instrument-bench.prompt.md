@@ -1,5 +1,6 @@
 ---
 description: Investigate a service and author a k6 load-test benchmark plan as code in .odd/benchmarks/ - asks back whatever only a human can decide before dispatching the authoring agent, which validates the script with k6 inspect and one smoke iteration and never runs the benchmark
+argument-hint: "<service> [smoke | load | stress | soak | spike | breakpoint] [against <URL>] [thresholds: p95/p99, error rate] [duration, VUs or rate] [update <benchmark>]"
 ---
 
 Before dispatching anything: ensure the `k6` binary is present, per

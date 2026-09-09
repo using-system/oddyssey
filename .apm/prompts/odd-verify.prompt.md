@@ -1,5 +1,6 @@
 ---
 description: Verify that a fix or an implemented instrumentation plan landed - replay a stored report's protocol (observation or instrumentation report) and get the full observation report, carrying the verdict on everything it recorded - measurements, anomalies, telemetry gaps, or planned signals now present
+argument-hint: "[<report path> | my last <service | env | stack> report] [full | quick]"
 ---
 
 Invoke the `observe-run` agent. It owns the whole method and the report

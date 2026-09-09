@@ -1,5 +1,6 @@
 ---
 description: Observe a running service through its telemetry (local stack or remote backend) and get the plan-ready observation report
+argument-hint: "<service(s)> [on <stack>] [drive | observe | post-hoc] [quick | full] [run <benchmark>] [window] [focus] [expectations]"
 ---
 
 Invoke the `observe-run` agent. It owns the whole method and the report
