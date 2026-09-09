@@ -258,9 +258,12 @@ Five subcommands, the whole surface above (`--since <duration>` replaces
   distribution (`http.status_code` on an old-semconv service, `absent`
   when the root carries neither), root p50/p95/max, and every child
   span by `<service> <name> [<kind>]` with its count per trace,
-  p50/p95/max, errors and attribute keys — the outcome-and-children
-  table an observation builds per operation, in one call, never by
-  fetching the traces and reading the documents yourself. A get that
+  p50/p95/max, errors and attribute keys, and the operation's exemplar
+  traces (p50, worst, the slowest per status code — the id a finding
+  quotes and `get --spans` opens, never searched for) — the
+  outcome-and-children table an observation builds per operation, in
+  one call, never by fetching the traces and reading the documents
+  yourself. A get that
   fails among many is listed under `failed`, the table is built from
   the rest. Its text form records the search and `gcx traces get <id>
   -o json xN`, one per trace the search listed — the ids are the
@@ -290,8 +293,9 @@ new, capped}]`. `breakdown` — `window, traceql, service, listed, rooted,
 rooted_elsewhere{<svc>: n}, truncated, fetched, failed[{trace_id,
 error}], breakdown{<svc> <op>: traces, root_status{<UNSET or OK or
 ERROR>: n}, http_status{<code or absent>: n}, root_p50_ms, root_p95_ms,
-root_max_ms, root_attrs[], children{<svc> <name> [<kind>]: count,
-in_traces, per_trace, errors, p50_ms, p95_ms, max_ms, attrs[]}}`.
+root_max_ms, root_attrs[], exemplars{p50, worst, <code or absent>:
+<trace id>}, children{<svc> <name> [<kind>]: count, in_traces,
+per_trace, errors, p50_ms, p95_ms, max_ms, attrs[]}}`.
 
 ### Logs
 

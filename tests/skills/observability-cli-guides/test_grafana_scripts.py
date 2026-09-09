@@ -633,11 +633,16 @@ def test_traces_breakdown_tables_each_root_operations_outcome_and_children(fake_
     assert "db.system.name" in scan["attrs"] and scan["errors"] == 0
     send = op["children"]["llmbench-api GET /stats http send [INTERNAL]"]
     assert send["count"] == 10 and send["per_trace"] == 2.0
+    # the exemplars a finding quotes: the p50 and worst root, one per status code
+    ex = op["exemplars"]
+    assert set(ex) == {"p50", "worst", "200"}
+    assert all(len(v) == 32 and v == v.lower() for v in ex.values())
     # one search, then one get per trace, all recorded
     assert len(o["commands"]) == 6
     text = run("grafana-traces", "breakdown", "--service", "llmbench-api", *WIN).stdout
     assert "5 traces rooted at llmbench-api" in text and "http 200=5" in text
     assert "1.0/trace  llmbench-api catalog stats_scan [INTERNAL]" in text
+    assert "   exemplars: p50 " in text and "  200 " in text
     r = run("grafana-traces", "breakdown", "--service", "nobody", *WIN, "--json")
     o = json.loads(r.stdout)
     assert r.returncode == 0 and o["rooted"] == 0 and o["breakdown"] == {}

@@ -28,7 +28,8 @@ traces rooted at it are the table), --traceql (narrows the search; the
 table still keeps the traces rooted at --service), a window, --limit
 (default 1000), --sample (default 200: the newest traces fetched, at least
 1) - a get that fails among many is listed under failed and costs nothing
-else, the table is built from the rest. --json
+else, the table is built from the rest; each operation names its exemplar
+traces (p50, worst, the slowest per status code). --json
 everywhere. Every subcommand prints the gcx commands it ran, so the report
 can record them. Reads GCX_CONFIG. Exit 0 on success, 1 when gcx errored -
 and then nothing but the error is printed.
@@ -574,9 +575,13 @@ def cmd_breakdown(ns) -> tuple[int, dict]:
                 "root_ms": [],
                 "root_attrs": set(),
                 "children": {},
+                "by_dur": [],
+                "by_code": {},
             },
         )
         e["traces"] += 1
+        tid = root.get("trace_id") or (d.get("summary") or {}).get("trace_id") or ""
+        e["by_dur"].append((root["duration_ms"], tid))
         st = _status(root["status"])
         e["root_status"][st] = e["root_status"].get(st, 0) + 1
         code = root["attrs"].get("http.response.status_code")
@@ -584,6 +589,10 @@ def cmd_breakdown(ns) -> tuple[int, dict]:
             code = root["attrs"].get("http.status_code")
         code = "absent" if code is None else str(code)
         e["http_status"][code] = e["http_status"].get(code, 0) + 1
+        if tid and (
+            code not in e["by_code"] or root["duration_ms"] > e["by_code"][code][0]
+        ):
+            e["by_code"][code] = (root["duration_ms"], tid)
         e["root_ms"].append(root["duration_ms"])
         e["root_attrs"].update(root["attrs"])
         per: dict[str, int] = {}
@@ -617,6 +626,13 @@ def cmd_breakdown(ns) -> tuple[int, dict]:
                 "max_ms": cq["max"],
                 "attrs": sorted(c["attrs"]),
             }
+        by_dur = sorted(x for x in e["by_dur"] if x[1])
+        exemplars = {}
+        if by_dur:
+            exemplars["p50"] = by_dur[percentile_index(len(by_dur), 0.5)][1]
+            exemplars["worst"] = by_dur[-1][1]
+        for code, (_, tid) in sorted(e["by_code"].items()):
+            exemplars[code] = tid
         table[key] = {
             "traces": e["traces"],
             "root_status": e["root_status"],
@@ -625,6 +641,7 @@ def cmd_breakdown(ns) -> tuple[int, dict]:
             "root_p95_ms": q["p95"],
             "root_max_ms": q["max"],
             "root_attrs": sorted(e["root_attrs"]),
+            "exemplars": exemplars,
             "children": children,
         }
     # one failing get among many is listed, never the whole answer lost
@@ -641,7 +658,7 @@ def cmd_breakdown(ns) -> tuple[int, dict]:
         "failed": failed,
         "breakdown": table,
         "error": err,
-        "note": "http_status is the root span's http.response.status_code, or http.status_code on an old-semconv service (absent = the root carries neither); a child's per_trace is its count over the operation's traces",
+        "note": "http_status is the root span's http.response.status_code, or http.status_code on an old-semconv service (absent = the root carries neither); exemplars name the p50 and the slowest root trace and the slowest trace per status code - fetch one with get, never search for one; a child's per_trace is its count over the operation's traces",
         "commands": commands([r] + results),
     }
 
@@ -726,6 +743,11 @@ def render(o: dict) -> str:
                 f"  http {' '.join(f'{a}={b}' for a, b in e['http_status'].items())}"
             )
             out.append(f"   root attrs: {', '.join(e['root_attrs']) or '(none)'}")
+            if e.get("exemplars"):
+                out.append(
+                    "   exemplars: "
+                    + "  ".join(f"{k} {v}" for k, v in e["exemplars"].items())
+                )
             for ck, c in e["children"].items():
                 out.append(
                     f"   {c['per_trace']:>5}/trace  {ck}  p50 {_f(c['p50_ms'])} p95 {_f(c['p95_ms'])} max {_f(c['max_ms'])} ms"
