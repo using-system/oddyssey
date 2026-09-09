@@ -606,6 +606,72 @@ def test_traces_get_summarises_and_count_deduplicates_bins(fake_gcx):
     assert o["bins"][1]["new"] == 0 and len(o["commands"]) == 3
 
 
+def test_traces_breakdown_tables_each_root_operations_outcome_and_children(fake_gcx):
+    """One call answers what the runs used to compose by fetching every trace
+    and reading the documents: per root operation, the root's outcome, the
+    status code it carries (or `absent`), its latency, and every child span
+    with its count per trace and its attribute keys."""
+    r = run("grafana-traces", "breakdown", "--service", "llmbench-api", *WIN, "--json")
+    assert r.returncode == 0, r.stderr
+    o = json.loads(r.stdout)
+    assert o["listed"] == o["rooted"] == o["fetched"] == 5 and not o["truncated"]
+    (key, op), *rest = o["breakdown"].items()
+    assert key == "llmbench-api GET /stats" and not rest
+    assert op["traces"] == 5 and op["root_status"] == {"UNSET": 5}
+    # old semconv: the root carries http.status_code, read under either name
+    assert op["http_status"] == {"200": 5} and "http.route" in op["root_attrs"]
+    assert op["root_p50_ms"] == op["root_max_ms"] > 0
+    scan = op["children"]["llmbench-api catalog stats_scan [INTERNAL]"]
+    assert scan["per_trace"] == 1.0 and scan["in_traces"] == 5
+    assert "db.system.name" in scan["attrs"] and scan["errors"] == 0
+    send = op["children"]["llmbench-api GET /stats http send [INTERNAL]"]
+    assert send["count"] == 10 and send["per_trace"] == 2.0
+    # one search, then one get per trace, all recorded
+    assert len(o["commands"]) == 6
+    text = run("grafana-traces", "breakdown", "--service", "llmbench-api", *WIN).stdout
+    assert "5 traces rooted at llmbench-api" in text and "http 200=5" in text
+    assert "1.0/trace  llmbench-api catalog stats_scan [INTERNAL]" in text
+    r = run("grafana-traces", "breakdown", "--service", "nobody", *WIN, "--json")
+    o = json.loads(r.stdout)
+    assert r.returncode == 0 and o["rooted"] == 0 and o["breakdown"] == {}
+
+
+def test_traces_search_names_the_windows_edges_and_roots_and_get_prints_the_outcome(
+    fake_gcx,
+):
+    """The two shapes the runs re-derived from --json by hand: the first and
+    last trace of a search and its root operations, and a span's status and
+    outcome attributes on its own line."""
+    r = run(
+        "grafana-traces",
+        "search",
+        '{ resource.service.name = "llmbench-api" }',
+        *WIN,
+        "--json",
+    )
+    o = json.loads(r.stdout)
+    assert r.returncode == 0 and o["count"] == 5
+    assert o["first"] <= o["last"] and o["first"].endswith("Z")
+    assert o["roots"] == {"llmbench-api GET /stats": 5}
+    text = run(
+        "grafana-traces", "search", '{ resource.service.name = "llmbench-api" }', *WIN
+    ).stdout
+    assert f"first {o['first']} last {o['last']}" in text
+    assert "     5  llmbench-api GET /stats" in text
+    text = run(
+        "grafana-traces", "get", "9ed9a7b6ce4b233f8c6cf373c079811", "--spans"
+    ).stdout
+    lines = [ln for ln in text.splitlines() if "[INTERNAL]" in ln and "http send" in ln]
+    # the status code leads the attributes, whatever position the SDK gave it
+    assert (
+        lines
+        and "parent=" in lines[0]
+        and "http.status_code=200" in lines[0].split("parent=")[1]
+    )
+    assert lines[0].split("parent=")[1].startswith("jjirsd82e8U=  http.status_code=200")
+    assert "status=" not in lines[0]  # UNSET is not printed
+
+
 def test_logs_read_metadata_split_saturated_windows_and_never_report_a_partial_ratio(
     fake_gcx, monkeypatch
 ):

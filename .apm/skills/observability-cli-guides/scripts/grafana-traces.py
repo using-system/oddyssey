@@ -5,6 +5,7 @@
     grafana-traces.py get 9ed9a7b6ce4b233f8c6cf373c079811 [ID ...] [--out DIR] [--spans]
     grafana-traces.py search '{ status = error }' --from ... --to ... [--limit 1000]
     grafana-traces.py count '{ resource.service.name = "svc" }' --from ... --to ... [--bin 30s]
+    grafana-traces.py breakdown --service svc --from ... --to ... [--sample 200]
 
 Whole surface - ops: --service (repeatable), a window (--from/--to or
 --since), --limit (default 1000, the search ceiling), --name (repeatable,
@@ -18,9 +19,10 @@ summarise them; a never-rooted operation's p50 exemplar is its median
 containing trace, flagged as such). get: trace ids in either form
 gcx prints (padded or not), several at once, --out DIR to keep the raw
 documents, --spans to print every span instead of the summary; no window.
-search: TRACEQL, a window, --limit. count: TRACEQL, a window, --bin (default
-30s) - counts in bins deduplicated on trace id, because a trace overlapping
-two bins is listed in both, and says when a bin hit the ceiling. --json
+search: TRACEQL, a window, --limit (the header names the first and last
+trace and the root operations with their counts). count: TRACEQL, a window,
+--bin (default 30s) - counts in bins deduplicated on trace id, because a
+trace overlapping two bins is listed in both, and says when a bin hit the ceiling. --json
 everywhere. Every subcommand prints the gcx commands it ran, so the report
 can record them. Reads GCX_CONFIG. Exit 0 on success, 1 when gcx errored -
 and then nothing but the error is printed.
@@ -43,7 +45,7 @@ import argparse
 import json
 import os
 import sys
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from grafana_gcx import (
@@ -70,6 +72,45 @@ from grafana_gcx import (
 )
 
 QUANTILES = (0.5, 0.95, 0.99)
+
+# The attributes a reader looks for first on a span line: the outcome, the
+# route, the peer - then whatever else the span carries, in its own order.
+PRIORITY_ATTRS = (
+    "http.response.status_code",
+    "http.status_code",
+    "http.request.method",
+    "http.route",
+    "url.path",
+    "peer.service",
+    "server.address",
+    "db.system",
+    "db.system.name",
+    "db.operation.name",
+    "rpc.service",
+    "rpc.method",
+    "messaging.system",
+    "messaging.destination.name",
+    "error.type",
+    "exception.type",
+    "gen_ai.request.model",
+)
+
+
+def attrs_line(attrs: dict, n: int = 8) -> str:
+    keys = [k for k in PRIORITY_ATTRS if k in attrs]
+    keys += [k for k in attrs if k not in PRIORITY_ATTRS]
+    return " ".join(f"{k}={attrs[k]}" for k in keys[:n])
+
+
+def _status(s: str) -> str:
+    return s.replace("STATUS_CODE_", "")
+
+
+def _ns_iso(value) -> str | None:
+    try:
+        return iso(datetime.fromtimestamp(int(value) / 1e9, tz=timezone.utc))
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def fetch_traces(ids: list[str], out_dir: str | None) -> tuple[list[dict], list]:
@@ -392,10 +433,22 @@ def cmd_search(ns) -> tuple[int, dict]:
         if r.ok
         else []
     )
+    starts = sorted(
+        int(t["startTimeUnixNano"])
+        for t in rows
+        if str(t.get("startTimeUnixNano", "")).isdigit()
+    )
+    roots: dict[str, int] = {}
+    for t in rows:
+        k = f"{t.get('rootServiceName', '')} {t.get('rootTraceName', '')}"
+        roots[k] = roots.get(k, 0) + 1
     return (0 if r.ok else 1), {
         "error": r.error,
         "count": len(rows),
         "truncated": len(rows) >= ns.limit,
+        "first": _ns_iso(starts[0]) if starts else None,
+        "last": _ns_iso(starts[-1]) if starts else None,
+        "roots": dict(sorted(roots.items(), key=lambda kv: -kv[1])),
         "traces": rows,
         "commands": [r.command],
     }
@@ -457,6 +510,115 @@ def cmd_count(ns) -> tuple[int, dict]:
     }
 
 
+def cmd_breakdown(ns) -> tuple[int, dict]:
+    """Per root operation over the window's traces: outcome, root latency,
+    each child span's count per trace, latency and attribute keys."""
+    frm, to = resolve_window(ns)
+    traceql = ns.traceql or f'{{ resource.service.name = "{ns.service}" }}'
+    r = run_gcx(
+        [
+            "traces",
+            "query",
+            traceql,
+            "--from",
+            frm,
+            "--to",
+            to,
+            "--limit",
+            str(ns.limit),
+        ]
+    )
+    if not r.ok:
+        return 1, {"error": r.error, "commands": [r.command]}
+    listed = traces_list(r.data)
+    rows = [t for t in listed if t.get("rootServiceName") == ns.service]
+    ids = [hex_trace_id(t.get("traceID", "")) for t in rows][: ns.sample]
+    docs, results = fetch_traces(ids, None)
+    ops: dict[str, dict] = {}
+    for d in docs:
+        spans = d.get("spans") or []
+        if not spans:
+            continue
+        roots = [x for x in spans if not x["parent_id"]]
+        root = roots[0] if roots else spans[0]
+        e = ops.setdefault(
+            f"{root['service']} {root['name']}",
+            {
+                "traces": 0,
+                "root_status": {},
+                "http_status": {},
+                "root_ms": [],
+                "root_attrs": set(),
+                "children": {},
+            },
+        )
+        e["traces"] += 1
+        st = _status(root["status"])
+        e["root_status"][st] = e["root_status"].get(st, 0) + 1
+        code = root["attrs"].get("http.response.status_code")
+        if code is None:
+            code = root["attrs"].get("http.status_code")
+        code = "absent" if code is None else str(code)
+        e["http_status"][code] = e["http_status"].get(code, 0) + 1
+        e["root_ms"].append(root["duration_ms"])
+        e["root_attrs"].update(root["attrs"])
+        per: dict[str, int] = {}
+        for x in spans:
+            if x is root:
+                continue
+            k = f"{x['service']} {x['name']} [{x['kind']}]"
+            c = e["children"].setdefault(
+                k, {"count": 0, "in_traces": 0, "errors": 0, "ms": [], "attrs": set()}
+            )
+            c["count"] += 1
+            c["errors"] += x["status"] == "STATUS_CODE_ERROR"
+            c["ms"].append(x["duration_ms"])
+            c["attrs"].update(x["attrs"])
+            per[k] = per.get(k, 0) + 1
+        for k in per:
+            e["children"][k]["in_traces"] += 1
+    table = {}
+    for key, e in sorted(ops.items(), key=lambda kv: -kv[1]["traces"]):
+        q = percentiles(e["root_ms"])
+        children = {}
+        for k, c in sorted(e["children"].items(), key=lambda kv: -kv[1]["count"]):
+            cq = percentiles(c["ms"])
+            children[k] = {
+                "count": c["count"],
+                "in_traces": c["in_traces"],
+                "per_trace": round(c["count"] / e["traces"], 2),
+                "errors": c["errors"],
+                "p50_ms": cq["p50"],
+                "p95_ms": cq["p95"],
+                "max_ms": cq["max"],
+                "attrs": sorted(c["attrs"]),
+            }
+        table[key] = {
+            "traces": e["traces"],
+            "root_status": e["root_status"],
+            "http_status": e["http_status"],
+            "root_p50_ms": q["p50"],
+            "root_p95_ms": q["p95"],
+            "root_max_ms": q["max"],
+            "root_attrs": sorted(e["root_attrs"]),
+            "children": children,
+        }
+    err = errors([r] + results)
+    return (1 if err else 0), {
+        "window": [frm, to],
+        "traceql": traceql,
+        "service": ns.service,
+        "listed": len(listed),
+        "rooted": len(rows),
+        "truncated": len(listed) >= ns.limit,
+        "fetched": len(ids),
+        "breakdown": table,
+        "error": err,
+        "note": "http_status is the root span's http.response.status_code (absent = the root carries none); a child's per_trace is its count over the operation's traces",
+        "commands": commands([r] + results),
+    }
+
+
 def _f(v) -> str:
     return (
         "-"
@@ -509,10 +671,34 @@ def render(o: dict) -> str:
             )
             for name, e in list((s.get("by_name") or {}).items())[:12]:
                 out.append(f"     {e['count']:4d}  {name}  (max {e['max_ms']} ms)")
+    elif "breakdown" in o:
+        out.append(
+            f"{o['rooted']} traces rooted at {o['service']} of {o['listed']} listed, {o['fetched']} fetched"
+            + ("  TRUNCATED at --limit" if o["truncated"] else "")
+        )
+        for k, e in o["breakdown"].items():
+            out.append(
+                f"== {k}  n={e['traces']}  root p50 {_f(e['root_p50_ms'])} p95 {_f(e['root_p95_ms'])} max {_f(e['root_max_ms'])} ms"
+                f"  status {' '.join(f'{a}={b}' for a, b in e['root_status'].items())}"
+                f"  http {' '.join(f'{a}={b}' for a, b in e['http_status'].items())}"
+            )
+            out.append(f"   root attrs: {', '.join(e['root_attrs']) or '(none)'}")
+            for ck, c in e["children"].items():
+                out.append(
+                    f"   {c['per_trace']:>5}/trace  {ck}  p50 {_f(c['p50_ms'])} p95 {_f(c['p95_ms'])} max {_f(c['max_ms'])} ms"
+                    + (f"  errors={c['errors']}" if c["errors"] else "")
+                    + f"  attrs: {', '.join(c['attrs']) or '(none)'}"
+                )
+        if not o["breakdown"]:
+            out.append("  (no trace rooted at the service in this window)")
+        out.append("  " + o["note"])
     elif "traces" in o and o.get("count") is not None:
         out.append(
             f"{o['count']} traces{'  TRUNCATED at --limit' if o['truncated'] else ''}"
+            + (f", first {o['first']} last {o['last']}" if o.get("first") else "")
         )
+        for k, n in list((o.get("roots") or {}).items())[:20]:
+            out.append(f"  {n:6d}  {k}")
         for t in o["traces"][:50]:
             out.append(
                 f"  {t['traceID']}  {t.get('rootServiceName')} {t.get('rootTraceName')}  {t.get('durationMs')} ms"
@@ -534,9 +720,11 @@ def render(o: dict) -> str:
             for name, e in list(s["by_name"].items())[:15]:
                 out.append(f"   {e['count']:4d}  {name}  (max {e['max_ms']} ms)")
             for sp in d.get("spans") or []:
-                attrs = " ".join(f"{k}={v}" for k, v in list(sp["attrs"].items())[:6])
+                st = _status(sp["status"])
                 out.append(
-                    f"      {sp['duration_ms']:>9} ms  {sp['service']:16s} {sp['name']}  [{sp['kind']}] parent={sp['parent_id'] or '-'}  {attrs}"
+                    f"      {sp['duration_ms']:>9} ms  {sp['service']:16s} {sp['name']}  [{sp['kind']}]"
+                    + (f" status={st}" if st != "UNSET" else "")
+                    + f" parent={sp['parent_id'] or '-'}  {attrs_line(sp['attrs'])}"
                 )
     elif "bins" in o:
         out.append(
@@ -580,12 +768,27 @@ def main() -> int:
     d.add_argument("traceql")
     d.add_argument("--bin", default="30s")
     add_window(d)
+    e = sub.add_parser("breakdown")
+    e.add_argument("--service", required=True)
+    e.add_argument(
+        "--traceql",
+        help="the search to break down (default: every trace carrying a span of --service)",
+    )
+    e.add_argument("--limit", type=int, default=TRACE_LIMIT)
+    e.add_argument(
+        "--sample",
+        type=int,
+        default=200,
+        help="traces fetched, newest first (default 200)",
+    )
+    add_window(e)
     ns = ap.parse_args()
     code, out = {
         "ops": cmd_ops,
         "get": cmd_get,
         "search": cmd_search,
         "count": cmd_count,
+        "breakdown": cmd_breakdown,
     }[ns.cmd](ns)
     emit(out, ns.json, render)
     return code

@@ -207,9 +207,10 @@ python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py ops --servic
 python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py get <trace id> [<trace id> ...] [--spans] [--out <dir>] [--json]
 python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py count '<TraceQL>' --from <start> --to <end> [--bin 30s] [--json]
 python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py search '<TraceQL>' --from <start> --to <end> [--limit 1000] [--json]
+python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py breakdown --service <svc> [--traceql '<TraceQL>'] --from <start> --to <end> [--limit 1000] [--sample 200] [--json]
 ```
 
-Four subcommands, the whole surface above (`--since <duration>` replaces
+Five subcommands, the whole surface above (`--since <duration>` replaces
 `--from/--to` everywhere). Behind them: [`traces query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_query.md),
 [`traces get`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_get.md) and, for the span metrics,
 [`metrics query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_query.md).
@@ -242,9 +243,20 @@ Four subcommands, the whole surface above (`--since <duration>` replaces
 - `count` — traces matching a TraceQL selector per `--bin`, deduplicated
   on trace id (a trace overlapping two bins is listed in both); says when
   a bin hit the 1 000 ceiling (narrow the bin or split the selector).
-- `search` — a raw TraceQL expression, ids padded. One pair of braces:
+- `search` — a raw TraceQL expression, ids padded; the header names the
+  first and last trace of the window and the root operations with their
+  counts. One pair of braces:
   `{ resource.service.name = "svc" && span.http.status_code >= 500 }` —
   two brace groups joined by `&&` is a parse error.
+- `breakdown` — over the traces rooted at the service in the window (or
+  matching `--traceql`; the newest `--sample` are fetched, concurrently):
+  per root operation, the trace count, the root's status and its
+  `http.response.status_code` distribution (`absent` when the root
+  carries none), root p50/p95/max, and every child span by `<service>
+  <name> [<kind>]` with its count per trace, p50/p95/max, errors and
+  attribute keys — the outcome-and-children table an observation builds
+  per operation, in one call, never by fetching the traces and reading
+  the documents yourself.
 
 Output: `ops` — `operations{<svc> <op>: rooted_traces,
 containing_traces, truncated, trace_p50_ms, trace_p95_ms, trace_p99_ms,
@@ -259,12 +271,17 @@ each span is `span_id, parent_id, service, scope, name, kind (SERVER,
 CLIENT, INTERNAL, PRODUCER, CONSUMER), start_ns, end_ns, duration_ms,
 status (UNSET, STATUS_CODE_OK, STATUS_CODE_ERROR), attrs{<key>:
 value}` — the text form prints each as `<ms> <service> <name> [<kind>]
-parent=<id> <its first six attrs>`, and `--json` carries the status and
-every attribute (a root's `http.response.status_code`, a child's
-`peer.service` or `db.system`): read them there, never off a raw
-document. `search` — `count, truncated, traces[{traceID,
+status=<OK or ERROR, when set> parent=<id> <eight attrs, outcome, route
+and peer first>` (a root's `http.response.status_code`, a child's
+`peer.service` or `db.system` are on that line). `search` — `count,
+truncated, first, last, roots{<svc> <op>: n}, traces[{traceID,
 rootServiceName, rootTraceName, startTimeUnixNano, durationMs}]`.
 `count` — `total, capped_bins, bins[{from, to, listed, new, capped}]`.
+`breakdown` — `listed, rooted, fetched, truncated, breakdown{<svc> <op>:
+traces, root_status{<UNSET or OK or ERROR>: n}, http_status{<code or
+absent>: n}, root_p50_ms, root_p95_ms, root_max_ms, root_attrs[],
+children{<svc> <name> [<kind>]: count, in_traces, per_trace, errors,
+p50_ms, p95_ms, max_ms, attrs[]}}`.
 
 ### Logs
 
