@@ -310,10 +310,12 @@ Then build the mission block from that report:
     discovery query.
 
 Close the mission with the `## Show` of `odd-memory`'s
-`observe-run-report` reference: run its `show` on the stored path the
-agent's reply carries and print the rendering as the final answer,
-translated to the conversation's language - the verdict-first headline
-leads; the script is the one read of the file just written. The report file, stored in
+`observe-run-report` reference: run
+`python3 <Skills>/odd-memory/scripts/odd_report.py show <the stored path the agent's reply carries>`
+(that is its whole surface; nothing to read before the reply arrives)
+and print the rendering as the final answer, translated to the
+conversation's language - the verdict-first headline leads; the script
+is the one read of the file just written. The report file, stored in
 `.odd/observe-run-reports/`, remains the versioned record that the
 fix - or the planned instrumentation - was measured, not assumed:
 never re-dump the raw report in the conversation, and never let the

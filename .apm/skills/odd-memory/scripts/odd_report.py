@@ -19,7 +19,8 @@ section and table parsing from here, so the file format is written and
 read by one module.
 
     odd_report.py new --service S [--service S ...] --stack S --env E
-                      --mode M --depth D --window START/END --run-name SLUG
+                      --mode M --depth D --window START/END | --from START --to END
+                      --run-name SLUG
                       (prints the path, then the skeleton to fill)
                       [--verifies FILE] [--workload W] [--instance K=V ...]
                       [--process-restarted true|false|K=V ...]
@@ -973,7 +974,6 @@ def new_report(args: argparse.Namespace) -> tuple[Path, list[str]]:
         ("--stack", args.stack),
         ("--env", args.env),
         ("--mode", args.mode),
-        ("--window", args.window),
     ):
         if not value:
             raise Refusal(f"{flag} is required")
@@ -983,9 +983,16 @@ def new_report(args: argparse.Namespace) -> tuple[Path, list[str]]:
         )
     if args.depth is not None and args.depth not in DEPTHS:
         raise Refusal(f"--depth is one of {', '.join(DEPTHS)}, not {args.depth!r}")
-    window = WINDOW_RE.match(args.window)
+    # the two instants a query script printed (--from START --to END) are
+    # the window as recorded, pasted as they are: never recomputed by hand
+    if not args.window and args.start and args.end:
+        args.window = f"{args.start.strip()}/{args.end.strip()}"
+    window = WINDOW_RE.match(args.window or "")
     if not window:
-        raise Refusal("--window is <start>/<end> in UTC (YYYY-MM-DDTHH:MM:SSZ)")
+        raise Refusal(
+            "--window is <start>/<end> in UTC (YYYY-MM-DDTHH:MM:SSZ), or the "
+            "--from START --to END a query script printed"
+        )
     if window.group(2) < window.group(1):
         raise Refusal("--window ends before it starts")
     replay = args.mode in REPLAY_MODES
@@ -1174,7 +1181,13 @@ def synthesis_data(text: str) -> dict:
     replay = mode in REPLAY_MODES
     data: dict[str, Any] = {
         "frontmatter": fm,
-        "frontmatter_lines": frontmatter_lines(text),
+        "frontmatter_lines": [
+            f"tree_anchor: <{len(fm['tree_anchor'])} entries, in the file>"
+            if line.startswith("tree_anchor:")
+            and isinstance(fm.get("tree_anchor"), dict)
+            else line
+            for line in frontmatter_lines(text)
+        ],
         "mode": mode,
         "replay": replay,
         "quick": str(fm.get("depth")) == "quick",
@@ -1631,6 +1644,18 @@ def main(argv: list[str] | None = None) -> int:
         "--window",
         metavar="START/END",
         help="<start>/<end> in UTC (YYYY-MM-DDTHH:MM:SSZ)",
+    )
+    p.add_argument(
+        "--from",
+        dest="start",
+        metavar="START",
+        help="the window's start, as a query script printed it",
+    )
+    p.add_argument(
+        "--to",
+        dest="end",
+        metavar="END",
+        help="the window's end, as a query script printed it",
     )
     p.add_argument("--run-name", help="the slug (a replay inherits the baseline's)")
     p.add_argument(

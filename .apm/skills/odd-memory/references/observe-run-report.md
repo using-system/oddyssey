@@ -14,7 +14,7 @@ the next `odd_stack_reset` — when in doubt, record the number.
 python3 <this skill's directory>/scripts/odd_report.py new --repo <observed repo> \
   --service <name> [--service <name> ...] --stack <stack> --env <detected environment> \
   --mode <drive|observe|post-hoc|verify|re-measure> --depth <quick|full> \
-  --window <start>/<end> --run-name <slug> \
+  --window <start>/<end> | --from <start> --to <end> --run-name <slug> \
   [--verifies <baseline>] [--workload <text>] [--instance <service>=<identity> ...] \
   [--process-restarted <true|false|service=true|false> ...] [--repository <value>] \
   [--at <UTC instant>] [--no-revision]
@@ -69,10 +69,11 @@ The frontmatter mirrors the run **as it executed**, defaults applied —
   the service's telemetry reports; `local` by construction on the local
   stack; `unknown` when the service emits none (stated, and a telemetry
   gap). One observation, one environment.
-- `--window` is the observed interval: in drive mode the scenario's own
-  start and end; in observe mode the driven run's own span — its first
-  request row, warmup included, to its end — never the minutes spent
-  watching. The filename's minute is that start; `--at` overrides it
+- The window is the observed interval, pasted as a query script printed
+  it (`--from <start> --to <end>`) or given as `--window <start>/<end>`
+  — never an instant recomputed by hand: in drive mode the scenario's own start and
+  end; in observe mode the driven run's own span — its first request
+  row, warmup included, to its end — never the minutes spent watching. The filename's minute is that start; `--at` overrides it
   only when the run's start is not the window's.
 - `--mode observe` names the run **and the observer**: pass the run's
   name (the benchmark's directory name when the mission carries one),

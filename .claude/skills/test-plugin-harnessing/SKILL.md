@@ -64,6 +64,15 @@ harnessing** section. This skill is how you prove one landed.
      --prompt-file <mission> --out <study dir>
    ```
 
+   A mission that opens with a slash command (`/odd-observe ...`) is
+   launched through the host's own expansion (`--command`), the way a
+   typed command is: passed as raw text, the run spends its first turns
+   hunting for the command file - globs, reads of the command and of
+   the agent it dispatches - a cost no host pays, folded into every
+   phase number (measured: 8 to 10 turns of a 75-turn run). The record
+   carries `command` so a number taken the old way is never compared
+   with one taken this way.
+
    Its whole surface, so `--help` has nothing to add: `--model`,
    `--tag`, `--phase`, one of `--prompt` / `--prompt-file`, `--out`,
    plus `--end-pattern` (a regular expression over the run's own log
@@ -106,6 +115,24 @@ harnessing** section. This skill is how you prove one landed.
    containers down, the stray processes killed.
 
 ## Judging what you measured
+
+**The baseline is main, measured just before the work starts**, with
+the same mission, the same machine and the same harness as the runs
+that follow — never the published row alone, never a number taken on
+another day. State it on four axes at once: turns, tokens (input with
+the cached share, output), cost and wall clock — per phase, since the
+report phase is a tenth of a run and a change there vanishes in the
+investigation's spread. When a number looks like variance, replay
+rather than argue: two samples of the same configuration settle what
+one cannot.
+
+**A change goes to review only with a substantial gain on those axes
+against that baseline** — not a conformant output alone, not a
+behaviour count alone. A change that moved the target phase and left
+the totals level, or worse, is reworked, not argued: find where the
+turns and the context went (per-phase accounting, the reads of every
+file the change touched, the calls the new invocation caused), fix the
+cause, and measure again.
 
 **Two samples minimum before claiming a wall-clock gain**, and state
 both. The spread between two runs of one configuration reached 17 s in

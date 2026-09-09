@@ -159,6 +159,17 @@ def main() -> int:
         Path(args.prompt_file).read_text().strip() if args.prompt_file else args.prompt
     )
 
+    # A mission that opens with a slash command is launched through the
+    # host's own expansion (`--command <name>`, the rest as its arguments):
+    # passed as raw text, the run hunts for the command file first - globs,
+    # reads of the command and of the agent it dispatches - a cost no host
+    # pays when the command is typed, and one that pollutes every phase
+    # number. The record says which form was used.
+    command = None
+    match = re.match(r"^/([A-Za-z0-9_-]+)\s*(.*)$", mission, re.DOTALL)
+    if match:
+        command, mission = match.group(1), match.group(2).strip()
+
     purge_k6()
     started_at = time.time()
     start_utc = utc()
@@ -178,6 +189,7 @@ def main() -> int:
             "--auto",
             "--title",
             f"harness-study {args.tag}",
+            *(["--command", command] if command else []),
             mission,
         ],
         stdin=subprocess.DEVNULL,
@@ -224,6 +236,7 @@ def main() -> int:
         "reached": reached,
         "note": note,
         "end_pattern": args.end_pattern,
+        "command": command,
     }
     (out / f"{args.tag}.record.json").write_text(json.dumps(record, indent=2))
     print(json.dumps(record, indent=2))

@@ -125,11 +125,13 @@ defaults for every field not specified:
   offering the full mission as the follow-up.
 
 Close the mission with the `## Show` of `odd-memory`'s
-`observe-run-report` reference: run its `show` on the stored path the
-agent's reply carries and print the rendering as the final answer,
-translated to the conversation's language, with the stack file's fate
-from the reply when the run changed one — the script is the one read
-of the file just written. The report file - not the synthesis - is the deliverable the
+`observe-run-report` reference: run
+`python3 <Skills>/odd-memory/scripts/odd_report.py show <the stored path the agent's reply carries>`
+(that is its whole surface; nothing to read before the reply arrives)
+and print the rendering as the final answer, translated to the
+conversation's language, with the stack file's fate from the reply
+when the run changed one — the script is the one read of the file
+just written. The report file - not the synthesis - is the deliverable the
 next spec-driven wave consumes: never re-dump the raw report in the
 conversation, and never let the synthesis replace the stored file as
 the plan's input.

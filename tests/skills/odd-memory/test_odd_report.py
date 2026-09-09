@@ -182,6 +182,42 @@ def test_new_prints_the_skeleton_after_the_path(repo):
     assert body.count("<fill>") == 8
 
 
+def test_new_takes_the_window_as_a_query_script_printed_it(repo, report):
+    proc = run(
+        repo,
+        "new",
+        "--repo",
+        str(repo.root),
+        "--service",
+        "checkout",
+        "--stack",
+        "local",
+        "--env",
+        "local",
+        "--mode",
+        "post-hoc",
+        "--depth",
+        "full",
+        "--run-name",
+        "a",
+        "--from",
+        "2026-08-10T10:04:12Z",
+        "--to",
+        "2026-08-10T10:05:03Z",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert frontmatter(report, Path(proc.stdout.splitlines()[0]))["window"] == WINDOW
+
+
+def test_the_printed_frontmatter_elides_the_anchor_the_file_keeps(repo, report):
+    path = new(repo)
+    fill(path)
+    proc = run(repo, "synthesis", str(path))
+    assert proc.returncode == 0, proc.stderr
+    assert "tree_anchor: <2 entries, in the file>" in proc.stdout
+    assert len(frontmatter(report, path)["tree_anchor"]) == 2
+
+
 def test_new_at_overrides_the_stamp(repo, report):
     path = new(repo, "--at", "2026-08-11T09:30:00Z")
     assert path.name == "2026-08-11-0930-checkout-sweep.md"
