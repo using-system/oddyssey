@@ -36,6 +36,9 @@ identical either way.
 
 ## Remote missions — targeting without touching the user's config
 
+Remote missions only: on the local stack the context is the
+`setup-local-stack` skill's, and this section is never read.
+
 ```bash
 python3 <Skills>/observability-cli-guides/scripts/grafana-context.py [--stack <context name>] [--json]
 ```

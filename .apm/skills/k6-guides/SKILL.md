@@ -45,6 +45,7 @@ alone (`grep -i dropped`).
 | Question | Reference |
 | --- | --- |
 | Is k6 installed? How do I install/detect it? | [install.md](references/install.md) |
+| What replay line may a preflight hand the mission? | [install.md](references/install.md), its closing section |
 | How do I run a k6 script, read its output, know if it passed? | [running-tests.md](references/running-tests.md) |
 | How do I validate a script without running the benchmark - `k6 inspect`, a one-iteration smoke? | [running-tests.md](references/running-tests.md) |
 | Why is `res.body` null / why does `res.json()` throw? | [scripting.md](references/scripting.md) |

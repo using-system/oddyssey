@@ -11,6 +11,8 @@ same command.
     python3 replay_benchmark.py <dir> --run-slug s -e BASE_URL=http://host:8080
     python3 replay_benchmark.py <dir> --run-slug s --send-traceparent   # remote drive
     python3 replay_benchmark.py <dir> --run-slug s --dry-run            # print, run nothing
+    python3 replay_benchmark.py <dir> --run-slug s --detach <out>       # start, return at once
+    python3 replay_benchmark.py --status <out> --wait 20m               # block until finished
 
 What it refuses, because they are edits by another name: --vus,
 --iterations, --duration, --stage, --rps, --execution-segment,
@@ -34,6 +36,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 REFUSED = {
@@ -131,7 +134,7 @@ def detach(
     """Start the replay in the background and return at once.
 
     A benchmark that runs for minutes outlasts a single tool call, so the
-    caller polls instead of blocking. k6 runs as the child of a detached
+    caller waits with --status --wait instead of blocking here. k6 runs as the child of a detached
     wrapper, which is what lets the finished record carry k6's **real**
     exit status - a threshold breach is a 99, and a run that reported it
     as a pass would be worse than no record at all.
@@ -175,16 +178,56 @@ def detach(
     else:
         print(f"started {record['benchmark']} detached, pid {proc.pid}")
         print(f"record   {out / 'replay-record.json'}")
-        print(f"poll     {Path(__file__).name} --status {out}")
+        print(f"wait     {Path(__file__).name} --status {out} --wait <duration>")
     return 0
 
 
-def report_status(out: Path, as_json: bool) -> int:
-    """Answer a --detach run's one question: finished, or still going."""
+def parse_wait(value: str) -> int:
+    """A bounded wait as seconds: 20m, 300s, 1h - a bare number is seconds."""
+    m = re.fullmatch(r"(\d+)([smh]?)", value.strip())
+    if not m:
+        raise SystemExit(f"--wait takes <number>[s|m|h], got {value!r}")
+    return int(m.group(1)) * {"": 1, "s": 1, "m": 60, "h": 3600}[m.group(2)]
+
+
+def runner_alive(out: Path) -> bool:
+    """Whether the detached runner recorded in runner.pid still exists."""
+    try:
+        pid = int((out / "runner.pid").read_text().strip())
+        os.kill(pid, 0)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def report_status(out: Path, as_json: bool, wait: str | None = None) -> int:
+    """Answer a --detach run's one question: finished, or still going.
+
+    With --wait, block until the run finishes or the bound passes - the
+    wait the contracts describe, shipped instead of authored: exit 0 when
+    finished, 3 when still running at the bound, the status printed either
+    way.
+    """
     record_path = out / "replay-record.json"
     if not record_path.is_file():
         print(f"no detached replay in {out}", file=sys.stderr)
         return 1
+    timed_out = False
+    if wait is not None:
+        limit = parse_wait(wait)
+        started = time.monotonic()
+        while not (out / "done").is_file():
+            if not runner_alive(out) and not (out / "done").is_file():
+                print(
+                    f"the detached run in {out} is gone without a record - its "
+                    "process was killed or the machine restarted; drive again",
+                    file=sys.stderr,
+                )
+                return 1
+            if time.monotonic() - started >= limit:
+                timed_out = True
+                break
+            time.sleep(min(5.0, max(limit, 1)))
     record = json.loads(record_path.read_text())
     done = (out / "done").is_file()
     if done and "exit_code" not in record:
@@ -210,6 +253,13 @@ def report_status(out: Path, as_json: bool) -> int:
         print(f"  started  {record.get('start_utc')}")
         print(f"  summary  {record['summary_export']}")
         print(f"  output   {out / 'k6-stdout.log'}")
+    if timed_out:
+        print(
+            f"still running after --wait {wait}: the wait is bounded on purpose - "
+            "run --status --wait again, or raise the bound",
+            file=sys.stderr,
+        )
+        return 3
     return 0
 
 
@@ -250,12 +300,25 @@ def main() -> int:
         metavar="DIR",
         help="report on a --detach run: still running, or its finished record",
     )
+    parser.add_argument(
+        "--wait",
+        metavar="DURATION",
+        help="with --status: block until the run finishes or DURATION "
+        "(20m, 300s, 1h) passes - exit 3 when still running at the bound",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
+    if args.wait and not args.status:
+        parser.error("--wait goes with --status")
+    if args.wait:
+        try:
+            parse_wait(args.wait)
+        except SystemExit as bad:
+            parser.error(str(bad))
     if args.status:
-        return report_status(Path(args.status), args.json)
+        return report_status(Path(args.status), args.json, args.wait)
 
     if not args.benchmark or not args.run_slug:
         parser.error("benchmark and --run-slug are required unless --status is given")

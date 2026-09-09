@@ -136,7 +136,9 @@ window recorded in step 4. Never interleave requests, waits, and
 queries outside the query points the record declares: a wait after
 every request batch turns a 3-minute scenario into 4 minutes of sleep.
 The wait — a fixed sleep or a bounded poll — is a `sleep` inside a
-helper script run in the foreground (`references/long-scenarios.md`),
+helper script run in the foreground (`references/long-scenarios.md`;
+a stored benchmark's replay excepted: its script waits,
+`references/benchmark-replay.md`),
 inside the turn — never a background job whose completion notification
 the turn waits for, never a turn ended to wait. A Monitor-style
 background notifier is a wait only in a main conversation, which is
