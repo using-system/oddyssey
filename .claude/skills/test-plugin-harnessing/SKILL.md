@@ -45,7 +45,11 @@ harnessing** section. This skill is how you prove one landed.
    repository, and copy `.apm/skills/*` and `.apm/agents/*` over
    `~/.claude/skills` / `~/.claude/agents` when the host also reads a
    user scope. Back the user scope up first and restore it at the end —
-   it is the user's install, not yours. `diff -rq` the two scopes: a run
+   it is the user's install, not yours — or, when the user's home must
+   stay untouched, run the host under a fake `HOME` whose `.claude`
+   carries the deploy and whose every other entry is a symlink to the
+   real home (the credentials, the log and the session store stay
+   where the scripts read them). `diff -rq` the two scopes: a run
    that finds them different spends turns comparing them.
 
 3. **Clean what the next run must not read.** Any report a previous run
@@ -59,6 +63,15 @@ harnessing** section. This skill is how you prove one landed.
      --model <openrouter id> --tag <short label> --phase <phase> \
      --prompt-file <mission> --out <study dir>
    ```
+
+   A mission that opens with a slash command (`/odd-observe ...`) is
+   launched through the host's own expansion (`--command`), the way a
+   typed command is: passed as raw text, the run spends its first turns
+   hunting for the command file - globs, reads of the command and of
+   the agent it dispatches - a cost no host pays, folded into every
+   phase number (measured: 8 to 10 turns of a 75-turn run). The record
+   carries `command` so a number taken the old way is never compared
+   with one taken this way.
 
    Its whole surface, so `--help` has nothing to add: `--model`,
    `--tag`, `--phase`, one of `--prompt` / `--prompt-file`, `--out`,
@@ -102,6 +115,36 @@ harnessing** section. This skill is how you prove one landed.
    containers down, the stray processes killed.
 
 ## Judging what you measured
+
+**The baseline is main, measured just before the work starts**, with
+the same mission, the same machine and the same harness as the runs
+that follow — never the published row alone, never a number taken on
+another day. State it on four axes at once: turns, tokens (input with
+the cached share, output), cost and wall clock — per phase, since the
+report phase is a tenth of a run and a change there vanishes in the
+investigation's spread. When a number looks like variance, replay
+rather than argue: two samples of the same configuration settle what
+one cannot.
+
+**A change goes to review only with a substantial gain on those axes
+against that baseline** — not a conformant output alone, not a
+behaviour count alone. A change that moved the target phase and left
+the totals level, or worse, is reworked, not argued: find where the
+turns and the context went (per-phase accounting, the reads of every
+file the change touched, the calls the new invocation caused), fix the
+cause, and measure again.
+
+**When the phase reaches the report, the findings are a metric too.**
+A harness change that cuts turns and loses findings moved the cost
+onto the reader. For every sample that wrote a report, count what it
+found - section 3's ranked findings by severity and confidence, section
+5's gaps - on the baseline and on the change alike (the report script's
+`synthesis` prints both lists), and **review them before comparing**:
+re-run the query each finding cites, open what it accuses, and rule it
+confirmed or not - the way `launch-llms-benchmark` grades a row, on
+evidence, never on the report's own confidence label. State the
+confirmed count next to the reported one, per side, in the study and
+in the PR; a change that reports more but confirms less is worse.
 
 **Two samples minimum before claiming a wall-clock gain**, and state
 both. The spread between two runs of one configuration reached 17 s in

@@ -35,6 +35,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / ".apm" / "hooks" / "scripts" / "check_report_frontmatter.py"
 STATUS_SCRIPT = ROOT / ".apm" / "skills" / "get-status" / "scripts" / "odd_status.py"
+REPORT_SCRIPT = ROOT / ".apm" / "skills" / "odd-memory" / "scripts" / "odd_report.py"
 
 OBS = ".odd/observe-run-reports"
 INS = ".odd/otel-instrumentation-reports"
@@ -57,6 +58,11 @@ def hook():
 @pytest.fixture(scope="module")
 def odd_status():
     return _load("odd_status", STATUS_SCRIPT)
+
+
+@pytest.fixture(scope="module")
+def odd_report():
+    return _load("odd_report", REPORT_SCRIPT)
 
 
 @pytest.fixture
@@ -625,6 +631,21 @@ def test_the_hook_and_the_status_return_the_same_problems(hook, odd_status, stor
         status_problems = odd_status.check_report(report, stored, store)
         expected = ["depth absent" if p == LEGACY_DEPTH else p for p in status_problems]
         assert hook.check_file(store / case.rel) == expected, case.rel
+        assert list(case.problems) == expected, case.rel
+
+
+def test_the_hook_and_the_report_script_return_the_same_problems(
+    hook, odd_report, store
+):
+    """The skills read the format through odd-memory's ``odd_report.py``;
+    its write-time reading (``written_now``) is the hook's, message for
+    message, so ``odd_report.py check`` refuses on a host without the hook
+    exactly what the hook refuses after a write."""
+    for case in CASES:
+        expected = hook.check_file(store / case.rel)
+        assert odd_report.check_file(store / case.rel, written_now=True) == expected, (
+            case.rel
+        )
         assert list(case.problems) == expected, case.rel
 
 

@@ -59,8 +59,10 @@ report reference is what the persistence hands the caller, and what
   actually executed — defaults applied, not as requested. The kind's
   reference lists the fields and their meaning.
 - The body is the producing agent's artifact **as-is**, whole: the
-  section contract belongs to the agent, not to the persistence,
-  and a summary cannot feed a later diff.
+  section contract belongs to the agent, not to the persistence —
+  except the numbered headings and the few machine-read shapes a
+  kind's script fixes and checks (its reference names them) — and a
+  summary cannot feed a later diff.
 
 ## Append-only, with one exception
 
@@ -118,7 +120,8 @@ recalled by name, each ledger is one file; their references own that:
   way apply the kind's matching rules yourself; a missing or empty
   store is a first run then too — say so, never fail.
 - The first line printed is the baseline: read it **by section, never
-  whole** — the kind's reference names the sections a mission needs.
+  whole** — the kind's reference names the sections a mission needs,
+  and the command that prints them when it ships one.
   Reading beyond that set is the exception, for a stated need that the
   calling agent records. A benchmark recall has no baseline: the whole
   listing is the set the mission checks itself against, and its
@@ -147,6 +150,9 @@ lifecycle hooks, a hook flags what slipped through, after the write.
 
 ## The work branch and the lone commit
 
+An observation report's `persist` (its reference's script) applies this
+section; everywhere else it is applied by hand:
+
 - **Never commit on the default branch.** Before committing, compare
   `git branch --show-current` with the repository's default branch
   (`git symbolic-ref --short refs/remotes/origin/HEAD` stripped of its
@@ -171,13 +177,15 @@ lifecycle hooks, a hook flags what slipped through, after the write.
 ## The reply and the synthesis
 
 - The persistence's return value carries the stored path, the
-  carrying commit, and the **synthesis inputs** its `## Show` renders
-  from — quoted from the artifact where the artifact carries the
-  value, never rephrased; the kind's reference lists them — and never the
-  artifact's body: an observation report runs 300 to 500 lines, the
-  reply travels back into the caller's context, and the synthesis is
-  its only reader. What the next wave needs is in the file, at the
-  stored path.
+  carrying commit, and what its `## Show` needs to render — the
+  **synthesis inputs**, quoted from the artifact where the artifact
+  carries the value, never rephrased, the kind's reference lists them;
+  or, when the kind ships a script that renders the synthesis from the
+  stored file, the headline alone, so the block never travels through
+  the reply — and never the artifact's body: an observation report
+  runs 300 to 500 lines, the reply travels back into the caller's
+  context, and the synthesis is its only reader. What the next wave
+  needs is in the file, at the stored path.
 - `## Show` renders from that return value, or reads a stored
   artifact the caller names from disk, by section, with its carrying
   commit from git (`git log -1 --format=%h -- <path>`) — never from the

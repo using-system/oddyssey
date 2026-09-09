@@ -1,564 +1,203 @@
 # Observation reports
 
 An observation run that cannot see the previous ones starts blind every
-time. This skill defines the file contract that gives the ODD loop its
-memory: reports live **in the observed repository**, so git versions
-them, PRs review them, and every user of the repo shares them — no
-side-channel storage, nothing opaque. What every kind of memory shares
-is the contract in
-`SKILL.md`; this reference states what is specific to observation
-reports: how to persist one, how to recall the baseline, and how to
-show a stored one (`## Show`).
+time. This reference states what is specific to observation reports on
+top of the memory contract in `SKILL.md`: the script that owns the
+file's deterministic steps, the judgment the run keeps, how the
+baseline is recalled, and how a stored report is shown. The report is
+the loop's **only durable artifact**: the telemetry behind it dies with
+the next `odd_stack_reset` — when in doubt, record the number.
 
-The report is also the loop's **only durable artifact**: the raw
-telemetry behind it lives in a volume-less container that any
-`odd_stack_reset` — from this project or another on the same machine —
-destroys irreversibly. A question that only occurs at verify time is
-unanswerable unless its numbers were recorded at observe time: when in
-doubt, record the number.
+## The script owns the format
 
-## Where reports live
-
-```text
-<observed-repo-root>/.odd/observe-run-reports/YYYY-MM-DD-HHmm-<run_name>.md
+```bash
+python3 <this skill's directory>/scripts/odd_report.py new [--repo <observed repo>] \
+  --service <name> [--service <name> ...] --stack <stack> --env <detected environment> \
+  --mode <drive|observe|post-hoc|verify|re-measure> --depth <quick|full> \
+  --window <start>/<end> | --from <start> --to <end> --run-name <slug> \
+  [--verifies <baseline>] [--workload <text>] [--instance <service>=<identity> ...] \
+  [--process-restarted <true|false|service=true|false> ...] [--repository <value>] \
+  [--at <UTC instant>] [--no-revision]
+python3 <this skill's directory>/scripts/odd_report.py check <path>
+python3 <this skill's directory>/scripts/odd_report.py read <path> [--sections 1,2,3,7] [--record]
+python3 <this skill's directory>/scripts/odd_report.py persist <path> --body <draft> [--no-commit]
+python3 <this skill's directory>/scripts/odd_report.py synthesis <path>
+python3 <this skill's directory>/scripts/odd_report.py show <path>
 ```
 
-- `YYYY-MM-DD-HHmm` and `<run_name>` follow the memory contract: UTC
-  via `date -u` (so do `date:` and `window`), and a slug naming what
-  the run analyzed (`checkout-latency-sweep`, `orders-post-hoc-errors`).
-- An **observed run** (`mode: observe`) — the run belongs to another
-  mission, and several missions may be watching the same one, each
-  from its own backend. Its `run_name` names the run **and the
-  observer**: `<what the run analyzed>-observe-<stack>` — the
-  benchmark's directory name when the mission carries one, the
-  `stack` frontmatter value as the suffix, kebab-cased and stripped of
-  anything the filename rule refuses (`[a-z0-9][a-z0-9-]*`: a custom
-  stack whose name carries a dot, a space or an upper-case letter goes
-  in reduced to that shape, the frontmatter `stack` keeping the real
-  value). The file then reads
-  `YYYY-MM-DD-HHmm-<name>-observe-<stack>.md`, with the timestamp of
-  the observed run's own start — the first request row of the run's
-  identity, the instant `window` opens on — not of the moment the
-  watch began: the driver's report and every observer's then sit
-  together in a listing. One run watched by several missions writes
-  **one report per mission**, never a shared file the observers append
-  to — the memory is append-only, and a stored report is never
-  reopened — and the driver's own report (`mode: drive`, its
-  `run_name` unsuffixed) stands beside them. When the resulting path
-  is already taken — two missions watching the same run from the
-  **same** stack, which the suffix cannot separate and no hook rejects
-  — the later writer never overwrites it: it appends the next free
-  ordinal (`-observe-<stack>-2`) and section 1 names the report it
-  sits beside.
-  What the two halves of the suffix buy: `-observe` keeps an observer's
-  file from colliding with the driver's when the two persist in the
-  same minute, and `<stack>` keeps two observers of one run apart —
-  their reports are otherwise byte-identical in name, so a store
-  listing, a glob, and every human reading either see one name over
-  two backends' evidence. Neither breaks a chain on its own: `verifies`
-  is the authoritative field and `*-verify-<run_name>.md` only proposes
-  candidates, so a shared name costs a candidate that must be read and
-  discarded rather than a wrong answer. A verification or re-measure of
-  such a report reuses that `run_name` unchanged, like any other: the
-  suffix names the backend the **baseline** watched, which is the
-  backend the replay runs on too — a replay is preflighted against the
-  report's own `stack` and never retargeted silently — and a replay
-  knowingly run elsewhere says so in section 1, its frontmatter `stack`
-  carrying the truth the inherited suffix no longer does.
-  Section 1 names the run's driver: the driving mission as the mission
-  block states it (or that it names none), and the driver's stored
-  report by path when it is already committed — "not in the store"
-  when it is not, since the two missions persist in either order.
-- A **verification run** — a run that replays a stored report's
-  protocol: an observation report's measurement protocol, or an
-  instrumentation report's verification protocol (from
-  `.odd/otel-instrumentation-reports/`) — names its file
-  `YYYY-MM-DD-HHmm-verify-<run_name>.md`: its **own** UTC timestamp,
-  then `verify-`, then the verified report's `run_name` unchanged (the
-  baseline's timestamp is not repeated). Chronological sorting is
-  preserved — verify reports interleave in the timeline instead of
-  clustering — and "has this run been verified?" becomes a filename
-  glob (`*-verify-<run_name>.md`). Re-verifications share the suffix
-  and differ by their own timestamp. `verify-` always references the
-  report **whose protocol is replayed**: re-verifying replays the
-  original report's protocol again, so the new report references the
-  original report. A verification report is a legal reference only
-  when its own §7 measurement protocol — not the original's — is the
-  one replayed: the reference names the protocol's actual source,
-  never a report the run did not replay.
-- A **re-measure run** — a run that replays a stored report's protocol
-  verbatim while testing no fix (same code, drift or stability check)
-  — names its file `YYYY-MM-DD-HHmm-remeasure-<run_name>.md`: the same
-  mechanics as a verification (its own UTC timestamp, the replayed
-  report's `run_name`), its own glob (`*-remeasure-<run_name>.md`).
-  It never matches the `*-verify-*` glob: a re-measure is not a
-  verification, and "has this run been verified?" must stay blind to
-  it.
+That is the whole surface; `--help` adds nothing and the file has
+nothing to read. `--repo` defaults to the working directory and
+`--sections` to `1,2,3,7`; `--service` is repeated per service, or one
+comma-separated value; `--kind` exists and defaults to `observation`,
+the only kind `new` writes.
 
-## The file format
+- `new` prints the report's path. It names the file
+  (`YYYY-MM-DD-HHmm-<run_name>.md` from the window's UTC start, the
+  `-observe-<stack>` suffix in observe mode, the `verify-` and
+  `remeasure-` prefixes, the next free ordinal when the path is taken),
+  fills `date`, `revision`, `tree_anchor` and `repository` from the
+  repository itself, writes the frontmatter and the seven-section
+  skeleton, and on a replay pre-fills section 3's ruling table and
+  section 5's gaps from the baseline, and prints that body after the
+  path. Every `<fill>` it leaves is yours to replace: the sections are
+  the judgment — written, filled, to a **draft** file of your own with
+  your file tool, never by editing the report file.
+- `check` runs the memory contract's checks — what a host's hook
+  enforces after a write, plus no placeholder left and, on a replay,
+  one ruling row per baseline finding with a verdict from the contract.
+  One stderr line per problem, exit 2; `persist` refuses a report that
+  fails it.
+- `read` prints the frontmatter and the named sections, nothing else;
+  `--record` reduces section 1 to its scenario record and replay notes.
+- `persist --body <draft>` writes the draft under the file's
+  frontmatter (a frontmatter the draft carries is dropped), runs
+  `check` — a failing draft leaves the file as `new` wrote it, rulings
+  and gaps included, and names what the draft lacks; nothing committed —
+  leaves the default branch for `docs/odd-observe-run-report-<run_name>`,
+  commits the file alone (`docs(odd): observation report <run_name>`,
+  the verification and re-measure subjects for a replay), and prints the
+  return value below. Without `--body` it persists the file as it is.
+  `--no-commit` when the caller said not to; outside a repository it
+  says `not committed` and why.
+- `synthesis` prints the synthesis block of a stored report; `show`
+  renders the closing synthesis from it.
 
-A YAML frontmatter, then the complete report:
+## What the run decides
 
-```markdown
----
-services: [checkout, payment]
-stack: local                  # local | the remote backend name (grafana, datadog, ...)
-environment: local            # detected: deployment.environment.name reported by the service's telemetry (local forced on the local stack; unknown when absent)
-mode: drive                   # drive | observe | post-hoc | verify | re-measure
-depth: full                   # quick | full: how far the mission went (the agent's Depth section); absent = written before the field, ran the full protocol
-window: 2026-08-22T10:04:12Z/2026-08-22T10:05:03Z
-run_name: checkout-latency-sweep
-date: 2026-08-22
-revision: 2299d4c             # optional: commit of the observed repo at run time
-tree_anchor: {src: "5ea231f…", tests: "8e29aac…"}  # optional: FULL top-level entry map at revision (git ls-tree) - the squash-proof anchor
-repository: github.com/example-org/checkout  # optional: the repository revision was taken from - its origin remote, normalized; a per-service map when the run spans several
-workload: repo-under-analysis # optional: the input that shaped this run
-instance: {checkout: af6070c1}   # optional: per service, the identity the numbers belong to
-process_restarted: true       # optional: restarted before the window (or per-service map)
----
+The frontmatter mirrors the run **as it executed**, defaults applied —
+`new` writes what it is told, so the judgment is in the flags:
 
-<the observation report, verbatim and complete>
-```
+- `--env` is **detected**, never asked: the `deployment.environment.name`
+  the service's telemetry reports; `local` by construction on the local
+  stack; `unknown` when the service emits none (stated, and a telemetry
+  gap). One observation, one environment.
+- The window is the observed interval, pasted as a query script printed
+  it (`--from <start> --to <end>`) or given as `--window <start>/<end>`
+  — never an instant recomputed by hand: in drive mode the scenario's own start and
+  end; in observe mode the driven run's own span — its first request
+  row, warmup included, to its end — never the minutes spent watching. The filename's minute is that start; `--at` overrides it
+  only when the run's start is not the window's.
+- `--mode observe` names the run **and the observer**: pass the run's
+  name (the benchmark's directory name when the mission carries one),
+  the script appends `-observe-<stack>`. One report per mission, never a
+  shared file; section 1 names the run's driver and its stored report
+  when it is already committed.
+- A replay passes `--verifies <exact filename of the report whose
+  protocol it replayed>` — a repo-relative
+  `.odd/otel-instrumentation-reports/<file>` for an instrumentation
+  baseline — and records `--mode verify` when a fix is under test,
+  `--mode re-measure` when the code is unchanged since the baseline's
+  `revision`. The run name and the depth are inherited from the baseline
+  when the flags are omitted (`quick` when an observation baseline
+  predates the field; `full` for an instrumentation baseline); a replay
+  knowingly run on another stack says so in section 1.
+- `--depth` is how far the mission went (the agent's Depth section);
+  `--workload` when the input shaped the run (a different workload is a
+  new run, not a note); `--instance` and `--process-restarted` pin the
+  process the numbers belong to (`run-scenario`'s `run-identity.md`) —
+  cumulative queries in the protocol are qualified by that identity.
+- `--repo` is the observed service's own repository; `--repository`
+  stands in for its origin when the run spans repositories (a
+  per-service map); `--no-revision` only when the observed code is in
+  no repository the run can reach. A local path is never a value.
 
-A verification run (stored as
-`2026-08-25-0930-verify-checkout-latency-sweep.md`) differs only in
-these fields:
+## The body
 
-```yaml
-mode: verify
-run_name: checkout-latency-sweep                     # the baseline's, unchanged
-verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the replayed baseline
-```
+Seven numbered sections, read by number by the recall, the status and
+`show`; the calling agent's contract says what each carries. Three
+shapes are machine-read and fixed here:
 
-A re-measure run (stored as
-`2026-08-27-1408-remeasure-checkout-latency-sweep.md`) uses the same
-fields with its own mode:
-
-```yaml
-mode: re-measure
-run_name: checkout-latency-sweep                     # the replayed report's, unchanged
-verifies: 2026-08-20-1012-checkout-latency-sweep.md  # exact filename of the replayed report
-```
-
-- Every field mirrors the run as it executed (the memory contract) —
-  mission parameters and execution context alike, defaults applied,
-  not as requested. One exception: a verification or re-measure run
-  records `mode: verify` / `mode: re-measure` even though it executes
-  in the mode the `verifies` chain resolves to — that execution mode
-  stays reachable through the chain.
-- `window` is the observed interval as `start/end` in UTC; in drive mode
-  it is the scenario's own start and end, and in observe mode the
-  driven run's own span — its **first request row** (the same instant
-  the filename's minute carries, warmup included, as on a drive) to its
-  end — never the interval the mission spent watching for it
-  (`run-scenario`'s `benchmark-replay.md`, watching a run someone else
-  drives).
-- `depth` is how far the mission went — `quick` (the agent's bounded
-  protocol: the signals the question touched, one exemplar per
-  operation, sections 3 to 6 collapsed, section 7 carrying only what
-  was measured) or `full` (the whole protocol). Required on every new
-  report, so `/odd-status` and the recall can tell the two apart and a
-  quick run is never silently taken as the baseline of a full one. A
-  report without the field predates it and ran the full protocol: read
-  it as `full`. A verification or re-measure records the depth **it**
-  ran at (inherited from the baseline's field, or — the one deliberate
-  asymmetry — `quick` when an observation baseline has none: the
-  absent field says "ran full" to every reader and "replay quick" to
-  `/odd-verify`, whose preflight says so before dispatch and whose run
-  record says it was defaulted), which may differ from the baseline's.
-- `environment` is **detected**, never asked: the
-  `deployment.environment.name` resource attribute the service's
-  telemetry reports — pre-run probe on recent telemetry, provisional
-  until the first scenario telemetry lands when the pre-run window is
-  empty. On `stack: local` the value is `local` by construction — a
-  service emitting a different attribute still records `local`, with the
-  discrepancy stated as a finding (misconfigured resource attributes).
-  `unknown` when the service emits no attribute — stated, never guessed,
-  and the absence is a telemetry gap. One observation, one environment:
-  services detecting different values stop the run, and so does a single
-  service reporting several values across the window — observe them as
-  separate missions.
-- A verification run sets `mode: verify` and `verifies: <exact filename
-  of the replayed baseline report>`, and takes its `run_name` from that
-  baseline. A **re-measure run** — same replay, but no fix under test:
-  the code is unchanged since the replayed report's `revision` and the
-  run measures drift or stability — sets `mode: re-measure` instead,
-  with the same `verifies` mechanics; what separates the two modes is
-  whether a fix is being ruled on, never how the run executed. Plain
-  observation reports (drive, observe, post-hoc) never carry `verifies`
-  and record their execution mode — the mode a verification or
-  re-measure replayed is the first execution mode the `verifies` chain
-  reaches (an instrumentation report at its end means `drive`), so it
-  is not repeated. In both modes `verifies` names the
-  report **whose protocol was actually replayed** — a verification
-  report is a legal value only when its own updated protocol is the
-  one replayed. The exact
-  filename (not just the run_name) is what disambiguates two baselines
-  sharing a run_name and survives an accidental rename; the field is
-  the machine contract, the `verify-`/`remeasure-` filename the
-  readable convention.
-  The baseline may also be an **instrumentation report**: `verifies`
-  then carries its repo-relative path
-  (`.odd/otel-instrumentation-reports/<filename>`), so the value's
-  shape says which directory the baseline lives in — a bare filename
-  always names a sibling observation report. The deliverable stays an
-  observation report in this directory either way.
-- `revision` (`git rev-parse --short HEAD` in the observed repo) is what
-  makes a before/after honest — taken in the observed service's own
-  repository, which `repository` below names when it is not the one
-  the report is stored in, and section 1 says which; omitted, with
-  `tree_anchor` and `repository`, only when the observed code is in no
-  repository the run can reach: a report is a before-value for a fix
-  wave, and the fix is a diff against some revision. In a squash-merge
-  repository that commit never joins the merged history — a fresh
-  clone cannot even resolve it — so record `tree_anchor` alongside it:
-  the full top-level entry map of `git ls-tree <revision>`, one
-  `name: object-hash` pair per entry. Content-derived, the anchor
-  survives squashes and clones: "code unchanged since the report"
-  becomes an entry-by-entry hash comparison against `git ls-tree` of
-  any later commit, with `.odd` and every entry that cannot change the
-  observed service's runtime behavior (documentation, CI
-  configuration, generated artifacts, release metadata) ignored by
-  the consumers — `.odd` because its top-level hash moves with every
-  report written, not because everything under it is memory:
-  consumers test `.odd/benchmarks/` separately, by path, since a
-  benchmark is living source and a change to it is a code change.
-- `repository` names the repository `revision` and `tree_anchor` were
-  taken from, taken at the same moment, in a form that survives a
-  move of the report to another store: the `origin` remote (`git remote get-url origin` in that
-  repository) normalized so that two agents on the same repository
-  always write the same value: the host lower-cased, then the remote's
-  path as it is (its case kept, any depth — `gitlab.com/group/subgroup/project`
-  is as valid as `github.com/org/repo`); the scheme, the user info
-  and the port dropped, one trailing `/` and one trailing `.git`
-  stripped; the SSH form `git@host:owner/name.git` read as
-  `host/owner/name`. A token in the remote URL is a secret: it never
-  reaches the report, the run record or the reply. Record it even when
-  the observed code is the repository the report is committed into:
-  the value is cheap and makes the report portable. No remote, no
-  value — never a local path (a home-directory path is an identifier:
-  the no-secrets rule). When the run spans repositories, a per-service
-  map,
-  `{checkout: github.com/example-org/checkout, payment: github.com/example-org/payment}`,
-  the shape `instance` uses. Absent on a report that predates the
-  field; a consumer then reads the report as observing the repository
-  it is stored in.
-- `workload` names the input that shaped the run when the runtime
-  profile depends on what was processed, not only on the service (an
-  analysis service run against two different repositories produces
-  incomparable numbers). Free-form, omit when the service alone defines
-  the profile — and if the workload changes mid-mission, that is a new
-  run, not a note.
-- `instance` and `process_restarted` pin which process the numbers
-  belong to (`run-scenario`'s `run-identity.md`). `instance` maps each observed service
-  to its identity: `service.instance.id` when the SDK emits one, or the
-  backend equivalent when it is absent — the process start time, a
-  `target_info` label, a container id. `process_restarted`
-  is one boolean when it holds for every listed service, a per-service
-  map when only some were restarted. Cumulative-metric
-  queries in the measurement protocol must be qualified by the recorded
-  identity — a number that cannot be attributed to a process is not a
-  before-value. Profiles carry no `service.instance.id`: the identity
-  that qualifies them is the per-run profiler tag, or, absent one,
-  `process.runtime.version` plus application frames — `instance` says
-  which holds for the profiles.
-- The body's sections are the agent's contract — seven, numbered, and
-  read by number by the recall and `## Show`. One of them carries a
-  machine-readable row: a verification or re-measure opens **section 3**
-  with one ruling row per finding of the baseline's ranked table —
-  `| # | Baseline finding | Verdict | Evidence |`, `#` holding the
-  baseline's id exactly as that table writes it (`1`, `F4`: the key
+- **Section 3 on a replay** opens with the pre-filled ruling table
+  `| # | Baseline finding | Verdict | Evidence |`: one row per finding of
+  the baseline's ranked table, `#` the baseline's id verbatim (the key
   `decisions.md` names a finding by), the verdict one of `fixed`,
-  `still present`, `worse` or `not ruled (quick)` — before the ranked
-  table of the run's own findings, whose identifiers continue the
-  baseline's numbering rather than restarting it, so they cannot
-  collide with a baseline id. The id is
-  what ties the ruling to the finding: renumbered, re-prefixed, or left
-  to prose, the ruling belongs to no finding and the baseline's stay
-  open in every reader's burn-down, whatever the report's verdict says.
-  Append-only memory makes that permanent — a mis-keyed ruling is never
-  repaired, only re-ruled by a later run. A re-measure writes the same
-  table and rules on no fix: its rows record what the run measured,
-  only a verification's rows close a finding. One subsection is
-  optional, named here so the recall, the synthesis and a reader find
-  it: when `gen_ai.*` spans existed in the window, section 2 carries a
-  **GenAI** subsection under a `### GenAI` heading, after the
-  per-operation (and threshold) tables — the per-model table, one row
-  per requested model and operation (model, operation, calls, tokens
-  in, tokens out, p50, p99, error %, cost), the cost cell computed
-  only from a price per model the mission handed over (the price
-  stated in the row) and `no price given` otherwise — then, with a
-  recalled baseline that carries the subsection, one delta line per
-  model (calls, tokens, p50/p99) the way section 2 carries one per
-  operation — then the agent-loop reading: spans per conversation,
-  tool-call chains, iteration counts. The subsection carries numbers,
-  never findings: an abnormal loop is section 3's, and the GenAI
-  telemetry gaps go into section 5 with the others. Absent when the
-  window held no `gen_ai.*` span; a report predating the subsection
-  simply lacks it.
+  `still present`, `worse`, `not ruled (quick)` — a nuance after the
+  word. The run's own findings follow in the ranked table, numbered
+  after the baseline's. A ruling written elsewhere closes nothing.
+- **Section 5** opens with the `not queried (<depth>)` line when the run
+  has one, then one bullet per gap — `- <gap> — <fate> — <discovery
+  query>`, the fate `filled`, `still missing`, `new` or `not ruled
+  (quick)` — never several gaps in one paragraph.
+- **Section 2** carries a `### GenAI` subsection when `gen_ai.*` spans
+  existed in the window: the per-model table (model, operation, calls,
+  tokens in, tokens out, p50, p99, error %, cost — the cost only from a
+  price the mission handed over, `no price given` otherwise), the delta
+  line per model against a baseline that carries the subsection, then
+  the agent-loop reading. Numbers only; its findings are section 3's,
+  its gaps section 5's.
 
 ## Recall: reading the memory
 
-Before a new run, load the baseline, per the memory contract's recall
-(the script first, newest first, the baseline by section; frontmatter
-only, by hand, when the script cannot run) — the matching rules are
-this reference's:
-
-1. Run the recall script in the observed repo:
-   `python3 <this skill's directory>/scripts/odd_recall.py --repo
-   <path> [--service <name>]... --stack <stack> --env <detected
-   environment> --depth <quick|full>` (`--service` is repeated per
-   service — `--service orders-api --service load-generator`, never two
-   names after one flag, which the parser rejects; `--mode` to restrict
-   to one mode; `--env` omitted while the environment is still
-   provisional)
-   — it lists `.odd/observe-run-reports/` newest first and prints the
-   matches by the rules below, one tab-separated line each: filename,
-   kind, services, stack, environment, mode, depth, `verifies`,
-   `workload`, `repository` (`-` when absent). A `workload` that
-   differs from the mission's is the warning of rule 2, read off that
-   column; a report the frontmatter contract flags is named on stderr,
-   matched or not.
-2. A report matches when its `services` intersect the mission's,
-   its `stack` is the mission's, and its `environment` is the one the
-   run detects — an `unknown` environment matches only another
-   `unknown`, and with a warning (the comparison may span environments
-   without the reports being able to say so). While the run's
-   environment is still **provisional** (empty pre-run telemetry on a
-   remote stack), a candidate matches on `services` and `stack` alone,
-   the environment check pending the re-confirmation the agent performs
-   once the value settles. When a match's `workload` differs from the
-   mission's (or only one side has one), keep it but **warn**: its
-   numbers were shaped by a different input, and diffing across
-   workloads violates the one-changed-variable rule. Depth filters the
-   match: a **`full`** mission's baseline is the newest match whose
-   `depth` is `full` (or absent) — a newer `quick` match is skipped,
-   and section 1 names it ("newer quick report skipped: <path>") so the
-   skip is visible; a **`quick`** mission takes the newest match of
-   either depth (a full report carries more than a quick run needs).
-   The script applies this: `--depth full` drops the quick matches and
-   names the skipped newer ones on stderr.
-3. The first match — the first line printed — is the baseline. Read it
-   **by section, never whole** — the same partial read applies when the
-   mission names the baseline itself: the frontmatter; section 1's
-   scenario record block (`Scenario:` through `Not reproducible:`)
-   together with the replay notes around it — deviations, false starts,
-   anything the report flags as mattering for a replay — but not section
-   1's mission restatement or its recalled-baseline line; section 2 (the
-   per-operation numbers and their deltas, its GenAI subsection with
-   them when the report carries one); section 3 (the findings the
-   new run rules on); and section 7 (the protocol's checks and
-   before-values). A **verification** or **re-measure** run also reads
-   section 5 (every gap it must rule filled, still missing or, at
-   quick depth, not ruled). Sections
-   4 and 6 are never part of the recall: a stored report runs 300 to 500
-   lines, and the new run re-derives those from live telemetry. An
-   **instrumentation report** baseline
-   (`.odd/otel-instrumentation-reports/`, the
-   `otel-instrumentation-report` reference) is read the same way: its
-   frontmatter, its summary table, its per-service decisions, and its
-   verification protocol — never its stack inventory or its open
-   decisions. Reading beyond that set is the exception — for a stated
-   need (a finding's detail, a gap's discovery query) — and the calling
-   agent's run record says so. What the comparison must report belongs
-   to the calling agent's contract, not to this reference.
-4. Older matches are history: only when a trend matters (a number
-   degrading run after run), read at most the few most recent matches,
-   and only the numbers in question — never the full files.
-5. The observed → verified chain is machine-readable — never parse
-   prose for it. Whether a report has been verified is the glob
-   `*-verify-<run_name>.md` on later timestamps, confirmed by the
-   candidate's `mode: verify` and its `verifies` field naming that
-   report's exact filename
-   (the field is authoritative; the filename is convention). A
-   re-measure report never answers that question: `mode: re-measure`
-   replayed the protocol without ruling on a fix — it extends the
-   run's measurement history (`*-remeasure-<run_name>.md`, comparable
-   by construction with the report its `verifies` names), not its
-   verification chain. Verification and re-measure reports are
-   themselves full reports — when one is the newest
-   match, it is the baseline, and its `verifies` field says whose
-   protocol its numbers replayed. Pre-convention reports (free-form
-   slug, no `verifies`) stay valid matches: their chain simply is not
-   machine-readable, which is a fact to state, not an error.
-
-## Return value
-
-After persisting, return — to the agent, and through its reply to the
-caller closing the mission:
-
-- the stored path, repo-relative;
-- the carrying commit (`git rev-parse --short HEAD` right after the
-  commit), or `not committed` with the reason (default branch and no
-  work branch possible, not a repository, the caller said not to);
-- on a custom stack, the stack file's fate: `unchanged`, or its path
-  with the commit of the run's diff (or `not committed` with the
-  reason) and the one-line reason the run record gives (the
-  `observability-stack` reference's learning rule);
-- the **synthesis block** — the inputs `## Show` below
-  renders from, quoted verbatim from the file just written (never
-  rephrased, never re-derived), and nothing else of the body:
-  - the frontmatter block, whole;
-  - section 1's recalled-baseline line — the previous report's path,
-    or "no previous report" — with the line that names a dropped
-    baseline or a provisional environment when the report carries one;
-  - from section 2, when a baseline was recalled, the delta lines —
-    one per operation (improved, regressed, unchanged, new), and the
-    GenAI subsection's one per model when it carries them, never
-    the per-operation, per-model or threshold tables; for a verify or
-    re-measure, every check's ruling instead — its name, before-value,
-    after-value and pass/fail cells, not the row's narrative — and
-    every check that reads `not ruled (quick)`; for an instrumentation
-    baseline, the presence rulings section 2 carries in place of the
-    numeric deltas: planned item and ruling (closed / present,
-    unattributed / still missing);
-  - section 3's ranked table — the identifier, finding, severity and
-    confidence cells the table carries, never the evidence or the
-    detail per row; in a verify or re-measure, the baseline-ruling
-    table that precedes it, whole — one row per baseline finding, its
-    id and its verdict (fixed, still present, worse, or not ruled
-    (quick)) — before the ranked table of the run's own findings;
-  - section 5's telemetry gaps — its `not queried (<depth>)` line when
-    it carries one, then its bullets, one per gap, each carrying the
-    gap's fate (filled, still missing, new, not ruled (quick)) and its
-    discovery query;
-  - section 6's open decisions, one line each, or that there are none.
-
-Never the report body (the memory contract says why);
-`## Show` below renders the closing synthesis from this
-value, and the file on disk is read again only by a later mission's
-recall or by a caller naming a stored report.
+1. `python3 <this skill's directory>/scripts/odd_recall.py --repo <path>
+   [--service <name>]... --stack <stack> --env <detected environment>
+   --depth <quick|full>` — `--service` repeated per service, `--mode` to
+   restrict to one mode, `--env` omitted while the environment is
+   provisional. It lists `.odd/observe-run-reports/` newest first, one
+   tab-separated line per match: filename, kind, services, stack,
+   environment, mode, depth, `verifies`, `workload`, `repository` (`-`
+   when absent); a flagged report is named on stderr, matched or not.
+2. A report matches on intersecting `services`, the same `stack` and the
+   detected `environment` (`unknown` matches only `unknown`, with a
+   warning; a provisional environment matches on services and stack
+   alone, pending re-confirmation). A differing `workload` is kept and
+   warned about. A `full` mission's baseline is the newest `full` (or
+   depth-less) match, the skipped newer quick ones named on stderr and
+   in section 1; a `quick` mission takes either depth.
+3. The first line is the baseline, read **by section, never whole**:
+   `read <path> --sections 1,2,3,7 --record` — section 1's scenario
+   record and replay notes, section 2's numbers and deltas (its GenAI
+   subsection with them), section 3's findings, section 7's checks and
+   before-values; `--sections 1,2,3,5,7` on a verify or re-measure, which
+   rules on every gap too. An instrumentation baseline reads
+   `--sections 2,3,5`: its summary table, per-service decisions and
+   verification protocol. Reading beyond that set is for a stated need
+   the run record names.
+4. Older matches are history: read only the numbers in question, when a
+   trend matters.
+5. The observed → verified chain is the `verifies` field (the filename
+   glob `*-verify-<run_name>.md` only proposes candidates); a re-measure
+   never answers "has this run been verified". A pre-convention report
+   stays a valid match whose chain is not machine-readable: a fact to
+   state.
 
 ## Rules
 
 - **No secrets, no real identifiers** (the memory contract): the
-  mission block's `Preflight:` handoff and a live `odd_config_get` or
-  CLI excerpt are the likeliest sources — never restate the
-  identifiers they carry.
+  mission block's `Preflight:` handoff and a live CLI excerpt are the
+  likeliest sources.
 - **A query run through a backend's shipped script is recorded as the
-  script invocation, followed by the backend queries the script printed**
-  (a shipped query script ends its output by listing the backend
-  commands it ran, one per line — repeats it folded as `{a|b}` at one
-  token are recorded as printed, and a reader expands the braces, or
-  takes the script's `--json` list, to replay them): the invocation is
-  what a verify run replays, the printed commands are what a reader
-  without the script replays — never one without the other, and never
-  a query re-derived by hand from what the script computed.
-- **A recorded query is a contract only once shown to work**: a check is
-  authored against *broken* data, so "returns NaN/empty" and "the query
-  is wrong" are indistinguishable at authoring time (measured: `rate()`
-  over a single burst makes every `histogram_quantile` NaN by
-  construction on any window sampled after the burst, whatever the fix
-  did). Each verification check states how its query was validated —
-  run against a healthy or adjacent series, or a synthetic one — and on
-  which **shape**: `validated: before-shape` when only today's data
-  answered, `validated: before-shape, after-shape` when the shape the
-  pass criterion expects was exercised too (a "reaches zero" check run
-  with a selector matching nothing on its joined side, a row count
-  equal to the request count) — or carries `not validated`. A stored
-  check whose validation note names no shape (every report written
-  before these markers) reads as `before-shape`. Either of the two
-  weaker markers tells the verify run to suspect the query before the
-  fix: a check authored on the populated branch alone can
-  drop the very rows it measures once they go to zero (a `leftouter`
-  join aggregated without `coalesce`, a ratio over an absent series).
-  An equality check on log line counts ("every
-  line carries a trace id") is stated as two raw line counts over the
-  recorded window and stream selector, one of them carrying the
-  trace-id filter — never as a range vector
-  evaluated at the window's edge, whose samples reach outside it — and
-  names the lines it excludes (startup lines, excluded URLs), so the
-  replay rules on the same residue.
+  script invocation, followed by the backend queries the script
+  printed** — never one without the other, never a query re-derived by
+  hand from what the script computed.
+- **A recorded query is a contract only once shown to work**: each
+  section 7 check states how its query was validated and on which shape
+  — `validated: before-shape` when only today's data answered,
+  `validated: before-shape, after-shape` when the shape the pass
+  criterion expects was exercised too (a zero, a vanished series), or
+  `not validated`; a stored check naming no shape reads as
+  `before-shape`. An equality check on log line counts is stated as two
+  raw counts over the recorded window and selector, naming the lines it
+  excludes.
 - **Record how the backend was started** when it needed configuration:
-  the `env` passed to `odd_stack_up` / `odd_stack_reset` belongs in the
-  measurement protocol (key names and values — secrets by name only). A
-  replayed reset recreates the container bare; only a recorded env lets
-  the verify run pass the same one.
-- **The work branch** (the memory contract) is
-  `docs/odd-observe-run-report-<run_name>`; **the commit** carries the
-  report file alone, subject `docs(odd): observation report
-  <run_name>` — `docs(odd): verification report <run_name>` for a
-  verification, `docs(odd): re-measure report <run_name>` for a
-  re-measure.
+  the `env` passed to `odd_stack_up` / `odd_stack_reset` belongs in
+  section 7, secrets by name only.
+
+## Return value
+
+`persist` prints it: `path:`, `commit:` (or `not committed` with the
+reason), `headline:`, plus `branch:` and `subject:` when it committed.
+The reply carries those lines verbatim, plus, on a custom stack, the
+stack file's fate (the `observability-stack` reference's learning
+rule) — and nothing of the body: the synthesis is rendered once, by the
+caller's `show`, and the next wave reads the file at the stored path.
+`synthesis <path>` prints the inputs `show` renders from, quoted from
+the file, for a reader who wants them rather than the rendering.
 
 ## Show
 
-The stored report is the ODD loop's memory and the fix plan's input —
-the right artifact for the next wave, the wrong one for the human
-closing the mission: several screens deep, the takeaways drown. This
-section renders the closing synthesis. The report file stays the
-deliverable; only what the human sees at the end of the mission
-changes.
-
-### Input
-
-The report to render, in one of two forms:
-
-- **The persistence return value** — what the persistence step above
-  just returned for the mission being closed, carried in the agent's
-  reply: the stored path, the carrying commit (or `not committed`),
-  and the synthesis block — the frontmatter, section 1's
-  recalled-baseline line, section 2's delta lines, check rulings or
-  presence rulings, section 3's baseline-ruling table and its ranked
-  table, the telemetry gaps with the baseline gaps' fates,
-  and the open decisions, quoted from the file (`## Return value` above
-  owns the list). Render from it; never
-  re-read the file it just wrote — the block carries every input the
-  synthesis below reads, and a value it lacks is absent from the
-  synthesis (the way a benchmark's synthesis renders from its
-  persistence return).
-- **A stored report the caller names** — no return value in hand:
-  read from disk the same set — that file's frontmatter, section 1's
-  recalled-baseline line, section 2's delta lines, check rulings or
-  presence rulings, section 3's table, sections 5 and 6 — never the
-  whole file — and its carrying commit from git
-  (`git log -1 --format=%h -- <path>`).
-
-Either way the synthesis renders the stored content, never the
-conversation's memory of the mission.
-
-### The synthesis, in order
-
-1. **Headline** — one bold line answering "how did it go", shaped by
-   the report's `mode`: an observation leads with counts and the
-   baseline delta (`3 anomalies (1 high, confirmed), 2 telemetry
-   gaps, p95 stable vs baseline`); a verification leads with the
-   ruling (`FAIL — 2/5 checks red`); a re-measure leads with drift
-   (`no drift — 5/5 measurements within range`). A `quick` report says
-   so in the headline (`quick — 1 anomaly (suspected), logs and
-   profiles not queried`), and a quick verify counts what it did not
-   rule (`PASS — 3/3 checks ruled, 2 not ruled (quick)`).
-2. **Where it lives** — one line: the stored path and the commit that
-   carries it; on a custom stack whose file the run changed, a second
-   line: the stack file's path, its commit and the one-line reason.
-3. **Run block** — compact `key: value` lines: services, stack, mode,
-   depth (`full` when the frontmatter has none), window, detected
-   environment, `repository` when present (all from the frontmatter),
-   and the baseline report
-   used — `verifies` when present, else section 1's recalled
-   baseline, or "none" when the report names none.
-4. **The core, by kind** — tables, capped at ~10 rows with a
-   `+N more in the report` marker:
-   - observation / re-measure: the findings table (severity |
-     confidence | one-line anomaly), then section 5's not-queried line
-     when it carries one and the telemetry gaps, one line per bullet;
-   - verification: the verdict table first (check | before | after |
-     pass/fail), then the anomalies ruled fixed / still present /
-     worse, one line each, and the gaps ruled filled / still missing /
-     not ruled (quick), one line per bullet of section 5, the fate the
-     bullet carries —
-     for an instrumentation baseline, the presence rulings instead
-     (planned item | closed / present, unattributed / still missing),
-     and nothing else to rule.
-5. **Decisions the spec must settle** — the count, then one line per
-   open question.
-6. **Next action** — one line naming the loop's next step: build the
-   fix plan from the report, replay the protocol with `/odd-verify`,
-   or settle the open decisions first.
-
-### Rules
-
-The contract's synthesis rules (`SKILL.md`): everything from
-the stored report, the carrying commit the one value outside it; one
-screen with `+N more`; the conversation's language; never a
-replacement for the file.
+`show <path>` renders the closing synthesis from the stored file and
+its carrying commit, in English, one screen; what running it cannot
+tell the caller: print it translated to the conversation's language,
+add the stack file's fate from the reply when the run changed one, and
+never let it replace the file — the next wave consumes the file, whose
+path the reply states.

@@ -42,6 +42,8 @@ SHIPPED = (
     "gcx_local.py",
     "replay_benchmark.py",
     "odd_recall.py",
+    "odd_report.py",
+    "odd_status.py",
 )
 
 

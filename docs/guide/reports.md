@@ -79,6 +79,10 @@ rather than guessing.
 
 ### Body — seven sections
 
+A title line, then one paragraph — the headline, how the run went in
+one sentence — then the seven numbered sections; the skill's script
+refuses to persist a report missing any of the three.
+
 1. **Mission and run record** — the mission as understood and, in
    drive mode, the scenario record that replays it verbatim; on a
    custom stack, whether the run changed the stack file, with the
@@ -198,6 +202,10 @@ frontmatters alone.
 - **Committed alone.** Each report lands in its own commit
   (`docs(odd): observation report <run_name>`, and the verification,
   re-measure, and instrumentation variants).
+- **Written by the skill's script.** An observation report's filename,
+  frontmatter and seven headings come from the `odd-memory` skill's
+  report script, which also refuses to persist a report that breaks
+  these rules; only the sections' content is the agent's.
 - **No secrets, ever.** No tokens, credentials, connection strings, or
   real tenant, workspace, or account identifiers, nor a value persisted
   under a remote stack's `stack_config`, regions excepted (a log group,

@@ -24,10 +24,52 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+# The report format is written and read by one module, odd-memory's
+# odd_report.py. The skills deploy side by side under one skills root on
+# every host (package-layout), so the sibling resolves from this file's
+# own location - and an install that dropped it is refused in one line.
+sys.dont_write_bytecode = True  # never leave bytecode in the package
+_ODD_MEMORY_SCRIPTS = Path(__file__).resolve().parents[2] / "odd-memory" / "scripts"
+if not (_ODD_MEMORY_SCRIPTS / "odd_report.py").is_file():
+    print(
+        "odd_status.py: the odd-memory skill is not installed beside get-status "
+        f"(no {_ODD_MEMORY_SCRIPTS / 'odd_report.py'}) - the two skills deploy side by "
+        "side; install the package whole",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+sys.path.insert(0, str(_ODD_MEMORY_SCRIPTS))
+import odd_report
+from odd_report import (
+    LEGACY_PREFIX,
+    MAX_FINDING_TITLE,
+    OBSERVATION_MODES,
+    REPLAY_MODES,
+    as_list,
+    cap,
+    check_report,
+    finding_ids,
+    findings_at_a_glance,
+    git,
+    git_root,
+    headline,
+    is_separator_row,
+    ls_tree,
+    normalize_remote,
+    paragraphs_starting_with,
+    raw_sections,
+    repo_identity,
+    scenario_record,
+    split_cells,
+    split_frontmatter,
+)
+
+OBSERVATION_MODES_ALL = OBSERVATION_MODES
+ELLIPSIS = odd_report.ELLIPSIS  # the cap marker, read by the tests here
 
 SCHEMA = "odd-status-facts/1"
 
@@ -75,7 +117,6 @@ NON_RUNTIME_NAMES = {
 DEFAULT_SECTION_TEXTS = (3, 5)
 DEFAULT_TABLE_SECTIONS = (2, 3, 5)
 # A replay (verify, re-measure) rules in its protocol section too.
-REPLAY_MODES = ("verify", "re-measure")
 REPLAY_TABLE_SECTIONS = (2, 3, 5, 7)
 DEFAULT_MAX_CELL = 120
 DEFAULT_MAX_TEXT = 1500  # per bullet of a bulleted section, else per section
@@ -90,81 +131,12 @@ NOTHING_CUT = {
     "prose_cut": False,
 }
 DEFAULT_RECENT = 3
-MAX_FINDING_TITLE = 80
 MAX_COMPACT_PARAGRAPH = 300
 DEFAULT_MAX_RECORD = 800
 DEFAULT_MAX_COMMITS = 10
 MAX_CHANGED_PATHS = 10
-ELLIPSIS = "…"
-
-SECTION_RE = re.compile(r"^##\s+(\d+)\.\s*(.*?)\s*$")
-FRONTMATTER_LINE_RE = re.compile(r"^([A-Za-z_][\w.-]*):(.*)$")
 BENCHMARK_RE = re.compile(r"\.odd/benchmarks/([A-Za-z0-9_.-]+)")
-TABLE_SEPARATOR_RE = re.compile(r"^:?-{3,}:?$")
-SCENARIO_HEADING_RE = re.compile(r"^#{3,}\s+scenario record\b", re.IGNORECASE)
-SCENARIO_LABEL_RE = re.compile(r"^\s*(?:-\s*)?\*\*scenario record", re.IGNORECASE)
-BOLD_LABEL_RE = re.compile(r"^\s*(?:-\s*)?\*\*[A-Z]")
-
-
 # --- git ------------------------------------------------------------------
-
-
-def git(root: Path, *args: str) -> str | None:
-    """Run git in ``root``; the stripped stdout, or None when git fails."""
-    proc = subprocess.run(
-        ["git", "-C", str(root), *args],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if proc.returncode != 0:
-        return None
-    return proc.stdout.strip()
-
-
-def git_root(path: Path) -> Path | None:
-    top = git(path, "rev-parse", "--show-toplevel")
-    return Path(top) if top else None
-
-
-REMOTE_RE = re.compile(
-    r"^(?P<scheme>[a-z][a-z0-9+.-]*://)?(?P<user>[^@/]+@)?(?P<host>[^:/@]+)"
-    r"(?::\d+)?[:/](?P<path>.+)$",
-    re.IGNORECASE,
-)
-
-
-def normalize_remote(url: str | None) -> str | None:
-    """A remote URL as the memory contract writes ``repository``: the host
-    lower-cased, then the remote's path as it is; scheme, user info and port
-    dropped, one trailing ``/`` and one trailing ``.git`` stripped, the SSH
-    form read the same way. None for anything that is not a remote (a local
-    path, a bare word)."""
-    text = (url or "").strip().split("#", 1)[0].split("?", 1)[0]
-    match = REMOTE_RE.match(text)
-    if not match:
-        return None
-    host, path = match.group("host").lower(), match.group("path")
-    # a bare word before a slash is a local path unless a scheme or a user
-    # marks it as a remote (an intranet host without a dot)
-    remote_marked = bool(match.group("scheme") or match.group("user"))
-    if host.startswith(".") or (
-        "." not in host and host != "localhost" and not remote_marked
-    ):
-        return None
-    # the SSH form may carry an absolute path (git@host:/srv/git/repo.git),
-    # the same repository ssh://host/srv/git/repo.git names: one identity
-    path = path.lstrip("/").removesuffix("/")
-    if path.lower().endswith(".git"):
-        path = path[:-4]
-    if not path:
-        return None
-    return f"{host}/{path}"
-
-
-def repo_identity(root: Path) -> str | None:
-    """The repository's own identity: its origin remote, normalized."""
-    return normalize_remote(git(root, "remote", "get-url", "origin"))
 
 
 def report_repositories(frontmatter: dict) -> tuple[list[str], list[str]]:
@@ -298,17 +270,6 @@ def report_boundary(revision: dict | None, commit: dict | None) -> dict:
     return {"kind": "none"}
 
 
-def ls_tree(root: Path, ref: str) -> dict[str, str] | None:
-    out = git(root, "ls-tree", ref)
-    if out is None:
-        return None
-    entries = {}
-    for line in out.splitlines():
-        meta, name = line.split("\t", 1)
-        entries[name] = meta.split()[2]
-    return entries
-
-
 def changed_paths(root: Path, revision_sha: str, entry: str) -> dict:
     out = git(root, "diff", "--name-only", revision_sha, "HEAD", "--", entry) or ""
     paths = [p for p in out.splitlines() if p.strip()]
@@ -318,173 +279,7 @@ def changed_paths(root: Path, revision_sha: str, entry: str) -> dict:
 # --- frontmatter ------------------------------------------------------------
 
 
-def split_top_level(text: str, sep: str = ",") -> list[str]:
-    """Split on ``sep`` outside quotes and outside nested brackets.
-
-    A quote opens a quoted run only where a YAML scalar can start - at
-    the beginning of an item or right after a mapping colon - so an
-    apostrophe inside a bare word is just a character.
-    """
-    parts, buf, depth, quote = [], [], 0, None
-    for ch in text:
-        if quote:
-            buf.append(ch)
-            if ch == quote:
-                quote = None
-            continue
-        if ch in ("'", '"') and scalar_can_start(buf):
-            quote = ch
-        elif ch in "[{":
-            depth += 1
-        elif ch in "]}":
-            depth -= 1
-        if ch == sep and depth == 0:
-            parts.append("".join(buf))
-            buf = []
-        else:
-            buf.append(ch)
-    tail = "".join(buf)
-    if tail.strip() or parts:
-        parts.append(tail)
-    return [p.strip() for p in parts if p.strip()]
-
-
-def scalar_can_start(buf: list[str]) -> bool:
-    before = "".join(buf).rstrip()
-    return before == "" or before.endswith(":")
-
-
-def parse_scalar(text: str) -> Any:
-    text = text.strip()
-    if len(text) >= 2 and text[0] == text[-1] and text[0] in ("'", '"'):
-        return text[1:-1]
-    lowered = text.lower()
-    if lowered == "true":
-        return True
-    if lowered == "false":
-        return False
-    if lowered in ("null", "~", ""):
-        return None
-    return text
-
-
-def parse_value(text: str) -> Any:
-    text = text.strip()
-    if text.startswith("[") and text.endswith("]"):
-        return [parse_value(item) for item in split_top_level(text[1:-1])]
-    if text.startswith("{") and text.endswith("}"):
-        mapping = {}
-        for item in split_top_level(text[1:-1]):
-            key, _, value = item.partition(":")
-            mapping[parse_scalar(key)] = parse_value(value)
-        return mapping
-    return parse_scalar(text)
-
-
-def split_frontmatter(text: str) -> tuple[dict, str, list[str]]:
-    """The frontmatter mapping, the body, and the lines it could not read.
-
-    The contract writes flow style (``[a, b]``, ``{k: v}``) on one line,
-    with wrapped continuations indented. A block-style value (``- item``
-    lines, nested ``key: value`` lines) is outside the contract: it is
-    reported and read as null rather than mangled into a string.
-    """
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return {}, text, ["no frontmatter block"]
-    end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
-    if end is None:
-        return {}, text, ["unterminated frontmatter block"]
-    raw: list[list[Any]] = []  # [key, value, block_style]
-    errors: list[str] = []
-    for number, line in enumerate(lines[1:end], start=2):
-        if not line.strip():
-            continue
-        match = FRONTMATTER_LINE_RE.match(line)
-        if match:
-            raw.append([match.group(1), match.group(2), False])
-        elif line[0].isspace() and raw:
-            stripped = line.strip()
-            block = stripped.startswith("- ") or stripped == "-" or ": " in stripped
-            if block and not raw[-1][1].strip():
-                raw[-1][2] = True
-            else:
-                raw[-1][1] = raw[-1][1] + " " + stripped
-        else:
-            errors.append(
-                f"line {number}: no colon-separated key, kept out: {line.strip()!r}"
-            )
-    frontmatter = {}
-    for key, value, block_style in raw:
-        if block_style:
-            errors.append(
-                f"{key}: block-style value (the contract is flow style), read as null"
-            )
-            frontmatter[key] = None
-        else:
-            frontmatter[key] = parse_value(value)
-    body = "\n".join(lines[end + 1 :])
-    return frontmatter, body, errors
-
-
 # --- body --------------------------------------------------------------------
-
-
-def split_cells(line: str) -> list[str]:
-    cells = [c.replace("\\|", "|").strip() for c in re.split(r"(?<!\\)\|", line)]
-    if cells and cells[0] == "":
-        cells = cells[1:]
-    if cells and cells[-1] == "":
-        cells = cells[:-1]
-    return cells
-
-
-def is_separator_row(line: str) -> bool:
-    cells = split_cells(line)
-    return bool(cells) and all(TABLE_SEPARATOR_RE.match(c) for c in cells)
-
-
-def extract_tables(lines: list[str]) -> tuple[list[dict], list[str]]:
-    """The markdown tables in ``lines`` and the lines that are not tables."""
-    tables, rest = [], []
-    i = 0
-    while i < len(lines):
-        if lines[i].lstrip().startswith("|"):
-            block = []
-            while i < len(lines) and lines[i].lstrip().startswith("|"):
-                block.append(lines[i].strip())
-                i += 1
-            if len(block) >= 2 and is_separator_row(block[1]):
-                tables.append(
-                    {
-                        "header": split_cells(block[0]),
-                        "rows": [split_cells(r) for r in block[2:]],
-                    }
-                )
-            else:
-                rest.extend(block)
-            continue
-        rest.append(lines[i])
-        i += 1
-    return tables, rest
-
-
-def paragraphs(lines: list[str]) -> list[str]:
-    """Paragraphs as single lines, wrapped lines joined with a space."""
-    out, buf = [], []
-    for line in lines + [""]:
-        if line.strip():
-            buf.append(line.strip())
-        elif buf:
-            out.append(" ".join(buf))
-            buf = []
-    return out
-
-
-def cap(text: str, limit: int | None) -> tuple[str, bool]:
-    if limit is None or len(text) <= limit:
-        return text, False
-    return text[:limit] + ELLIPSIS, True
 
 
 def bullet_blocks(lines: list[str]) -> list[list[str]]:
@@ -560,33 +355,6 @@ def cap_table(table: dict, max_cell: int) -> dict:
     return {"header": table["header"], "rows": rows, "truncated_cells": truncated}
 
 
-def raw_sections(body: str) -> list[dict]:
-    """The numbered ``## N.`` sections, uncapped: tables and prose lines."""
-    sections: list[dict] = []
-    current: dict | None = None
-    buffer: list[str] = []
-
-    def close() -> None:
-        if current is not None:
-            current["tables"], current["lines"] = extract_tables(buffer)
-            sections.append(current)
-
-    for line in body.splitlines():
-        if line.startswith("## "):
-            close()
-            match = SECTION_RE.match(line)
-            current = (
-                {"number": int(match.group(1)), "title": match.group(2)}
-                if match
-                else None
-            )
-            buffer = []
-        elif current is not None:
-            buffer.append(line)
-    close()
-    return sections
-
-
 def capped_sections(
     sections: list[dict], opts: dict, table_sections: tuple
 ) -> list[dict]:
@@ -613,119 +381,6 @@ def capped_sections(
         emitted["text_prose_cut"] = taken["prose_cut"]
         out.append(emitted)
     return out
-
-
-def finding_ids(sections: list[dict]) -> tuple[list[str], str]:
-    """The IDs section 3's tables name in their first column, and its prose.
-
-    Computed on the uncapped section, whatever the lift options: a
-    ledger row is validated against the report, not against what the
-    sheet chose to show.
-    """
-    ids: list[str] = []
-    prose = ""
-    for section in sections:
-        if section["number"] != 3:
-            continue
-        for table in section["tables"]:
-            for row in table["rows"]:
-                if row and row[0].strip():
-                    candidate = row[0].split()[0].strip("*`")
-                    if candidate and candidate not in ids:
-                        ids.append(candidate)
-        prose = "\n".join(section["lines"])
-    return ids, prose
-
-
-def column(header: list[str], pattern: str) -> int | None:
-    for index, cell in enumerate(header):
-        if re.search(pattern, cell, re.IGNORECASE):
-            return index
-    return None
-
-
-def cell_at(row: list[str], index: int | None) -> str | None:
-    if index is None or index >= len(row):
-        return None
-    return row[index].strip() or None
-
-
-def findings_at_a_glance(
-    sections: list[dict], replay: bool, max_title: int | None = MAX_FINDING_TITLE
-) -> list[dict]:
-    """The findings a report names, reduced to id, title, severity, ruling.
-
-    Section 3's rows always; on a replay, the rows of every other table
-    carrying a ruling column (a verification may rule in its protocol
-    table). What every report keeps whatever its detail level, so the
-    ledger and the burn-down read from the compact entries too.
-    """
-    out: list[dict] = []
-    for section in sections:
-        number = section["number"]
-        for table in section["tables"]:
-            header = table["header"]
-            severity = column(header, r"sever")
-            ruling = column(header, r"verdict|fate|ruling|state")
-            if number != 3 and not (replay and ruling is not None):
-                continue
-            for row in table["rows"]:
-                if not row or not row[0].strip():
-                    continue
-                title = cell_at(row, 1) if number == 3 else None
-                out.append(
-                    {
-                        "id": row[0].split()[0].strip("*`"),
-                        "title": cap(title, max_title)[0] if title else None,
-                        "severity": cell_at(row, severity),
-                        "ruling": cell_at(row, ruling),
-                        "section": number,
-                    }
-                )
-    return out
-
-
-def headline(body: str) -> str | None:
-    """The first paragraph between the title and the first section, if any."""
-    lines = body.splitlines()
-    start = next((i + 1 for i, line in enumerate(lines) if line.startswith("# ")), 0)
-    end = next(
-        (i for i, line in enumerate(lines) if line.startswith("## ")), len(lines)
-    )
-    found = paragraphs(lines[start:end])
-    return found[0] if found else None
-
-
-def paragraphs_starting_with(body: str, prefix: str) -> list[str]:
-    return [p for p in paragraphs(body.splitlines()) if p.startswith(prefix)]
-
-
-def scenario_record(body: str) -> str | None:
-    """The scenario record: under its ``### Scenario record`` heading, up to
-    the next heading - or, when the report writes it as a bold label
-    (``**Scenario record**``), from that line up to the next heading or
-    the next bold-labelled paragraph."""
-    lines = body.splitlines()
-    start = next(
-        (i + 1 for i, line in enumerate(lines) if SCENARIO_HEADING_RE.match(line)), None
-    )
-    if start is not None:
-        end = next(
-            (i for i in range(start, len(lines)) if lines[i].startswith("#")),
-            len(lines),
-        )
-        return "\n".join(lines[start:end]).strip()
-    start = next(
-        (i for i, line in enumerate(lines) if SCENARIO_LABEL_RE.match(line)), None
-    )
-    if start is None:
-        return None
-    end = len(lines)
-    for i in range(start + 1, len(lines)):
-        if lines[i].startswith("#") or BOLD_LABEL_RE.match(lines[i]):
-            end = i
-            break
-    return "\n".join(lines[start:end]).strip()
 
 
 def benchmark_mentions(sections: list[dict], body: str) -> list[dict]:
@@ -820,14 +475,6 @@ def tree_anchor_diff(
 
 
 # --- reports ----------------------------------------------------------------
-
-
-def as_list(value: Any) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return [str(v) for v in value]
-    return [str(value)]
 
 
 def instrumentation_services(sections: list[dict]) -> list[str]:
@@ -1173,112 +820,6 @@ def load_classifications(root: Path, head_tree: dict[str, str] | None) -> dict:
 
 
 # --- the memory invariant (issue #307) ---------------------------------------
-
-REPORT_NAME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})-\d{4}-([a-z0-9][a-z0-9-]*)\.md$")
-WINDOW_RE = re.compile(
-    r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)$"
-)
-DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-OBSERVATION_MODES_ALL = ("drive", "observe", "post-hoc", "verify", "re-measure")
-DEPTHS = ("quick", "full")
-
-
-def check_report(report: dict, stored_names: set[str], root: Path) -> list[str]:
-    """What the report lacks against the memory contract's frontmatter.
-
-    Every stored report is checked, filtered or not: the store is
-    append-only, so a violation is never repaired in place - a new run
-    supersedes the file - and the status is where a reader learns it.
-    """
-    problems: list[str] = []
-    name = Path(report["path"]).name
-    match = REPORT_NAME_RE.match(name)
-    if not match:
-        problems.append("filename is not YYYY-MM-DD-HHmm-<run_name>.md")
-    if "unreadable" in report:
-        problems.append(f"unreadable: {report['unreadable']}")
-        return problems
-    fm = report["frontmatter"]
-    for error in report.get("frontmatter_errors", []):
-        problems.append(f"frontmatter: {error}")
-    if not fm:
-        problems.append("frontmatter absent")
-        return problems
-
-    def scalar(key: str) -> str | None:
-        value = fm.get(key)
-        if value is None or value == "" or value == []:
-            problems.append(f"{key} absent")
-            return None
-        return str(value)
-
-    kind = report["kind"]
-    required = (
-        ("project", "stack", "run_name", "date")
-        if kind == "instrumentation"
-        else ("services", "stack", "environment", "mode", "window", "run_name", "date")
-    )
-    values = {key: scalar(key) for key in required}
-    if kind == "observation":
-        if fm.get("services") is not None and not as_list(fm.get("services")):
-            problems.append("services empty")
-        mode = values.get("mode")
-        if mode is not None and mode not in OBSERVATION_MODES_ALL:
-            problems.append(
-                f"mode {mode!r} is not one of {list(OBSERVATION_MODES_ALL)}"
-            )
-        depth = fm.get("depth")
-        if depth is None:
-            problems.append("depth absent (predates the field: reads as full)")
-        elif str(depth) not in DEPTHS:
-            problems.append(f"depth {str(depth)!r} is not one of {list(DEPTHS)}")
-        window = values.get("window")
-        if window is not None:
-            wm = WINDOW_RE.match(window)
-            if not wm:
-                problems.append(
-                    "window is not <start>/<end> in UTC (YYYY-MM-DDTHH:MM:SSZ)"
-                )
-            elif wm.group(2) < wm.group(1):
-                problems.append("window end precedes its start")
-        verifies = fm.get("verifies")
-        if mode in REPLAY_MODES and not verifies:
-            problems.append(f"verifies absent on a {mode} report")
-        elif verifies:
-            # A bare filename names a sibling observation report; an
-            # instrumentation baseline is named by its repo-relative path
-            # (the report reference: the value's shape says the directory).
-            target = str(verifies)
-            exists = (
-                (root / target).is_file() if "/" in target else target in stored_names
-            )
-            if not exists:
-                problems.append(f"verifies names no stored report: {target}")
-    date = values.get("date")
-    if date is not None and not DATE_RE.match(date):
-        problems.append(f"date {date!r} is not YYYY-MM-DD")
-    if match:
-        if date is not None and DATE_RE.match(date) and date != match.group(1):
-            problems.append(f"date {date} differs from the filename's {match.group(1)}")
-        run_name = values.get("run_name")
-        if run_name is not None:
-            # A replay keeps the replayed report's run_name and prefixes
-            # its filename (the report reference's filename rules).
-            mode = fm.get("mode") if kind == "observation" else None
-            prefix = {"verify": "verify-", "re-measure": "remeasure-"}.get(
-                str(mode), ""
-            )
-            expected = f"{prefix}{run_name}"
-            if match.group(2) != expected:
-                with_prefix = f" with the {prefix} prefix" if prefix else ""
-                problems.append(
-                    f"filename slug {match.group(2)!r} is not {expected!r}"
-                    f" (run_name {run_name!r}{with_prefix})"
-                )
-    return problems
-
-
-LEGACY_PREFIX = "depth absent (predates"
 
 
 def check_invariant(root: Path, reports: list[dict]) -> dict:

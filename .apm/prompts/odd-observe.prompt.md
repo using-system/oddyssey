@@ -124,12 +124,11 @@ defaults for every field not specified:
   backend's query quoted as evidence, no dispatch and no report -
   offering the full mission as the follow-up.
 
-Close the mission with the `## Show` of `odd-memory`'s
-`observe-run-report` reference: render its
-synthesis from the persistence return value the agent's reply carries
-(stored path, carrying commit, the synthesis block) as the final
-answer, stating the stored path — no re-read of the file just
-written. The report file - not the synthesis - is the deliverable the
+Close the mission by running
+`python3 <Skills>/odd-memory/scripts/odd_report.py show <the stored path the agent's reply carries>`
+(its whole surface) and printing the rendering as the final answer,
+translated to the conversation's language, with the stack file's fate
+from the reply when the run changed one. The report file - not the synthesis - is the deliverable the
 next spec-driven wave consumes: never re-dump the raw report in the
 conversation, and never let the synthesis replace the stored file as
 the plan's input.

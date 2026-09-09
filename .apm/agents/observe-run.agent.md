@@ -74,9 +74,9 @@ the report.
     the identity is a stop-and-report ("no run observed in the window"),
     never an analysis of an empty one. An observed run's report is named
     for the run **and for you**, whether or not a benchmark is in the
-    mission — `run_name` `<what the run analyzed>-observe-<stack>`, the
-    persistence reference's naming — since another mission may be
-    watching the same run from another backend;
+    mission — the run name names what the run analyzed, and the
+    persistence script appends `-observe-<stack>` — since another
+    mission may be watching the same run from another backend;
   - **post-hoc** (default): analyze a run that already happened.
 - **Benchmark** — optional: a stored k6 benchmark, named by its
   directory under `.odd/benchmarks/<name>/` or by that path. It composes
@@ -266,15 +266,16 @@ whole, 19 K by section). List a file's headings first (one `grep -n
   watch's own poller;
 - `odd-memory`'s `observe-run-report` reference: `## Recall: reading
   the memory` at step 5, and nothing else then; at report time,
-  `## Where reports live`, `## The file format`, `## Return value` and
-  `## Rules` — never `## Recall: reading the memory` again, never
-  `## Show` (the caller's);
+  `## The script owns the format`, `## What the run decides`,
+  `## The body` and `## Rules` — never `## Recall: reading the memory`
+  again, never `## Show` (the caller's). The report file is that
+  script's: its `new` writes it and its `persist` commits it, and
+  neither step is composed by hand;
 - `odd-memory`'s `SKILL.md`, the contract that reference points at:
-  `## Recall: reading the memory` at step 5; at report time its six
-  other sections (`## Where the memory lives`, `## The frontmatter and
-  the body`, `## Append-only, with one exception`, `## No secrets, no
-  real identifiers`, `## The work branch and the lone commit`, `## The
-  reply and the synthesis`);
+  `## Recall: reading the memory` at step 5; at report time
+  `## No secrets, no real identifiers` and `## The reply and the
+  synthesis` — the report script applies its other sections (where the
+  memory lives, the frontmatter, the work branch and the lone commit);
 - `setup-local-stack`: the sections step 2 names.
 
 Any other section is read for a stated need only, said in section 1's
@@ -395,16 +396,15 @@ run record.
 5. **Recall the memory.** When the mission already names a baseline
    report, use that report as the recalled baseline and skip the
    matching. Otherwise load the baseline with the recall of
-   `odd-memory`'s `observe-run-report` reference — the reference
-   owns the matching rules, which include the environment step 4
-   detected. However the baseline was obtained — named or recalled —
-   read it **by section, never whole**, per that skill's partial read:
-   an observation report's frontmatter, section 1's scenario record
-   block and its replay notes, sections 2, 3 and 7 (5 too on a verify
-   or re-measure); an instrumentation report's summary table,
-   per-service decisions and verification protocol. Read beyond that
-   set only for a stated need (a finding's detail, a gap's discovery
-   query) and say so in section 1. Either way, the recalled report's
+   `odd-memory`'s `observe-run-report` reference — its `## Recall`
+   states the recall script's invocation, whole surface included
+   (`--help` answers nothing it does not), and owns the matching
+   rules, which include the environment step 4 detected. However the baseline was obtained — named or recalled —
+   read it **by section, never whole**, with the `read` invocation
+   that reference's `## Recall` step 3 states, sections per the
+   baseline's kind and the mission's mode. Read beyond that set only
+   for a stated need (a finding's detail, a gap's discovery query) and
+   say so in section 1. Either way, the recalled report's
    numbers and findings are what the new observations diff against. No match is a normal first run — record "no previous
    report" in section 1 and fall back to the within-run baseline.
 
@@ -862,14 +862,27 @@ the commit.
 
 ## The report (your only deliverable)
 
-Build these seven sections, in this order (at `quick` depth, in the
-collapsed shape the Depth section gives sections 3 to 6) — then
-persist the whole report per `odd-memory`'s `observe-run-report`
-reference (frontmatter, naming, storage path, the `depth` field,
-no-secrets rule all come from there) and return its return value — the
-stored path, the carrying commit, and the synthesis block it defines,
-never the report body — so the caller renders the closing synthesis
-from your reply, without re-reading the file:
+The report file is the persistence script's: `odd-memory`'s
+`observe-run-report` reference states its `new` invocation, whole
+flag surface included, in its `## The script owns the format` — read
+that section, never `--help` (it answers nothing the section does not)
+— and run it with the run's values (the services, the stack, the
+detected environment, the mode, the depth, the window, the run name,
+the replayed report, the identity). It prints the path of the file it
+wrote, then the file's body: the title, a `<fill>` for the one-line
+headline, then the seven headings, each followed by a `<fill>`. Write
+that body, filled, to a **draft file of your own**
+with your file tool — the seven sections in this order (at `quick`
+depth, in the collapsed shape the Depth section gives sections 3 to
+6), every `<fill>` replaced, the headings kept — never open, read or
+edit the report file itself, never rewrite its frontmatter — then run
+the reference's `persist --body <draft>` on the path: it writes the
+draft under the frontmatter, checks the file, commits it alone on the
+work branch, and prints the return value — the stored path, the
+carrying commit, the headline, plus the branch and the subject when it
+committed. Your reply carries those lines verbatim and nothing of the
+report: the caller renders the closing synthesis from the stored file,
+once.
 
 1. **Mission and run record** — the mission as understood (services,
    stack and backend, mode, window, focus, expectations) and every
@@ -1139,7 +1152,8 @@ from your reply, without re-reading the file:
   the deployment environment was detected, is definite (no
   provisional value left unsettled), and appears in section 1 and in the
   frontmatter; the memory was recalled (section 1 names the previous
-  report or says there was none) and the report was persisted per
-  `odd-memory`'s `observe-run-report` reference, with its stored path
-  in the reply; on a custom stack, section 1 states the stack file's
+  report or says there was none) and the report was written and
+  persisted by `odd-memory`'s report script (`new`, then
+  `persist --body` with the filled draft), its `persist` output in the
+  reply; on a custom stack, section 1 states the stack file's
   fate and the reply carries its commit when it changed.
