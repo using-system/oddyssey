@@ -95,8 +95,10 @@ subcommand that takes one — `instant`, `get` and `types` take none;
 and is what a run reads: the JSON form is four times larger, for a
 consumer that parses it); exit 0 means every query ran (an empty answer
 is a result), exit 1 that gcx errored — **and then the only line printed
-is the error**, never a zero dressed as data; a usage error exits 2 with
-the message. **Every subcommand ends by printing the gcx commands it
+is the error**, never a zero dressed as data (`breakdown` alone keeps
+exit 0 when a get failed among many: the table stands on the rest and
+`failed` names what is missing); a usage error exits 2 with the
+message. **Every subcommand ends by printing the gcx commands it
 ran** — `queries run (record these):` — and those lines, with the script
 invocation above them, are what the report records as the query; the
 `odd-memory` skill's report reference says so — repeats are folded
@@ -113,8 +115,7 @@ Every subcommand prints a text rendering to read as is — the columns
 its `Output` line below names — and with `--json` one object carrying
 the keys that line names, plus `commands` (the gcx calls it ran) and
 `error` (empty on success; `discover` lists what failed under `failed`
-instead), and `note` wherever the text form ends on an advisory line.
-That is the whole output: a script's
+instead). That is the whole output: a script's
 source is never opened to learn a shape, and a `--json` answer is never
 re-parsed by hand for a value the text form already prints.
 
@@ -193,7 +194,8 @@ widen it before ruling anything absent. Behind the six:
 [`metrics query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_query.md) (an instant query, or a range one)
 and [`metrics series`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_series.md).
 Output: `histogram` and `counter` — `rows{<label=value, ...>: ...}`
-keyed by the `--by` labels, with `metric`, `window`, `evaluated_at`; a histogram row carries `p50 p95 p99 count sum mean
+keyed by the `--by` labels, with `metric`, `window`, `evaluated_at`,
+`note`; a histogram row carries `p50 p95 p99 count sum mean
 count_at_start count_settled count_increase sum_at_start sum_settled
 sum_increase reset`, a counter row `at_start at_end settled delta
 increase reset`. `names` — `names{<name>: series}`. `labels` —
@@ -259,15 +261,12 @@ Five subcommands, the whole surface above (`--since <duration>` replaces
   when the root carries neither), root p50/p95/max, and every child
   span by `<service> <name> [<kind>]` with its count per trace,
   p50/p95/max, errors and attribute keys, and the operation's exemplar
-  traces (p50, worst, the slowest per status code — the id a finding
-  quotes and `get --spans` opens, never searched for) — the
-  outcome-and-children table an observation builds per operation, in
-  one call, never by fetching the traces and reading the documents
-  yourself. A get that
-  fails among many is listed under `failed`, the table is built from
-  the rest. Its text form records the search and `gcx traces get <id>
-  -o json xN`, one per trace the search listed — the ids are the
-  search's own answer, verbatim in `--json`.
+  traces over the fetched sample (p50, worst, the slowest per status
+  code — the id a finding quotes and `get --spans` opens, never
+  searched for; a window larger than `--sample` has its worst trace in
+  `ops`) — the outcome-and-children table an observation builds per
+  operation, in one call, never by fetching the traces and reading the
+  documents yourself.
 
 Output: `ops` — `window`, `operations{<svc> <op>: rooted_traces,
 containing_traces, truncated, trace_p50_ms, trace_p95_ms, trace_p99_ms,
@@ -279,8 +278,8 @@ worst_rooted_trace, worst_containing_trace, worst_containing_ms}`,
 `traces[{summary, spans}]`: a summary is `trace_id, root, duration_ms,
 spans, services[], errors, by_name{<svc> <name>: count, max_ms},
 longest[{service, name, duration_ms}], gen_ai_tokens`; with `--spans`
-each span is `trace_id, span_id, parent_id, service, scope, name, kind (SERVER,
-CLIENT, INTERNAL, PRODUCER, CONSUMER), start_ns, end_ns, duration_ms,
+each span is `trace_id, span_id, parent_id, service, scope, name, kind
+(SERVER, CLIENT, INTERNAL, PRODUCER, CONSUMER), start_ns, end_ns, duration_ms,
 status (UNSET, STATUS_CODE_OK, STATUS_CODE_ERROR), attrs{<key>:
 value}` — the text form prints each as `<ms> <service> <name> [<kind>]
 status=<OK or ERROR, when set> parent=<id> <eight attrs, outcome, route
@@ -289,13 +288,13 @@ and peer first>` (a root's `http.response.status_code`, a child's
 truncated, first, last, roots{<svc> <op>: n}, traces[{traceID,
 rootServiceName, rootTraceName, startTimeUnixNano, durationMs}]`.
 `count` — `traceql, bin, total, capped_bins, bins[{from, to, listed,
-new, capped}]`. `breakdown` — `window, traceql, service, listed, rooted,
+new, capped}], note`. `breakdown` — `window, traceql, service, listed, rooted,
 rooted_elsewhere{<svc>: n}, truncated, fetched, failed[{trace_id,
 error}], breakdown{<svc> <op>: traces, root_status{<UNSET or OK or
 ERROR>: n}, http_status{<code or absent>: n}, root_p50_ms, root_p95_ms,
 root_max_ms, root_attrs[], exemplars{p50, worst, <code or absent>:
 <trace id>}, children{<svc> <name> [<kind>]: count, in_traces,
-per_trace, errors, p50_ms, p95_ms, max_ms, attrs[]}}`.
+per_trace, errors, p50_ms, p95_ms, max_ms, attrs[]}}, note`.
 
 ### Logs
 
@@ -336,7 +335,7 @@ four: [`logs query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/ref
 Output: `count` — `lines, truncated, by_stream{<instance or
 service>: n}`. `severity` — `lines, truncated, severity{<LEVEL>: n},
 samples{<LEVEL>: [line]}`. `correlate` — `lines, with_trace_id,
-without, truncated, orphan_samples[]`. `sample` — `lines, truncated,
+without, truncated, orphan_samples[], note`. `sample` — `lines, truncated,
 samples[{ts, level, trace_id, line}]`, printed as `<level> <trace id>
 <line>` in the text form.
 
@@ -381,9 +380,9 @@ an unanchored `urlopen` false-positived on a healthy server — issue #265).
 Behind the four: [`profiles query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_query.md), [`profiles labels`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_labels.md) and
 [`profiles list-profile-types`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_list-profile-types.md).
 Output: `top` — `total, total_seconds, frames, top_self[{frame, self,
-pct}], top_total[{frame, total_max, pct}]`, `selector`, `type`, `unit`.
-`check` — `type, verdict, rows[{variant, selector, total, error}]`.
-`labels` — `names[]`, `label`. `types` — `types[]`.
+pct}], top_total[{frame, total_max, pct}]`, `selector`, `type`, `unit`,
+`note`. `check` — `type, verdict, rows[{variant, selector, total,
+error}]`. `labels` — `names[]`, `label`, `note`. `types` — `types[]`.
 
 ### When a gcx call is still composed by hand
 

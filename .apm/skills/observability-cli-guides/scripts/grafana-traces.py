@@ -658,7 +658,7 @@ def cmd_breakdown(ns) -> tuple[int, dict]:
         "failed": failed,
         "breakdown": table,
         "error": err,
-        "note": "http_status is the root span's http.response.status_code, or http.status_code on an old-semconv service (absent = the root carries neither); exemplars name the p50 and the slowest root trace and the slowest trace per status code - fetch one with get, never search for one; a child's per_trace is its count over the operation's traces",
+        "note": "http_status is the root span's http.response.status_code, or http.status_code on an old-semconv service (absent = the root carries neither); exemplars name, over the fetched sample, the p50 and the slowest root trace and the slowest trace per status code - fetch one with get, never search for one; a child's per_trace is its count over the operation's traces",
         "commands": commands([r] + results),
     }
 
@@ -725,7 +725,11 @@ def render(o: dict) -> str:
     elif "breakdown" in o:
         out.append(
             f"{o['rooted']} traces rooted at {o['service']} of {o['listed']} listed, {o['fetched']} fetched"
-            + (f", {len(o['failed'])} gets FAILED" if o["failed"] else "")
+            + (
+                f", {len(o['failed'])} get{'s' if len(o['failed']) > 1 else ''} FAILED"
+                if o["failed"]
+                else ""
+            )
             + ("  TRUNCATED at --limit" if o["truncated"] else "")
         )
         for f in o["failed"][:10]:
@@ -758,13 +762,15 @@ def render(o: dict) -> str:
             out.append("  (no trace matched in this window)")
         elif not o["breakdown"] and o["rooted"]:
             out.append("  (nothing fetched - see failed, or --sample)")
-        out.append("  " + o["note"])
+        if o["breakdown"]:
+            out.append("  " + o["note"])
         cmds = o.get("commands") or []
-        out.append(f"queries run (record these; {len(cmds)} calls):")
+        n = len(cmds)
+        out.append(f"queries run (record these; {n} call{'s' if n != 1 else ''}):")
         out.append("  " + cmds[0] if cmds else "  (none)")
-        if len(cmds) > 1:
+        if n > 1:
             out.append(
-                f"  gcx traces get <id> -o json  x{len(cmds) - 1}, one per trace the search above listed, newest first - the ids are its answer and travel verbatim in --json"
+                f"  gcx traces get <id> -o json  x{n - 1} - the newest --sample of the traces rooted at {o['service']}, one per trace; the ids are verbatim in --json"
             )
         return "\n".join(out)
     elif "traces" in o and o.get("count") is not None:

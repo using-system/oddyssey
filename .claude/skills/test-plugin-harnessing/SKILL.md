@@ -20,23 +20,16 @@ harnessing** section. This skill is how you prove one landed.
 - **The phase**, named by the caller: `preflight`, `drive`,
   `observation`, or `whole`. Ask if it is not named — measuring the
   wrong phase wastes the run.
-- **The mission**, the same on every sample. Prefer an observation in
-  **drive mode on the local stack** whenever the change under test is
-  not specific to another mode or to a remote backend: the run
-  generates its own traffic (`run-scenario`'s recorded scenario, or a
-  stored benchmark), so every sample's window holds the same requests
-  and the samples differ in how they worked, not in what there was to
-  find. A post-hoc mission reads whatever the stack holds at that
-  minute - a burst that landed late, a real error the service happened
-  to produce - and that moves the findings, the queries and the turns
-  before the package does (measured 2026-09-09: a 502 that appeared
-  mid-study gave three samples an extra finding and 34 to 40 queries
-  against 24 to 30). Measure post-hoc only when post-hoc is what the
-  change touches, and then keep the traffic fixed (one scripted burst
-  per sample, at the same offset) and re-read the stack's facts on
-  every window before comparing findings. A remote stack is measured
-  only when the change is that stack's, with the caller's authorization
-  for a remote drive - never as this skill's default.
+- **The mission**, the same on every sample, and by preference an
+  observation in **drive mode on the local stack**: the run generates
+  its own traffic, so every window holds the same requests and the
+  samples differ in how they worked, not in what there was to find. A
+  post-hoc window holds whatever landed that minute (a late burst, a
+  real error — measured 2026-09-09: one 502 gave three samples an extra
+  finding and 34 to 40 queries against 24 to 30): measure post-hoc only
+  when post-hoc is what changes, with one scripted burst per sample and
+  the stack's facts re-read per window; a remote stack only when the
+  change is that stack's, never by default.
 - **The baseline**, which is the published row in
   `.llms-benchmark/README.md` for the model you will use: its phase
   durations, its turn count and its **median turn**. Read it from

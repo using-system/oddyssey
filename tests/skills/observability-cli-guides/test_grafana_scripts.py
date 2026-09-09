@@ -692,10 +692,13 @@ def test_traces_breakdown_keeps_the_table_when_one_get_fails_and_samples_newest_
         *WIN,
         env={"FAKE_BAD_ID": "1"},
     ).stdout
-    assert "6 listed, 5 fetched, 1 gets FAILED" in text and "   failed: bad" in text
+    assert "6 listed, 5 fetched, 1 get FAILED" in text and "   failed: bad" in text
     # the text form records the search and the gets as one line, never 200 ids
     assert "queries run (record these; 7 calls):" in text
-    assert "gcx traces get <id> -o json  x6, one per trace" in text
+    assert (
+        "gcx traces get <id> -o json  x6 - the newest --sample of the traces rooted at llmbench-api"
+        in text
+    )
     assert text.count("gcx traces get") == 1
     # newest first, even when the search answered oldest first
     r = run(
