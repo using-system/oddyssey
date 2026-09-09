@@ -20,6 +20,16 @@ harnessing** section. This skill is how you prove one landed.
 - **The phase**, named by the caller: `preflight`, `drive`,
   `observation`, or `whole`. Ask if it is not named — measuring the
   wrong phase wastes the run.
+- **The mission**, the same on every sample, and by preference an
+  observation in **drive mode on the local stack**: the run generates
+  its own traffic, so every window holds the same requests and the
+  samples differ in how they worked, not in what there was to find. A
+  post-hoc window holds whatever landed that minute (a late burst, a
+  real error — measured 2026-09-09: one 502 gave three samples an extra
+  finding and 34 to 40 queries against 24 to 30): measure post-hoc only
+  when post-hoc is what changes, with one scripted burst per sample and
+  the stack's facts re-read per window; a remote stack only when the
+  change is that stack's, never by default.
 - **The baseline**, which is the published row in
   `.llms-benchmark/README.md` for the model you will use: its phase
   durations, its turn count and its **median turn**. Read it from
@@ -133,6 +143,16 @@ the totals level, or worse, is reworked, not argued: find where the
 turns and the context went (per-phase accounting, the reads of every
 file the change touched, the calls the new invocation caused), fix the
 cause, and measure again.
+
+**Under review, measure once, at the end.** The fix waves a reviewer
+asks for are not measured one by one: apply them, run the suites, and
+measure the branch as it will be merged once the reviewer is green —
+two samples minimum, against the numbers that sent it to review. A
+wave that changes what the run reads or runs (a line the run copies, a
+shape it used as a source, a new invocation) is the exception: measure
+it before the next round, because the measured 2026-09-09 case cost the
+whole gain and only the numbers said so. A loss at the end reopens the
+review with the mechanism named, never a re-run alone.
 
 **When the phase reaches the report, the findings are a metric too.**
 A harness change that cuts turns and loses findings moved the cost
