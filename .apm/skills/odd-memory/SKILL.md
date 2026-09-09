@@ -118,7 +118,8 @@ recalled by name, each ledger is one file; their references own that:
   way apply the kind's matching rules yourself; a missing or empty
   store is a first run then too — say so, never fail.
 - The first line printed is the baseline: read it **by section, never
-  whole** — the kind's reference names the sections a mission needs.
+  whole** — the kind's reference names the sections a mission needs,
+  and the command that prints them when it ships one.
   Reading beyond that set is the exception, for a stated need that the
   calling agent records. A benchmark recall has no baseline: the whole
   listing is the set the mission checks itself against, and its
@@ -147,6 +148,9 @@ lifecycle hooks, a hook flags what slipped through, after the write.
 
 ## The work branch and the lone commit
 
+An observation report's `persist` (its reference's script) applies this
+section; everywhere else it is applied by hand:
+
 - **Never commit on the default branch.** Before committing, compare
   `git branch --show-current` with the repository's default branch
   (`git symbolic-ref --short refs/remotes/origin/HEAD` stripped of its
@@ -170,7 +174,8 @@ lifecycle hooks, a hook flags what slipped through, after the write.
 
 ## The reply and the synthesis
 
-- The persistence's return value carries the stored path, the
+- The persistence's return value — printed by the kind's script when
+  it ships one — carries the stored path, the
   carrying commit, and the **synthesis inputs** its `## Show` renders
   from — quoted from the artifact where the artifact carries the
   value, never rephrased; the kind's reference lists them — and never the

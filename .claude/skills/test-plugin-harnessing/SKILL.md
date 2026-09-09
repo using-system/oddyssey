@@ -45,7 +45,11 @@ harnessing** section. This skill is how you prove one landed.
    repository, and copy `.apm/skills/*` and `.apm/agents/*` over
    `~/.claude/skills` / `~/.claude/agents` when the host also reads a
    user scope. Back the user scope up first and restore it at the end —
-   it is the user's install, not yours. `diff -rq` the two scopes: a run
+   it is the user's install, not yours — or, when the user's home must
+   stay untouched, run the host under a fake `HOME` whose `.claude`
+   carries the deploy and whose every other entry is a symlink to the
+   real home (the credentials, the log and the session store stay
+   where the scripts read them). `diff -rq` the two scopes: a run
    that finds them different spends turns comparing them.
 
 3. **Clean what the next run must not read.** Any report a previous run

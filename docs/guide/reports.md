@@ -198,6 +198,10 @@ frontmatters alone.
 - **Committed alone.** Each report lands in its own commit
   (`docs(odd): observation report <run_name>`, and the verification,
   re-measure, and instrumentation variants).
+- **Written by the skill's script.** An observation report's filename,
+  frontmatter and seven headings come from the `odd-memory` skill's
+  report script, which also refuses to persist a report that breaks
+  these rules; only the sections' content is the agent's.
 - **No secrets, ever.** No tokens, credentials, connection strings, or
   real tenant, workspace, or account identifiers, nor a value persisted
   under a remote stack's `stack_config`, regions excepted (a log group,
