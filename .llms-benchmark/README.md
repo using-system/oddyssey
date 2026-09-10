@@ -17,11 +17,12 @@ and the CLI it is driven through.
 | **#4** | `qwen/qwen3.8-max-0902` | opencode | 1.11.5 | **22 / 22** | 15 / 3 / 4 | 52m30s | $2.15 | $0.098 |
 | **#5** | `qwen/qwen3.8-27b` | opencode | 1.11.5 | 16 / 18 | 11 / 4 / 3 | 51m04s | $1.65 | $0.103 |
 | **#6** | `z-ai/glm-5.3` | opencode | 1.11.5 | 15 / 17 | 10 / 4 / 3 | 52m28s | $2.56 | $0.171 |
-| **#7** | `anthropic/claude-sonnet-5` | opencode | 1.11.5 | **7 / 7** | 4 / 2 / 1 | 20m47s | $3.46 | $0.494 |
-| **#8** | `anthropic/claude-opus-5` | opencode | 1.11.3 ⚠︎ | **17 / 17** | 11 / 3 / 3 | 27m36s | $10.35 | $0.609 |
-| **#9** | `openai/gpt-6-astra` | opencode | 1.11.3 ⚠︎ | **15 / 15** | 8 / 3 / 4 | 23m27s | **$19.58** | $1.305 |
-| **#10** | `anthropic/claude-haiku-4.5` | claude | 1.11.5 | **2 / 5** | 0 / 5 / 0 | 10m13s | $0.79 | $0.393 |
-| **#11** | `anthropic/claude-haiku-4.5` | opencode | 1.11.5 | **0 / 2** | 0 / 2 / 0 | 8m13s | $0.58 | — |
+| **#7** | `anthropic/claude-sonnet-5` | claude | 1.11.5 | **7 / 7** | 4 / 3 / 0 | 16m01s | $3.22 | $0.459 |
+| **#8** | `anthropic/claude-sonnet-5` | opencode | 1.11.5 | **7 / 7** | 4 / 2 / 1 | 20m47s | $3.46 | $0.494 |
+| **#9** | `anthropic/claude-opus-5` | opencode | 1.11.3 ⚠︎ | **17 / 17** | 11 / 3 / 3 | 27m36s | $10.35 | $0.609 |
+| **#10** | `openai/gpt-6-astra` | opencode | 1.11.3 ⚠︎ | **15 / 15** | 8 / 3 / 4 | 23m27s | **$19.58** | $1.305 |
+| **#11** | `anthropic/claude-haiku-4.5` | claude | 1.11.5 | **2 / 5** | 0 / 5 / 0 | 10m13s | $0.79 | $0.393 |
+| **#12** | `anthropic/claude-haiku-4.5` | opencode | 1.11.5 | **0 / 2** | 0 / 2 / 0 | 8m13s | $0.58 | — |
 
 <details>
 <summary>Run detail — phases, turns, tokens</summary>
@@ -34,6 +35,7 @@ and the CLI it is driven through.
 | `qwen/qwen3.8-max-0902` | opencode | 1.11.5 | 11m35s | 2m02s | 38m53s | 38 | 24.6s | 3.8M | 112k | 3.4M | 4/4 |
 | `qwen/qwen3.8-27b` | opencode | 1.11.5 | 7m30s | 2m02s | 41m32s | 75 | 35.4s | 11.3M | 123k | 10.4M | 4/4 |
 | `z-ai/glm-5.3` | opencode | 1.11.5 | 14m24s | 2m01s | 36m03s | 44 | 13.0s | 4.7M | 173k | 4.2M | 4/4 |
+| `anthropic/claude-sonnet-5` | claude | 1.11.5 | 3m50s | 2m02s | 10m09s | 86 | 3.7s | 10.4M | 54k | 10.4M | 4/4 |
 | `anthropic/claude-sonnet-5` | opencode | 1.11.5 | 6m01s | 2m01s | 12m45s | 81 | 9.5s | 9.9M | 65k | 9.9M | 4/4 |
 | `anthropic/claude-opus-5` | opencode | 1.11.3 ⚠︎ | 3m52s | 2m01s | 21m43s | 64 | 8.9s | 8.4M | 104k | 8.4M | 4/4 |
 | `openai/gpt-6-astra` | opencode | 1.11.3 ⚠︎ | 3m08s | 2m02s | 18m17s | 103 | 4.5s | 11.4M | 54k | 11.4M | 4/4 |
@@ -169,7 +171,8 @@ adding or replacing the row. What it does:
    one session.
 3. Gives it one mission — a single `/odd-observe` invocation naming the
    three services, the stored scenario `benchmark/llmbench-store-load/`,
-   **full** depth and the **local** stack — and asks for every kind of
+   **full** depth and the **local** stack — states that the scenario's
+   paid model calls are accepted, and asks for every kind of
    anomaly, not only the slow ones: performance, outright errors, wrong
    behavior, and telemetry that is missing or lying. Each of the four is
    named on purpose. The services, so the run never guesses its scope

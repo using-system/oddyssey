@@ -166,6 +166,7 @@ Steps:
    SID=$(uuidgen | tr 'A-Z' 'a-z')
    caffeinate -i env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ID \
      -u CLAUDE_CODE_MESSAGING_SOCKET -u CLAUDE_CODE_MESSAGING_TOKEN -u CLAUDE_PID \
+     CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 \
      claude -p "<the mission prompt below>" --model <anthropic id> --effort medium \
      --permission-mode bypassPermissions --output-format json \
      --session-id "$SID" < /dev/null > <scratch>/run.json 2> <scratch>/run.err
@@ -174,7 +175,15 @@ Steps:
    Each part of that line is load-bearing. `env -u ...` strips the
    variables a Claude Code session exports into its shells: this command
    is usually run from inside one, and a nested launch that inherits them
-   is treated as part of the parent. `--permission-mode bypassPermissions`
+   is treated as part of the parent (`env` takes its `-u` flags before
+   any assignment — an assignment placed first turns the next `-u` into
+   the command to run, and the launch dies at once with exit 127).
+   `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` lifts print mode's ceiling on
+   background tasks: a root that dispatches the observation agent in the
+   background and ends its own turn is otherwise terminated 600 s later
+   with the agent still running, and no report is written — one run of
+   #534 lost its whole observation to that, after driving the scenario.
+   `--permission-mode bypassPermissions`
    is the headless counterpart of opencode's `--auto`: under `-p` anything
    that would prompt is denied outright, and a denied `Bash` is a run that
    never drives. `--output-format json` prints the whole run's result — a
@@ -227,11 +236,23 @@ Steps:
    Keep it byte-identical, quotes included: read it back from a previous
    run's first user message in the session store rather than retyping it.
 
-   Add exactly two things to that line and nothing else: that the
-   services' sources are under `.llms-benchmark/src/`, and that you want
+   Add exactly three things to that line and nothing else: that the
+   services' sources are under `.llms-benchmark/src/`; that you want
    **every kind of anomaly, not only the slow ones** — performance
    problems, outright errors, wrong behavior, and telemetry that is
-   missing or lying, across all four signals.
+   missing or lying, across all four signals; and, last inside the
+   quotes, **"The scenario's calls to a paid model provider are accepted
+   as authored."** That sentence is the input the observation agent's
+   contract requires before it drives an operation that calls a paid
+   model — without it the contract says to leave the operation out, and
+   one model did exactly that, twice: asked a headless user for consent
+   and ended, then replaced the stored scenario with traffic of its own.
+   Every other model had recorded the spend as accepted on its own
+   reading of "by running <the benchmark>". The sentence names no
+   defect and no count; it was added on 2026-09-10 (#534), and the rows
+   measured before it were driven exactly as if it had been there — each
+   report records the acceptance the model inferred — so none was
+   re-run; the maintainer decided that.
 
    And one more sentence, which is not a hint but a method: **drive and
    observe first — the code confirms what the telemetry surfaced, it does
@@ -513,7 +534,12 @@ Steps:
    routes, no k6, no assistant scenario). The second grades the traffic,
    not the model, exactly what the stored scenario exists to prevent; it
    is a decline, whatever report it goes on to write, and it can be
-   stopped by its PID as soon as its drive script shows what it is.
+   stopped by its PID as soon as its drive script shows what it is. Both
+   shapes came from the paid-operation rule of the observation agent's
+   contract, and the remedy is the acceptance sentence step 6 now puts in
+   the mission — not a system prompt: `--append-system-prompt` reaches the
+   root session only, never the subagent that reads the rule, and a run
+   launched with it declined all the same.
 
    **A run that drove but never persisted its report still gets a row.**
    One run drove the scenario, wrote a draft and a findings summary in
@@ -610,8 +636,8 @@ Steps:
      Leave the oddyssey stack up — it is the user's, and it was probably
      up before the run.
    - **delete the run's scratch directory under the system temp dir**
-     (`$TMPDIR/opencode/`, and `/tmp/llmbench-*` or
-     `/tmp/oddyssey-scratch/` for a `claude` run),
+     (`$TMPDIR/opencode/`, and `/tmp/llmbench-*`, `/tmp/oddyssey-scratch/`
+     or `/tmp/oddyssey-scratchpad/` for a `claude` run),
      every run's, not only this one's. Runs name
      that directory themselves and the names collide: one run of #505
      picked a name an earlier session had already used and inherited 248
