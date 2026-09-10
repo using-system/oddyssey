@@ -58,9 +58,13 @@ report reference is what the persistence hands the caller, and what
   store **without parsing prose**. Every field mirrors the run as it
   actually executed — defaults applied, not as requested. The kind's
   reference lists the fields and their meaning.
-- The body is the producing agent's artifact **as-is**, whole: the
-  section contract belongs to the agent, not to the persistence,
-  and a summary cannot feed a later diff.
+- The body is the producing agent's judgment **as-is**, whole: what
+  each section carries is the agent's contract, stated once where the
+  kind's reference says — in that reference, beside the format, or in
+  the agent — and read at report time; the persistence adds nothing to
+  it beyond the numbered headings and the few machine-read shapes a
+  kind's script fixes and checks (its reference names them), and a
+  summary cannot feed a later diff.
 
 ## Append-only, with one exception
 
@@ -91,9 +95,21 @@ recalled by name, each ledger is one file; their references own that:
 
 - Run the recall script this skill carries,
   `python3 <this skill's directory>/scripts/odd_recall.py --repo <path>`
-  with the mission's scope as flags — the kind's reference says which:
-  it reads every stored frontmatter (a benchmark's manifest) in Python
-  and prints the matches newest first, one line each, nothing else; a
+  with the mission's scope as flags — the kind's reference says which.
+  **The invocation may travel with the mission**: a caller's preflight
+  that already resolved the scope writes it into the mission block as
+  `Recall: python3 <this skill's directory>/scripts/odd_recall.py --repo <path> --service <name> [--service <name> ...] --stack <stack> --depth <depth>`
+  (the observation form — one `--service` per name, `--env` left for
+  the agent to append once it has detected the environment; a benchmark
+  is recalled by `--kind benchmark --service <name>` alone, an
+  instrumentation report by `--kind instrumentation --project <scope>`),
+  and the agent runs that line as is — never re-derived, never a flag
+  guessed. The whole surface is `--repo`, `--kind <observation |
+  instrumentation | benchmark>` (default `observation`), `--service`,
+  `--stack`, `--env`, `--depth`, `--mode` (repeatable) and `--project`
+  — nothing else: `--help` has nothing to add and the file has nothing
+  to read. The script reads every stored frontmatter (a benchmark's manifest) in
+  Python and prints the matches newest first, one line each; a
   report the frontmatter contract flags, or a benchmark whose manifest
   it cannot read, is listed and reported, never skipped silently. No
   frontmatter reaches the conversation until the baseline is chosen.
@@ -106,7 +122,8 @@ recalled by name, each ledger is one file; their references own that:
   way apply the kind's matching rules yourself; a missing or empty
   store is a first run then too — say so, never fail.
 - The first line printed is the baseline: read it **by section, never
-  whole** — the kind's reference names the sections a mission needs.
+  whole** — the kind's reference names the sections a mission needs,
+  and the command that prints them when it ships one.
   Reading beyond that set is the exception, for a stated need that the
   calling agent records. A benchmark recall has no baseline: the whole
   listing is the set the mission checks itself against, and its
@@ -135,6 +152,9 @@ lifecycle hooks, a hook flags what slipped through, after the write.
 
 ## The work branch and the lone commit
 
+An observation report's `persist` (its reference's script) applies this
+section; everywhere else it is applied by hand:
+
 - **Never commit on the default branch.** Before committing, compare
   `git branch --show-current` with the repository's default branch
   (`git symbolic-ref --short refs/remotes/origin/HEAD` stripped of its
@@ -159,13 +179,15 @@ lifecycle hooks, a hook flags what slipped through, after the write.
 ## The reply and the synthesis
 
 - The persistence's return value carries the stored path, the
-  carrying commit, and the **synthesis inputs** its `## Show` renders
-  from — quoted from the artifact where the artifact carries the
-  value, never rephrased; the kind's reference lists them — and never the
-  artifact's body: an observation report runs 300 to 500 lines, the
-  reply travels back into the caller's context, and the synthesis is
-  its only reader. What the next wave needs is in the file, at the
-  stored path.
+  carrying commit, and what its `## Show` needs to render — the
+  **synthesis inputs**, quoted from the artifact where the artifact
+  carries the value, never rephrased, the kind's reference lists them;
+  or, when the kind ships a script that renders the synthesis from the
+  stored file, the headline alone, so the block never travels through
+  the reply — and never the artifact's body: an observation report
+  runs 300 to 500 lines, the reply travels back into the caller's
+  context, and the synthesis is its only reader. What the next wave
+  needs is in the file, at the stored path.
 - `## Show` renders from that return value, or reads a stored
   artifact the caller names from disk, by section, with its carrying
   commit from git (`git log -1 --format=%h -- <path>`) — never from the

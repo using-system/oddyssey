@@ -35,6 +35,19 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import NoReturn
 
+# The report format is read through odd_report.py beside this file: one
+# parser for one format, owned by this skill.
+sys.dont_write_bytecode = True  # never leave bytecode in the package
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from odd_report import (
+    as_list,
+    raw_sections,
+    split_frontmatter,
+)
+from odd_report import (
+    git_root as _git_root,
+)
+
 OBSERVATION_DIR = ".odd/observe-run-reports"
 LEDGER_PATH = ".odd/decisions.md"
 CLASSIFICATIONS_PATH = ".odd/entry-classifications.md"
@@ -73,8 +86,6 @@ persists nothing.
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # the section and table shapes exactly as get-status reads a report, so the
 # ledger never accepts a row the memory invariant would flag at status time
-SECTION_RE = re.compile(r"^##\s+(\d+)\.\s*(.*?)\s*$")
-TABLE_SEPARATOR_RE = re.compile(r"^:?-{3,}:?$")
 # the shapes the .odd/ identifier scan refuses, with its exemptions - a
 # rationale is memory too, and a command is not a file-tool write the hook sees
 GUID_RE = re.compile(
@@ -101,22 +112,29 @@ class Refusal(Exception):
     """One reason, one stderr line, exit 2, nothing written."""
 
 
-# --- git and files -------------------------------------------------------------------
-
-
 def git_root(path: Path) -> Path:
-    try:
-        proc = subprocess.run(
-            ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError as exc:
-        raise Refusal(f"git is not available: {exc}") from exc
-    if proc.returncode != 0:
+    root = _git_root(path)
+    if root is None:
         raise Refusal(f"not a git repository: {path.resolve()}")
-    return Path(proc.stdout.strip())
+    return root
+
+
+def section_3(text: str) -> tuple[list[list[str]], str]:
+    """Section 3's table rows (as cells) and its prose, tables excluded - every
+    ``## 3.`` section as get-status numbers them: the rows of all of them, the
+    prose of the last one, exactly as its finding_ids reads a report."""
+    rows: list[list[str]] = []
+    prose = ""
+    _, body, _ = split_frontmatter(text)
+    for current in raw_sections(body):
+        if current["number"] != 3:
+            continue
+        rows.extend(row for table in current["tables"] for row in table["rows"])
+        prose = "\n".join(current["lines"])
+    return rows, prose
+
+
+# --- git and files -------------------------------------------------------------------
 
 
 def read_text(path: Path) -> str:
@@ -127,70 +145,6 @@ def read_text(path: Path) -> str:
 
 
 # --- the report's findings, read exactly as get-status reads them --------------------
-
-
-def split_cells(line: str) -> list[str]:
-    cells = [c.replace("\\|", "|").strip() for c in re.split(r"(?<!\\)\|", line)]
-    if cells and cells[0] == "":
-        cells = cells[1:]
-    if cells and cells[-1] == "":
-        cells = cells[:-1]
-    return cells
-
-
-def is_separator_row(line: str) -> bool:
-    cells = split_cells(line)
-    return bool(cells) and all(TABLE_SEPARATOR_RE.match(c) for c in cells)
-
-
-def extract_tables(lines: list[str]) -> tuple[list[list[str]], list[str]]:
-    """The rows of the markdown tables in ``lines`` (headers excluded) and the
-    lines that are not tables - a pipe block without a separator line is prose."""
-    rows: list[list[str]] = []
-    rest: list[str] = []
-    i = 0
-    while i < len(lines):
-        if lines[i].lstrip().startswith("|"):
-            block = []
-            while i < len(lines) and lines[i].lstrip().startswith("|"):
-                block.append(lines[i].strip())
-                i += 1
-            if len(block) >= 2 and is_separator_row(block[1]):
-                rows.extend(split_cells(r) for r in block[2:])
-            else:
-                rest.extend(block)
-            continue
-        rest.append(lines[i])
-        i += 1
-    return rows, rest
-
-
-def section_3(text: str) -> tuple[list[list[str]], str]:
-    """Section 3's table rows (as cells) and its prose, tables excluded - every
-    ``## 3.`` section as get-status numbers them: the rows of all of them, the
-    prose of the last one, exactly as its finding_ids reads a report."""
-    rows: list[list[str]] = []
-    prose: list[str] = []
-    buffer: list[str] = []
-    inside = False
-
-    def close() -> None:
-        nonlocal prose
-        if inside:
-            block_rows, block_prose = extract_tables(buffer)
-            rows.extend(block_rows)
-            prose = block_prose
-
-    for line in text.splitlines():
-        if line.startswith("## "):
-            close()
-            match = SECTION_RE.match(line)
-            inside = bool(match) and int(match.group(1)) == 3
-            buffer = []
-        elif inside:
-            buffer.append(line)
-    close()
-    return rows, "\n".join(prose)
 
 
 def row_id(cells: list[str]) -> str:
@@ -215,27 +169,6 @@ def finding_title(text: str, finding_id: str) -> str:
 
 
 # --- the frontmatter, read without parsing prose -------------------------------------
-
-
-def frontmatter(text: str) -> dict[str, str]:
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return {}
-    fields: dict[str, str] = {}
-    for line in lines[1:]:
-        if line.strip() == "---":
-            break
-        key, sep, value = line.partition(":")
-        if sep:
-            fields[key.strip()] = value.strip()
-    return fields
-
-
-def as_list(value: str) -> list[str]:
-    value = value.strip()
-    if value.startswith("[") and value.endswith("]"):
-        value = value[1:-1]
-    return [v.strip().strip("'\"") for v in value.split(",") if v.strip()]
 
 
 # --- the rules, as code --------------------------------------------------------------
@@ -469,12 +402,12 @@ def resolve(
     matches: list[str] = []
     for path in sorted(store.glob("*.md"), reverse=True) if store.is_dir() else []:
         text = read_text(path)
-        fm = frontmatter(text)
-        if services and not set(services) & set(as_list(fm.get("services", ""))):
+        fm, _, _ = split_frontmatter(text)
+        if services and not set(services) & set(as_list(fm.get("services"))):
             continue
-        if stack and fm.get("stack") != stack:
+        if stack and str(fm.get("stack")) != stack:
             continue
-        if environment and fm.get("environment") != environment:
+        if environment and str(fm.get("environment")) != environment:
             continue
         if finding_in_report(text, finding_id):
             matches.append(

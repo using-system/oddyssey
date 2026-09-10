@@ -54,7 +54,8 @@ the tool call that spawned it, have it write its progress and its
 outcome to a file, and let later tool calls read that file.
 
 **A stored benchmark needs none of this written**: its replay script
-already ships that shape (`--detach` starts it, `--status` reports it),
+already ships that shape (`--detach` starts it, `--status --wait` blocks
+until it finishes),
 and authoring a poller for it is writing a command the package
 supplies. What follows is for an **ad-hoc** scenario, which has no such
 script. Start the job, then launch a small script with `nohup` that

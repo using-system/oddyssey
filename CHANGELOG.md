@@ -1,3 +1,25 @@
+## [1.11.5] - 2026-09-09
+
+### 🚀 Features
+
+- *(prompts)* Add argument-hint to every prompt's frontmatter (#516)
+
+### 💼 Other
+
+- *(deps)* Bump httpx2 from 2.10.0 to 2.12.0 in /src/mcp-server (#514)
+
+### 📚 Documentation
+
+- *(bench)* Three runs under 1.11.4 - both gemini flashes re-run, z-ai/glm-5.3-flash added (#506)
+- *(bench)* Campaign under 1.11.4 - z-ai/glm-5.3 re-run, qwen3.8-max-0902 added (#509)
+
+### ⚡ Performance
+
+- *(skill)* Ship grafana.md's query surface as grafana-* scripts instead of prose (#511)
+- *(skills)* Ship the replay's wait and state the preflight's invocations where the skills invoke them (#517)
+- *(skill)* Ship the observation report's deterministic steps as odd_report.py and cut the reference to the judgment (#518)
+- *(agent)* State the observation report's section contract in its odd-memory reference (#522)
+- *(skill)* State the grafana scripts' output shapes and ship the trace breakdown the runs composed by hand (#530)
 ## [1.11.4] - 2026-09-07
 
 ### 🚀 Features
