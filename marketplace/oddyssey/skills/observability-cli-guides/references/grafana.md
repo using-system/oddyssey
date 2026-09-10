@@ -2,7 +2,7 @@
 
 Official docs: https://github.com/grafana/gcx (source, README, `docs/`) and
 https://grafana.com/docs/grafana-cloud/as-code/observability-as-code/grafana-cli/gcx/
-(published site)
+(published site).
 `raw.githubusercontent.com/grafana/gcx/main/...` links return raw markdown;
 `grafana.com/docs/...` and `github.com/.../blob/...` links are HTML-rendered
 only. The CLI command reference (`docs/reference/cli/*.md`) exists only in
@@ -11,8 +11,8 @@ the repo — it is not mirrored on the published site.
 gcx works against **any Grafana 12+**: Grafana Cloud, Enterprise, and OSS,
 including the local oddyssey stack. It authenticates over the Grafana REST
 API, so on-prem and Cloud differ only in the stack entry you configure
-(`org-id` for on-prem vs `stack-id`/OAuth for Cloud) — every query command
-below is identical either way.
+(`org-id` for on-prem vs `stack-id`/OAuth for Cloud) — every query below is
+identical either way.
 
 ## CLI binary
 
@@ -32,339 +32,455 @@ below is identical either way.
 | Environment variables | [reference/environment-variables](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/environment-variables/index.md) | `GRAFANA_SERVER`, `GRAFANA_ORG_ID`, `GRAFANA_STACK_ID`, `GRAFANA_TOKEN`, `GRAFANA_USER`/`GRAFANA_PASSWORD`, `GRAFANA_TLS_*`, `GRAFANA_CLOUD_TOKEN`, `GCX_TELEMETRY`, `GCX_AUTO_APPROVE`. Use for CI/non-interactive runs — env vars override the selected context in memory and are never persisted. Minimum for a working call: `GRAFANA_SERVER` + `GRAFANA_ORG_ID` (on-prem) plus one credential var. |
 | `gcx login` | [gcx_login.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_login.md) | Interactive/non-interactive auth: `--oauth` (Cloud, browser-based, works in agent mode), `--token` (service-account token, Cloud or on-prem), `--cloud-token` (Cloud platform API), `--yes` to skip prompts. `gcx login prod --server https://<stack>.grafana.net` for Cloud; `gcx login local --server http://localhost:3000 --token <token>` for self-hosted/on-prem. |
 | Migrate configuration | [migrate-configuration.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/sources/migrate-configuration.md) | Steps to move an older `gcx` config file to the current schema version. Run only if `gcx config check` reports a legacy/unversioned config. |
-| `gcx help-tree` | [gcx_help-tree.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_help-tree.md) | Prints a compact command tree (with inline args/flags/agent hints) for agent context injection; take a subtree with positional args (`gcx help-tree metrics`) or cap depth with `--depth`. Run this first when unsure what a command area supports — it is the token-cheap way to discover the full command surface without paging through individual `--help` output. |
-| `gcx commands` | [gcx_commands.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_commands.md) | Full JSON catalog of every command with flags, args, token-cost estimates, and known Grafana resource types; `--validate` checks it against a live instance. Use for programmatic/agent discovery of the entire CLI surface, or `--flat` for a single-list view. |
-| Local oddyssey stack | the `setup-local-stack` skill (ships with the oddyssey package) | Carries a ready-made isolated `GCX_CONFIG` context (`admin`/`admin` against the configured `grafana_url` — default `http://localhost:3000`, never assumed — datasource UIDs `prometheus`/`loki`/`tempo`/`pyroscope`). Use it instead of re-deriving context setup for the local stack; `gcx` is the mandatory query CLI (recorded proof queries may be raw datasource-proxy HTTP — that skill says when each form is right). |
+| Local oddyssey stack | the `setup-local-stack` skill (ships with the oddyssey package) | Carries a ready-made isolated `GCX_CONFIG` context (`admin`/`admin` against the configured `grafana_url` — default `http://localhost:3000`, never assumed — datasource UIDs `prometheus`/`loki`/`tempo`/`pyroscope`). Use it instead of re-deriving context setup for the local stack; `gcx` is the mandatory query CLI. |
 
 ## Remote missions — targeting without touching the user's config
 
-The local stack has its sanctioned isolated setup (the
-`setup-local-stack` skill's per-session `GCX_CONFIG`); a remote
-mission runs on the user's own gcx context and must never write into
-it. Datasource defaults live in the context file
-(`contexts.<name>.datasources.<kind>`), so a mission without its own
-file pays `-d <uid>` on every call. The remote mirror of the local
-pattern, in order of preference:
+Remote missions only: on the local stack the context is the
+`setup-local-stack` skill's, and this section is never read.
 
-- **Session copy** — copy the user's config to a per-session path,
-  point `GCX_CONFIG` at the copy, and add the datasource defaults
-  there: the user's file is never touched and the copy dies with the
-  session. **Gate it with `gcx config check` immediately** — on the
-  mission's context (`--context <name>`) when the user's active one
-  is not the target stack: keychain-backed credentials (OAuth
-  sign-in, `gcx login`-stored tokens) are bound to the config file's
-  path and are rejected in the copy — "the keychain reference does
-  not match this config source" (verified 1.2.0) — so the copy alone
-  only works for inline-credential or env-var contexts.
-- **When the check rejects the copy** — the rejection message itself
-  names the fix: the user re-authenticates once into the session file
-  (`gcx login <stack> --config "$GCX_CONFIG"` — their action, never
-  the mission's), then re-run the check to prove the session file
-  works. If they decline, stay on the user's config and pass
-  `-d <uid>` per call — verbose, but deterministic with the UID
-  conventions below.
-- Never work around a rejection by copying credential values out of
-  the keychain or the user's file, and never write into the user's
-  config to "just add" the datasource defaults.
+```bash
+python3 <Skills>/observability-cli-guides/scripts/grafana-context.py [--stack <context name>] [--json]
+```
 
-**Grafana Cloud datasource discovery**: `gcx datasources list -o
-agents` returns `"type": ""` for every datasource on Cloud (observed
-2026-08), so the signal-kind mapping cannot be read from the type
-field. Map by the stock naming and proxy URLs instead: the
-provisioned datasources follow the `grafanacloud-…-prom` /
-`-traces` / `-logs` / `-profiles` naming (observed 2026-08 as UIDs
-`grafanacloud-prom`, `grafanacloud-traces`, `grafanacloud-logs`,
-`grafanacloud-profiles`; display names may prefix the stack slug) —
-take each one's **`uid` field from the `datasources list` output**
-and set it as the matching `datasources.<kind>` default
-(`prometheus`, `tempo`, `loki`, `pyroscope`) in the session copy.
+Whole surface: `--stack` (default: the user's current context), `--json`.
+Prints the `export GCX_CONFIG=…` line to put in front of every later
+call, the context, and the four datasource UIDs (marked when a UID is
+not a context default: gcx then resolves it from the stack). Exit 0 =
+proved with [`config check --context`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_config_check.md); exit 1 =
+the message names the fix, which is the user's, never the mission's.
+
+- Target is the user's current context (the usual case): the user's
+  file is used in place, nothing copied, nothing written — a
+  keychain-bound credential answers only from the file it was bound to,
+  and no default is needed (verified 2026-09-08 on Cloud: four signals
+  answered with `loki` and `prometheus` the only defaults set). Fix on
+  exit 1: `gcx login <stack>`.
+- Target is another context: the user's file is copied to a session path
+  (one per stack and session), the copy gets that context and the
+  default UID per signal from [`datasources list`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_datasources_list.md).
+  Fix on exit 1 ("the keychain reference does not match this config
+  source", verified 1.2.0): `gcx login <stack> --config <the session path>`.
+- No other fallback: the scripts take no `-d`; a mission with no proved
+  context stops. Never copy a credential, never write into the user's
+  file. On Cloud, `datasources list` returns `"type": ""` (observed
+  2026-08): UIDs are mapped by type, then by the `…-prom` / `-traces` /
+  `-logs` / `-profiles` naming.
 
 ## Query by signal
 
-| Signal | How | Link | Notes |
-| --- | --- | --- | --- |
-| Metrics | `gcx metrics labels` | [gcx_metrics_labels.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_labels.md) | List all labels, or values for one label (`-l/--label`); scope with `--metric` and/or repeatable `--match` selectors. |
-| Metrics | `gcx metrics series` | [gcx_metrics_series.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_series.md) | Prometheus `/api/v1/series` — list time series for one or more selectors; unbounded time range unless `--since`/`--from`/`--to` is given. |
-| Metrics | `gcx metrics metadata` | [gcx_metrics_metadata.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_metadata.md) | Type and help text for metrics; filter with `-m/--metric`. **Empty for every OTLP-written metric measured on the local stack**: `gcx metrics metadata -m <name>` answered `{"data":{},"status":"success"}` for each one (verified 2026-09-06, gcx 1.2.0, local stack; not measured on Grafana Cloud) — where that holds, a "discover the metadata" step has nothing to read and the names come from `metrics series` instead, so an empty answer is not evidence the metric is missing. |
-| Metrics | `gcx metrics query [PROMQL]` | [gcx_metrics_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_query.md) | Instant query by default; add `--from/--to/--step` (or `--since`) for a range query, or `--time` for an instant query at a specific timestamp. `--share-link`/`--open` produce a Grafana Explore URL. **A live instant `rate()` can answer stale**: on Mimir the same series at the same step read `1.97` while the run was in flight and `138.5` when the same instant was re-read afterwards (verified 2026-09-06, gcx 1.2.0, Grafana Cloud) — never conclude "the run has ended" from an instant metric rate; decide that on the traces. On Grafana Cloud a metric whose labels an Adaptive Metrics rule aggregates adds three more shapes to read — see `### Adaptive Metrics on Grafana Cloud` below. |
-| Traces | `gcx traces labels` | [gcx_traces_labels.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_labels.md) | List all trace labels, or values for one (`-l`); `--scope` filters to `resource`/`span`/`event`/`link`/`instrumentation`; `-q` scopes by a TraceQL filter. **No time flags**: `--since` and `--from`/`--to` are rejected (`Unknown flag`) — for a time-bounded attribute-value check, run a TraceQL query with `--since` instead. **Tag-value and scope listings are limited, never exhaustive**: `-l user_agent.original --scope span` returned one value and, scoped with `-q` to the run identity, `[]`, while a bounded `traces query` on that identity found 360 traces; `--scope instrumentation -q '{ resource.service.name = "orders-api" }'` answered `{"scopes": []}` with exit 0 while `traces get` showed `opentelemetry.instrumentation.fastapi` and `opentelemetry.instrumentation.httpx` on the trace inspected (verified 2026-09-05, gcx 1.2.0, Grafana Cloud and the local stack) — a presence ruling made from a listing is a false "absent": prove presence with a bounded TraceQL search or a `traces get`. Experimental `--llm` requests an LLM-friendly value format. |
-| Traces | `gcx traces query [TRACEQL]` | [gcx_traces_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_query.md) | Search for traces with a TraceQL expression, e.g. `{ span.http.status_code >= 500 }`; `--limit` defaults to 20. **`--limit 0` is documented as unlimited but silently returns the backend default of 20** (verified 1.2.0: a query matching 434 traces returned 20) — never use it for counting; pass an explicit large limit (`--limit 1000`) instead. **On Grafana Cloud 1 000 is the ceiling, not just a large value**: `--limit 3000` is refused with `{"type":"gcx.error","error":{"summary":"Invalid Tempo search query","details":"limit 3000 exceeds max limit 1000"}}` (exit 1), so a run of more traces than that is counted in time bins (verified 2026-09-06, gcx 1.2.0, Grafana Cloud). **`--from`/`--to` returns every trace that *overlaps* the range**, so a slow trace is listed in two adjacent bins — 8 duplicates in 2 335 binned rows against the load generator's 2 327 requests, invisible until the two counts were compared: dedupe on `traceID` after binning (verified 2026-09-06, gcx 1.2.0, Grafana Cloud). Sizing the bins: bin width ≈ 0.8 × 1000 / peak request rate — overlapping long traces inflate a bin above rate × width, and at ~200 req/s even a 5 s bin still hit the cap — split a bin by operation when it comes back with exactly `--limit` rows, and run the bins concurrently with `xargs -P` (verified 2026-09-06, gcx 1.2.0, Grafana Cloud). **Compose a TraceQL filter inside the braces**: `'{ resource.service.instance.id = "<run slug>" } && span.http.response.status_code >= 500'` is a parse error — `invalid TraceQL query: parse error at line 0, col <column of the offending token>: syntax error: unexpected span., expecting { or (` — the working form is `{ resource.X = "…" && span.Y >= N }` (verified 2026-09-06, gcx 1.2.0, Grafana Cloud). **`\| select(...)` changes nothing in the search output**: `--json list` exposes `durationMs`, `rootServiceName`, `rootTraceName`, `startTimeUnixNano` and `traceID` only — the span sets are dropped — so no per-span attribute is reachable from a search; split the search by attribute value to count one, and use `traces get` to read attributes (verified 2026-09-06, gcx 1.2.0, Grafana Cloud). **`durationMs` is a truncated integer**: every sub-millisecond route reads `0` ms and a mean computed from the listing is biased low — 0.3 ms against the SDK histogram's 1.09 ms on the same run — so read sub-millisecond latency from the SDK's `_sum`/`_count` or from the load generator's own histogram, never from this field (verified 2026-09-06, gcx 1.2.0, local stack). A TraceQL **metrics** query (`{ ... } \| rate() by (name)`) is **silently run as a search** — 20 traces, exit 0, no warning (verified 2026-09-05); metrics over spans come from the `traces_spanmetrics_*` series in Prometheus, or from the dedicated command `gcx traces metrics` (listed by `gcx help-tree traces` as "Execute a TraceQL metrics query"): `gcx traces metrics '{ resource.service.name = "orders-api" } \| rate() by (name)' --since 24h` answers `{"series":[{"labels":[…],"samples":[…]}]}` and reached 552 KB on the service measured — redirect it to a file rather than into the context (verified 2026-09-05, gcx 1.2.0, Grafana Cloud). Tempo prints trace ids **without their leading zeros**, as an unpadded number: the identity prefix `0ddc0ffe…` of `run-scenario`'s `run-identity.md` comes back as `ddc0ffe…` (31 hex) in `traces query` output while Loki's `trace_id` keeps the 32 hex — a `startswith` on Tempo output matches nothing; strip the leading zeros on both sides (`sub("^0+"; "")`) before comparing (verified 2026-09-05), and pad them back to 32 hex before passing the id to a flag that validates the width (`profiles query --trace-id`, its row below). |
-| Traces | `gcx traces get TRACE_ID` | [gcx_traces_get.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_get.md) | Fetch one trace by hex trace ID. Experimental `--llm` returns an LLM-friendly shape; default `-o json` is raw OTLP-shaped **inside an envelope**: `{"trace": {"resourceSpans": [...]}, "metrics": {"inspectedBytes": ...}}` (verified 2026-09-02, gcx 1.2.0). A `--jq` path must start at `.trace.resourceSpans` — `.resourceSpans` at the top level yields `null` silently, indistinguishable from "no data"; only an expression that iterates it fails, with `jq: cannot iterate over: null` and a field hint naming `trace.resourceSpans`. **The trace id's leading zero is present in this output, in two encodings**: default `-o json` carries `traceId` as OTLP **base64** (`"DdwP/jw7FK8AAAAAAAAAAQ=="`, which decodes to the padded 32 hex `0ddc0ffe3c3b14af0000000000000001`), and `--llm` carries the padded 32 hex itself — never strip zeros from the base64 string, and never look here for the unpadded 31-hex form, which only `traces query` prints. The argument accepts either form (verified 2026-09-05, gcx 1.2.0, Grafana Cloud). |
-| Logs | `gcx logs labels` | [gcx_logs_labels.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_labels.md) | List all labels, or values for one (`-l/--label`). |
-| Logs | `gcx logs series` | [gcx_logs_series.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_series.md) | List log streams; requires at least one `-M/--match` LogQL stream selector (repeatable, OR logic). |
-| Logs | `gcx logs query [LOGQL]` | [gcx_logs_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_query.md) | Default `-o table`; use `-o raw` for bare line bodies or `-o json` for the full response. `--limit` defaults to 50 (0 = documented unlimited — unverified; after the traces `--limit 0` finding, prefer an explicit large limit). |
-| Profiles | `gcx profiles list-profile-types` | [gcx_profiles_list-profile-types.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_list-profile-types.md) | Lists available profile type IDs (e.g. `process_cpu:cpu:nanoseconds:cpu:nanoseconds`) — required input to `profiles query`. |
-| Profiles | `gcx profiles labels` | [gcx_profiles_labels.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_labels.md) | List all labels, or values for one (`-l`, e.g. `service_name`). Pyroscope's underlying `querier.v1.QuerierService/LabelValues` endpoint **requires a time range in epoch milliseconds** — without start/end it fails with "missing time range in the query", a message that names neither the parameter nor the unit. Through gcx, the range is optional: `--since 1h`, or `--from`/`--to` (RFC3339, **Unix seconds**, or relative like `now-1h`), or nothing at all — gcx answers without one (verified 2026-09-02, gcx 1.2.0: no flags and `--since 1h` both answer), but the window it then covers is documented neither in `--help` nor in the CLI reference, so pass an explicit range whenever the window matters. gcx's "Unix timestamp" is seconds, not the raw endpoint's milliseconds: a millisecond value is read as seconds, a one-hour window becomes ~1000h, and the query fails with `the query time range exceeds the limit (max_query_length, actual: 1000h0m0s, limit: 1d)`. Supply `start`/`end` in ms yourself only when replaying the raw endpoint. SDK-pushed profiles carry no `service.instance.id`: a pyroscope-io profile's labels are `service_name`, `deployment_environment`, `otel.scope.*`, `process.runtime.*` (verified 2026-09-03, gcx 1.2.0, local stack). Qualify a run's profiles by a per-run tag the service pushes (`service_instance_id=<run slug>`, mirroring the OTel resource attribute); without one, two emitters sharing a `service_name` (a server and its healthcheck, two instances) are separable only by `process.runtime.version` and by the frames themselves. **Scope**: without `-l` the listing is store-wide — the label *names* present across every service, Pyroscope's own self-profile included (`hostname`, `pyroscope_spy`, `service_git_ref`, `service_repository`, `target`) — and there is no selector flag (`-q` is rejected), so never attribute that list to one service; a service's real label set is one exemplar's: `gcx profiles exemplars profile '{service_name="<svc>"}' --profile-type <type> --since 24h --jq '.exemplars[0].labels'`. `-l <name>` on an unknown or misspelled label name answers `{"names":null}` with exit 0 — the twin to validate a suspect selector against (verified 2026-09-03, gcx 1.2.0, local stack). |
-| Profiles | `gcx profiles query [SELECTOR]` | [gcx_profiles_query.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_query.md) | Requires `--profile-type`; can drill into specific `--profile-id`s (from `profiles exemplars`), restrict by `--span-id`/`--trace-id`, or filter the flamegraph with repeatable `--stacktrace-selector`. **Selector**: SDK-pushed profiles carry dotted label names (`process.runtime.version`, `otel.scope.name`) that must be **quoted** inside the braces — `'{service_name="orders-api", "process.runtime.version"="3.12.14"}'`; unquoted, the selector fails to parse (`unexpected character inside braces: '.'`). An unknown or misspelled label **name** (`process_runtime_version`) or a wrong **value** matches nothing and answers a zero flamegraph (`.flamegraph.total` `"0"`) with exit 0 — and so does `--trace-id`/`--span-id` on a trace with no linked profile (`total` `"0"` or `null`, both seen on Grafana Cloud, exit 0, verified 2026-09-05 — a jq zero test must accept `null` too) — indistinguishable from "no data in the window", so validate any zero against a known-positive twin (drop the suspect label, or list its values with `profiles labels -l <name>` first) before ruling anything absent. **`--trace-id` validates the width before it queries anything**: the unpadded 31-hex id that `traces query` prints is refused with `--trace-id must be a 32-character hex trace ID (got "ddc0ffe3c3b14af0000000000000001")` and exit 1 — pad the leading zeros back to 32 hex before passing it, and the same call runs (verified 2026-09-05, gcx 1.2.0, Grafana Cloud). The JSON envelope, the per-frame computation and the frame-naming rule are in `### Reading profile output` below. |
+The four signals are read with the scripts this skill ships in
+`scripts/` — never with gcx commands composed by hand: service names and a
+window fix every query, and the scripts carry, in code, every trap of gcx
+1.2.0 this file used to spell out as prose (the `{"class":"hint"}` line on
+either stream, the multi-line JSON, the `gcx.spill_reference` a large
+answer turns into, the `gcx.error` object, the envelope that differs per
+command, the search `--limit` that silently defaults to 20 and caps at
+1 000 on Cloud, Loki's 5 000-line server cap, the unpadded 31-hex trace
+ids, the base64 ids inside `traces get`, the flamegraph quadruples, the
+export lag on cumulative metrics, a counter reset, the trace-versus-span
+duration confusion). Each invocation below is copy-pasteable and states
+the script's **whole** flag surface: `--help` has nothing to add and the
+files have nothing to read. **A run that writes its own query runner or
+its own envelope parser is rebuilding one of these** — invoke the script
+instead, and when it lacks a shape of the work, that is a defect to
+record in the run record, not a wrapper to write.
 
-Every query command resolves its datasource from `-d/--datasource <UID>` or
-falls back to `datasources.<kind>` in the active context (`prometheus`,
-`tempo`, `loki`, `pyroscope`) — set the defaults once per context instead of
-passing `-d` on every call. Time flags differ per signal family:
-`traces query` takes `--since` or `--from`/`--to`, `traces labels` takes
-none, `logs labels` rejects `--since` too (`Unknown flag`), `logs series`
-takes none either — `-M '{…}' --from … --to …` is rejected with
-`Unknown flag --from` (verified 2026-09-06, gcx 1.2.0, Grafana Cloud) —
-`profiles labels` takes `--since`, `--from`/`--to`, or nothing — the raw
-Pyroscope endpoint behind it is what requires a range; through gcx the
-call answers without one, over an unspecified window (see its row, and
-its seconds-not-milliseconds trap).
+Common to every script: it reads `GCX_CONFIG` (the preflight handoff's
+`context:` line, or `grafana-context.py`'s export) and the datasource
+defaults of that context; a **window** is `--from <RFC3339 UTC> --to
+<RFC3339 UTC>` or `--since <duration>` (a lookback ending now), on every
+subcommand that takes one — `instant`, `get` and `types` take none;
+`--json` prints the same result parseable (the text form is the default
+and is what a run reads: the JSON form is four times larger, for a
+consumer that parses it); exit 0 means every query ran (an empty answer
+is a result), exit 1 that gcx errored — **and then the only line printed
+is the error**, never a zero dressed as data (`breakdown` alone keeps
+exit 0 when a get failed among many: the table stands on the rest and
+`failed` names what is missing); a usage error exits 2 with the
+message. **Every subcommand ends by printing the gcx commands it
+ran** — `queries run (record these):` — and those lines, with the script
+invocation above them, are what the report records as the query; the
+`odd-memory` skill's report reference says so — repeats are folded
+losslessly in the text form (three quantiles, three services: one line
+with `{a|b|c}` at the token that differs, the call count stated; `--json`
+carries the verbatim list). Each subsection below links the gcx command
+reference behind the calls its script runs. The scripts run their gcx
+calls **concurrently** against one context — verified safe on 1.2.0 (six
+discoveries in 0.33 s against 1.56 s serial, 32 `traces get` at once with
+no failure) — so one call for three services costs one call. `<Skills>`
+is the `skills` line the preflight handoff carries (the `package-layout`
+skill's `scripts/layout.py`).
+Every subcommand prints a text rendering to read as is — the columns
+its `Output` line below names — and with `--json` one object carrying
+the keys that line names, plus `commands` (the gcx calls it ran) and
+`error` (empty on success; `discover` lists what failed under `failed`
+instead). That is the whole output: a script's
+source is never opened to learn a shape, and a `--json` answer is never
+re-parsed by hand for a value the text form already prints.
 
-gcx query commands are **safe to run concurrently against one
-context**: backgrounded in one shell call sharing one `GCX_CONFIG`,
-they neither lock the config file nor contend for the credential —
-six discoveries (`metrics labels`, `metrics metadata`, `traces
-labels`, `logs labels`, `profiles list-profile-types`, a `traces
-query`) all exited 0 in 0.33 s against 1.56 s serial, eight `traces
-get` in 0.62 s against 2.1 s serial with every output parsing, and 32
-`traces get` at once with no failure (verified 2026-09-04, gcx 1.2.0,
-local stack). Redirect **stdout and stderr to separate files**: gcx
-prints its `{"class":"hint",...}` line on stderr, and a `2>&1`
-capture puts it in front of the JSON (`Extra data: line 2` on
-parsing).
+### First, in one call: what the window holds
 
-### Reading gcx output
+```bash
+python3 <Skills>/observability-cli-guides/scripts/grafana-discover.py <svc> [<svc> ...] --from <start> --to <end>
+```
 
-All verified against gcx 1.2.0 — eight traps that each cost real missions
-several retries:
+Per service: the metric names the store carries, how many traces carry a
+span of it and how many are **rooted** at it (with the root operations and
+their counts — an operation rooted elsewhere is not attributed to it), its
+exact log line count and severities, and whether a CPU profile exists —
+presence and absence with the same weight. Surface: service names
+(positional), a window, `--label-key` (the label a service is named by on
+metrics, logs and profiles — default `service_name`, the OTel resource
+convention; a scrape-based Prometheus names it `job`; traces are always
+selected on `resource.service.name`), `--json`. Nothing else. Behind it:
+[`metrics series`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_series.md), [`traces query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_query.md), [`logs query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_query.md),
+[`profiles query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_query.md) and [`profiles labels`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_labels.md). This is the
+observation-time counterpart of the `setup-local-stack` skill's
+`probe_services.py` (which answers the preflight's "is this service
+emitting at all, under which identity" over a lookback); this one is per
+window and per signal, on any Grafana.
+Output: `services{<svc>: metrics{names, list[]}, traces{matching,
+rooted_here, truncated, operations{<op>: n}}, logs{lines, truncated,
+severity{<LEVEL>: n}}, profile_cpu{present, total_ns, frames}}`,
+`window`, `failed[]`, `profiled_services[]`.
 
-- **`-o agents` and `--jq` are mutually exclusive** ("--jq requires JSON
-  output"): reshaping needs `-o json --jq '<expr>'`. `--json <fields>` is
-  not a boolean flag (`--json list` — or `?` — discovers the fields, a
-  bare `--json` fails with "Flag needs an argument"), and `--jq`/`--json`
-  are mutually exclusive with each other too.
-- **JSON output is pretty-printed multi-line with no compact flag** —
-  `--jq '[…]' | tail -1` silently yields `]`, indistinguishable from an
-  empty result. Force one line with `--jq '<expr> | tostring'` (or
-  `-o raw` for bare log bodies).
-- **A `{"class":"hint",…}` preamble line precedes the payload** — on
-  stderr on the current build, on stdout on earlier ones — so merged or
-  older-build output must never be parsed naively. Stable either way:
-  `-o json --jq '<expr> | tostring' 2>&1 | tail -1`. On errors the last
-  line is the single-line `gcx.error` JSON — a non-parsing result is an
-  error, not empty data.
-- **The response envelope differs per command, and `--jq` runs over the
-  whole envelope**: `metrics query` → `.data.result[]`, `metrics series`
-  → `.data[]`, `traces query` → `.traces[]`, `traces get` →
-  `.trace.resourceSpans[]`, `logs query` → `.data.result[]`,
-  `datasources list` → `.datasources[]` (an expression starting at the
-  top level fails with `jq: expected an object but got: array` and a
-  field hint naming `datasources`; verified 2026-09-06, gcx 1.2.0,
-  Grafana Cloud).
-- **Anchor every aggregation on the data field, never on the envelope**:
-  `metrics series '…' --jq 'length'` returns 2 — the `{status, data}`
-  envelope's key count — even when the real series count is 0. The
-  correct form is `--jq '.data | length'`. An envelope-level count is a
-  silently wrong number, not an error.
-- **Guard every iterating `--jq` path against the empty result**: on a
-  `metrics query` that came back empty (the `increase()` window case in
-  the planning notes) `--jq '.data.result[0].values[]'` exits 2 with
-  `jq: cannot iterate over: null` — an error where the answer was "no
-  samples". `.data.result[]?` yields nothing instead of failing
-  (verified 2026-09-06, gcx 1.2.0, Grafana Cloud).
-- **Inside `--jq`, the pipe binds looser than the comma**:
-  `'[.traces|length, ([.traces[].rootTraceName]|unique)]|tostring'`
-  fails with `jq: expected an object but got: array`, because `.traces`
-  is piped into the whole comma list rather than into `length` alone.
-  Parenthesise each element:
-  `'[(.traces|length), ([.traces[].rootTraceName]|unique)]|tostring'`
-  (verified 2026-09-06, gcx 1.2.0, local stack).
-- **`sort_by(.le|tonumber)` fails on every histogram listing**: a
-  histogram's bucket series carries `le="+Inf"`, which `tonumber`
-  cannot convert, so the sort aborts each time the buckets are listed —
-  exclude or special-case the `+Inf` bucket (verified 2026-09-06, gcx
-  1.2.0, Grafana Cloud).
+### Metrics
 
-### Adaptive Metrics on Grafana Cloud
+```bash
+python3 <Skills>/observability-cli-guides/scripts/grafana-metrics.py histogram <base> --by <label,label> --selector '<matchers>' --from <start> --to <end>
+python3 <Skills>/observability-cli-guides/scripts/grafana-metrics.py counter <name> --by <label> --selector '<matchers>' --from <start> --to <end>
+python3 <Skills>/observability-cli-guides/scripts/grafana-metrics.py names --match '{<selector>}' --from <start> --to <end>
+python3 <Skills>/observability-cli-guides/scripts/grafana-metrics.py labels --match '{<selector>}' [--label <name>] --from <start> --to <end>
+python3 <Skills>/observability-cli-guides/scripts/grafana-metrics.py instant '<PromQL with a selector or an aggregation>' --at <instant>
+python3 <Skills>/observability-cli-guides/scripts/grafana-metrics.py range '<PromQL>' --from <start> --to <end> --step 30s
+```
 
-On Grafana Cloud an Adaptive Metrics rule may drop a label from a
-metric before it is stored, and the metric then answers in three
-different shapes — none of which says "a rule did this" (verified
-2026-09-06, gcx 1.2.0, Grafana Cloud):
+Six subcommands, the whole surface: `histogram` takes the metric's base
+name (without `_bucket`), `--by` (comma list of grouping labels),
+`--selector` (label matchers without the braces), `--quantiles` (default
+`0.5,0.95,0.99`), a window, `--settle` — and prints p50/p95/p99 per group
+next to the raw `_count` and `_sum` read at the window's start and after
+settling (their difference is the run's own count and sum, whole numbers,
+and the mean comes from those), with the `increase()` over the window as
+a separate, extrapolated figure. `counter` takes the metric name, `--by`,
+`--selector`, a window, `--settle` — and prints the raw cumulative value
+at the window's start, at its end and after it settled, the delta (the
+run's own count) and the `increase()`: on a store where the counter was
+born inside the window the settled raw value is the run's total and
+`increase()` is an estimate of it (386 against 426 real requests, measured
+2026-09-05). **A raw value that fell inside the window** (a counter reset,
+an instance change) is flagged `RESET` and the run's own figures are
+withheld — `counter`'s delta, `histogram`'s count, sum and mean — take
+the increase then, never a negative count; a row so flagged is ranked by
+its increase. `--settle` (default `90s`) is
+the export lag: an SDK exports every 60 s, so the sample carrying a run's
+last requests lands after the window closes — read exactly at `--to`, a
+counter of 817 orders answered 471 (measured 2026-09-08); both subcommands
+evaluate at `--to` + settle and print the instant they used. `names`
+lists the distinct metric names behind one or more `--match` selectors
+(`metrics metadata` is empty for every OTLP-written metric, measured
+2026-09-06 — names come from the series, and an empty metadata answer is
+not evidence of an absent metric). `labels` takes one `--match` selector
+and a window: with `--label <name>` it lists that label's values across
+the series the selector matches in the window (each with its series
+count), without it the label *names* those series carry. `instant` and
+`range` take a raw PromQL expression for anything the first four do not
+shape — always with a selector or an aggregation, since a bare metric
+name lists every series it has; `instant` takes `--at` (default now),
+`range` takes a window and `--step`. An empty result on a window shorter
+than two export intervals is a window problem before it is an absence:
+widen it before ruling anything absent. Behind the six:
+[`metrics query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_query.md) (an instant query, or a range one)
+and [`metrics series`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_series.md).
+Output: `histogram` and `counter` — `rows{<label=value, ...>: ...}`
+keyed by the `--by` labels, with `metric`, `window`, `evaluated_at`,
+`note`; a histogram row carries `p50 p95 p99 count sum mean
+count_at_start count_settled count_increase sum_at_start sum_settled
+sum_increase reset`, a counter row `at_start at_end settled delta
+increase reset`. `names` — `names{<name>: series}`. `labels` —
+`values{<value, or label name>: series}`, `label`. `instant` —
+`rows[{labels{}, value}]`. `range` — `rows[{labels{}, samples,
+first[ts, v], last[ts, v], max, values[[ts, v]]}]`.
 
-- **The unaggregated selector errors**:
-  `http_server_active_requests{job="orders-api"}` comes back as a
-  Prometheus error, `Can't query aggregated metric … the following
-  label is aggregated: http_request_method`.
-- **The wrong aggregator answers empty with exit 0**:
-  `max(http_server_active_requests{…})` returns `result: []` while
-  `sum(…)` over the same selector answers — an `[]` here is a rule, not
-  an absence.
-- **Grouping by an aggregated label returns the literal
-  `<aggregated>`** as that label's value:
-  `sum by (http_response_status_code) (…{job="load-generator"}…)`
-  returned one series whose `http_response_status_code` is the string
-  `<aggregated>` — neither a status code nor a missing label.
+### Traces
 
-So a label missing from a Cloud metric is a cost-control rule before it
-is an instrumentation gap. The discovery form for which series carry
-one is `gcx metrics series '{job="<job>", __aggregation__!=""}'`.
+```bash
+python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py ops --service <svc> [--service <svc> ...] [--name <operation> ...] --from <start> --to <end> [--fetch <dir>] [--limit 1000] [--settle 90s] [--top 15] [--json]
+python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py get <trace id> [<trace id> ...] [--spans] [--out <dir>] [--json]
+python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py count '<TraceQL>' --from <start> --to <end> [--bin 30s] [--json]
+python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py search '<TraceQL>' --from <start> --to <end> [--limit 1000] [--json]
+python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py breakdown --service <svc> [--traceql '<TraceQL>'] --from <start> --to <end> [--limit 1000] [--sample 200] [--json]
+```
 
-### Loki over OTLP
+Five subcommands, the whole surface above (`--since <duration>` replaces
+`--from/--to` everywhere). Behind them: [`traces query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_query.md),
+[`traces get`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_get.md) and, for the span metrics,
+[`metrics query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_query.md).
 
-On an OTLP-fed Loki (the local otel-lgtm stack and Grafana Cloud behave
-identically), idiomatic scrape-era LogQL returns empty results:
+- `ops` — per operation of each service: rooted and containing trace
+  counts, span-level p50/p95/p99 and calls (span metrics, settled,
+  bucket-interpolated; `RESET` and calls withheld when the counter fell
+  inside the window; absence said), trace-level p50/p95/max over the
+  rooted traces (integer ms), the worst containing trace. `--fetch` adds
+  each operation's p50, worst-rooted and worst-containing exemplar with
+  its summary. `--name` adds an operation the roots do not show.
+- `ops` on a service never rooted in the window (its callers are
+  instrumented, or nothing carries it): the output says which, with the
+  callers named; its operations are its `--top` busiest span-metric names
+  by the counter's settled value (capped is said; the settle lag can admit
+  a name active only after the window, shown with 0 containing traces),
+  its rooted columns stay empty, the median containing trace is its p50
+  exemplar (verified 2026-09-08 on Cloud: seven operations, zero rooted).
+- The two latency readings are **not the same number**: a trace search
+  returns the *trace* duration, so an operation nested under a slow
+  parent inherits the parent's time — the trace columns are computed over
+  the rooted traces only, and the worst *containing* trace is where a
+  fan-out shows.
+- `durationMs` from a search is a truncated integer: a sub-millisecond
+  operation reads 0 in the trace columns; the span metrics carry its real
+  latency.
+- `get` — several ids in one call, either form gcx prints; one summary
+  each, `--spans` every span with parent, kind, duration and attributes,
+  `--out` keeps the raw documents; no window.
+- `count` — traces matching a TraceQL selector per `--bin`, deduplicated
+  on trace id (a trace overlapping two bins is listed in both); says when
+  a bin hit the 1 000 ceiling (narrow the bin or split the selector).
+- `search` — a raw TraceQL expression, ids padded; the header names the
+  start time of the window's first and last trace and the root
+  operations with their counts. One pair of braces:
+  `{ resource.service.name = "svc" && span.http.status_code >= 500 }` —
+  two brace groups joined by `&&` is a parse error.
+- `breakdown` — over the traces rooted at the service in the window
+  (`--traceql` narrows the search, the table still keeps the traces
+  rooted at `--service` — a service never rooted is said, with the
+  services its traces are rooted at, and `ops` names its operations;
+  the newest `--sample` are fetched, concurrently): per root operation,
+  the trace count, the root's status and its `http.response.status_code`
+  distribution (`http.status_code` on an old-semconv service, `absent`
+  when the root carries neither), root p50/p95/max, and every child
+  span by `<service> <name> [<kind>]` with its count per trace,
+  p50/p95/max, errors and attribute keys, and the operation's exemplar
+  traces over the fetched sample (p50, worst, the slowest per status
+  code — the id a finding quotes and `get --spans` opens, never
+  searched for; a window larger than `--sample` has its worst trace in
+  `ops`) — the outcome-and-children table an observation builds per
+  operation, in one call, never by fetching the traces and reading the
+  documents yourself.
 
-- **The only stream labels are `service_name`, `service_instance_id`,
-  and `deployment_environment_name`.** `trace_id` and the level are
-  **structured metadata** — not labels, not in the line body: label
-  matchers (`detected_level=~"warn|error"`) and body matches
-  (`|= "<trace-id>"`) come back empty. Use pipeline filters instead:
-  `| severity_text =~ "WARN.*|ERROR"` and `| trace_id = "<id>"`.
-- **Metric-style LogQL through `gcx logs query` needs an explicit
-  range** (`--since`, or `--from`/`--to`; it returns `null` without
-  one), has no instant mode, and its matrix samples are
-  `{line: "<value>", timestamp}` objects — not the Prometheus
-  `[ts, "value"]` pairs.
-- **Counting lines over a finished window: the exact total is the raw
-  line count, never a metric-style sample.**
-  `gcx logs query '<selector>' --from <start> --to <end> --limit <large>`
-  and count `.data.result[].values` (`--jq '[.data.result[].values[]] |
-  length'`; the default `--limit` is 50). The count is exact only below
-  the limit you pass: when it comes back equal to `--limit`, it is
-  truncated, not the total — raise the limit (Loki caps it server-side)
-  or split the window. A metric-style count is an estimate: its samples
-  sit on a grid aligned to the step, the first one **before** `--from`
-  and the last one **after** `--to` (a 6-minute window at `[6m]` came
-  back as 8 samples at 60 s, from 9 s before `start` to 51 s after
-  `end`), so every sample straddles the edges — a range vector
-  evaluated at the window start reaches back before it and pulls in
-  whatever preceded the window (a service's startup lines, an earlier
-  run). When a metric form must be used: query `--from`/`--to`, never
-  `--since`, for a finished window — `--since` ends at now, so its last
-  sample is a sliding partial that under-counts (32 against 35 true
-  lines) — bound the range to the step (`[1m]`, `--step 1m`) and sum
-  only the samples whose timestamp falls in `(start, end]`. A sample's
-  `timestamp` is in **nanoseconds** (19 digits), hence the `/1e9`;
-  `<start>` and `<end>` are the Unix seconds passed to `--from`/`--to`:
+Output: `ops` — `window`, `operations{<svc> <op>: rooted_traces,
+containing_traces, truncated, trace_p50_ms, trace_p95_ms, trace_p99_ms,
+trace_max_ms, span_p50_ms, span_p95_ms, span_p99_ms, span_calls,
+span_calls_reset, p50_trace, p50_exemplar_is_containing,
+worst_rooted_trace, worst_containing_trace, worst_containing_ms}`,
+`never_rooted{}`, `span_metrics_present`, and with `--fetch`
+`exemplars{<trace id>: summary}`. `get` —
+`traces[{summary, spans}]`: a summary is `trace_id, root, duration_ms,
+spans, services[], errors, by_name{<svc> <name>: count, max_ms},
+longest[{service, name, duration_ms}], gen_ai_tokens`; with `--spans`
+each span is `trace_id, span_id, parent_id, service, scope, name, kind
+(SERVER, CLIENT, INTERNAL, PRODUCER, CONSUMER), start_ns, end_ns, duration_ms,
+status (UNSET, STATUS_CODE_OK, STATUS_CODE_ERROR), attrs{<key>:
+value}` — the text form prints each as `<ms> <service> <name> [<kind>]
+status=<OK or ERROR, when set> parent=<id> <eight attrs, outcome, route
+and peer first>` (a root's `http.response.status_code`, a child's
+`peer.service` or `db.system` are on that line). `search` — `count,
+truncated, first, last, roots{<svc> <op>: n}, traces[{traceID,
+rootServiceName, rootTraceName, startTimeUnixNano, durationMs}]`.
+`count` — `traceql, bin, total, capped_bins, bins[{from, to, listed,
+new, capped}], note`. `breakdown` — `window, traceql, service, listed, rooted,
+rooted_elsewhere{<svc>: n}, truncated, fetched, failed[{trace_id,
+error}], breakdown{<svc> <op>: traces, root_status{<UNSET or OK or
+ERROR>: n}, http_status{<code or absent>: n}, root_p50_ms, root_p95_ms,
+root_max_ms, root_attrs[], exemplars{p50, worst, <code or absent>:
+<trace id>}, children{<svc> <name> [<kind>]: count, in_traces,
+per_trace, errors, p50_ms, p95_ms, max_ms, attrs[]}}, note`.
 
-  ```text
-  --jq '[.data.result[].values[]
-         | select((.timestamp|tonumber/1e9) > <start>
-                  and (.timestamp|tonumber/1e9) <= <end>)
-         | .line | tonumber] | add'
-  ```
+### Logs
 
-  (35, matching the raw count; the unfiltered sum read 47). The `max`
-  of a `[<window>]` matrix over-counted by one here (36) and its last
-  sample happened to match the raw count (35) — both straddle the
-  edges like every other sample, the error is whatever the edge
-  samples pull in, so neither is a total or a correction. Verified
-  2026-09-03, gcx 1.2.0, local stack, on a steady healthcheck stream;
-  the single-point `--since` result issue #256 reported was not
-  reproduced (8 samples here). A "correlated lines = lines" check
-  therefore compares two **raw** counts over the same window and
-  stream selector, one of them carrying the trace-id filter
-  (`'{...} | trace_id != ""'` against `'{...}'`), with the startup and
-  excluded-URL lines that legitimately carry no trace id excluded
-  explicitly, or enumerated with `-o raw` and classified.
-- **An un-aggregated range vector hits a misleading series-limit
-  error**: `count_over_time({service_name="..."}[20m])` fails with
-  `maximum number of series (500) reached for a single query` — read as
-  a cardinality problem, but the query is just unbounded in shape (one
-  series per label combination), not actually near a real cardinality
-  limit. Wrap it in `sum()` (or another aggregator) —
-  `sum(count_over_time(...))` — to fix it.
+```bash
+python3 <Skills>/observability-cli-guides/scripts/grafana-logs.py severity '{<selector>}' --from <start> --to <end>
+python3 <Skills>/observability-cli-guides/scripts/grafana-logs.py sample '{<selector>}' --contains '<text>' --severity 'WARN.*|ERROR' --pipeline '<raw LogQL>' --from <start> --to <end> --show 20
+python3 <Skills>/observability-cli-guides/scripts/grafana-logs.py correlate '{<selector>}' --from <start> --to <end>
+python3 <Skills>/observability-cli-guides/scripts/grafana-logs.py count '{<selector>}' --from <start> --to <end>
+```
 
-### Reading profile output
+Four subcommands, the whole surface: each takes a LogQL stream selector, a
+window and `--json`; `sample` adds `--contains` (a line-body filter, any
+text — it is quoted for you), `--severity` (a regular expression on the
+level), `--pipeline` (raw LogQL appended after the selector and those two
+filters, for any other structured-metadata filter — e.g. `| trace_id =
+"<32 hex>"`, `| service_instance_id != ""`) and `--show` (lines printed,
+default 20). `severity` counts the
+window's lines by level with samples of the non-informational ones;
+`correlate` compares the raw line count against the lines carrying a
+trace id and lists the orphans (startup and health-check lines
+legitimately carry none — classify them before calling this a gap);
+`count` is the exact raw count per stream. Loki answers at most **5 000
+lines per query, server-side** — a larger limit is refused — so a window
+holding more is read in pieces, split in halves until each fits, lines
+deduplicated: the counts are exact, and when a piece still saturates
+after six splits the output says `PARTIAL` and `correlate` reports no
+ratio at all (narrow the window). Never take a metric-style LogQL sample
+for a total: its grid straddles the window's edges (35 true lines read 47
+that way, measured 2026-09-03). On an OTLP-fed Loki (the local stack and
+Cloud alike) the level and the trace id are **structured metadata** — not
+labels, not in the line body — so `detected_level=~"warn"` as a matcher
+and `|= "<trace id>"` as a body match both return nothing; the working
+forms are the pipeline filters `| severity_text =~ "WARN.*|ERROR"` and
+`| trace_id = "<32 hex>"`, which `--severity` composes for you and
+`--pipeline` takes verbatim. The only stream labels are `service_name`,
+`service_instance_id` and `deployment_environment_name`. Behind the
+four: [`logs query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_query.md).
+Output: `count` — `lines, truncated, by_stream{<instance or
+service>: n}`. `severity` — `lines, truncated, severity{<LEVEL>: n},
+samples{<LEVEL>: [line]}`. `correlate` — `lines, with_trace_id,
+without, truncated, orphan_samples[], note`. `sample` — `lines, truncated,
+samples[{ts, level, trace_id, line}]`, printed as `<level> <trace id>
+<line>` in the text form.
 
-`gcx profiles query -o json` returns one top-level key, `flamegraph`,
-holding `names` (frame names, index 0 = `total`), `levels` (one entry
-per depth, each `values` a flat list of quadruples
-`[offset, total, self, nameIndex]` — **all strings**, so the index
-needs `tonumber`: `$names[(.[$i+3]|tonumber)]`), `total` and `maxSelf`
-(strings, in the profile type's unit); there is no top-level `total`,
-and `--json list` exposes only those five fields. Per-frame self or
-total is computed from the quadruples — sum `self` per `nameIndex`
-across levels for a top-N by CPU — the JSON carries no ready-made
-per-frame arrays. `-o pprof --pprof-path <file>` writes a gzip pprof
-for `go tool pprof` and the like (default path
-`profile-<timestamp>.pb.gz` in the working directory). Verified
-2026-09-03, gcx 1.2.0, local stack, on a pyroscope-io service.
+### Profiles
 
-**Frame names** are the profiler's own. pyroscope-io emits
-`Class.method` or a bare function name — observed:
-`OpenerDirector.add_handler`, `HTTPConnection.request`, `urlopen`,
-`getaddrinfo`, `_verbose_message`, and the module-level frame
-`<module>` — never a module path. A stored check that greps
-`.flamegraph.names` therefore uses **anchored** names read off the
-emitting process's own flamegraph, never a module-path regex: on a
-FastAPI/uvicorn service, `uvicorn|app\.main` matched nothing while
-`^(Server\.serve|RequestResponseCycle\.run_asgi)$` did, and an
-unanchored `urlopen` false-positived on a healthy server because
-urllib3's `HTTPConnectionPool.urlopen`, called by the OTLP HTTP
-exporter, shares the name with the standard library's function
-(observed in issue #265's mission, not re-verified here).
+```bash
+python3 <Skills>/observability-cli-guides/scripts/grafana-profiles.py top '{service_name="<svc>"}' --from <start> --to <end> -n 15
+python3 <Skills>/observability-cli-guides/scripts/grafana-profiles.py top '{service_name="<svc>"}' --from <start> --to <end> --trace-id <trace id>
+python3 <Skills>/observability-cli-guides/scripts/grafana-profiles.py check '{service_name="<svc>", "<label>"="<value>"}' --from <start> --to <end>
+python3 <Skills>/observability-cli-guides/scripts/grafana-profiles.py labels --label <name> --from <start> --to <end>
+python3 <Skills>/observability-cli-guides/scripts/grafana-profiles.py types
+```
+
+Four subcommands, the whole surface: `top` (a selector in braces,
+`--type` default `process_cpu:cpu:nanoseconds:cpu:nanoseconds`, a window,
+`-n` default 15, `--trace-id` / `--span-id` to restrict the flamegraph to
+the samples linked to one trace or span — a trace id is padded to 32 hex
+for you, the width gcx validates) prints the process total and the top
+frames by **self** time and by **total** time, with percentages — both,
+because a percentage quoted against the wrong one is a different number
+(the same frame read 88.4 % as self and 79.0 % as largest total on one
+profile, and a report quotes self). `check` (a selector, `--type`, a
+window) runs the selector and then the same selector with each label
+dropped in turn, so a zero that is a misspelt label name or a wrong value
+is told apart from a window that holds no data — a zero flamegraph
+answers with exit 0 in every one of those cases, a trace with no linked
+samples included. `labels` lists a label's values with `--label`, the
+store-wide label *names* without it (every service's, the store's own
+self-profile included — never attribute that list to one service; a
+suspect label name or value is validated with `check`, not with the
+listing). `types` lists the profile types the store holds. Dotted label names are quoted
+inside the braces (`"process.runtime.version"="3.12"`). SDK-pushed
+profiles carry no `service.instance.id`: profiles are attributed by
+`service_name` and the window, and two emitters sharing a name are
+separable only by the frames themselves. A memory profile type answers a
+zero total for a Python service (the SDK pushes CPU only). Frame names
+are the profiler's own — `Class.method`, a bare function name,
+`<module>` — never a module path: a stored check that greps them uses
+**anchored** names read off `top`'s output (`^(Server\.serve|RequestResponseCycle\.run_asgi)$`
+matched a FastAPI service where `uvicorn|app\.main` matched nothing, and
+an unanchored `urlopen` false-positived on a healthy server — issue #265).
+Behind the four: [`profiles query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_query.md), [`profiles labels`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_labels.md) and
+[`profiles list-profile-types`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_list-profile-types.md).
+Output: `top` — `total, total_seconds, frames, top_self[{frame, self,
+pct}], top_total[{frame, total_max, pct}]`, `selector`, `type`, `unit`,
+`note`. `check` — `type, verdict, rows[{variant, selector, total,
+error}]`. `labels` — `names[]`, `label`, `note`. `types` — `types[]`.
+
+### When a gcx call is still composed by hand
+
+The `instant`, `range` and `search` subcommands take a raw expression
+(PromQL, TraceQL) and `sample --pipeline` a raw LogQL pipeline, so the
+case is rare, and every trap below that a script could absorb, it does.
+For a `gcx` call run directly (its command reference is linked at each
+mention; [`gcx help-tree`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_help-tree.md) prints a command area's
+surface):
+
+- `-o json` with `--jq '<expr> | tostring'` and `2>&1 | tail -1` is the
+  one stable framing: `-o agents` and `--jq` are mutually exclusive, a
+  bare `--json` needs an argument, the JSON is pretty-printed over many
+  lines, and the hint line lands on stderr (stdout on older builds).
+- Anchor every `--jq` on the data field, never on the envelope
+  (`metrics query` → `.data.result[]?`, `metrics series` → `.data[]`,
+  `traces query` → `.traces[]`, `traces get` → `.trace.resourceSpans[]`,
+  `logs query` → `.data.result[]`, `datasources list` → `.datasources[]`);
+  inside `--jq` the pipe binds looser than the comma — parenthesise each
+  element of a list — and `sort_by(.le|tonumber)` aborts on a histogram's
+  `+Inf` bucket.
+- Pass an explicit `--limit` (`0` silently returns 20; 1 000 is the
+  ceiling on Cloud; Loki refuses more than 5 000).
+- [`traces labels`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_labels.md) takes no time flag, [`logs labels`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_labels.md) and
+  [`logs series`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_logs_series.md) neither, [`profiles labels`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_profiles_labels.md) an optional one;
+  [`metrics labels`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_labels.md) takes `--metric` and repeatable `--match`
+  (verified on the current 1.2.0 build, rejected by an earlier one — the
+  scripts' `labels` subcommands answer the same questions from queries
+  every build serves); a `--trace-id` must be the padded 32 hex.
+- **A trace-attribute listing is never exhaustive**: `traces labels -l
+  user_agent.original --scope span` answered one value, and `[]` once
+  scoped to the run, while a bounded search found 360 traces carrying it
+  (verified 2026-09-05). A presence ruling made from a listing is a false
+  "absent" — prove presence with `grafana-traces.py search` on the
+  attribute, or `get` on a trace.
+- A TraceQL **metrics** query through [`traces query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_query.md) is silently
+  run as a search — [`traces metrics`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_metrics.md) is the command, its output
+  reached 552 KB
+  on one service (redirect it to a file), and its `quantile_over_time`
+  snaps a small span set to power-of-two bucket edges (a "p99" of
+  8.589934592 s = 2³³ ns over a true maximum of 6.35 s, measured
+  2026-09-08): quote small-N latency from `get`, never from it.
+- An un-aggregated LogQL range vector fails with `maximum number of series
+  (500) reached` — a shape problem, not a cardinality one: wrap it in
+  `sum()`.
+- [`gcx help-tree <group>`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_help-tree.md) is the token-cheap way to
+  see a command area's surface when a flag comes back `Unknown flag`.
 
 ## Planning notes
 
-- Verified 2026-08-30 (the `profiles labels` and `traces get` rows
-  re-verified 2026-09-02) against gcx 1.2.0 (Homebrew build 2026-08-25) on a
-  live local stack — flag surface, output framing, envelope shapes, and
-  the `--limit 0` truncation were each exercised, not read from docs;
-  the `traces labels`, `traces query` and `profiles query` traps and
-  the `increase()` bullet re-verified 2026-09-05 on Grafana Cloud. The
-  `--limit` ceiling, the overlapping `--from`/`--to` bins, the TraceQL
-  composition error, the `--json list` field set, the stale instant
-  `rate()`, the Adaptive Metrics shapes, the `logs series` time flags
-  and three of the `--jq` traps (the `datasources list` envelope, the
-  unguarded `.data.result[0]` iteration, the `+Inf` bucket in a
-  `sort_by`) were each exercised 2026-09-06 on Grafana Cloud while
-  observing two load-test runs; the `durationMs` truncation, the empty
-  `metrics metadata` and the jq pipe-versus-comma precedence the same
-  day on the local stack.
-  gcx labels itself "generally available" (README badge) and requires
-  Grafana 12+ — older self-hosted instances are out of scope.
-- The flag surface moves between builds sharing a version string:
-  `metrics labels --match` was rejected by an earlier 1.2.0 build and
-  works on the current one. When a documented flag comes back
-  `Unknown flag`, suspect the installed build before this file — and
-  fall back to an equivalent (`gcx metrics series '{selector}'` + jq
-  over `__name__` replaces `--match` scoping).
-- Query commands are read-only and identical across on-prem, Enterprise, and
-  Cloud; the only differences are auth (`org-id` for on-prem vs
-  `stack-id`/OAuth for Cloud) and which datasource UIDs exist on the stack.
+- The scripts above were each exercised live on 2026-09-08 against gcx
+  1.2.0 (Homebrew build 2026-08-25) and the local stack, on a window
+  holding a two-minute k6 run: envelope shapes, the spill reference, the
+  settled counter, the two latency readings and the zero-check were read
+  off real answers, not documentation. The measurements the prose quotes
+  date from 2026-08-30 to 2026-09-08 on the local stack and Grafana Cloud.
+  gcx labels itself "generally available" and requires Grafana 12+ —
+  older self-hosted instances are out of scope.
+- The flag surface moves between builds sharing a version string: when a
+  documented flag comes back `Unknown flag`, suspect the installed build
+  before this file, and read the script's error rather than retrying the
+  flag.
+- Query commands are read-only and identical across on-prem, Enterprise,
+  and Cloud; the only differences are auth (`org-id` vs `stack-id`/OAuth)
+  and which datasource UIDs exist on the stack.
 - OAuth sign-in (`gcx login --oauth`) needs the Grafana user to hold the
   **gcx User** role (permission `grafana-assistant-app.tokens.gcx:access`),
   granted automatically to Viewer-or-above on instances with the Grafana
   Assistant application; service-account tokens have no such extra
   requirement and are the documented recommendation for CI.
-- `gcx traces`/`gcx metrics`/`gcx logs`/`gcx profiles` also carry `adaptive`
-  subtrees (Adaptive Metrics/Logs/Traces cost-control resources) not covered
-  here — this file is scoped to reading the four signals, not managing
-  sampling/retention policy.
-- **Size `increase()` windows to at least two exports, and read the
-  export interval first.** At the OTel SDK's default 60 s export
-  interval,
-  `sum by (job) (increase(http_server_request_duration_seconds_count{job="orders-api"}[1m]))`
-  returned `result: []` with exit 0 both at an instant with data
-  (`--time`) and as a `--step 1m` range, while `[2m]` and `[3m]`
-  answered (verified 2026-09-05, Grafana Cloud): `[]` at a window this
-  short is a window problem before it is an absence — widen the window
-  before ruling anything absent, and read the interval off the raw
-  counter's samples before sizing it. And
-  `sum by (__name__) (increase({__name__=~"a|b"}[5m]))` is unusable
-  either way, because `increase()` strips `__name__`: when the two
-  metrics' remaining labelsets collide it **fails** with `vector cannot
-  contain metrics with the same labelset` (exit 1), and when they
-  differ it **succeeds silently**, merging them into the single series
-  `{"metric":{}}` with exit 0 — the silent merge is the more dangerous
-  of the two, since the number looks like an answer (verified
-  2026-09-05, gcx 1.2.0, Grafana Cloud). One query per metric.
-- **On a store holding a single run, `increase()` extrapolates a
-  counter born inside the window — the raw cumulative value is the run
-  total.** After a store reset, a 121 s scenario of 426 requests read
-  `sum(increase(traces_service_graph_request_total{client="load-generator", server="orders-api"}[<window>]))`
-  as `386.3`, while the raw
-  `sum(traces_service_graph_request_total{…})` over the same store read
-  `426` — the trace count, so the extrapolation under-counted here.
-  Prometheus extrapolates a series whose first sample sits inside the
-  range, and the direction of that error is whatever the extrapolation
-  makes of the partial first interval — it was low in this one
-  measurement, and the shortfall is not a fixed factor to correct by.
-  On a reset store the cumulative value is the total and `increase()`
-  is an estimate of it (verified 2026-09-05, gcx 1.2.0, local
-  stack).
+- `gcx traces`/`metrics`/`logs`/`profiles` also carry `adaptive` subtrees
+  (cost-control resources) not covered here — this file is scoped to
+  reading the four signals.
+- **Size a rate window to at least two exports, and read the export
+  interval first.** At the OTel SDK's default 60 s interval a `[1m]`
+  `increase()` answered `result: []` with exit 0 where `[2m]` answered
+  (verified 2026-09-05, Cloud): the scripts' windows are the mission's
+  own window plus the settle lag, and an empty answer on a short window
+  is a window problem first. One query per metric: `increase()` strips
+  `__name__`, so a regex over two metrics either fails on a colliding
+  labelset or silently merges them into one series.
+- **A live instant `rate()` can answer stale** on Mimir (`1.97` in flight,
+  `138.5` re-read afterwards, verified 2026-09-06, Cloud): never conclude
+  "the run has ended" from an instant metric rate; decide that on the
+  traces.
+
+### Adaptive Metrics on Grafana Cloud
+
+On Grafana Cloud an Adaptive Metrics rule may drop a label from a metric
+before it is stored, and the metric then answers in three shapes, none of
+which says "a rule did this" (verified 2026-09-06, gcx 1.2.0, Cloud): the
+unaggregated selector errors with `Can't query aggregated metric … the
+following label is aggregated: <label>`; the wrong aggregator (`max`)
+answers `result: []` with exit 0 where `sum` answers; grouping by an
+aggregated label returns the literal value `<aggregated>`. A label
+missing from a Cloud metric is a cost-control rule before it is an
+instrumentation gap; the series carrying one are
+`grafana-metrics.py names --match '{job="<job>", __aggregation__!=""}'`.
 
 ## Configuration display
 

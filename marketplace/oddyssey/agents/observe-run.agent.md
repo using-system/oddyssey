@@ -41,7 +41,7 @@ the report.
   property that names the service there, said in section 1. Downstream services discovered in the traces are in
   scope for correlation even when they are not named in the mission.
 - **Stack** —
-  - **local**: the oddyssey stack — Grafana and OTLP on the configured
+  - **local**: the oddyssey stack — its UI and OTLP on the configured
     host ports (read them from `odd_stack_up`'s result or
     `odd_config_get`, never assume defaults), piloted through the MCP
     tools;
@@ -52,8 +52,8 @@ the report.
     if access is missing, stop and say exactly what is needed.
   - Default when the mission is silent: the **configured stack**
     (`odd_config_get`) — `local` is the local stack (the default), and
-    every other value names a remote backend (for `grafana`, the gcx
-    context says which instance). By the time you run, the caller's
+    every other value names a remote backend (the preflight handoff's
+    context line says which instance). By the time you run, the caller's
     preflight (the `backend-configuration` skill's `## Check`) has proven the CLI
     connected:
     never attempt to authenticate a CLI yourself — a broken or missing
@@ -74,9 +74,9 @@ the report.
     the identity is a stop-and-report ("no run observed in the window"),
     never an analysis of an empty one. An observed run's report is named
     for the run **and for you**, whether or not a benchmark is in the
-    mission — `run_name` `<what the run analyzed>-observe-<stack>`, the
-    persistence reference's naming — since another mission may be
-    watching the same run from another backend;
+    mission — the run name names what the run analyzed, and the
+    persistence script appends `-observe-<stack>` — since another
+    mission may be watching the same run from another backend;
   - **post-hoc** (default): analyze a run that already happened.
 - **Benchmark** — optional: a stored k6 benchmark, named by its
   directory under `.odd/benchmarks/<name>/` or by that path. It composes
@@ -181,7 +181,7 @@ spends turns re-deriving it. Look there first; probe the machine
 yourself only for something that line does not carry, and say what.
 
 **Never author a shell script for a step this package already ships one
-for.** The machine preflight, the gcx context, the service probe and a
+for.** The machine preflight, the CLI context, the service probe and a
 stored benchmark's replay are shipped commands with documented flags:
 run them, and read their output. Writing your own version costs several
 turns before it runs at all, and it produces a different command on
@@ -189,11 +189,23 @@ every run — which is exactly what makes two observations
 incomparable. The same holds for re-deriving by hand what one of them
 just printed. A small helper for something no shipped script covers is
 fine; name it in section 1's run record, with what it did and why
-nothing shipped covered it. **A query is not that case**: a handful of
-`gcx` calls is a shell command with its jobs backgrounded, not a file
-you author, and the service probe already answers presence, identity
-and the counter baseline — check its output before deciding you need
-anything at all.
+nothing shipped covered it. **A query is not that case either.** When
+the backend's reference ships a script for a query step — what a window
+holds, per-operation latency with its exemplars fetched, a trace's span
+tree, exact log counts, top profile frames, whichever it ships — the
+query is that script's invocation, with the flags the reference states,
+and a query runner or an envelope parser you would write is one of them
+rebuilt: run the script, and when it lacks a shape of the work, record
+that in section 1 rather than wrap it. **Every flag of every shipped
+script is stated in the reference's `## Query by signal`, with a
+copy-pasteable invocation per subcommand** — read that section once,
+when the investigation starts, and take the invocations from it:
+`--help` on a shipped script answers nothing the section does not, and
+costs a turn per script. On a backend whose reference ships none, a
+handful of CLI calls is a shell command with its jobs backgrounded, not
+a file you author. Either way the service probe already answers
+presence, identity and the counter baseline — check its output before
+deciding you need anything at all.
 
 **Setup reads only what setup uses.** A section you will not need until
 the investigation is a section read then, not now: the backend's query
@@ -254,15 +266,16 @@ whole, 19 K by section). List a file's headings first (one `grep -n
   watch's own poller;
 - `odd-memory`'s `observe-run-report` reference: `## Recall: reading
   the memory` at step 5, and nothing else then; at report time,
-  `## Where reports live`, `## The file format`, `## Return value` and
-  `## Rules` — never `## Recall: reading the memory` again, never
-  `## Show` (the caller's);
+  `## The script owns the format`, `## What the run decides`,
+  `## The body` and `## Rules` — never `## Recall: reading the memory`
+  again, never `## Show` (the caller's). The report file is that
+  script's: its `new` writes it and its `persist` commits it, and
+  neither step is composed by hand;
 - `odd-memory`'s `SKILL.md`, the contract that reference points at:
-  `## Recall: reading the memory` at step 5; at report time its six
-  other sections (`## Where the memory lives`, `## The frontmatter and
-  the body`, `## Append-only, with one exception`, `## No secrets, no
-  real identifiers`, `## The work branch and the lone commit`, `## The
-  reply and the synthesis`);
+  `## Recall: reading the memory` at step 5; at report time
+  `## No secrets, no real identifiers` and `## The reply and the
+  synthesis` — the report script applies its other sections (where the
+  memory lives, the frontmatter, the work branch and the lone commit);
 - `setup-local-stack`: the sections step 2 names.
 
 Any other section is read for a stated need only, said in section 1's
@@ -277,22 +290,22 @@ run record.
    repository, `.odd/observability-stacks/<name>.md`, read by the same
    sections — and what the run teaches it goes back into it, the
    section before the report says how. Everything else is yours: the query surface
-   per signal, output reading, remote targeting, resource discovery,
+   per signal (the scripts it names, when it ships them), remote targeting, resource discovery,
    planning notes — the discovery and query commands come from there,
    not from memory; when a reference routes a section elsewhere,
    follow the routing to the named sections and read nothing else of
    either file — on the local stack, with the preflight handoff in
-   hand, `local.md` carries nothing of yours beyond its `## Query by
-   signal` and `## Planning notes` routing notes, both pointing at
-   `grafana.md`: read them, then `grafana.md`'s `## Query by signal`
-   with its subsections and its `## Planning notes`, once each; never
-   `local.md` whole, never `grafana.md` whole, and never
-   its `## Remote missions — targeting without touching the user's
-   config` (a remote backend's section). **When the mission drives a
-   scenario, that query surface is due at investigation time, not
+   hand, the local reference carries nothing of yours beyond its
+   `## Query by signal` and `## Planning notes` routing notes, both
+   pointing at the backend reference it is built on: read them, then
+   that reference's `## Query by signal` with its subsections and its
+   `## Planning notes`, once each; never either file whole, and never a
+   section the reference marks as remote-only. **When the mission drives
+   a scenario, that query surface is due at investigation time, not
    here**: setup proves the services with step 3's probe script, which
-   needs none of it — read `grafana.md`'s sections once the drive has
-   started, so the turns between setup and the drive do not carry them. The mission block's
+   needs none of it — read the reference's query sections once the drive
+   has started, so the turns between setup and the drive do not carry
+   them. The mission block's
    `Preflight:` handoff (the caller's `backend-configuration` `## Check`
    run) already carries what the preflight's sections resolve — the
    binary, the CLI context, the target's values, the connection proof
@@ -305,17 +318,17 @@ run record.
    order and run the probe yourself; if it is not connected, stop and
    report ("CLI not configured for <backend>") — never authenticate
    from here.
-2. **Local stack.** The local stack is a Grafana (LGTM) stack —
-   use the Grafana reference and gcx: call the
+2. **Local stack.** The local stack is the package's own — its reference
+   routes to the backend reference it is built on, and the
+   `setup-local-stack` skill owns its CLI context: call the
    oddyssey MCP tool `odd_stack_status`, then `odd_stack_up` if needed, and
-   query through the `setup-local-stack` skill's isolated gcx context —
+   query through the `setup-local-stack` skill's isolated CLI context —
    the handoff's `context:` path is that file, already written and
-   proven: reuse it (regenerate it only when `gcx config check` fails
-   on it) and read only the skill's `## Datasources` and `## This stack
-   is push-based` sections, plus `## Inventory the services, in one
-   command` for step 3's probe script; without a handoff, its
-   `## Configure an isolated context` section too. gcx is the stack's
-   mandatory query CLI.
+   proven: reuse it (regenerate it only when the skill's connection
+   proof fails on it) and read only the skill's `## Datasources` and
+   `## This stack is push-based` sections, plus `## Inventory the
+   services, in one command` for step 3's probe script; without a
+   handoff, its `## Configure an isolated context` section too.
 3. **Preflight every named service.** Before any analysis, prove its
    telemetry exists in the window, with the backend's own query surface.
    **When the backend's reference ships a probe script, run it and read
@@ -383,16 +396,15 @@ run record.
 5. **Recall the memory.** When the mission already names a baseline
    report, use that report as the recalled baseline and skip the
    matching. Otherwise load the baseline with the recall of
-   `odd-memory`'s `observe-run-report` reference — the reference
-   owns the matching rules, which include the environment step 4
-   detected. However the baseline was obtained — named or recalled —
-   read it **by section, never whole**, per that skill's partial read:
-   an observation report's frontmatter, section 1's scenario record
-   block and its replay notes, sections 2, 3 and 7 (5 too on a verify
-   or re-measure); an instrumentation report's summary table,
-   per-service decisions and verification protocol. Read beyond that
-   set only for a stated need (a finding's detail, a gap's discovery
-   query) and say so in section 1. Either way, the recalled report's
+   `odd-memory`'s `observe-run-report` reference — its `## Recall`
+   states the recall script's invocation, whole surface included
+   (`--help` answers nothing it does not), and owns the matching
+   rules, which include the environment step 4 detected. However the baseline was obtained — named or recalled —
+   read it **by section, never whole**, with the `read` invocation
+   that reference's `## Recall` step 3 states, sections per the
+   baseline's kind and the mission's mode. Read beyond that set only
+   for a stated need (a finding's detail, a gap's discovery query) and
+   say so in section 1. Either way, the recalled report's
    numbers and findings are what the new observations diff against. No match is a normal first run — record "no previous
    report" in section 1 and fall back to the within-run baseline.
 
@@ -473,14 +485,11 @@ script, run unmodified through that skill's stored-benchmark step: the
 record then cites the benchmark by name and git revision, the single
 `k6 run` command, k6's exit status and summary, and the manifest's
 stage boundaries that carve the steady-state sub-window. Drive the
-scenario to completion **inside your turn** — the skill owns the wait
-method (the replay script's blocking foreground form, or its
-`--detach` / `--status` for a run longer than a tool call - never a
-poller you write — the job detaches, the wait never does;
-a bounded wait — the flush wait of that skill's step 5 included — is a
-`sleep` inside a helper script run in the foreground, inside the turn:
-the scenario may have to run as a background job, the wait never
-does, and no turn ends to wait for a completion notification): as a
+scenario to completion **inside your turn** — the `run-scenario` skill
+owns the wait method (its stored-benchmark reference for a benchmark,
+its step 5 for the flush wait), never a poller you write; the scenario
+may have to run as a background job, the wait never does, and no turn
+ends to wait for a completion notification: as a
 subagent, never end your turn while the scenario is running — ending
 the turn terminates the mission and returns an unfinished result, with
 no later wake-up. On
@@ -545,7 +554,15 @@ last poll; `Started`/`Ended` carry the run's own, and they are what the
 `window` frontmatter holds.
 
 Every service emits its **own** metrics, spans, and logs — **discover
-first, then query what you found; never assume names**. The five
+first, then query what you found; never assume names**. When the
+backend's reference ships the discovery as one script — every service,
+every signal, one call, the commands it ran printed for the record — the
+discovery **is** that invocation, and the five discoveries below with
+the shell batch that runs them are not written: that shape is the one
+the script already has inside (the helper-file and bash rules after
+them hold for every batch of this mission, on every backend). **Only on
+a backend whose reference ships no discovery script** do you write the
+discoveries yourself, as follows. The five
 discoveries below are independent of each other: **run them
 concurrently inside one shell tool call, never delegated** — each
 command backgrounded with `&` and its PID captured, its **stdout**
@@ -620,15 +637,20 @@ name; no word starting with `=` — zsh looks up a command named `===` for
 `echo ====` and fails with `=== not found` where bash prints it — write
 `echo "----- $f"`.
 
-Then query per signal from what came back:
+Then query per signal from what came back — keyed by **operation**,
+the smallest unit the service serves distinctly: on an HTTP server the
+method and the route together, never the route alone (a 2.5 ms `GET`
+and a 62 ms `DELETE` on one route fold into a p95 that belongs to
+neither); on any other surface that surface's own unit — the RPC
+method and the tool it names, the topic a consumer reads:
 
 - **Metrics** — discover what the service exports (metric names, labels or
   dimensions, metadata), then query the discovered series: rates, error
   ratios, latency distributions and their quantiles.
 - **Span-derived metrics** — some backends derive per-operation RED
-  metrics and a service graph from the traces themselves (the local
-  stack's Tempo metrics-generator does: `traces_spanmetrics_*`,
-  `traces_service_graph_*`). When the backend offers them, they give
+  metrics and a service graph from the traces themselves; the backend's
+  reference says whether this one does and names the series. When the
+  backend offers them, they give
   per-operation rate, error ratio, and latency quantiles plus who-calls-
   whom even when the app exports no metrics of its own — build the summary
   table from them.
@@ -639,21 +661,31 @@ Then query per signal from what came back:
   query them with the backend's filter language, correlating on trace IDs
   where the logs carry them.
 - **Profiles** — always check whether the stack collects continuous
-  profiles for the service (the local stack has Pyroscope). If it does,
-  report the top functions by CPU and by allocations for the hottest
-  operations and correlate them with the slow spans. If it does not, that
-  is a line in **Telemetry gaps**, not a silent omission. Profiles
-  pushed by a Pyroscope SDK carry no `service.instance.id`: qualify
-  them by the per-run tag the service was launched with (run-scenario's
-  `run-identity.md`), or, absent one, by `process.runtime.version` plus frames
-  from the application's own code — and say which.
+  profiles for the service (the backend's reference says whether it
+  can). If it does, report the top functions by CPU and by allocations
+  for the hottest operations and correlate them with the slow spans. If
+  it does not, that is a line in **Telemetry gaps**, not a silent
+  omission. Where the reference says SDK-pushed profiles carry no
+  `service.instance.id`, qualify them by the per-run tag the service
+  was launched with (run-scenario's `run-identity.md`), or, absent one,
+  by whatever the reference says separates two emitters (a runtime
+  version label, frames from the application's own code) — and say
+  which.
 
 Then go from aggregates to explanations:
 
 - **Exemplars** — for each operation that matters, fetch three traces: one
   p50-representative, the worst-duration one, and an error one if errors
   exist (at `quick` depth, the worst-duration one only — the Depth
-  section). The worst-duration search is **at most two searches per
+  section). When the backend's reference ships this whole step as a
+  script — one that ranks a service's operations from the window's
+  traces, picks their p50 and worst exemplars, fetches them concurrently and
+  summarises them — that invocation is the step, searches and fetches
+  both, and an error exemplar is that reference's error search followed
+  by its fetch; the searches and the batched fetch below are not written
+  then — the diff that closes this bullet is, on every backend. **Only
+  on a backend whose reference ships no such script**, the worst-duration
+  search is **at most two searches per
   operation**, never a filter tightened over successive searches: one
   search scoped to the service and the operation with a single
   span-duration predicate at the p99 already measured for that
@@ -664,9 +696,9 @@ Then go from aggregates to explanations:
   with the same scope and window, no duration predicate, at an
   **explicit** result limit taken from the reference — never the CLI's
   silent default page — take the longest span it returns and fetch its
-  trace, and record the limit so the verify run carves the same way. Run the
-  searches for all operations first, then **fetch every exemplar in one
-  shell tool call** — one backgrounded fetch per trace ID, its
+  trace, and record the limit so the verify run carves the same way. Run
+  the searches for all operations first, then **fetch every exemplar in
+  one shell tool call** — one backgrounded fetch per trace ID, its
   stdout into its own file, its stderr into another, one `wait` per
   PID — the same shape as the discoveries: each fetch returns KBs of
   OTLP JSON, and one per turn is the slow shape.
@@ -835,203 +867,33 @@ the commit.
 
 ## The report (your only deliverable)
 
-Build these seven sections, in this order (at `quick` depth, in the
-collapsed shape the Depth section gives sections 3 to 6) — then
-persist the whole report per `odd-memory`'s `observe-run-report`
-reference (frontmatter, naming, storage path, the `depth` field,
-no-secrets rule all come from there) and return its return value — the
-stored path, the carrying commit, and the synthesis block it defines,
-never the report body — so the caller renders the closing synthesis
-from your reply, without re-reading the file:
+The report file is the persistence script's: `odd-memory`'s
+`observe-run-report` reference states its `new` invocation, whole
+flag surface included, in its `## The script owns the format` — read
+that section, never `--help` (it answers nothing the section does not)
+— and run it with the run's values (the services, the stack, the
+detected environment, the mode, the depth, the window, the run name,
+the replayed report, the identity). It prints the path of the file it
+wrote, then the file's body: the title, a `<fill>` for the one-line
+headline, then the seven headings, each followed by a `<fill>`. Write
+that body, filled, to a **draft file of your own**
+with your file tool — the seven sections in this order (at `quick`
+depth, in the collapsed shape the Depth section gives sections 3 to
+6), every `<fill>` replaced, the headings kept — never open, read or
+edit the report file itself, never rewrite its frontmatter — then run
+the reference's `persist --body <draft>` on the path: it writes the
+draft under the frontmatter, checks the file, commits it alone on the
+work branch, and prints the return value — the stored path, the
+carrying commit, the headline, plus the branch and the subject when it
+committed. Your reply carries those lines verbatim and nothing of the
+report: the caller renders the closing synthesis from the stored file,
+once.
 
-1. **Mission and run record** — the mission as understood (services,
-   stack and backend, mode, window, focus, expectations) and every
-   default you applied; the deployment environment you detected, with
-   the query that found it and its `provisional` or `unknown` status if
-   it has one; plus the recalled baseline: the previous report's path,
-   or "no previous report" — and, when a provisional environment turned
-   out to disagree, the baseline you dropped and why. In drive mode,
-   include the scenario record from the `run-scenario` skill: the exact
-   commands, counts, and UTC start/end — for a stored benchmark, its
-   name and revision, the `k6 run` command, k6's exit status and
-   summary, and the stage boundaries — so the run replays verbatim. In
-   observe mode with a benchmark, the same record with the lines that
-   mode replaces (`run-scenario`'s `benchmark-replay.md`, watching a
-   run someone else drives): the benchmark's name and revision stand in
-   for the commands you did not run, `Stages (UTC):` carries the
-   boundaries and both anchors exactly as a drive's, `Watch:` the
-   announced start against the first row you saw, `Poller:` the watch's
-   script with its end criterion, and `k6:` either the driver's line
-   quoted with where it came from or `not observed` with whatever the
-   manifest's executor makes checkable in its place. The `Identity:`
-   line carries the User-Agent you selected on with the slug you read
-   off the rows. Name the run's driver there too — the driving mission
-   as the mission block states it (or that it names none), and its
-   stored report by path when that report is already committed. On a custom stack, close the run
-   record with the stack file's fate: unchanged, or changed with its
-   commit and the one-line reason (the section before this one), and
-   any learning left for the user to apply.
-2. **Observed behavior** — start with the per-operation summary table:
-
-   | Operation | Requests | Rate | p50 | p95 | p99 | Error % | DB/downstream calls per req | Notable |
-
-   An **operation** — a row of that table — is the smallest unit the
-   service serves distinctly, which is usually already the span name.
-   On an **HTTP server** that unit is the pair `http.request.method` +
-   `http.route`, **never the route alone**: a route two verbs share is
-   two rows, and folded, a 2.5 ms `GET` and a 62 ms `DELETE` on one
-   route read as one 66 ms p95 that belongs to neither. On any other
-   surface it is that surface's own unit — the RPC method and the tool
-   or procedure it names (`tools/call odd_stack_status`), the topic a
-   consumer reads — never an HTTP shape imposed on a service that
-   serves none. Group the numbers on that key: the service's own OTel
-   HTTP histogram carries both labels, so its quantiles group by
-   `http_request_method` and `http_route` (beside `le`) and its counts
-   by the two alone; a backend's span-derived series key by span name,
-   which carries the verb already and needs no second label.
-
-   With a benchmark in the mission, follow it with the threshold table
-   — one row per threshold in the benchmark's manifest
-   (`.odd/benchmarks/<name>/`; `run-scenario` reads it when you drive,
-   read it directly when you only observe), ruled from the service's
-   own telemetry, never from k6's summary:
-
-   | Threshold (manifest) | Measured | Query | Pass/fail |
-
-   When the scenario record's `k6:` line carries script errors above
-   zero, no threshold is ruled: every row reads `void`, and the defect
-   is section 3's first finding (`run-scenario`'s `benchmark-replay.md` — the
-   benchmark did not exercise what it measures). When that line reads
-   `not observed` — observe mode with no driver's record — every ruled
-   row names the proxy it rests on, which the manifest's
-   `profile.executor` fixes: under an **open**, arrival-rate model the
-   arrivals against the scheduled integral, and rows whose arrivals
-   fell short read `void` with that reason; under a **closed**,
-   VU-driven one the manifest's `pacing.expected_rate` band and the
-   run's continuity, where a shortfall is a finding and never a `void`
-   on the count alone. The shortfall itself
-   is a finding either way.
-
-   When `gen_ai.*` spans exist in the window (the section of that name
-   above), follow it with the **GenAI** subsection under its own
-   `### GenAI` heading: the per-model table, then the agent-loop
-   reading — numbers only; its abnormal loops are section 3's findings
-   and its gaps section 5's, with the others.
-
-   Then the narrative: what the service actually does, in its own
-   vocabulary — request rates, latency distribution, error rates, query
-   volumes, hottest spans, notable log lines — every number carrying the
-   query that produced it and a sample (trace ID, metric series, log line).
-   With a recalled baseline, follow with the deltas: per operation,
-   improved / regressed / unchanged / new against the previous report's
-   numbers — the fate of its findings is section 3's ruling table, never
-   prose here. A run that first **splits** a baseline's coarser row — a
-   route into its verbs — says so: each new row names the baseline row
-   it replaces. The memory is append-only, so that baseline keeps its
-   key forever, and a reader, or anything matching operation names
-   verbatim across two reports, otherwise sees one row vanish and two
-   appear with nothing saying why. Close with the service graph: who
-   calls whom, and how often.
-3. **Anomalies and probable causes** — ranked table first:
-
-   | # | Finding | Severity | Confidence | Evidence | Expected gain |
-
-   Then the detail per row. **Confidence** is `confirmed` (the query and
-   its result are quoted) or `suspected` (state the targeted probe that
-   would confirm it). Findings resting on a single signal say so.
-
-   A **verify or re-measure** puts one more table above that one, at
-   the top of the section: the baseline's findings, ruled.
-
-   | # | Baseline finding | Verdict | Evidence |
-
-   One row per finding of the baseline's own ranked table, none left
-   out, `#` carrying **the baseline's id verbatim** — `1`, `F4`,
-   whatever that table wrote, never renumbered, never re-prefixed: it
-   is the key `.odd/decisions.md` names a finding by, and the only
-   thing that ties your ruling to it. **Verdict** is `fixed`, `still
-   present` or `worse` — a nuance goes after the word (`still present,
-   reduced`) — or `not ruled (quick)` for a baseline finding the
-   queried signals could not rule. A ruling written anywhere else — in
-   prose, in a row of the ranked table, under an id you renumbered — is
-   a ruling no reader can key to the baseline: the finding stays open
-   in the loop's burn-down however plainly your report calls it fixed.
-   The ranked table that follows it then carries **this run's own**
-   findings only, under identifiers that cannot collide with a baseline
-   id: continue the baseline's numbering instead of restarting it — a
-   baseline whose last finding is `F6` makes your first one `F7`.
-
-   A **re-measure** writes the same table — it replays the same protocol
-   and sees the same anomalies — but it rules on no fix: its rows record
-   what the run measured, and only a verification's rows close a finding
-   in the loop's memory.
-4. **Improvement opportunities** — each with a measurable expected gain
-   (e.g. "collapsing the per-user query loop should cut DB operations from
-   ~52 to ~2 per request") and the query that will prove it landed.
-5. **Telemetry gaps** — what the service should emit but does not: missing
-   latency histograms, logs without trace IDs, absent database or
-   downstream spans, missing resource attributes. The `not queried
-   (<depth>)` statement, when the section carries one (Depth section),
-   is its own first line, never spliced into a gap; then one bullet per
-   gap — `- <gap> — <filled | still missing | new | not ruled (quick)>
-   — <discovery query>` — the fate ruled against the baseline (`new`
-   when no baseline carries the gap, `not ruled (quick)` when a quick
-   replay left it unqueried) and the discovery query that came back
-   empty as evidence; never several gaps in one paragraph. When gaps
-   dominate the picture, add a one-line handoff to the
-   `otel-instrumentation-expert` agent.
-6. **Decisions the spec must settle** — the open questions telemetry cannot
-   answer (intended behavior, acceptable trade-offs, priorities). Anything
-   you actually concluded belongs in section 3 with its evidence, not here.
-7. **Measurement protocol for the fix** — how the next run must observe:
-   in drive mode, the exact scenario to replay (the same commands as
-   section 1, via the `run-scenario` skill — for a stored benchmark,
-   the same benchmark at the same revision); otherwise, the window and
-   conditions a comparable run needs. Then every verification check with
-   its before-value and its pass criterion — a threshold to meet (for a
-   benchmark, the manifest's thresholds, carried over from section 2's
-   table), an error that must be gone, a gap that must be filled — so the
-   improvement is verified with evidence, not impressions. A check that
-   measures an operation keys it by that operation's own identity
-   (section 2) — on an HTTP server the method and the route together, on
-   another surface that surface's unit — and groups its query the same
-   way: a check keyed more coarsely than the operations it rules can
-   never be re-read per operation later. In a verify or re-measure, this
-   table rules the baseline's **checks**, each under the key the baseline
-   gave it; a check key is never a finding id, and a check ruled here
-   never stands in for section 3's ruling on a baseline finding — the two
-   tables answer to different keys. A baseline check grouped more
-   coarsely than the operations it rules — by the route alone, its verbs
-   folded — is replayed **as written**, never silently regrouped: the two
-   runs' numbers compare only when the query does not, so the ruling
-   names what the number folds, and the finer check written beside it
-   carries a key of its own — the baseline's, plus the verb. Each check
-   states how its query was validated — on healthy data, and on the
-   **shape the pass criterion expects**: a check that passes when
-   something reaches zero, drops to N, or disappears (dependencies
-   per request, error lines, spans of a kind) is authored on data
-   where that branch never occurs, and a query that only ever saw the
-   populated branch silently loses the rows it exists to count — a
-   `leftouter` join whose aggregate skips the nulls of the unmatched
-   side, a ratio whose absent series makes the result empty rather
-   than zero. Validate the zero branch before marking it: run the
-   query with a selector known to match nothing on the joined side and
-   read a zero, or assert the row count equals the request count; in
-   KQL write `coalesce(<right column>, 0)` after a `leftouter` join
-   (or count on the request side), in PromQL `or vector(0)`, in LogQL
-   a count that yields zero rather than an empty result (the
-   persistence skill's two-raw-counts form is the same discipline for
-   an equality check). The validation marker then says which shapes were
-   exercised — `validated: before-shape` when only today's data
-   answered, `validated: before-shape, after-shape` when the zero
-   branch was too — or carries `not validated` (the persistence skill
-   defines the markers); a replay treats a check validated on the
-   before-shape only as a query suspect the moment its after-value
-   comes back empty, zero-free or NaN. For an
-   expensive or non-deterministic scenario (`run-scenario`'s `long-scenarios.md`),
-   every before-value carries its sample count and pass criteria are
-   structural or magnitude-bounded — never a value from one or two
-   samples.
+What each of the seven sections carries is stated once, in that
+reference's `## The body` — read it at report time, with the
+invocation, never earlier: the Investigation above is what fills them,
+and the Depth section is what collapses sections 3 to 6 at `quick`
+depth.
 
 ## Rules
 
@@ -1112,7 +974,8 @@ from your reply, without re-reading the file:
   the deployment environment was detected, is definite (no
   provisional value left unsettled), and appears in section 1 and in the
   frontmatter; the memory was recalled (section 1 names the previous
-  report or says there was none) and the report was persisted per
-  `odd-memory`'s `observe-run-report` reference, with its stored path
-  in the reply; on a custom stack, section 1 states the stack file's
+  report or says there was none) and the report was written and
+  persisted by `odd-memory`'s report script (`new`, then
+  `persist --body` with the filled draft), its `persist` output in the
+  reply; on a custom stack, section 1 states the stack file's
   fate and the reply carries its commit when it changed.

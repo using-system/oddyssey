@@ -13,9 +13,8 @@ usage from memory. Here the selection axis is the topic.
 ## Fetching the docs
 
 `grafana.com/docs/k6/latest/` serves raw markdown by appending `.md` to
-any page URL, or via an `Accept: text/markdown` header - the same
-convention `observability-cli-guides/references/datadog.md` documents
-for Datadog's docs. `https://grafana.com/llms.txt` (curated index) and
+any page URL, or via an `Accept: text/markdown` header.
+`https://grafana.com/llms.txt` (curated index) and
 `https://grafana.com/llms-full.txt` (~1.4 MB, ~1000 `docs/k6/latest`
 URLs) exist at the site root - the cheapest way to enumerate the k6 doc
 tree when this skill's reference files need re-verifying; per-page
@@ -46,6 +45,7 @@ alone (`grep -i dropped`).
 | Question | Reference |
 | --- | --- |
 | Is k6 installed? How do I install/detect it? | [install.md](references/install.md) |
+| What replay line may a preflight hand the mission? | [install.md](references/install.md), its closing section |
 | How do I run a k6 script, read its output, know if it passed? | [running-tests.md](references/running-tests.md) |
 | How do I validate a script without running the benchmark - `k6 inspect`, a one-iteration smoke? | [running-tests.md](references/running-tests.md) |
 | Why is `res.body` null / why does `res.json()` throw? | [scripting.md](references/scripting.md) |

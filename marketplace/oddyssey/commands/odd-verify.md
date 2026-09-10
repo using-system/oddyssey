@@ -1,5 +1,6 @@
 ---
 description: Verify that a fix or an implemented instrumentation plan landed - replay a stored report's protocol (observation or instrumentation report) and get the full observation report, carrying the verdict on everything it recorded - measurements, anomalies, telemetry gaps, or planned signals now present
+argument-hint: "[<report path> | my last <service | env | stack> report] [full | quick]"
 ---
 
 Invoke the `observe-run` agent. It owns the whole method and the report
@@ -308,12 +309,11 @@ Then build the mission block from that report:
   - every telemetry gap it listed: now filled or still missing, with the
     discovery query.
 
-Close the mission with the `## Show` of `odd-memory`'s
-`observe-run-report` reference: render its
-synthesis from the persistence return value the agent's reply carries
-(stored path, carrying commit, the synthesis block) as the final
-answer - the verdict-first headline leads, stating the stored path; no
-re-read of the file just written. The report file, stored in
+Close the mission by running
+`python3 <Skills>/odd-memory/scripts/odd_report.py show <the stored path the agent's reply carries>`
+(its whole surface) and printing the rendering as the final answer,
+translated to the conversation's language, with the stack file's fate
+from the reply when the run changed one. The report file, stored in
 `.odd/observe-run-reports/`, remains the versioned record that the
 fix - or the planned instrumentation - was measured, not assumed:
 never re-dump the raw report in the conversation, and never let the

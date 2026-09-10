@@ -1,5 +1,6 @@
 ---
 description: "Display the current oddyssey backend configuration - configured stack, targeted instance, connection proof - then offer to change it: pick a backend from the full list, built-in or custom, and route the switch to the backend-configuration skill's Switch. Also creates or completes a custom stack file for a backend the package does not ship - from the documentation the user points at, their instructions, or web research - checked against the reference contract and persisted through odd-memory"
+argument-hint: "switch to <stack> (local | grafana | datadog | dynatrace | azure-monitor | cloudwatch | a custom stack) | persist <value> for <stack> | create <name> from <url or notes> | complete <name>"
 ---
 
 Answer "where do my missions point?" - and let the user change the
@@ -87,8 +88,8 @@ stack the package ships changes through a package PR with live
 verification, never through a file in the user's repository, and the
 same refusal answers a `for stack <built-in>: ...` request. A new
 name for a backend the package ships **is** a creation when the query
-surface differs (`curl` against the HTTP API of a Grafana the package
-queries with gcx): the file is about that surface. A name whose file
+surface differs (`curl` against the HTTP API of a backend the package
+queries through its CLI): the file is about that surface. A name whose file
 already exists is a **completion**, whatever the verb used; a name
 with no file is a **creation**. Creating or completing is the user
 picking a change: the file is written, and committed as the memory

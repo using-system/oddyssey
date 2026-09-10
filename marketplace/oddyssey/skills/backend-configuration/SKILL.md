@@ -43,7 +43,7 @@ change-request phrasings) in both halves, `## What to persist` (the
 there is something to guide. When a section routes to another file or
 skill ("read that section", "the method is X's"), read the routed
 **section**, never the file around it. Every other section of the
-reference — the query surface, output reading, targeting and planning
+reference — the query surface, targeting and planning
 notes — is the agent's, read once, by the agent, after dispatch — never
 here.
 

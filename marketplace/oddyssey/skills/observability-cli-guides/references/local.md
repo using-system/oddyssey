@@ -2,7 +2,7 @@
 
 The local stack is a Grafana (LGTM) stack in one container, brought up
 by `odd_stack_up`, queried with `gcx` exactly like a remote Grafana: the
-query surface is [grafana.md](grafana.md) — CLI binary, output reading,
+query surface is [grafana.md](grafana.md) — CLI binary, the scripts per signal,
 query by signal — and the ready-made isolated gcx context, the
 datasource UIDs, and the push-model caveats are the `setup-local-stack`
 skill's, which owns the local method end to end. This file carries what
@@ -66,7 +66,8 @@ visible.
 
 The `setup-local-stack` skill's `scripts/gcx_local.py`, run as its
 `## Configure an isolated context` section says (read that
-section only, not the skill). It writes the isolated context and proves
+section only, not the skill) — it takes no argument but `--json`, that
+is its whole surface. It writes the isolated context and proves
 it with `gcx config check` in one call, so configuring and proving are
 not two steps here — and it never touches the user's own gcx contexts.
 Exit 0 is the proof. The local stack is self-serve: a missing gcx setup
@@ -89,9 +90,9 @@ reuses that file as-is and reads `setup-local-stack` for its
 ## Query by signal
 
 The query surface is [grafana.md](grafana.md)'s — read its
-`## Query by signal` with **all** its subsections (output reading,
-Loki over OTLP, profile output — whatever the file carries) and
-`## Planning notes`; the datasource UIDs and
+`## Query by signal` with **all** its subsections (one per signal,
+each naming the script this skill ships for it — whatever the file
+carries) and `## Planning notes`; the datasource UIDs and
 the push-model caveats are the `setup-local-stack` skill's
 `## Datasources` and `## This stack is push-based` sections.
 That skill also ships `scripts/probe_services.py`, the probe script an
