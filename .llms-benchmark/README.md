@@ -13,16 +13,17 @@ and the CLI it is driven through.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | **#1** | `google/gemini-3.7-flash` | opencode | 1.11.5 | **10 / 10** | 3 / 6 / 1 | **8m08s** | $0.95 | $0.095 |
 | **#2** | `google/gemini-3.8-flash` | opencode | 1.11.5 | **9 / 9** | 4 / 4 / 1 | 14m29s | $1.61 | $0.179 |
-| **#3** | `z-ai/glm-5.3-flash` | opencode | 1.11.5 | 15 / 16 | 8 / 3 / 5 | 25m15s | **$0.14** | **$0.009** |
-| **#4** | `qwen/qwen3.8-max-0902` | opencode | 1.11.5 | **22 / 22** | 15 / 3 / 4 | 52m30s | $2.15 | $0.098 |
-| **#5** | `qwen/qwen3.8-27b` | opencode | 1.11.5 | 16 / 18 | 11 / 4 / 3 | 51m04s | $1.65 | $0.103 |
-| **#6** | `z-ai/glm-5.3` | opencode | 1.11.5 | 15 / 17 | 10 / 4 / 3 | 52m28s | $2.56 | $0.171 |
-| **#7** | `anthropic/claude-sonnet-5` | claude | 1.11.5 | **7 / 7** | 4 / 3 / 0 | 16m01s | $3.22 | $0.459 |
-| **#8** | `anthropic/claude-sonnet-5` | opencode | 1.11.5 | **7 / 7** | 4 / 2 / 1 | 20m47s | $3.46 | $0.494 |
-| **#9** | `anthropic/claude-opus-5` | opencode | 1.11.3 ⚠︎ | **17 / 17** | 11 / 3 / 3 | 27m36s | $10.35 | $0.609 |
-| **#10** | `openai/gpt-6-astra` | opencode | 1.11.3 ⚠︎ | **15 / 15** | 8 / 3 / 4 | 23m27s | **$19.58** | $1.305 |
-| **#11** | `anthropic/claude-haiku-4.5` | claude | 1.11.5 | **2 / 5** | 0 / 5 / 0 | 10m13s | $0.79 | $0.393 |
-| **#12** | `anthropic/claude-haiku-4.5` | opencode | 1.11.5 | **0 / 2** | 0 / 2 / 0 | 8m13s | $0.58 | — |
+| **#3** | `anthropic/claude-fable-5.1` | claude | 1.11.5 | **18 / 18** | 10 / 6 / 2 | 17m29s | $7.48 | $0.416 |
+| **#4** | `z-ai/glm-5.3-flash` | opencode | 1.11.5 | 15 / 16 | 8 / 3 / 5 | 25m15s | **$0.14** | **$0.009** |
+| **#5** | `qwen/qwen3.8-max-0902` | opencode | 1.11.5 | **22 / 22** | 15 / 3 / 4 | 52m30s | $2.15 | $0.098 |
+| **#6** | `qwen/qwen3.8-27b` | opencode | 1.11.5 | 16 / 18 | 11 / 4 / 3 | 51m04s | $1.65 | $0.103 |
+| **#7** | `z-ai/glm-5.3` | opencode | 1.11.5 | 15 / 17 | 10 / 4 / 3 | 52m28s | $2.56 | $0.171 |
+| **#8** | `anthropic/claude-sonnet-5` | claude | 1.11.5 | **7 / 7** | 4 / 3 / 0 | 16m01s | $3.22 | $0.459 |
+| **#9** | `anthropic/claude-sonnet-5` | opencode | 1.11.5 | **7 / 7** | 4 / 2 / 1 | 20m47s | $3.46 | $0.494 |
+| **#10** | `anthropic/claude-opus-5` | opencode | 1.11.3 ⚠︎ | **17 / 17** | 11 / 3 / 3 | 27m36s | $10.35 | $0.609 |
+| **#11** | `openai/gpt-6-astra` | opencode | 1.11.3 ⚠︎ | **15 / 15** | 8 / 3 / 4 | 23m27s | **$19.58** | $1.305 |
+| **#12** | `anthropic/claude-haiku-4.5` | claude | 1.11.5 | **2 / 5** | 0 / 5 / 0 | 10m13s | $0.79 | $0.393 |
+| **#13** | `anthropic/claude-haiku-4.5` | opencode | 1.11.5 | **0 / 2** | 0 / 2 / 0 | 8m13s | $0.58 | — |
 
 <details>
 <summary>Run detail — phases, turns, tokens</summary>
@@ -31,6 +32,7 @@ and the CLI it is driven through.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `google/gemini-3.7-flash` | opencode | 1.11.5 | 1m12s | 2m01s | 4m55s | 81 | 3.4s | 6.8M | 30k | 6.4M | 4/4 |
 | `google/gemini-3.8-flash` | opencode | 1.11.5 | 4m58s | 2m02s | 7m29s | 139 | 3.6s | 11.8M | 53k | 11.0M | 4/4 |
+| `anthropic/claude-fable-5.1` | claude | 1.11.5 | 2m55s | 2m02s | 12m32s | 30 | 5.5s | 2.9M | 56k | 2.9M | 4/4 |
 | `z-ai/glm-5.3-flash` | opencode | 1.11.5 | 4m44s | 2m02s | 18m29s | 59 | 13.0s | 5.7M | 114k | 5.3M | 4/4 |
 | `qwen/qwen3.8-max-0902` | opencode | 1.11.5 | 11m35s | 2m02s | 38m53s | 38 | 24.6s | 3.8M | 112k | 3.4M | 4/4 |
 | `qwen/qwen3.8-27b` | opencode | 1.11.5 | 7m30s | 2m02s | 41m32s | 75 | 35.4s | 11.3M | 123k | 10.4M | 4/4 |
