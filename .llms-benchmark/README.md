@@ -20,7 +20,8 @@ and the CLI it is driven through.
 | **#7** | `anthropic/claude-sonnet-5` | opencode | 1.11.5 | **7 / 7** | 4 / 2 / 1 | 20m47s | $3.46 | $0.494 |
 | **#8** | `anthropic/claude-opus-5` | opencode | 1.11.3 ⚠︎ | **17 / 17** | 11 / 3 / 3 | 27m36s | $10.35 | $0.609 |
 | **#9** | `openai/gpt-6-astra` | opencode | 1.11.3 ⚠︎ | **15 / 15** | 8 / 3 / 4 | 23m27s | **$19.58** | $1.305 |
-| **#10** | `anthropic/claude-haiku-4.5` | opencode | 1.11.5 | **0 / 2** | 0 / 2 / 0 | 8m13s | $0.58 | — |
+| **#10** | `anthropic/claude-haiku-4.5` | claude | 1.11.5 | **2 / 5** | 0 / 5 / 0 | 10m13s | $0.79 | $0.393 |
+| **#11** | `anthropic/claude-haiku-4.5` | opencode | 1.11.5 | **0 / 2** | 0 / 2 / 0 | 8m13s | $0.58 | — |
 
 <details>
 <summary>Run detail — phases, turns, tokens</summary>
@@ -36,6 +37,7 @@ and the CLI it is driven through.
 | `anthropic/claude-sonnet-5` | opencode | 1.11.5 | 6m01s | 2m01s | 12m45s | 81 | 9.5s | 9.9M | 65k | 9.9M | 4/4 |
 | `anthropic/claude-opus-5` | opencode | 1.11.3 ⚠︎ | 3m52s | 2m01s | 21m43s | 64 | 8.9s | 8.4M | 104k | 8.4M | 4/4 |
 | `openai/gpt-6-astra` | opencode | 1.11.3 ⚠︎ | 3m08s | 2m02s | 18m17s | 103 | 4.5s | 11.4M | 54k | 11.4M | 4/4 |
+| `anthropic/claude-haiku-4.5` | claude | 1.11.5 | 2m17s | 2m01s | 5m55s | 61 | 2.0s | 4.2M | 33k | 4.2M | 4/4 |
 | `anthropic/claude-haiku-4.5` | opencode | 1.11.5 | 1m08s | 2m00s | 5m05s | 45 | 3.6s | 2.6M | 28k | 2.6M | 0/4 |
 
 Token counts are rounded; the exact figures are in each run's pull
@@ -82,9 +84,11 @@ accused. A model that reports three findings and gets three right scores
 report itself labels uncertain still counts when its numbers check out:
 grading honesty down would only teach models to hide it.
 
-**CLI** is the coding-agent CLI the mission ran in — `opencode` for every
-row so far; its version is in each run's pull request, since two runs of
-one model under different CLI versions are not the same measurement.
+**CLI** is the coding-agent CLI the mission ran in — `opencode` or
+`claude`; its version is in each run's pull request, since two runs of
+one model under different CLI versions are not the same measurement. The
+cost is the API list price under either: a subscription changes the
+bill, not the row.
 Model and CLI together identify a row: the same model driven through two
 CLIs is two rows. The oddyssey version is not part of that identity — a
 new run of a model on the same CLI replaces its row, whatever version the
@@ -140,23 +144,29 @@ latest run.
 ## How a row is produced
 
 ```text
-/launch-llms-benchmark anthropic/claude-sonnet-5
+/launch-llms-benchmark opencode anthropic/claude-sonnet-5
+/launch-llms-benchmark claude anthropic/claude-haiku-4.5
 ```
 
-The model id is the only argument. Two credentials are prerequisites you
-set up once and the command never asks for: an OpenRouter provider
-configured in opencode, and an `OPENAI_API_KEY` in
+The CLI and the model id are the only arguments — `opencode` for any
+model OpenRouter serves, `claude` for Anthropic's models through Claude
+Code's headless mode; the model is always written in the same
+`vendor/name` form, so one model's rows line up. The credentials are
+prerequisites you set up once and the command never asks for: an
+OpenRouter provider configured in opencode, or a Claude Code login and
+the package installed at user scope for it, and an `OPENAI_API_KEY` in
 `docker-compose/llms-benchmark/.env` for the demo agent's own model calls
 (see `.env.example` next to it).
 
 That command runs the whole protocol and comes back with a pull request
-adding or replacing the model's row. What it does:
+adding or replacing the row. What it does:
 
 1. Brings the demo stack up (`docker-compose/llms-benchmark/`) against
    the local oddyssey observability stack, and waits for the three
    services to answer.
-2. Drives the model through the **opencode** CLI, on OpenRouter, at
-   **medium** reasoning effort — headless, one session.
+2. Drives the model through the CLI you named — **opencode** on
+   OpenRouter, or **claude** — at **medium** reasoning effort — headless,
+   one session.
 3. Gives it one mission — a single `/odd-observe` invocation naming the
    three services, the stored scenario `benchmark/llmbench-store-load/`,
    **full** depth and the **local** stack — and asks for every kind of

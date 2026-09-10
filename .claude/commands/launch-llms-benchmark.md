@@ -1,9 +1,9 @@
 ---
-description: Benchmark one LLM on the llms-benchmark demo stack - drive it through opencode on the stored scenario, grade the observation report it produced, and propose its row of the results table
+description: Benchmark one LLM on the llms-benchmark demo stack - drive it through a coding-agent CLI (opencode or claude) on the stored scenario, grade the observation report it produced, and propose its row of the results table
 ---
 
-Run the whole llms-benchmark protocol for one model, end to end, and
-come back with a pull request adding or replacing that model's row in
+Run the whole llms-benchmark protocol for one model on one CLI, end to
+end, and come back with a pull request adding or replacing that row in
 `.llms-benchmark/README.md`.
 
 The question this benchmark answers: **how much of what a model reports,
@@ -15,16 +15,28 @@ compare against, and that is on purpose: the model is graded on evidence,
 the same way you would grade a colleague's incident report.
 
 - Arguments: $ARGUMENTS
-- Expected field: the **model** to benchmark, as its OpenRouter id
+- Expected fields, in this order: the **CLI** the mission runs in —
+  `opencode` or `claude` — and the **model** to benchmark, as its
+  canonical `vendor/name` id, the OpenRouter form
   (`anthropic/claude-sonnet-5`, `openai/gpt-5-mini`,
-  `google/gemini-3.5-flash-lite`, ...). That is the only input. Ask for
-  it if it is missing and stop until you have it.
+  `google/gemini-3.5-flash-lite`, ...). Those are the only two inputs.
+  Ask for whichever is missing and stop until you have both. The pair
+  identifies the row (step 10): the same model on two CLIs is two rows.
+- The model id is written the same way whatever the CLI, so the two
+  rows of one model line up. Each CLI is handed its own form of it:
+  `opencode` takes it as `openrouter/<model>`; `claude` takes Anthropic
+  models only, under Anthropic's id — `anthropic/claude-haiku-4.5` is
+  `claude-haiku-4-5`, `anthropic/claude-sonnet-5` is `claude-sonnet-5`
+  (the vendor prefix dropped, the dots of the version turned into
+  dashes; `claude --help` on `--model` names the accepted forms). A
+  model the CLI cannot run is a preflight failure, not a row.
 
-**Never ask for an API key, and never handle one.** Both credentials this
-protocol needs are prerequisites the person running it sets up once, and
-the preflight checks them rather than requesting them. No key is ever
-passed as an argument, written to a file, echoed back, or allowed near a
-commit, a PR body, an issue, or a report.
+**Never ask for an API key, and never handle one.** Every credential this
+protocol needs — the OpenRouter provider in opencode, the Claude Code
+login, the demo agent's own key — is a prerequisite the person running
+it sets up once, and the preflight checks them rather than requesting
+them. No key is ever passed as an argument, written to a file, echoed
+back, or allowed near a commit, a PR body, an issue, or a report.
 
 Steps:
 
@@ -41,23 +53,53 @@ Steps:
    - `command -v k6` — the scenario is a k6 benchmark;
    - `.llms-benchmark/benchmark/llmbench-store-load/` exists (the stored
      scenario every row of the table was produced with);
-   - **opencode already has OpenRouter configured**: `opencode models
-     openrouter` lists the model id you were given. If it does not, stop
-     and say so — configuring the provider is the user's to do, once, and
-     spending a run to discover it is missing is worse than refusing to
-     start;
+   - **the CLI can run the model, and reads the package at the revision
+     being measured** — configuring a provider or installing the package
+     at user scope is the user's to do, once, and spending a run to
+     discover it is missing is worse than refusing to start:
+     - `opencode`: `opencode models openrouter` lists the model id you
+       were given (the package is installed in step 3);
+     - `claude`: `claude --version` answers; the package is installed at
+       **user scope** for Claude Code — `~/.claude/commands/odd-observe.md`,
+       `~/.claude/agents/observe-run.md`, `~/.claude/skills/<the nine
+       skills>` — and each body is identical to its `.apm/` source at
+       `HEAD` (compare below the frontmatter: `.apm/prompts/`, `.apm/agents/`,
+       `.apm/skills/`); the oddyssey MCP server is in the user's Claude
+       configuration (`~/.claude.json`, `mcpServers` carries `oddyssey` —
+       the name only, never its contents); and a smoke run answers with a
+       result naming the model:
+       `claude -p "Reply with the single word ok" --model <anthropic id> --output-format json < /dev/null`
+       must print a `type: result` JSON whose `modelUsage` has one key,
+       the model's canonical id. Run it from a scratch directory, not the
+       repository — it leaves a session transcript under the directory's
+       project;
    - **`docker-compose/llms-benchmark/.env` exists and carries a
      non-empty `OPENAI_API_KEY`** — the demo agent's own model key, which
      `docker compose` reads on its own from that file. Check its
      presence, never its value, and never print it. The file is
      gitignored; `.env.example` next to it says what goes in.
 
-2. **Create the work branch**: `bench/<model-slug>-<YYYYMMDD-HHMM>`,
+2. **Create the work branch**: `bench/<cli>-<model-slug>-<YYYYMMDD-HHMM>`,
    where `<model-slug>` is the model id with `/` and `.` replaced by
    `-`. Everything the run installs, configures, and produces happens on
    this branch, and none of it is what ships.
 
-3. **Install or update opencode, and the oddyssey package for it.**
+3. **Install or update the CLI, and the oddyssey package for it.**
+   Record the CLI's version: it goes in the pull request, never in the
+   table.
+
+   For `claude`:
+   - `claude update` (the native installer updates itself), then record
+     `claude --version`.
+   - the package is **not** installed into the repository for this CLI:
+     the claude target deploys `.claude/settings.json` and `.claude/hooks/`,
+     and a deployed hook loads into the running Claude Code session
+     (AGENTS.md). The run reads the user-scope install the preflight
+     verified, which is what `apm install --global --target claude` put
+     there; nothing in the working tree changes before the run, so the
+     `git status --porcelain` you record here is empty.
+
+   For `opencode`:
    - opencode: `brew upgrade opencode` when Homebrew has it, else
      `opencode upgrade`, else the official install script. Record the
      resulting `opencode --version`.
@@ -78,8 +120,10 @@ Steps:
 
 4. **Select the model.** Nothing to configure: the provider is already
    set up (preflight), and the model and effort are passed on the command
-   line in step 6 (`--model openrouter/<model>`, `--variant medium`),
-   never persisted into a config file.
+   line in step 6, never persisted into a config file — `opencode`:
+   `--model openrouter/<model> --variant medium`; `claude`:
+   `--model <anthropic id> --effort medium`. The two flags name the same
+   effort level; that is what makes two rows of one model comparable.
 
 5. **Recreate the demo stack — never reuse a running one.**
 
@@ -101,14 +145,40 @@ Steps:
    answer: `Up` is printed before the process listens.
 
 6. **Run the mission.** Record the UTC timestamp **before** launching —
-   step 7 needs it to identify the session. Then one headless opencode
-   run, from the repository root, on the work branch:
+   step 7 needs it to identify the session. Then one headless run, from
+   the repository root, on the work branch.
+
+   `opencode`:
 
    ```
    caffeinate -i opencode run --model openrouter/<model> --variant medium \
      --format json --auto --title "llms-benchmark <model>" \
      "<the mission prompt below>" < /dev/null
    ```
+
+   `claude` — generate the session id yourself and write it down: this
+   CLI takes no title, and step 7 identifies the session by that id:
+
+   ```
+   SID=$(uuidgen | tr 'A-Z' 'a-z')
+   caffeinate -i env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ID \
+     -u CLAUDE_CODE_MESSAGING_SOCKET -u CLAUDE_CODE_MESSAGING_TOKEN -u CLAUDE_PID \
+     claude -p "<the mission prompt below>" --model <anthropic id> --effort medium \
+     --permission-mode bypassPermissions --output-format json \
+     --session-id "$SID" < /dev/null > <scratch>/run.json 2> <scratch>/run.err
+   ```
+
+   Each part of that line is load-bearing. `env -u ...` strips the
+   variables a Claude Code session exports into its shells: this command
+   is usually run from inside one, and a nested launch that inherits them
+   is treated as part of the parent. `--permission-mode bypassPermissions`
+   is the headless counterpart of opencode's `--auto`: under `-p` anything
+   that would prompt is denied outright, and a denied `Bash` is a run that
+   never drives. `--output-format json` prints the whole run's result — a
+   single `type: result` object with the cost and token totals step 7
+   reads — on stdout **at exit**, so stdout goes to a file, not to the
+   terminal. The prompt, quotes included, reached `/odd-observe` as the
+   command it names on the run of #534; nothing had to be rewritten.
 
    `caffeinate -i` keeps the machine from sleeping under the run. A
    suspend does not stop the work but it does add itself to the wall
@@ -183,7 +253,22 @@ Steps:
    **Watch it while it runs, and say where it is.** A twenty-to-forty
    minute run that has silently died looks exactly like one that is
    thinking. Poll every couple of minutes — the run writes nothing to
-   stdout until it finishes, so read these instead:
+   stdout until it finishes, so read these instead.
+
+   Under `claude` the run keeps no central log; what grows live is its
+   **session transcript**, `~/.claude/projects/<cwd with every / turned
+   into ->/<session-id>.jsonl`, and the subagents' transcripts beside it
+   under `<session-id>/subagents/agent-*.jsonl` (the observation is
+   dispatched to one, as under opencode). Each `assistant` line carries
+   the message's `tool_use` blocks — `Bash` with its `input.command`,
+   `Read` with its `input.file_path` — and its `usage`; the line count
+   across those files is the liveness signal, and a file that stops
+   growing for several minutes with the process alive is the stall.
+   The `k6` process, the container count and the run's scratch
+   directory read the same way as below — this CLI's runs wrote their
+   scratch under `/tmp/llmbench-*` directly, a third location.
+
+   Under `opencode`:
 
    - `~/.local/share/opencode/log/opencode.log`, filtered to **this
      run's id** (the `run=<id>` on its `message=init` line; another
@@ -241,8 +326,55 @@ Steps:
    the user may be running their own session at the same time. Kill by
    the PID you launched, or not at all.
 
-7. **Read the run's cost from the opencode session store — and make sure
-   it is the right session.** The store is
+7. **Read the run's cost from outside the run — and make sure it is the
+   right session.** Where it lives depends on the CLI.
+
+   **Under `claude`** the whole run's totals are the `type: result`
+   object the launch line captured in `run.json`:
+   - **Cost** = `total_cost_usd`, which equals the sum of
+     `modelUsage[<model>].costUSD`. Its `costBasis` is `list`: the API
+     list price, whatever plan the account is on — a subscription changes
+     the bill, not this figure, and this figure is what the table wants.
+   - the token counters are `modelUsage[<model>]`: `inputTokens`,
+     `outputTokens` (thinking included; `thinkingTokens` states the
+     share), `cacheReadInputTokens`, `cacheCreationInputTokens` — for the
+     **whole tree**, subagents included (`subagent_stats.spawned` says
+     how many there were). **Input** for the table = `inputTokens +
+     cacheReadInputTokens + cacheCreationInputTokens`; **Output** =
+     `outputTokens`; **Cache** = `cacheReadInputTokens +
+     cacheCreationInputTokens` — the same three sums as under opencode.
+   - **never the result's top-level `usage`, `num_turns` or
+     `duration_ms`**: they cover the root session's last turn(s) only.
+     On the run of #534 they read 26 input tokens, 3 turns and 18 s for
+     a 10-minute run whose model usage was 4.15 million tokens.
+   - identify the session by the id you generated: `session_id` in the
+     result must equal it, and the transcript is
+     `~/.claude/projects/<project>/<that id>.jsonl`. Anything else, stop
+     and say so.
+   - reconstruct the cost from the transcripts, root and
+     `subagents/*.jsonl` together, at Anthropic's published list prices
+     for the model: an `assistant` line is written once per content
+     block and repeats the request's `usage` with `output_tokens`
+     growing, so group the lines by `requestId` and take each counter's
+     largest value. **Cache writes carry two prices**: `usage.cache_creation`
+     splits `cache_creation_input_tokens` into `ephemeral_5m_input_tokens`
+     and `ephemeral_1h_input_tokens`, and the one-hour tier costs more
+     (for `claude-haiku-4-5`: $1.25/M and $2.00/M; input $1.00/M, output
+     $5.00/M, cache read $0.10/M). Summed per tier, the reconstruction
+     matched `total_cost_usd` to the last digit on the run of #534; a
+     flat write rate lands short and looks like a mismatch.
+   - **turns** = the distinct `requestId` values across the tree;
+     **median turn latency** = the median, over those requests, of the
+     assistant line's timestamp minus the preceding line's timestamp in
+     the same transcript (the transcript has no created/completed pair,
+     so this is the wait for the model's first block).
+   - **signals** and **file reads** come from the `tool_use` inputs
+     across the tree — `Bash` commands and the helper scripts they run
+     (the run of #534 put all fourteen query invocations in one
+     `query-all-signals.sh`), `Read`/`Grep` file paths — dated against
+     the drive.
+
+   **Under `opencode`** the store is
    `~/.local/share/opencode/opencode.db` (SQLite, WAL). Copy the `.db`,
    `-wal` and `-shm` files to a scratch directory and query the copy: a
    read-only connection to the live file can miss committed WAL frames.
@@ -304,7 +436,7 @@ Steps:
      to the cent at 200,000 where the field said 272,000. If it still
      does not reconcile, say so instead of publishing the number.
 
-   Also read off:
+   Also read off, under either CLI:
    - the **three phase durations**, not just the total: preflight
      (your launch timestamp → the drive's start), drive, and observation
      (drive end → your end timestamp). The total alone hides which of
@@ -465,7 +597,8 @@ Steps:
      Leave the oddyssey stack up — it is the user's, and it was probably
      up before the run.
    - **delete the run's scratch directory under the system temp dir**
-     (`$TMPDIR/opencode/`), every run's, not only this one's. Runs name
+     (`$TMPDIR/opencode/`, and `/tmp/llmbench-*` for a `claude` run),
+     every run's, not only this one's. Runs name
      that directory themselves and the names collide: one run of #505
      picked a name an earlier session had already used and inherited 248
      files — another model's query outputs, its trace dumps and its
@@ -503,8 +636,8 @@ Steps:
       create one naming the model and the protocol revision, then the PR
       that closes it. This is a step, not a fallback.
     - From `main`, freshly pulled, create
-      `docs/llms-benchmark-<model-slug>` and make **one** change: the
-      model's row in the results table of `.llms-benchmark/README.md`.
+      `docs/llms-benchmark-<cli>-<model-slug>` and make **one** change:
+      the row in the results table of `.llms-benchmark/README.md`.
       **A row is identified by model and CLI together.** The pair is
       not in the table yet → append the row; already there → replace
       that row in place. The same model driven through two CLIs is two
@@ -523,8 +656,8 @@ Steps:
       single `Telemetry / Perf / Behavior` header written `X / X / X`,
       total duration, cost, and cost per confirmed finding. It fits
       without scrolling and answers the question on its own. The CLI
-      column names the coding-agent CLI the mission ran in — `opencode`
-      for every row this command produces, with no version: the version
+      column names the coding-agent CLI the mission ran in — the `<cli>`
+      argument, `opencode` or `claude`, with no version: the version
       belongs in the pull request, where the row's exact figures already
       live. The oddyssey version sits right after it because it says
       which protocol a row was taken under, which a reader needs before
@@ -553,7 +686,7 @@ Steps:
     the first run's `7/7` was performance and nothing else.
 
     The PR body carries the per-finding rulings from step 8, so the ratio
-    is auditable, and it names the opencode version and the model variant
+    is auditable, and it names the CLI, its version and the effort flag
     used. It also notes three things the table has no column for: how
     many source files the run read **before** the drive, whether it drove
     any traffic of its own outside the stored scenario, and whether its
