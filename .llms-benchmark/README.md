@@ -20,18 +20,19 @@ CLI, always its latest run.
 | Rank | Model | CLI | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | **#1** | `deepseek/deepseek-v4.1-flash` | opencode | 1.11.5 | 14 / 15 | 9 / 4 / 1 | 13m06s | **$0.11** | **$0.008** |
-| **#2** | `google/gemini-3.7-flash` | opencode | 1.11.5 | **10 / 10** | 3 / 6 / 1 | **8m08s** | $0.95 | $0.095 |
-| **#3** | `google/gemini-3.8-flash` | opencode | 1.11.5 | **9 / 9** | 4 / 4 / 1 | 14m29s | $1.61 | $0.179 |
-| **#4** | `anthropic/claude-opus-5` | claude | 1.11.5 | **22 / 22** | 14 / 3 / 5 | 19m51s | $5.54 | $0.252 |
-| **#5** | `anthropic/claude-fable-5.1` | claude | 1.11.5 | **18 / 18** | 10 / 6 / 2 | 17m29s | $7.48 | $0.416 |
-| **#6** | `z-ai/glm-5.3-flash` | opencode | 1.11.5 | 15 / 16 | 8 / 3 / 5 | 25m15s | $0.14 | $0.009 |
-| **#7** | `qwen/qwen3.8-max-0902` | opencode | 1.11.5 | **22 / 22** | 15 / 3 / 4 | 52m30s | $2.15 | $0.098 |
-| **#8** | `qwen/qwen3.8-27b` | opencode | 1.11.5 | 16 / 18 | 11 / 4 / 3 | 51m04s | $1.65 | $0.103 |
-| **#9** | `z-ai/glm-5.3` | opencode | 1.11.5 | 15 / 17 | 10 / 4 / 3 | 52m28s | $2.56 | $0.171 |
-| **#10** | `anthropic/claude-sonnet-5` | claude | 1.11.5 | **7 / 7** | 4 / 3 / 0 | 16m01s | $3.22 | $0.459 |
-| **#11** | `anthropic/claude-sonnet-5` | opencode | 1.11.5 | **7 / 7** | 4 / 2 / 1 | 20m47s | $3.46 | $0.494 |
-| **#12** | `anthropic/claude-haiku-4.5` | claude | 1.11.5 | **2 / 5** | 0 / 5 / 0 | 10m13s | $0.79 | $0.393 |
-| **#13** | `anthropic/claude-haiku-4.5` | opencode | 1.11.5 | **0 / 2** | 0 / 2 / 0 | 8m13s | $0.58 | — |
+| **#2** | `openai/gpt-5.6-luna` | copilot | 1.11.5 | **9 / 9** | 5 / 3 / 1 | 9m41s | $0.17 | $0.019 |
+| **#3** | `google/gemini-3.7-flash` | opencode | 1.11.5 | **10 / 10** | 3 / 6 / 1 | **8m08s** | $0.95 | $0.095 |
+| **#4** | `google/gemini-3.8-flash` | opencode | 1.11.5 | **9 / 9** | 4 / 4 / 1 | 14m29s | $1.61 | $0.179 |
+| **#5** | `anthropic/claude-opus-5` | claude | 1.11.5 | **22 / 22** | 14 / 3 / 5 | 19m51s | $5.54 | $0.252 |
+| **#6** | `anthropic/claude-fable-5.1` | claude | 1.11.5 | **18 / 18** | 10 / 6 / 2 | 17m29s | $7.48 | $0.416 |
+| **#7** | `z-ai/glm-5.3-flash` | opencode | 1.11.5 | 15 / 16 | 8 / 3 / 5 | 25m15s | $0.14 | $0.009 |
+| **#8** | `qwen/qwen3.8-max-0902` | opencode | 1.11.5 | **22 / 22** | 15 / 3 / 4 | 52m30s | $2.15 | $0.098 |
+| **#9** | `qwen/qwen3.8-27b` | opencode | 1.11.5 | 16 / 18 | 11 / 4 / 3 | 51m04s | $1.65 | $0.103 |
+| **#10** | `z-ai/glm-5.3` | opencode | 1.11.5 | 15 / 17 | 10 / 4 / 3 | 52m28s | $2.56 | $0.171 |
+| **#11** | `anthropic/claude-sonnet-5` | claude | 1.11.5 | **7 / 7** | 4 / 3 / 0 | 16m01s | $3.22 | $0.459 |
+| **#12** | `anthropic/claude-sonnet-5` | opencode | 1.11.5 | **7 / 7** | 4 / 2 / 1 | 20m47s | $3.46 | $0.494 |
+| **#13** | `anthropic/claude-haiku-4.5` | claude | 1.11.5 | **2 / 5** | 0 / 5 / 0 | 10m13s | $0.79 | $0.393 |
+| **#14** | `anthropic/claude-haiku-4.5` | opencode | 1.11.5 | **0 / 2** | 0 / 2 / 0 | 8m13s | $0.58 | — |
 
 <details>
 <summary>Run detail — phases, turns, tokens</summary>
@@ -39,6 +40,7 @@ CLI, always its latest run.
 | Model | CLI | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `deepseek/deepseek-v4.1-flash` | opencode | 1.11.5 | 2m28s | 2m02s | 8m36s | 52 | 7.9s | 5.0M | 96k | 4.8M | 4/4 |
+| `openai/gpt-5.6-luna` | copilot | 1.11.5 | 1m47s | 2m00s | 5m54s | 52 | 3.9s | 4.7M | 33k | 4.7M | 4/4 |
 | `google/gemini-3.7-flash` | opencode | 1.11.5 | 1m12s | 2m01s | 4m55s | 81 | 3.4s | 6.8M | 30k | 6.4M | 4/4 |
 | `google/gemini-3.8-flash` | opencode | 1.11.5 | 4m58s | 2m02s | 7m29s | 139 | 3.6s | 11.8M | 53k | 11.0M | 4/4 |
 | `anthropic/claude-opus-5` | claude | 1.11.5 | 2m52s | 2m02s | 14m57s | 43 | 4.4s | 4.2M | 70k | 4.2M | 4/4 |
@@ -116,10 +118,11 @@ accused. A model that reports three findings and gets three right scores
 report itself labels uncertain still counts when its numbers check out:
 grading honesty down would only teach models to hide it.
 
-**CLI** is the coding-agent CLI the mission ran in — `opencode` or
-`claude`; its version is in each run's pull request, since two runs of
-one model under different CLI versions are not the same measurement. The
-cost is the API list price under either: a subscription changes the
+**CLI** is the coding-agent CLI the mission ran in — `opencode`,
+`claude` or `copilot`; its version is in each run's pull request, since
+two runs of one model under different CLI versions are not the same
+measurement. The cost is the model vendor's API list price under all
+three: a subscription, a premium request or an AI credit changes the
 bill, not the row.
 Model and CLI together identify a row: the same model driven through two
 CLIs is two rows. The oddyssey version is not part of that identity — a
@@ -179,17 +182,20 @@ latest run.
 /launch-llms-benchmark opencode anthropic/claude-sonnet-5 full
 /launch-llms-benchmark claude anthropic/claude-haiku-4.5 full
 /launch-llms-benchmark opencode google/gemini-3.7-flash quick
+/launch-llms-benchmark copilot openai/gpt-5.6-luna full
 ```
 
 The CLI, the model id and the depth are the only arguments — `opencode`
 for any model OpenRouter serves, `claude` for Anthropic's models through
-Claude Code's headless mode; the model always written in the same
+Claude Code's headless mode, `copilot` for the models GitHub Copilot
+CLI serves; the model always written in the same
 `vendor/name` form, so one model's rows line up; `full` or `quick`, the
 observation depth, which picks the results section the row lands in.
 The credentials are
 prerequisites you set up once and the command never asks for: an
-OpenRouter provider configured in opencode, or a Claude Code login and
-the package installed at user scope for it, and an `OPENAI_API_KEY` in
+OpenRouter provider configured in opencode, a Claude Code login and
+the package installed at user scope for it, or a Copilot CLI login, and
+an `OPENAI_API_KEY` in
 `docker-compose/llms-benchmark/.env` for the demo agent's own model calls
 (see `.env.example` next to it).
 

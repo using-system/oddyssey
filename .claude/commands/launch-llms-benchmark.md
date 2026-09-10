@@ -1,5 +1,5 @@
 ---
-description: Benchmark one LLM on the llms-benchmark demo stack - drive it through a coding-agent CLI (opencode or claude) on the stored scenario, grade the observation report it produced, and propose its row of the results table
+description: Benchmark one LLM on the llms-benchmark demo stack - drive it through a coding-agent CLI (opencode, claude or copilot) on the stored scenario, grade the observation report it produced, and propose its row of the results table
 ---
 
 Run the whole llms-benchmark protocol for one model on one CLI, end to
@@ -16,7 +16,7 @@ the same way you would grade a colleague's incident report.
 
 - Arguments: $ARGUMENTS
 - Expected fields, in this order: the **CLI** the mission runs in —
-  `opencode` or `claude`; the **model** to benchmark, as its
+  `opencode`, `claude` or `copilot`; the **model** to benchmark, as its
   canonical `vendor/name` id, the OpenRouter form
   (`anthropic/claude-sonnet-5`, `openai/gpt-5-mini`,
   `google/gemini-3.5-flash-lite`, ...); and the **depth** of the
@@ -32,8 +32,11 @@ the same way you would grade a colleague's incident report.
   models only, under Anthropic's id — `anthropic/claude-haiku-4.5` is
   `claude-haiku-4-5`, `anthropic/claude-sonnet-5` is `claude-sonnet-5`
   (the vendor prefix dropped, the dots of the version turned into
-  dashes; `claude --help` on `--model` names the accepted forms). A
-  model the CLI cannot run is a preflight failure, not a row.
+  dashes; `claude --help` on `--model` names the accepted forms);
+  `copilot` takes the bare name its model picker lists —
+  `openai/gpt-5.6-luna` is `gpt-5.6-luna` (the vendor prefix dropped,
+  nothing else changed). A model the CLI cannot run is a preflight
+  failure, not a row.
 
 **Never ask for an API key, and never handle one.** Every credential this
 protocol needs — the OpenRouter provider in opencode, the Claude Code
@@ -80,6 +83,16 @@ Steps:
        the model's canonical id. Run it from a scratch directory, not the
        repository — it leaves a session transcript under the directory's
        project;
+     - `copilot`: `copilot --version` answers; the user is logged in
+       (`~/.copilot/config.json` carries a non-empty `loggedInUsers` —
+       the host and login, nothing else lives there); and a smoke run
+       answers with a usage file naming the model:
+       `copilot -p "Reply with the single word ok" --model <name> --allow-all-tools --usage-output-file <scratch>/usage.json < /dev/null`
+       must leave a `usage.json` whose `modelMetrics` has one key, the
+       model's name. Run it from a scratch directory too — it leaves a
+       session under `~/.copilot/session-state/`. Nothing is installed
+       at user scope for this CLI: the package goes into the repository
+       in step 3, and the MCP server rides on the launch line;
    - **`docker-compose/llms-benchmark/.env` exists and carries a
      non-empty `OPENAI_API_KEY`** — the demo agent's own model key, which
      `docker compose` reads on its own from that file. Check its
@@ -125,11 +138,28 @@ Steps:
      `.apm/skills/` (`diff -rq`, ignoring caches) before launching: an
      older copy there measures another version than the row claims.
 
+   For `copilot`:
+   - `copilot update`, then record `copilot --version`.
+   - the package, for the copilot target, **into the repository**:
+     `uvx --from 'apm-cli==0.29.1' apm install --target copilot`
+     from the repository root. Record `git status --porcelain` **before**
+     it: it deploys `.github/prompts/`, `.github/agents/`,
+     `.github/hooks/`, `.github/mcp.json`, `.agents/skills/` and an edit
+     to `.gitignore`, and step 9 has to put the tree back. The deployed
+     hooks are Copilot's, not the running session's; the MCP file is
+     what the launch line hands the CLI.
+   - **a second install the run reads**: Copilot also loads
+     `~/.copilot/skills/` and the skills of every installed plugin
+     (`~/.copilot/installed-plugins/<marketplace>/<plugin>/skills/`).
+     List them before launching: none of the package's nine skills may
+     be there, and a run that lists a skill twice resolves one of them.
+
 4. **Select the model.** Nothing to configure: the provider is already
    set up (preflight), and the model and effort are passed on the command
    line in step 6, never persisted into a config file — `opencode`:
    `--model openrouter/<model> --variant medium`; `claude`:
-   `--model <anthropic id> --effort medium`. The two flags name the same
+   `--model <anthropic id> --effort medium`; `copilot`:
+   `--model <name> --effort medium`. The three flags name the same
    effort level; that is what makes two rows of one model comparable.
 
 5. **Recreate the demo stack — never reuse a running one.**
@@ -176,7 +206,34 @@ Steps:
      --session-id "$SID" < /dev/null > <scratch>/run.json 2> <scratch>/run.err
    ```
 
-   Each part of that line is load-bearing. `env -u ...` strips the
+   `copilot` — generate the session id yourself here too:
+
+   ```
+   SID=$(uuidgen | tr 'A-Z' 'a-z')
+   caffeinate -i copilot -p "<the mission prompt below>" --model <name> --effort medium \
+     --allow-all --no-ask-user --additional-mcp-config @.github/mcp.json \
+     --session-id "$SID" --output-format json --usage-output-file <scratch>/usage.json \
+     < /dev/null > <scratch>/run.jsonl 2> <scratch>/run.err
+   ```
+
+   `--allow-all` is this CLI's headless auto mode (tools, paths and
+   URLs); `--no-ask-user` removes the tool a run would otherwise use to
+   ask a question nobody answers; `--additional-mcp-config @.github/mcp.json`
+   loads the MCP file step 3 deployed — on its own the CLI reads only
+   `~/.copilot/mcp-config.json`, and the user's file stays untouched;
+   `--session-id` is how step 7 finds the session; `--output-format json`
+   streams the session's events to stdout, `model.call_start` /
+   `model.call_finished` pairs and a final `result` among them, so
+   stdout goes to a file; `--usage-output-file` writes the whole
+   session's usage at exit, subagents included. Memory is off in prompt
+   mode by default — never pass `--enable-memory`: a memory would carry
+   one run's findings into the next. The CLI does not expand
+   `/odd-observe`; the text reached the model as written, and the run of
+   `openai/gpt-5.6-luna` invoked the package's skills through Copilot's
+   `skill` tool and dispatched the observation to `observe-run` through
+   its `task` tool — nothing was rewritten.
+
+   Each part of the claude line is load-bearing. `env -u ...` strips the
    variables a Claude Code session exports into its shells: this command
    is usually run from inside one, and a nested launch that inherits them
    is treated as part of the parent (`env` takes its `-u` flags before
@@ -301,6 +358,17 @@ Steps:
    directory read the same way as below — this CLI's runs wrote their
    scratch under `/tmp/llmbench-*` directly, a third location.
 
+   Under `copilot` what grows live is
+   `~/.copilot/session-state/<session-id>/events.jsonl`: each
+   `tool.execution_start` event carries `toolName` and `arguments`
+   (`command` for `bash`, `path` for `view`), `subagent.started` /
+   `subagent.completed` name the agent dispatched, and the line count is
+   the liveness signal. The run of `openai/gpt-5.6-luna` wrote its
+   scratch under `$TMPDIR/oddyssey/<slug>-local/` and recreated the
+   three containers itself before driving, per the run-identity
+   contract — the container count dips to one for a few seconds and
+   comes back to three; anything else is a second stack.
+
    Under `opencode`:
 
    - `~/.local/share/opencode/log/opencode.log`, filtered to **this
@@ -407,6 +475,36 @@ Steps:
      (the run of #534 put all fourteen query invocations in one
      `query-all-signals.sh`), `Read`/`Grep` file paths — dated against
      the drive.
+
+   **Under `copilot`** the whole run's totals are the `usage.json` the
+   launch line asked for:
+   - `modelMetrics[<model>].usage` carries `inputTokens` (the whole
+     prompt, cached share included), `outputTokens` (reasoning included;
+     `reasoningTokens` states the share), `cacheReadTokens` and
+     `cacheWriteTokens`, for the whole session — `agentMetrics` splits
+     the same figures between `main` and each subagent, and
+     `requests.count` is the number of model requests. **Input** =
+     `inputTokens`; **Output** = `outputTokens`; **Cache** =
+     `cacheReadTokens + cacheWriteTokens`; `tokenDetails.input` is the
+     uncached share (`inputTokens` minus the two cache counters).
+   - **Cost is not in the file**: Copilot bills premium requests and AI
+     credits (`totalPremiumRequestCost`, `totalNanoAiu`), not dollars.
+     Reconstruct it at the model vendor's published list price —
+     uncached and cache-write tokens at the input rate, cache-read at
+     the cached-input rate, output at the output rate (for
+     `gpt-5.6-luna`: 0.20, 0.02 and 1.20 USD per million) — and record
+     the premium requests and the AIU in the pull request beside it.
+   - identify the session by the id you generated: the final `result`
+     line of `run.jsonl` carries `sessionId`, and `session.start` in
+     `events.jsonl` carries `selectedModel` and `reasoningEffort` —
+     all three must match the launch. Anything else, stop and say so.
+   - **turns** = `requests.count` summed over `modelMetrics`; **median
+     turn latency** = the median of the `model.call_finished` minus
+     `model.call_start` timestamps in `run.jsonl`, paired in order (the
+     events carry no id).
+   - **signals** and **file reads** come from the `tool.execution_start`
+     events of `events.jsonl` — `bash` commands and the helper scripts
+     they run, `view` paths — dated against the drive.
 
    **Under `opencode`** the store is
    `~/.local/share/opencode/opencode.db` (SQLite, WAL). Copy the `.db`,
@@ -652,7 +750,8 @@ Steps:
      up before the run.
    - **delete the run's scratch directory under the system temp dir**
      (`$TMPDIR/opencode/`, and `/tmp/llmbench-*`, `/tmp/oddyssey-scratch/`
-     or `/tmp/oddyssey-scratchpad/` for a `claude` run),
+     or `/tmp/oddyssey-scratchpad/` for a `claude` run, `$TMPDIR/oddyssey/`
+     for a `copilot` run),
      every run's, not only this one's. Runs name
      that directory themselves and the names collide: one run of #505
      picked a name an earlier session had already used and inherited 248
@@ -718,7 +817,7 @@ Steps:
       total duration, cost, and cost per confirmed finding. It fits
       without scrolling and answers the question on its own. The CLI
       column names the coding-agent CLI the mission ran in — the `<cli>`
-      argument, `opencode` or `claude`, with no version: the version
+      argument, `opencode`, `claude` or `copilot`, with no version: the version
       belongs in the pull request, where the row's exact figures already
       live. The oddyssey version sits right after it because it says
       which protocol a row was taken under, which a reader needs before
