@@ -10,32 +10,32 @@ row. The protocol is fixed and the only variable is the model.
 
 | Rank | Model | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| **#1** | `google/gemini-3.8-flash` | 1.11.4 | **8 / 8** | 4 / 3 / 1 | 15m29s | $1.66 | $0.207 |
-| **#2** | `google/gemini-3.7-flash` | 1.11.4 | 5 / 6 | 3 / 2 / 0 | **10m51s** | $1.07 | $0.213 |
-| **#3** | `z-ai/glm-5.3-flash` | 1.11.4 | 11 / 12 | 6 / 4 / 1 | 48m39s | **$0.16** | **$0.015** |
-| **#4** | `z-ai/glm-5.3` | 1.11.4 | **16 / 16** | 10 / 4 / 2 | 38m22s | $4.02 | $0.251 |
-| **#5** | `qwen/qwen3.8-max-0902` | 1.11.4 | 13 / 14 | 9 / 3 / 1 | 59m53s | $2.74 | $0.211 |
-| **#6** | `anthropic/claude-opus-5` | 1.11.3 | **17 / 17** | 11 / 3 / 3 | 27m36s | $10.35 | $0.609 |
-| **#7** | `qwen/qwen3.8-27b` | 1.11.3 | 15 / 15 | 7 / 4 / 4 | 1h09m33s | $3.01 | $0.201 |
-| **#8** | `anthropic/claude-sonnet-5` | 1.11.3 | 8 / 8 | 4 / 3 / 1 | 39m51s | $5.81 | $0.726 |
-| **#9** | `openai/gpt-6-astra` | 1.11.3 | 15 / 15 | 8 / 3 / 4 | 23m27s | **$19.58** | $1.305 |
-| **#10** | `anthropic/claude-haiku-4.5` | 1.11.3 | **2 / 7** | 1 / 1 / 0 | **10m03s** | $0.64 | $0.320 |
+| **#1** | `google/gemini-3.7-flash` | 1.11.5 | **10 / 10** | 3 / 6 / 1 | **8m08s** | $0.95 | $0.095 |
+| **#2** | `google/gemini-3.8-flash` | 1.11.5 | **9 / 9** | 4 / 4 / 1 | 14m29s | $1.61 | $0.179 |
+| **#3** | `z-ai/glm-5.3-flash` | 1.11.5 | 15 / 16 | 8 / 3 / 5 | 25m15s | **$0.14** | **$0.009** |
+| **#4** | `qwen/qwen3.8-max-0902` | 1.11.5 | **22 / 22** | 15 / 3 / 4 | 52m30s | $2.15 | $0.098 |
+| **#5** | `qwen/qwen3.8-27b` | 1.11.5 | 16 / 18 | 11 / 4 / 3 | 51m04s | $1.65 | $0.103 |
+| **#6** | `z-ai/glm-5.3` | 1.11.5 | 15 / 17 | 10 / 4 / 3 | 52m28s | $2.56 | $0.171 |
+| **#7** | `anthropic/claude-sonnet-5` | 1.11.5 | **7 / 7** | 4 / 2 / 1 | 20m47s | $3.46 | $0.494 |
+| **#8** | `anthropic/claude-opus-5` | 1.11.3 ⚠︎ | **17 / 17** | 11 / 3 / 3 | 27m36s | $10.35 | $0.609 |
+| **#9** | `openai/gpt-6-astra` | 1.11.3 ⚠︎ | **15 / 15** | 8 / 3 / 4 | 23m27s | **$19.58** | $1.305 |
+| **#10** | `anthropic/claude-haiku-4.5` | 1.11.5 | **0 / 2** | 0 / 2 / 0 | 8m13s | $0.58 | — |
 
 <details>
 <summary>Run detail — phases, turns, tokens</summary>
 
 | Model | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `google/gemini-3.8-flash` | 1.11.4 | 7m32s | 2m02s | 5m55s | 173 | 2.9s | 12.5M | 33k | 11.7M | 4/4 |
-| `google/gemini-3.7-flash` | 1.11.4 | 2m48s | 2m00s | 6m03s | 96 | 3.6s | 7.0M | 46k | 6.5M | 4/4 |
-| `z-ai/glm-5.3-flash` | 1.11.4 | 8m30s | 2m04s | 38m05s | 50 | 20.8s | 4.7M | 121k | 3.7M | 4/4 |
-| `z-ai/glm-5.3` | 1.11.4 | 5m09s | 2m02s | 31m11s | 85 | 6.7s | 11.2M | 188k | 10.9M | 4/4 |
-| `qwen/qwen3.8-max-0902` | 1.11.4 | 5m58s | 2m02s | 51m53s | 55 | 24.4s | 5.7M | 130k | 5.4M | 4/4 |
-| `anthropic/claude-opus-5` | 1.11.3 | 3m52s | 2m01s | 21m43s | 64 | 8.9s | 8.4M | 104k | 8.4M | 4/4 |
-| `qwen/qwen3.8-27b` | 1.11.3 | 15m40s | 2m01s | 51m52s | 70 | 39.2s | 13.8M | 193k | 10.1M | 4/4 |
-| `anthropic/claude-sonnet-5` | 1.11.3 | 5m06s | 2m00s | 32m45s | 115 | 13.2s | 17.5M | 140k | 17.5M | 4/4 |
-| `openai/gpt-6-astra` | 1.11.3 | 3m08s | 2m02s | 18m17s | 103 | 4.5s | 11.4M | 54k | 11.4M | 4/4 |
-| `anthropic/claude-haiku-4.5` | 1.11.3 | 0m50s | 2m00s | 7m13s | 54 | 3.7s | 3.6M | 25k | 3.6M | 4/4 |
+| `google/gemini-3.7-flash` | 1.11.5 | 1m12s | 2m01s | 4m55s | 81 | 3.4s | 6.8M | 30k | 6.4M | 4/4 |
+| `google/gemini-3.8-flash` | 1.11.5 | 4m58s | 2m02s | 7m29s | 139 | 3.6s | 11.8M | 53k | 11.0M | 4/4 |
+| `z-ai/glm-5.3-flash` | 1.11.5 | 4m44s | 2m02s | 18m29s | 59 | 13.0s | 5.7M | 114k | 5.3M | 4/4 |
+| `qwen/qwen3.8-max-0902` | 1.11.5 | 11m35s | 2m02s | 38m53s | 38 | 24.6s | 3.8M | 112k | 3.4M | 4/4 |
+| `qwen/qwen3.8-27b` | 1.11.5 | 7m30s | 2m02s | 41m32s | 75 | 35.4s | 11.3M | 123k | 10.4M | 4/4 |
+| `z-ai/glm-5.3` | 1.11.5 | 14m24s | 2m01s | 36m03s | 44 | 13.0s | 4.7M | 173k | 4.2M | 4/4 |
+| `anthropic/claude-sonnet-5` | 1.11.5 | 6m01s | 2m01s | 12m45s | 81 | 9.5s | 9.9M | 65k | 9.9M | 4/4 |
+| `anthropic/claude-opus-5` | 1.11.3 ⚠︎ | 3m52s | 2m01s | 21m43s | 64 | 8.9s | 8.4M | 104k | 8.4M | 4/4 |
+| `openai/gpt-6-astra` | 1.11.3 ⚠︎ | 3m08s | 2m02s | 18m17s | 103 | 4.5s | 11.4M | 54k | 11.4M | 4/4 |
+| `anthropic/claude-haiku-4.5` | 1.11.5 | 1m08s | 2m00s | 5m05s | 45 | 3.6s | 2.6M | 28k | 2.6M | 0/4 |
 
 Token counts are rounded; the exact figures are in each run's pull
 request. Input includes the cached share, so Input and Cache overlap by

@@ -69,6 +69,12 @@ Steps:
      this command: it deploys files into the working tree — `.opencode/`,
      `.agents/skills/`, `opencode.json`, and an edit to `.gitignore` —
      and step 9 has to put the tree back exactly as it was.
+   - **a user-level copy of the package is a second install the run
+     reads.** opencode also discovers `~/.claude/skills/`, and when the
+     package is installed there most runs resolve the scripts through
+     that path rather than the repository's. Diff it against
+     `.apm/skills/` (`diff -rq`, ignoring caches) before launching: an
+     older copy there measures another version than the row claims.
 
 4. **Select the model.** Nothing to configure: the provider is already
    set up (preflight), and the model and effort are passed on the command
@@ -86,7 +92,13 @@ Steps:
    run's orders and its service instance ids sit inside the window this
    run observes, and two rows stop being comparable. Wait for the three
    containers to be healthy and prove it with one request to each of the
-   three services.
+   three services. Only the api declares a healthcheck in the compose
+   file: a wait for three `healthy` containers never ends (one run lost
+   four minutes to it). Wait for the api to be `healthy` and for the
+   other two to answer a request — `GET /health` on the api and the
+   agent, a bare `POST /mcp` on the MCP server, which has no `/health`
+   and answers 400 to say it is up — and retry the probes until all three
+   answer: `Up` is printed before the process listens.
 
 6. **Run the mission.** Record the UTC timestamp **before** launching —
    step 7 needs it to identify the session. Then one headless opencode
@@ -136,6 +148,12 @@ Steps:
    - **the local stack**, because a mission that leaves it unsaid picks
      up whatever backend the configuration happens to carry.
 
+   Every row so far was produced with that text wrapped in a pair of
+   literal double quotes — the first campaign's shell quoting passed them
+   through, and the string opencode received starts and ends with `"`.
+   Keep it byte-identical, quotes included: read it back from a previous
+   run's first user message in the session store rather than retyping it.
+
    Add exactly two things to that line and nothing else: that the
    services' sources are under `.llms-benchmark/src/`, and that you want
    **every kind of anomaly, not only the slow ones** — performance
@@ -170,8 +188,13 @@ Steps:
    - `~/.local/share/opencode/log/opencode.log`, filtered to **this
      run's id** (the `run=<id>` on its `message=init` line; another
      opencode session of the user's writes to the same file, so never
-     read the tail unfiltered). Its last line is the current activity,
-     and its `pattern="..."` entries name the commands being run.
+     read the tail unfiltered). Pick the `init` line whose timestamp is
+     after your launch, never the last one in the file: a watcher armed
+     a few seconds early took the previous run's id and reported that
+     model's activity for a whole poll. Its last line is the current
+     activity, and its `pattern="..."` entries name the commands being
+     run — but some runs alias the script paths in shell variables
+     (`python3 $S counter ...`), so the patterns undercount what ran.
    - **`level=ERROR` in the run's log lines, on every poll.** This is the
      check that matters and it is cheap. A provider can fail a stream and
      leave the connection open: the process stays alive, its child stays
@@ -180,7 +203,15 @@ Steps:
      minutes after two `stream error` lines and a 503, while every
      liveness check said it was working. Treat a stream opened with no
      completion and no new log line for several minutes as a stall, and
-     say so instead of reassuring.
+     say so instead of reassuring — but check the session store before
+     killing anything: the log writes nothing during a stream, and two
+     models of this campaign streamed nothing for six to eight minutes
+     per turn and then completed, three times each, with no error line.
+     The signal that separates the two is the `part` table — count the
+     rows of the run's session tree and read their latest
+     `time_updated`; a stream that is alive keeps adding parts, a stalled
+     one does not. Give a silent turn a bounded wait (ten minutes was
+     enough today) before ruling, and say which case it turned out to be.
    - the process itself: alive, and — past the first minute — with
      children. **Alive with no child and no new log line is the stdin
      hang**, not a slow model. Note the process you launched is a shell
@@ -192,7 +223,10 @@ Steps:
      appears at all — it stayed at zero for the whole of #489's run. The
      scratch directory (under the system temp dir, named after the run)
      fills with the run's query outputs, and its `k6-summary.json` appears
-     when the drive ends. The drive's own boundaries are what step 7
+     when the drive ends. That directory is not always under
+     `$TMPDIR/opencode/`: one run put it under `$TMPDIR/oddyssey/`, next
+     to the gcx context file, and the k6 summary of a synchronous replay
+     lands in `$TMPDIR` itself. The drive's own boundaries are what step 7
      needs; where to read them is settled there.
    - the session in the store (step 7's identification): its `cost` and
      token counters climb while the run works.
@@ -304,7 +338,15 @@ Steps:
      `gcx metrics` / `traces` / `logs` / `profiles` invocations in
      `~/.local/share/opencode/log/opencode.log` for this run's id, and
      corroborate with the run's scratch files, since a run that queries
-     through helper scripts logs fewer invocations than it makes.
+     through helper scripts logs fewer invocations than it makes. The
+     package's `grafana-*.py` scripts are what the runs call now, and the
+     log's `pattern=` is truncated and alias-blind: count in the session
+     store instead — the `part` rows of the tree whose `tool` is `bash`
+     carry the full command — and add the helper scripts' contents. A
+     query that produced nothing does not count: one run wrote
+     `gcx query traces ...` (not a gcx command) and curled ports the
+     stack does not publish, and every output file was empty — that is
+     `0/4`, whatever the draft says it queried.
 
 8. **Grade the report — this is your job, not the model's.**
 
@@ -327,6 +369,16 @@ Steps:
    run produces **no row**: re-run it with the identical mission (changing
    the mission would invalidate every other row), and if it declines
    again, "did not drive the scenario" is its result.
+
+   **A run that drove but never persisted its report still gets a row.**
+   One run drove the scenario, wrote a draft and a findings summary in
+   its scratch directory, told the user the report "has been persisted to
+   the `.odd/` memory", and wrote nothing there — `git log` on the work
+   branch had no commit and the reports directory no new file. Grade the
+   draft and the run's final answer as the report: the grade is of what
+   the model claimed, and it claimed those. Say in the pull request that
+   no report reached `.odd/`, and copy the draft out of the scratch
+   directory before step 9 clears it.
 
    Then read the observation report the run stored under
    `.odd/observe-run-reports/`
@@ -371,6 +423,24 @@ Steps:
    eight-character prefix, which `gcx traces get` does not accept: resolve
    the prefix against a `gcx traces query` listing first.
 
+   **A missing child span needs a structural query.** A TraceQL
+   conjunction inside one pair of braces — `{ name = "POST /orders" &&
+   span.db.system.name = "sqlite" }` — matches a single span carrying
+   both, so it returns zero whether or not the request has a database
+   child. Three reports cited exactly that query as their evidence for
+   an untraced write path; it happened to be right, but the query proved
+   nothing. Rule such a finding on the structural form, `{ name = "POST
+   /orders" } >> { span.db.system.name = "sqlite" }`, against a sibling
+   route known to carry the child.
+
+   **Re-read a raw attribute before ruling on a run's parser.** Two
+   findings of this campaign came from a run's own attribute reader: one
+   declared `gen_ai.response.finish_reasons` empty on every chat span
+   because its reader handled string, int and double values and rendered
+   the array as `""`; another counted an `order created` log line twice
+   because its `grep -c` also matched the query echo the script appends
+   to its own extract. Both looked like store facts and neither was.
+
    A finding is confirmed when both checks hold. It is not confirmed when
    the evidence does not support it, when the cited query returns
    something else, when the code does not do that, or when the finding is
@@ -405,7 +475,12 @@ Steps:
      the observation report carry into the repository. The directory is
      the same hazard with none of the protection, so clear it, and clear
      it after the run rather than during — the run writes its own k6
-     summary there.
+     summary there. Clear the run directories under `$TMPDIR/oddyssey/`
+     too (every directory there; the gcx context files stay), and the
+     `k6-summary-*.json` files a synchronous replay leaves in `$TMPDIR`
+     itself: one run wrote its whole scratch under `$TMPDIR/oddyssey/`,
+     beside a directory an earlier session had left there four days
+     before — with that session's `report.md` inside it.
    - delete the untracked files step 3's install created and revert its
      edits to tracked files, against the `git status --porcelain` you
      recorded — leave anything that existed before untouched, the
