@@ -751,7 +751,8 @@ Steps:
    - **delete the run's scratch directory under the system temp dir**
      (`$TMPDIR/opencode/`, and `/tmp/llmbench-*`, `/tmp/oddyssey-scratch/`
      or `/tmp/oddyssey-scratchpad/` for a `claude` run, `$TMPDIR/oddyssey/`
-     for a `copilot` run),
+     or `/tmp/oddyssey/` for a `copilot` run — one run of that CLI wrote
+     under each),
      every run's, not only this one's. Runs name
      that directory themselves and the names collide: one run of #505
      picked a name an earlier session had already used and inherited 248
