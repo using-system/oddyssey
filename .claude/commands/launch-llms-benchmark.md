@@ -63,8 +63,11 @@ Steps:
        **user scope** for Claude Code — `~/.claude/commands/odd-observe.md`,
        `~/.claude/agents/observe-run.md`, `~/.claude/skills/<the nine
        skills>` — and each body is identical to its `.apm/` source at
-       `HEAD` (compare below the frontmatter: `.apm/prompts/`, `.apm/agents/`,
-       `.apm/skills/`); the oddyssey MCP server is in the user's Claude
+       `HEAD`: compare below the frontmatter against
+       `.apm/prompts/<name>.prompt.md`, `.apm/agents/<name>.agent.md`
+       and `.apm/skills/<name>/` — the suffixes matter: a diff against a
+       path that does not exist compares two empty streams and reports
+       them identical; the oddyssey MCP server is in the user's Claude
        configuration (`~/.claude.json`, `mcpServers` carries `oddyssey` —
        the name only, never its contents); and a smoke run answers with a
        result naming the model:
@@ -359,8 +362,9 @@ Steps:
      largest value. **Cache writes carry two prices**: `usage.cache_creation`
      splits `cache_creation_input_tokens` into `ephemeral_5m_input_tokens`
      and `ephemeral_1h_input_tokens`, and the one-hour tier costs more
-     (for `claude-haiku-4-5`: $1.25/M and $2.00/M; input $1.00/M, output
-     $5.00/M, cache read $0.10/M). Summed per tier, the reconstruction
+     (for `claude-haiku-4-5`: 1.25 and 2.00 USD per million; input 1.00,
+     output 5.00, cache read 0.10 USD per million). Summed per tier, the
+     reconstruction
      matched `total_cost_usd` to the last digit on the run of #534; a
      flat write rate lands short and looks like a mismatch.
    - **turns** = the distinct `requestId` values across the tree;
@@ -500,7 +504,16 @@ Steps:
    could not start a stack that was already running and answering. That
    run produces **no row**: re-run it with the identical mission (changing
    the mission would invalidate every other row), and if it declines
-   again, "did not drive the scenario" is its result.
+   again, "did not drive the scenario" is its result. Two more shapes of
+   declining, both seen on one model through `claude`: a run that stops
+   to **ask the user's consent** for the scenario's paid model calls —
+   under `-p` nobody answers, and the run ends with a question instead
+   of a drive; and a run that **writes traffic of its own** in place of
+   the stored scenario to avoid those calls (a curl loop over the free
+   routes, no k6, no assistant scenario). The second grades the traffic,
+   not the model, exactly what the stored scenario exists to prevent; it
+   is a decline, whatever report it goes on to write, and it can be
+   stopped by its PID as soon as its drive script shows what it is.
 
    **A run that drove but never persisted its report still gets a row.**
    One run drove the scenario, wrote a draft and a findings summary in
@@ -597,7 +610,8 @@ Steps:
      Leave the oddyssey stack up — it is the user's, and it was probably
      up before the run.
    - **delete the run's scratch directory under the system temp dir**
-     (`$TMPDIR/opencode/`, and `/tmp/llmbench-*` for a `claude` run),
+     (`$TMPDIR/opencode/`, and `/tmp/llmbench-*` or
+     `/tmp/oddyssey-scratch/` for a `claude` run),
      every run's, not only this one's. Runs name
      that directory themselves and the names collide: one run of #505
      picked a name an earlier session had already used and inherited 248
@@ -708,6 +722,12 @@ Steps:
     gets wrong.
 
     Hand the PR back to the user. Do not merge it.
+
+    **Never write a dollar sign followed by a digit in this file.** The
+    command's text is expanded with its arguments before the model reads
+    it, and `$1`, `$2`, `$0` are positional substitutions: a price
+    written `$1.25/M` reached the run as the first argument's text with
+    `.25/M` appended. Write prices as `1.25 USD per million`.
 
 11. **Amend this command when the run taught it something.** An install
     step that needed another flag, a configuration key that moved, a
