@@ -505,9 +505,14 @@ Steps:
     - From `main`, freshly pulled, create
       `docs/llms-benchmark-<model-slug>` and make **one** change: the
       model's row in the results table of `.llms-benchmark/README.md`.
-      The model is not in the table yet → append the row; already there →
-      replace that row in place. The table carries no history: one row
-      per model, always the latest run.
+      **A row is identified by model and CLI together.** The pair is
+      not in the table yet → append the row; already there → replace
+      that row in place. The same model driven through two CLIs is two
+      rows (`google/gemini-3.7-flash` under `opencode` and under another
+      CLI both appear); the oddyssey version is not part of the key — a
+      new run of the same model on the same CLI overwrites the row,
+      whatever version the old one carried. The table carries no
+      history: one row per model and CLI, always the latest run.
 
     **Two tables, not one.** Seventeen columns scroll the model name off
     the screen and the rows stop being readable, and GitHub keeps no CSS

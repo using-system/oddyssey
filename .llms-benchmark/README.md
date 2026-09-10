@@ -3,8 +3,9 @@
 A ranking, to pick the model you run the loop with.
 
 Each model observes the same running stack through the same replayed
-traffic, and its report is graded on evidence. One model, one run, one
-row. The protocol is fixed and the only variable is the model.
+traffic, and its report is graded on evidence. One model on one CLI, one
+run, one row. The protocol is fixed and the only variables are the model
+and the CLI it is driven through.
 
 ## Results
 
@@ -84,6 +85,10 @@ grading honesty down would only teach models to hide it.
 **CLI** is the coding-agent CLI the mission ran in — `opencode` for every
 row so far; its version is in each run's pull request, since two runs of
 one model under different CLI versions are not the same measurement.
+Model and CLI together identify a row: the same model driven through two
+CLIs is two rows. The oddyssey version is not part of that identity — a
+new run of a model on the same CLI replaces its row, whatever version the
+old row was measured under.
 
 **Signals** is how many of the four — metrics, traces, logs, profiles —
 the run actually queried. It is not part of the grade; it is what the
@@ -129,7 +134,8 @@ subagent, and that subagent is usually the larger half of the bill.
 - **Cost** is the provider's own billed figure, cross-checked against its
   published per-token prices before it is written down.
 
-The table carries no history: one row per model, always its latest run.
+The table carries no history: one row per model and CLI, always its
+latest run.
 
 ## How a row is produced
 
