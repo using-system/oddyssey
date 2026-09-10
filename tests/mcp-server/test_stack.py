@@ -101,6 +101,7 @@ def test_stack_status_all_ready(monkeypatch):
         "tempo": True,
         "loki": True,
         "pyroscope": True,
+        "daemon": "ok",
         "image": None,
         "created": None,
         "started": None,
@@ -121,6 +122,7 @@ def test_stack_status_down_is_not_an_error(monkeypatch):
         "tempo": False,
         "loki": False,
         "pyroscope": False,
+        "daemon": "ok",
         "image": None,
         "created": None,
         "started": None,
@@ -1201,3 +1203,145 @@ def test_stack_reset_defers_the_flush_to_the_recreated_store(monkeypatch):
     stack.stack_reset()
 
     assert flushes == []
+
+
+CONNECT_ERROR_STDERR = (
+    "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. "
+    "Is the docker daemon running?"
+)
+
+
+def test_stack_status_daemon_ok_field(monkeypatch):
+    # Issue #521: a healthy daemon is reachable even with no container -
+    # the status carries "daemon": "ok" alongside the identity fields.
+    _no_container(monkeypatch)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200)
+
+    status = stack_status(transport=httpx.MockTransport(handler))
+    assert status["daemon"] == "ok"
+    assert "daemon_remedy" not in status
+
+
+def test_stack_status_daemon_unreachable_on_hung_daemon(monkeypatch):
+    # A hung daemon surfaces as a bounded TimeoutExpired, never an MCP
+    # timeout: the status is the stack-down shape with the remedy, and
+    # the readiness probes are never reached.
+    def hung_run(argv, **kwargs):
+        raise subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
+
+    monkeypatch.setattr(stack.subprocess, "run", hung_run)
+    monkeypatch.setattr(
+        stack,
+        "_readiness",
+        lambda *args, **kwargs: pytest.fail("probes ran on a hung daemon"),
+    )
+
+    status = stack_status()
+
+    assert status["running"] is False
+    assert status["daemon"] == "unreachable"
+    assert status["daemon_remedy"] == stack.DAEMON_REMEDY
+    assert status["image"] is None
+    assert status["created"] is None
+    assert status["started"] is None
+    assert status["env"] is None
+
+
+def test_stack_status_daemon_unreachable_on_connect_error(monkeypatch):
+    # A dead socket fails fast with the CLI's own connection error: same
+    # down-shaped result as the hung daemon.
+    def dead_run(argv, **kwargs):
+        return subprocess.CompletedProcess(
+            argv, 1, stdout="", stderr=CONNECT_ERROR_STDERR
+        )
+
+    monkeypatch.setattr(stack.subprocess, "run", dead_run)
+    monkeypatch.setattr(
+        stack,
+        "_readiness",
+        lambda *args, **kwargs: pytest.fail("probes ran on a dead daemon"),
+    )
+
+    status = stack_status()
+
+    assert status["running"] is False
+    assert status["daemon"] == "unreachable"
+    assert status["daemon_remedy"] == stack.DAEMON_REMEDY
+    assert status["image"] is None
+    assert status["env"] is None
+
+
+def test_stack_up_refuses_when_daemon_unreachable(monkeypatch):
+    # The first docker touch raises: up refuses with the one-line remedy
+    # instead of blocking until the host's MCP timeout.
+    def dead_docker(*args, **kwargs):
+        raise stack.DaemonUnreachable(stack.DAEMON_REMEDY)
+
+    monkeypatch.setattr(stack, "_docker", dead_docker)
+
+    with pytest.raises(RuntimeError, match="the Docker daemon does not answer"):
+        stack.stack_up({})
+
+
+def test_stack_reset_refuses_when_daemon_unreachable(monkeypatch):
+    # Same refusal for reset: nothing is wiped when the daemon is down.
+    def dead_docker(*args, **kwargs):
+        raise stack.DaemonUnreachable(stack.DAEMON_REMEDY)
+
+    monkeypatch.setattr(stack, "_docker", dead_docker)
+
+    with pytest.raises(RuntimeError, match="the Docker daemon does not answer"):
+        stack.stack_reset({})
+
+
+def test_container_state_absent_survives_non_connect_errors(monkeypatch):
+    # The critical line: "No such object" still means an absent
+    # container, never a daemon refusal - only the CLI's own
+    # connection errors raise.
+    monkeypatch.setattr(
+        stack.subprocess,
+        "run",
+        lambda argv, **kwargs: subprocess.CompletedProcess(
+            argv, 1, stdout="", stderr="Error: No such object: oddyssey-lgtm"
+        ),
+    )
+    assert stack._container_state() == "absent"
+
+    monkeypatch.setattr(
+        stack.subprocess,
+        "run",
+        lambda argv, **kwargs: subprocess.CompletedProcess(
+            argv, 1, stdout="", stderr=CONNECT_ERROR_STDERR
+        ),
+    )
+    with pytest.raises(stack.DaemonUnreachable):
+        stack._container_state()
+
+
+def test_docker_call_honors_its_timeout(monkeypatch):
+    # The bounded core passes the requested timeout through to
+    # subprocess.run, and converts a hang into the daemon refusal.
+    seen: dict = {}
+
+    def fake_run(argv, **kwargs):
+        seen["timeout"] = kwargs.get("timeout")
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(stack.subprocess, "run", fake_run)
+
+    result = stack._docker("inspect", "--format", "{{.State.Running}}", CONTAINER_NAME)
+
+    assert result.returncode == 0
+    assert seen["timeout"] == stack.DOCKER_CALL_TIMEOUT_S
+
+    def hung_run(argv, **kwargs):
+        seen["run_timeout"] = kwargs.get("timeout")
+        raise subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
+
+    monkeypatch.setattr(stack.subprocess, "run", hung_run)
+
+    with pytest.raises(stack.DaemonUnreachable):
+        stack._docker("inspect", "--format", "{{.State.Running}}", CONTAINER_NAME)
+    assert seen["run_timeout"] == stack.DOCKER_CALL_TIMEOUT_S

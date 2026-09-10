@@ -81,6 +81,24 @@ def _proxy(uid: str, path: str, ports: dict | None = None) -> str:
 
 STARTUP_TIMEOUT_S = 120
 POLL_INTERVAL_S = 2
+DOCKER_CALL_TIMEOUT_S = 5.0
+DOCKER_RUN_TIMEOUT_S = 60.0
+
+DAEMON_REMEDY = "the Docker daemon does not answer - restart Docker Desktop and retry"
+
+
+class DaemonUnreachable(RuntimeError):
+    """The Docker daemon does not answer - the call was bounded, not hung."""
+
+
+def _daemon_connect_error(stderr: str) -> bool:
+    lowered = (stderr or "").lower()
+    return (
+        "cannot connect to the docker daemon" in lowered
+        or "error during connect" in lowered
+        or "is the docker daemon running" in lowered
+    )
+
 
 # Widest lookback each backend accepts for the pre-wipe service listing:
 # requests beyond the cap are rejected outright (not clamped), so the
@@ -194,7 +212,38 @@ def run_args(env: dict[str, str] | None = None) -> list[str]:
     ]
 
 
-def _docker(*args: str, image: str | None = None) -> subprocess.CompletedProcess:
+def _run_bounded(
+    argv: list[str], timeout_s: float, span
+) -> subprocess.CompletedProcess:
+    """Run one docker argv with a bound; a hung daemon is a refusal, not a hang.
+
+    A timeout means the daemon hung; a nonzero exit carrying the CLI's own
+    daemon-connection error means the socket is dead. Both raise
+    DaemonUnreachable with the one-line remedy. Every other nonzero exit
+    (e.g. "No such object" on an absent container) returns normally so
+    callers keep their absent/None degradations.
+    """
+    try:
+        result = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout_s,
+        )
+    except subprocess.TimeoutExpired:
+        raise DaemonUnreachable(DAEMON_REMEDY) from None
+    if result.returncode != 0 and _daemon_connect_error(result.stderr):
+        raise DaemonUnreachable(DAEMON_REMEDY) from None
+    span.set_attribute("oddyssey.docker.exit_code", result.returncode)
+    return result
+
+
+def _docker(
+    *args: str,
+    image: str | None = None,
+    timeout_s: float = DOCKER_CALL_TIMEOUT_S,
+) -> subprocess.CompletedProcess:
     """Run one docker command inside its span.
 
     image names the subject of the call when the operation acts on an
@@ -208,14 +257,7 @@ def _docker(*args: str, image: str | None = None) -> subprocess.CompletedProcess
     else:
         span_context = telemetry.docker_span(f"{args[0]}-{args[1]}", image=image)
     with span_context as span:
-        result = subprocess.run(
-            ["docker", *args],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        span.set_attribute("oddyssey.docker.exit_code", result.returncode)
-        return result
+        return _run_bounded(["docker", *args], timeout_s, span)
 
 
 def _container_state() -> str:
@@ -397,20 +439,46 @@ def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
     value never leaves the server). Absent or unreadable container:
     all four identity fields are None (env included - "no container"
     and "no user env" are different facts).
+
+    daemon is "ok" when the Docker daemon answers; when it does not
+    (issue #521), the result is the stack-down shape with
+    daemon "unreachable" plus daemon_remedy, the one-line remedy.
     """
-    identity = _container_identity()
-    user_env = container_user_env()
-    env = (
-        {k: (None if _sensitive_env(k) else v) for k, v in user_env.items()}
-        if user_env is not None
-        else None
-    )
+    try:
+        identity = _container_identity()
+        user_env = container_user_env()
+    except DaemonUnreachable as exc:
+        remedy = str(exc)
+    except subprocess.TimeoutExpired:
+        # A bounded docker call that surfaces its timeout directly (e.g.
+        # a stubbed _docker in tests) is the same hung daemon.
+        remedy = DAEMON_REMEDY
+    else:
+        env = (
+            {k: (None if _sensitive_env(k) else v) for k, v in user_env.items()}
+            if user_env is not None
+            else None
+        )
+        return {
+            **_readiness(transport),
+            "daemon": "ok",
+            "image": identity["image"] if identity else None,
+            "created": identity["created"] if identity else None,
+            "started": identity["started"] if identity else None,
+            "env": env,
+        }
     return {
-        **_readiness(transport),
-        "image": identity["image"] if identity else None,
-        "created": identity["created"] if identity else None,
-        "started": identity["started"] if identity else None,
-        "env": env,
+        "running": False,
+        "prometheus": False,
+        "tempo": False,
+        "loki": False,
+        "pyroscope": False,
+        "daemon": "unreachable",
+        "daemon_remedy": remedy,
+        "image": None,
+        "created": None,
+        "started": None,
+        "env": None,
     }
 
 
@@ -471,10 +539,7 @@ def stack_up(
         reapplied = persisted_env()
         user_env = {**reapplied, **(env or {})}
         with telemetry.docker_span("run", container=CONTAINER_NAME) as span:
-            result = subprocess.run(
-                run_args(user_env), capture_output=True, text=True, check=False
-            )
-            span.set_attribute("oddyssey.docker.exit_code", result.returncode)
+            result = _run_bounded(run_args(user_env), DOCKER_RUN_TIMEOUT_S, span)
         if result.returncode != 0:
             raise RuntimeError(f"docker run failed: {result.stderr.strip()}")
         created = True
