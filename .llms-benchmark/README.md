@@ -9,6 +9,14 @@ and the CLI it is driven through.
 
 ## Results
 
+One section per observation depth. **Full** queries all four signals;
+**quick** queries metrics and traces only, so a quick row can reach
+performance anomalies and little else, and is ranked among quick rows,
+never against the full ones. Within a section, one row per model and
+CLI, always its latest run.
+
+### Full report
+
 | Rank | Model | CLI | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | **#1** | `google/gemini-3.7-flash` | opencode | 1.11.5 | **10 / 10** | 3 / 6 / 1 | **8m08s** | $0.95 | $0.095 |
@@ -49,6 +57,19 @@ and the CLI it is driven through.
 Token counts are rounded; the exact figures are in each run's pull
 request. Input includes the cached share, so Input and Cache overlap by
 design.
+
+</details>
+
+### Quick report
+
+| Rank | Model | CLI | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+
+<details>
+<summary>Run detail — phases, turns, tokens</summary>
+
+| Model | CLI | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 
 </details>
 
@@ -150,14 +171,17 @@ latest run.
 ## How a row is produced
 
 ```text
-/launch-llms-benchmark opencode anthropic/claude-sonnet-5
-/launch-llms-benchmark claude anthropic/claude-haiku-4.5
+/launch-llms-benchmark opencode anthropic/claude-sonnet-5 full
+/launch-llms-benchmark claude anthropic/claude-haiku-4.5 full
+/launch-llms-benchmark opencode google/gemini-3.7-flash quick
 ```
 
-The CLI and the model id are the only arguments — `opencode` for any
-model OpenRouter serves, `claude` for Anthropic's models through Claude
-Code's headless mode; the model is always written in the same
-`vendor/name` form, so one model's rows line up. The credentials are
+The CLI, the model id and the depth are the only arguments — `opencode`
+for any model OpenRouter serves, `claude` for Anthropic's models through
+Claude Code's headless mode; the model always written in the same
+`vendor/name` form, so one model's rows line up; `full` or `quick`, the
+observation depth, which picks the results section the row lands in.
+The credentials are
 prerequisites you set up once and the command never asks for: an
 OpenRouter provider configured in opencode, or a Claude Code login and
 the package installed at user scope for it, and an `OPENAI_API_KEY` in
@@ -175,7 +199,7 @@ adding or replacing the row. What it does:
    one session.
 3. Gives it one mission — a single `/odd-observe` invocation naming the
    three services, the stored scenario `benchmark/llmbench-store-load/`,
-   **full** depth and the **local** stack — states that the scenario's
+   the **depth** you named and the **local** stack — states that the scenario's
    paid model calls are accepted, and asks for every kind of
    anomaly, not only the slow ones: performance, outright errors, wrong
    behavior, and telemetry that is missing or lying. Each of the four is

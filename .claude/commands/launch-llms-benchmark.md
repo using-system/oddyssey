@@ -16,12 +16,16 @@ the same way you would grade a colleague's incident report.
 
 - Arguments: $ARGUMENTS
 - Expected fields, in this order: the **CLI** the mission runs in —
-  `opencode` or `claude` — and the **model** to benchmark, as its
+  `opencode` or `claude`; the **model** to benchmark, as its
   canonical `vendor/name` id, the OpenRouter form
   (`anthropic/claude-sonnet-5`, `openai/gpt-5-mini`,
-  `google/gemini-3.5-flash-lite`, ...). Those are the only two inputs.
-  Ask for whichever is missing and stop until you have both. The pair
-  identifies the row (step 10): the same model on two CLIs is two rows.
+  `google/gemini-3.5-flash-lite`, ...); and the **depth** of the
+  observation, `full` or `quick` — the `/odd-observe` depth the mission
+  names, and the section of the results page the row lands in (step
+  10). Those are the only three inputs. Ask for whichever is missing and
+  stop until you have all three. Model and CLI identify the row inside
+  its depth's tables: the same model on two CLIs is two rows, and the
+  same model and CLI at two depths is one row in each section.
 - The model id is written the same way whatever the CLI, so the two
   rows of one model line up. Each CLI is handed its own form of it:
   `opencode` takes it as `openrouter/<model>`; `claude` takes Anthropic
@@ -214,19 +218,24 @@ Steps:
    ```text
    /odd-observe observe the three services llmbench-api, llmbench-mcp and
    llmbench-agent by running .llms-benchmark/benchmark/llmbench-store-load/
-   at full depth on the local stack
+   at <depth> depth on the local stack
    ```
 
-   Each of the four is named on purpose:
+   where `<depth>` is the `full` or `quick` you were given, and nothing
+   else in the line changes between the two. Each of the four is named
+   on purpose:
    - **the three services**, so the mission never has to guess its own
      scope from what happens to be running on the machine, and so the
      report's frontmatter carries all three;
    - **the scenario**, because every row of the table was produced from
      that same replayed traffic, and an ad-hoc one would grade the
      traffic instead of the model;
-   - **full depth**, because `quick` queries metrics and traces only: a
-     run under it can reach performance anomalies and nothing else,
-     whatever the model is worth;
+   - **the depth**, because the two are not the same observation:
+     `quick` queries metrics and traces only, so a run under it can
+     reach performance anomalies and little else, whatever the model is
+     worth, and its rows are comparable with each other and not with
+     the `full` rows — which is why the results page keeps one section
+     per depth;
    - **the local stack**, because a mission that leaves it unsaid picks
      up whatever backend the configuration happens to carry.
 
@@ -677,15 +686,21 @@ Steps:
       that closes it. This is a step, not a fallback.
     - From `main`, freshly pulled, create
       `docs/llms-benchmark-<cli>-<model-slug>` and make **one** change:
-      the row in the results table of `.llms-benchmark/README.md`.
-      **A row is identified by model and CLI together.** The pair is
-      not in the table yet → append the row; already there → replace
+      the row in the results tables of `.llms-benchmark/README.md`.
+      **The depth picks the section** — `## Results` holds a `### Full
+      report` subsection and a `### Quick report` subsection, each with
+      the two tables below, and a `full` run's row goes in the first,
+      a `quick` run's in the second. **Inside a section a row is
+      identified by model and CLI together.** The pair is not in that
+      section's table yet → append the row; already there → replace
       that row in place. The same model driven through two CLIs is two
       rows (`google/gemini-3.7-flash` under `opencode` and under another
-      CLI both appear); the oddyssey version is not part of the key — a
-      new run of the same model on the same CLI overwrites the row,
-      whatever version the old one carried. The table carries no
-      history: one row per model and CLI, always the latest run.
+      CLI both appear), and the same model and CLI at both depths is one
+      row in each section; the oddyssey version is not part of the key —
+      a new run of the same model, CLI and depth overwrites the row,
+      whatever version the old one carried. Each section carries no
+      history: one row per model and CLI, always the latest run. A
+      section's rank is its own: a quick row is ranked among quick rows.
 
     **Two tables, not one.** Seventeen columns scroll the model name off
     the screen and the rows stop being readable, and GitHub keeps no CSS
