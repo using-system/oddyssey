@@ -63,6 +63,17 @@ other CLIs (Codex, opencode, Cursor, Windsurf, Kiro, Gemini) install
 via APM above. opencode and Cursor install into the current
 repository only — leave `--global` out.
 
+## Which model/CLI to use?
+
+A ranking of models and coding-agent CLIs on the loop's own work is kept
+in [`.llms-benchmark/`](.llms-benchmark/README.md): each model observes
+the same running stack through the same replayed traffic, driven through
+one CLI (opencode, Claude Code or Copilot CLI), and its report is graded
+on evidence — of what it claimed, how much held up. One model on one CLI
+is one row, so the same model under two CLIs compares directly. The
+table carries the findings, the cost and the duration of every run, so
+you can pick on the axis that matters to you.
+
 ## The idea
 
 ODD complements Spec-Driven Development: observe a running service — local
@@ -312,15 +323,6 @@ to fetch the code a mission needs to read.
   is a universal input: feed it to any spec-driven framework for the
   spec-and-implement wave, turn it into JIRA tickets, or hand it to a
   human — what happens next stays your call.
-
-## Which model to use?
-
-A ranking of models on the loop's own work is kept in
-[`.llms-benchmark/`](.llms-benchmark/README.md): each one observes the
-same running stack through the same replayed traffic, and its report is
-graded on evidence — of what it claimed, how much held up. The table
-carries the findings, the cost and the duration of every run, so you can
-pick on the axis that matters to you.
 
 ## Prerequisites
 

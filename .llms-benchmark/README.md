@@ -1,45 +1,87 @@
-# Which LLM can run oddyssey?
+# Which LLM? Which CLI?
 
-A ranking, to pick the model you run the loop with.
+A ranking, to pick the model you run the loop with and the coding-agent
+CLI you drive it through.
 
 Each model observes the same running stack through the same replayed
-traffic, and its report is graded on evidence. One model, one run, one
-row. The protocol is fixed and the only variable is the model.
+traffic, and its report is graded on evidence. One model on one CLI, one
+run, one row: the same model under two CLIs is two rows, ranked against
+each other like any other pair. The protocol is fixed and the only
+variables are the model and the CLI.
 
 ## Results
 
-| Rank | Model | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| **#1** | `google/gemini-3.8-flash` | 1.11.4 | **8 / 8** | 4 / 3 / 1 | 15m29s | $1.66 | $0.207 |
-| **#2** | `google/gemini-3.7-flash` | 1.11.4 | 5 / 6 | 3 / 2 / 0 | **10m51s** | $1.07 | $0.213 |
-| **#3** | `z-ai/glm-5.3-flash` | 1.11.4 | 11 / 12 | 6 / 4 / 1 | 48m39s | **$0.16** | **$0.015** |
-| **#4** | `z-ai/glm-5.3` | 1.11.4 | **16 / 16** | 10 / 4 / 2 | 38m22s | $4.02 | $0.251 |
-| **#5** | `qwen/qwen3.8-max-0902` | 1.11.4 | 13 / 14 | 9 / 3 / 1 | 59m53s | $2.74 | $0.211 |
-| **#6** | `anthropic/claude-opus-5` | 1.11.3 | **17 / 17** | 11 / 3 / 3 | 27m36s | $10.35 | $0.609 |
-| **#7** | `qwen/qwen3.8-27b` | 1.11.3 | 15 / 15 | 7 / 4 / 4 | 1h09m33s | $3.01 | $0.201 |
-| **#8** | `anthropic/claude-sonnet-5` | 1.11.3 | 8 / 8 | 4 / 3 / 1 | 39m51s | $5.81 | $0.726 |
-| **#9** | `openai/gpt-6-astra` | 1.11.3 | 15 / 15 | 8 / 3 / 4 | 23m27s | **$19.58** | $1.305 |
-| **#10** | `anthropic/claude-haiku-4.5` | 1.11.3 | **2 / 7** | 1 / 1 / 0 | **10m03s** | $0.64 | $0.320 |
+One section per observation depth. **Full** queries all four signals;
+**quick** queries metrics and traces only, so a quick row can reach
+performance anomalies and little else, and is ranked among quick rows,
+never against the full ones. Within a section, one row per model and
+CLI, always its latest run.
+
+### Full report
+
+| Rank | Model | CLI | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **#1** | `deepseek/deepseek-v4.1-flash` | opencode | 1.11.5 | 14 / 15 | 9 / 4 / 1 | 13m06s | **$0.11** | **$0.008** |
+| **#2** | `openai/gpt-5.6-luna` | copilot | 1.11.5 | **9 / 9** | 5 / 3 / 1 | 9m41s | $0.17 | $0.019 |
+| **#3** | `google/gemini-3.7-flash` | opencode | 1.11.5 | **10 / 10** | 3 / 6 / 1 | **8m08s** | $0.95 | $0.095 |
+| **#4** | `openai/gpt-5.6-sol` | copilot | 1.11.5 | **13 / 13** | 9 / 3 / 1 | 11m40s | $3.33 | $0.256 |
+| **#5** | `openai/gpt-5.6-terra` | copilot | 1.11.5 | 13 / 15 | 10 / 2 / 1 | 14m20s | $1.80 | $0.139 |
+| **#6** | `google/gemini-3.8-flash` | opencode | 1.11.5 | **9 / 9** | 4 / 4 / 1 | 14m29s | $1.61 | $0.179 |
+| **#7** | `anthropic/claude-opus-5` | claude | 1.11.5 | **22 / 22** | 14 / 3 / 5 | 19m51s | $5.54 | $0.252 |
+| **#8** | `anthropic/claude-fable-5.1` | claude | 1.11.5 | **18 / 18** | 10 / 6 / 2 | 17m29s | $7.48 | $0.416 |
+| **#9** | `z-ai/glm-5.3-flash` | opencode | 1.11.5 | 15 / 16 | 8 / 3 / 5 | 25m15s | $0.14 | $0.009 |
+| **#10** | `qwen/qwen3.8-max-0902` | opencode | 1.11.5 | **22 / 22** | 15 / 3 / 4 | 52m30s | $2.15 | $0.098 |
+| **#11** | `qwen/qwen3.8-27b` | opencode | 1.11.5 | 16 / 18 | 11 / 4 / 3 | 51m04s | $1.65 | $0.103 |
+| **#12** | `z-ai/glm-5.3` | opencode | 1.11.5 | 15 / 17 | 10 / 4 / 3 | 52m28s | $2.56 | $0.171 |
+| **#13** | `anthropic/claude-sonnet-5` | claude | 1.11.5 | **7 / 7** | 4 / 3 / 0 | 16m01s | $3.22 | $0.459 |
+| **#14** | `anthropic/claude-sonnet-5` | opencode | 1.11.5 | **7 / 7** | 4 / 2 / 1 | 20m47s | $3.46 | $0.494 |
+| **#15** | `anthropic/claude-haiku-4.5` | claude | 1.11.5 | **2 / 5** | 0 / 5 / 0 | 10m13s | $0.79 | $0.393 |
+| **#16** | `anthropic/claude-haiku-4.5` | opencode | 1.11.5 | **0 / 2** | 0 / 2 / 0 | 8m13s | $0.58 | — |
 
 <details>
 <summary>Run detail — phases, turns, tokens</summary>
 
-| Model | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `google/gemini-3.8-flash` | 1.11.4 | 7m32s | 2m02s | 5m55s | 173 | 2.9s | 12.5M | 33k | 11.7M | 4/4 |
-| `google/gemini-3.7-flash` | 1.11.4 | 2m48s | 2m00s | 6m03s | 96 | 3.6s | 7.0M | 46k | 6.5M | 4/4 |
-| `z-ai/glm-5.3-flash` | 1.11.4 | 8m30s | 2m04s | 38m05s | 50 | 20.8s | 4.7M | 121k | 3.7M | 4/4 |
-| `z-ai/glm-5.3` | 1.11.4 | 5m09s | 2m02s | 31m11s | 85 | 6.7s | 11.2M | 188k | 10.9M | 4/4 |
-| `qwen/qwen3.8-max-0902` | 1.11.4 | 5m58s | 2m02s | 51m53s | 55 | 24.4s | 5.7M | 130k | 5.4M | 4/4 |
-| `anthropic/claude-opus-5` | 1.11.3 | 3m52s | 2m01s | 21m43s | 64 | 8.9s | 8.4M | 104k | 8.4M | 4/4 |
-| `qwen/qwen3.8-27b` | 1.11.3 | 15m40s | 2m01s | 51m52s | 70 | 39.2s | 13.8M | 193k | 10.1M | 4/4 |
-| `anthropic/claude-sonnet-5` | 1.11.3 | 5m06s | 2m00s | 32m45s | 115 | 13.2s | 17.5M | 140k | 17.5M | 4/4 |
-| `openai/gpt-6-astra` | 1.11.3 | 3m08s | 2m02s | 18m17s | 103 | 4.5s | 11.4M | 54k | 11.4M | 4/4 |
-| `anthropic/claude-haiku-4.5` | 1.11.3 | 0m50s | 2m00s | 7m13s | 54 | 3.7s | 3.6M | 25k | 3.6M | 4/4 |
+| Model | CLI | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `deepseek/deepseek-v4.1-flash` | opencode | 1.11.5 | 2m28s | 2m02s | 8m36s | 52 | 7.9s | 5.0M | 96k | 4.8M | 4/4 |
+| `openai/gpt-5.6-luna` | copilot | 1.11.5 | 1m47s | 2m00s | 5m54s | 52 | 3.9s | 4.7M | 33k | 4.7M | 4/4 |
+| `openai/gpt-5.6-terra` | copilot | 1.11.5 | 1m45s | 2m02s | 10m33s | 44 | 5.3s | 3.9M | 49k | 3.9M | 4/4 |
+| `openai/gpt-5.6-sol` | copilot | 1.11.5 | 2m16s | 2m02s | 7m22s | 46 | 7.0s | 4.0M | 32k | 3.8M | 4/4 |
+| `google/gemini-3.7-flash` | opencode | 1.11.5 | 1m12s | 2m01s | 4m55s | 81 | 3.4s | 6.8M | 30k | 6.4M | 4/4 |
+| `google/gemini-3.8-flash` | opencode | 1.11.5 | 4m58s | 2m02s | 7m29s | 139 | 3.6s | 11.8M | 53k | 11.0M | 4/4 |
+| `anthropic/claude-opus-5` | claude | 1.11.5 | 2m52s | 2m02s | 14m57s | 43 | 4.4s | 4.2M | 70k | 4.2M | 4/4 |
+| `anthropic/claude-fable-5.1` | claude | 1.11.5 | 2m55s | 2m02s | 12m32s | 30 | 5.5s | 2.9M | 56k | 2.9M | 4/4 |
+| `z-ai/glm-5.3-flash` | opencode | 1.11.5 | 4m44s | 2m02s | 18m29s | 59 | 13.0s | 5.7M | 114k | 5.3M | 4/4 |
+| `qwen/qwen3.8-max-0902` | opencode | 1.11.5 | 11m35s | 2m02s | 38m53s | 38 | 24.6s | 3.8M | 112k | 3.4M | 4/4 |
+| `qwen/qwen3.8-27b` | opencode | 1.11.5 | 7m30s | 2m02s | 41m32s | 75 | 35.4s | 11.3M | 123k | 10.4M | 4/4 |
+| `z-ai/glm-5.3` | opencode | 1.11.5 | 14m24s | 2m01s | 36m03s | 44 | 13.0s | 4.7M | 173k | 4.2M | 4/4 |
+| `anthropic/claude-sonnet-5` | claude | 1.11.5 | 3m50s | 2m02s | 10m09s | 86 | 3.7s | 10.4M | 54k | 10.4M | 4/4 |
+| `anthropic/claude-sonnet-5` | opencode | 1.11.5 | 6m01s | 2m01s | 12m45s | 81 | 9.5s | 9.9M | 65k | 9.9M | 4/4 |
+| `anthropic/claude-haiku-4.5` | claude | 1.11.5 | 2m17s | 2m01s | 5m55s | 61 | 2.0s | 4.2M | 33k | 4.2M | 4/4 |
+| `anthropic/claude-haiku-4.5` | opencode | 1.11.5 | 1m08s | 2m00s | 5m05s | 45 | 3.6s | 2.6M | 28k | 2.6M | 0/4 |
 
 Token counts are rounded; the exact figures are in each run's pull
 request. Input includes the cached share, so Input and Cache overlap by
 design.
+
+</details>
+
+### Quick report
+
+| Rank | Model | CLI | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **#1** | `deepseek/deepseek-v4.1-flash` | opencode | 1.11.5 | **11 / 11** | 7 / 4 / 0 | 14m01s | **$0.20** | **$0.019** |
+| **#2** | `google/gemini-3.7-flash` | opencode | 1.11.5 | 5 / 6 | 1 / 3 / 2 | 8m11s | $0.86 | $0.172 |
+| **#3** | `anthropic/claude-opus-5` | claude | 1.11.5 | **17 / 17** | 9 / 4 / 4 | 14m33s | $4.91 | $0.289 |
+
+<details>
+<summary>Run detail — phases, turns, tokens</summary>
+
+| Model | CLI | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `deepseek/deepseek-v4.1-flash` | opencode | 1.11.5 | 3m30s | 2m02s | 8m29s | 53 | 7.2s | 4.1M | 80k | 3.1M | 4/4 |
+| `google/gemini-3.7-flash` | opencode | 1.11.5 | 2m17s | 2m02s | 3m52s | 81 | 3.2s | 4.9M | 24k | 4.3M | 4/4 |
+| `anthropic/claude-opus-5` | claude | 1.11.5 | 1m51s | 2m02s | 10m40s | 46 | 3.5s | 4.5M | 49k | 4.5M | 4/4 |
 
 </details>
 
@@ -57,11 +99,12 @@ table, never just inserts a line, and the pull request that does it
 argues the placement on those three axes.
 
 A row measured under an earlier revision of the protocol is marked ⚠︎ and
-its placement is provisional until it is re-run. What that is worth was
-settled once: `qwen/qwen3.8-27b` scored 25 of 26 when it was allowed to
-read the application before observing it, and **15 of 15** on the same
-scenario once it was not. Ten of its findings came from the code, not
-from the telemetry.
+its placement is provisional until it is re-run; a row the maintainer
+stops maintaining is removed rather than left to age. What a revision is
+worth was settled once: `qwen/qwen3.8-27b` scored 25 of 26 when it was
+allowed to read the application before observing it, and **15 of 15** on
+the same scenario once it was not. Ten of its findings came from the
+code, not from the telemetry.
 
 **How the reported count is arrived at.** A report splits its findings
 between an anomalies section and a telemetry-gaps section, and the two
@@ -80,6 +123,17 @@ accused. A model that reports three findings and gets three right scores
 — and the second is the worse report, however long it is. A finding the
 report itself labels uncertain still counts when its numbers check out:
 grading honesty down would only teach models to hide it.
+
+**CLI** is the coding-agent CLI the mission ran in — `opencode`,
+`claude` or `copilot`; its version is in each run's pull request, since
+two runs of one model under different CLI versions are not the same
+measurement. The cost is the model vendor's API list price under all
+three: a subscription, a premium request or an AI credit changes the
+bill, not the row.
+Model and CLI together identify a row: the same model driven through two
+CLIs is two rows. The oddyssey version is not part of that identity — a
+new run of a model on the same CLI replaces its row, whatever version the
+old row was measured under.
 
 **Signals** is how many of the four — metrics, traces, logs, profiles —
 the run actually queried. It is not part of the grade; it is what the
@@ -125,31 +179,45 @@ subagent, and that subagent is usually the larger half of the bill.
 - **Cost** is the provider's own billed figure, cross-checked against its
   published per-token prices before it is written down.
 
-The table carries no history: one row per model, always its latest run.
+The table carries no history: one row per model and CLI, always its
+latest run.
 
 ## How a row is produced
 
 ```text
-/launch-llms-benchmark anthropic/claude-sonnet-5
+/launch-llms-benchmark opencode anthropic/claude-sonnet-5 full
+/launch-llms-benchmark claude anthropic/claude-haiku-4.5 full
+/launch-llms-benchmark opencode google/gemini-3.7-flash quick
+/launch-llms-benchmark copilot openai/gpt-5.6-luna full
 ```
 
-The model id is the only argument. Two credentials are prerequisites you
-set up once and the command never asks for: an OpenRouter provider
-configured in opencode, and an `OPENAI_API_KEY` in
+The CLI, the model id and the depth are the only arguments — `opencode`
+for any model OpenRouter serves, `claude` for Anthropic's models through
+Claude Code's headless mode, `copilot` for the models GitHub Copilot
+CLI serves; the model always written in the same
+`vendor/name` form, so one model's rows line up; `full` or `quick`, the
+observation depth, which picks the results section the row lands in.
+The credentials are
+prerequisites you set up once and the command never asks for: an
+OpenRouter provider configured in opencode, a Claude Code login and
+the package installed at user scope for it, or a Copilot CLI login, and
+an `OPENAI_API_KEY` in
 `docker-compose/llms-benchmark/.env` for the demo agent's own model calls
 (see `.env.example` next to it).
 
 That command runs the whole protocol and comes back with a pull request
-adding or replacing the model's row. What it does:
+adding or replacing the row. What it does:
 
 1. Brings the demo stack up (`docker-compose/llms-benchmark/`) against
    the local oddyssey observability stack, and waits for the three
    services to answer.
-2. Drives the model through the **opencode** CLI, on OpenRouter, at
-   **medium** reasoning effort — headless, one session.
+2. Drives the model through the CLI you named — **opencode** on
+   OpenRouter, or **claude** — at **medium** reasoning effort — headless,
+   one session.
 3. Gives it one mission — a single `/odd-observe` invocation naming the
    three services, the stored scenario `benchmark/llmbench-store-load/`,
-   **full** depth and the **local** stack — and asks for every kind of
+   the **depth** you named and the **local** stack — states that the scenario's
+   paid model calls are accepted, and asks for every kind of
    anomaly, not only the slow ones: performance, outright errors, wrong
    behavior, and telemetry that is missing or lying. Each of the four is
    named on purpose. The services, so the run never guesses its scope
