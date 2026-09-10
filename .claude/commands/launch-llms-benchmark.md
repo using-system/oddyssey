@@ -467,7 +467,13 @@ Steps:
      and looks like a mismatch. Apply the tier per message, on that
      message's own prompt — and treat the stated `min_prompt_tokens` as
      indicative, not exact: on the run of #495 the reconstruction matched
-     to the cent at 200,000 where the field said 272,000. If it still
+     to the cent at 200,000 where the field said 272,000. An `overrides`
+     entry can also be keyed by time rather than by size — `utc_days`
+     with `utc_start` / `utc_end` in hours-and-minutes — doubling every
+     rate inside a weekday window; pick the tier the run's UTC launch
+     time falls in (one model of this campaign doubles its rates on
+     weekdays between 01:00–04:00 and 06:00–10:00 UTC, and a run at
+     19:35 UTC reconciled at the base rates). If it still
      does not reconcile, say so instead of publishing the number.
 
    Also read off, under either CLI:
