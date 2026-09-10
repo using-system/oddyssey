@@ -29,10 +29,8 @@ CLI, always its latest run.
 | **#8** | `z-ai/glm-5.3` | opencode | 1.11.5 | 15 / 17 | 10 / 4 / 3 | 52m28s | $2.56 | $0.171 |
 | **#9** | `anthropic/claude-sonnet-5` | claude | 1.11.5 | **7 / 7** | 4 / 3 / 0 | 16m01s | $3.22 | $0.459 |
 | **#10** | `anthropic/claude-sonnet-5` | opencode | 1.11.5 | **7 / 7** | 4 / 2 / 1 | 20m47s | $3.46 | $0.494 |
-| **#11** | `anthropic/claude-opus-5` | opencode | 1.11.3 ⚠︎ | **17 / 17** | 11 / 3 / 3 | 27m36s | $10.35 | $0.609 |
-| **#12** | `openai/gpt-6-astra` | opencode | 1.11.3 ⚠︎ | **15 / 15** | 8 / 3 / 4 | 23m27s | **$19.58** | $1.305 |
-| **#13** | `anthropic/claude-haiku-4.5` | claude | 1.11.5 | **2 / 5** | 0 / 5 / 0 | 10m13s | $0.79 | $0.393 |
-| **#14** | `anthropic/claude-haiku-4.5` | opencode | 1.11.5 | **0 / 2** | 0 / 2 / 0 | 8m13s | $0.58 | — |
+| **#11** | `anthropic/claude-haiku-4.5` | claude | 1.11.5 | **2 / 5** | 0 / 5 / 0 | 10m13s | $0.79 | $0.393 |
+| **#12** | `anthropic/claude-haiku-4.5` | opencode | 1.11.5 | **0 / 2** | 0 / 2 / 0 | 8m13s | $0.58 | — |
 
 <details>
 <summary>Run detail — phases, turns, tokens</summary>
@@ -49,8 +47,6 @@ CLI, always its latest run.
 | `z-ai/glm-5.3` | opencode | 1.11.5 | 14m24s | 2m01s | 36m03s | 44 | 13.0s | 4.7M | 173k | 4.2M | 4/4 |
 | `anthropic/claude-sonnet-5` | claude | 1.11.5 | 3m50s | 2m02s | 10m09s | 86 | 3.7s | 10.4M | 54k | 10.4M | 4/4 |
 | `anthropic/claude-sonnet-5` | opencode | 1.11.5 | 6m01s | 2m01s | 12m45s | 81 | 9.5s | 9.9M | 65k | 9.9M | 4/4 |
-| `anthropic/claude-opus-5` | opencode | 1.11.3 ⚠︎ | 3m52s | 2m01s | 21m43s | 64 | 8.9s | 8.4M | 104k | 8.4M | 4/4 |
-| `openai/gpt-6-astra` | opencode | 1.11.3 ⚠︎ | 3m08s | 2m02s | 18m17s | 103 | 4.5s | 11.4M | 54k | 11.4M | 4/4 |
 | `anthropic/claude-haiku-4.5` | claude | 1.11.5 | 2m17s | 2m01s | 5m55s | 61 | 2.0s | 4.2M | 33k | 4.2M | 4/4 |
 | `anthropic/claude-haiku-4.5` | opencode | 1.11.5 | 1m08s | 2m00s | 5m05s | 45 | 3.6s | 2.6M | 28k | 2.6M | 0/4 |
 
@@ -91,11 +87,12 @@ table, never just inserts a line, and the pull request that does it
 argues the placement on those three axes.
 
 A row measured under an earlier revision of the protocol is marked ⚠︎ and
-its placement is provisional until it is re-run. What that is worth was
-settled once: `qwen/qwen3.8-27b` scored 25 of 26 when it was allowed to
-read the application before observing it, and **15 of 15** on the same
-scenario once it was not. Ten of its findings came from the code, not
-from the telemetry.
+its placement is provisional until it is re-run; a row the maintainer
+stops maintaining is removed rather than left to age. What a revision is
+worth was settled once: `qwen/qwen3.8-27b` scored 25 of 26 when it was
+allowed to read the application before observing it, and **15 of 15** on
+the same scenario once it was not. Ten of its findings came from the
+code, not from the telemetry.
 
 **How the reported count is arrived at.** A report splits its findings
 between an anomalies section and a telemetry-gaps section, and the two
