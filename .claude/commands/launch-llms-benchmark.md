@@ -513,16 +513,21 @@ Steps:
     the screen and the rows stop being readable, and GitHub keeps no CSS
     to pin a column. So:
 
-    - a **headline table** of eight columns — rank, model, oddyssey
+    - a **headline table** of nine columns — rank, model, CLI, oddyssey
       version, `confirmed / reported`, the findings by kind under a
       single `Telemetry / Perf / Behavior` header written `X / X / X`,
       total duration, cost, and cost per confirmed finding. It fits
-      without scrolling and answers the question on its own. The version
-      sits third because it says which protocol a row was taken under,
-      which a reader needs before any number to its right means anything;
-    - a **detail table** inside a `<details>` block — the three phase
-      durations, turns, median turn latency, input / output / cache
-      tokens, and signals. Round the token counts (`30.0M`, `79k`): the
+      without scrolling and answers the question on its own. The CLI
+      column names the coding-agent CLI the mission ran in — `opencode`
+      for every row this command produces, with no version: the version
+      belongs in the pull request, where the row's exact figures already
+      live. The oddyssey version sits right after it because it says
+      which protocol a row was taken under, which a reader needs before
+      any number to its right means anything;
+    - a **detail table** inside a `<details>` block — model, CLI,
+      oddyssey version, the three phase durations, turns, median turn
+      latency, input / output / cache tokens, and signals. Round the
+      token counts (`30.0M`, `79k`): the
       exact figures live in each run's pull request, and full precision
       here only costs width.
 
