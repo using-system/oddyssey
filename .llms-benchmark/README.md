@@ -1,11 +1,13 @@
-# Which LLM can run oddyssey?
+# Which LLM? Which CLI?
 
-A ranking, to pick the model you run the loop with.
+A ranking, to pick the model you run the loop with and the coding-agent
+CLI you drive it through.
 
 Each model observes the same running stack through the same replayed
 traffic, and its report is graded on evidence. One model on one CLI, one
-run, one row. The protocol is fixed and the only variables are the model
-and the CLI it is driven through.
+run, one row: the same model under two CLIs is two rows, ranked against
+each other like any other pair. The protocol is fixed and the only
+variables are the model and the CLI.
 
 ## Results
 
