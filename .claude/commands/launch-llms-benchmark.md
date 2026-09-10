@@ -725,9 +725,10 @@ Steps:
 
     **Never write a dollar sign followed by a digit in this file.** The
     command's text is expanded with its arguments before the model reads
-    it, and `$1`, `$2`, `$0` are positional substitutions: a price
-    written `$1.25/M` reached the run as the first argument's text with
-    `.25/M` appended. Write prices as `1.25 USD per million`.
+    it, and a dollar sign followed by 1, 2 or 0 is a positional
+    substitution: a price written as a dollar sign, `1.25` and `/M`
+    reached one run as the first argument's text with `.25/M` appended.
+    Write prices as `1.25 USD per million`.
 
 11. **Amend this command when the run taught it something.** An install
     step that needed another flag, a configuration key that moved, a
