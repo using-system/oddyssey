@@ -65,6 +65,7 @@ design.
 | Rank | Model | CLI | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | **#1** | `google/gemini-3.7-flash` | opencode | 1.11.5 | 5 / 6 | 1 / 3 / 2 | 8m11s | $0.86 | $0.172 |
+| **#2** | `anthropic/claude-opus-5` | claude | 1.11.5 | **17 / 17** | 9 / 4 / 4 | 14m33s | $4.91 | $0.289 |
 
 <details>
 <summary>Run detail — phases, turns, tokens</summary>
@@ -72,6 +73,7 @@ design.
 | Model | CLI | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `google/gemini-3.7-flash` | opencode | 1.11.5 | 2m17s | 2m02s | 3m52s | 81 | 3.2s | 4.9M | 24k | 4.3M | 4/4 |
+| `anthropic/claude-opus-5` | claude | 1.11.5 | 1m51s | 2m02s | 10m40s | 46 | 3.5s | 4.5M | 49k | 4.5M | 4/4 |
 
 </details>
 
