@@ -261,9 +261,10 @@ whole, 19 K by section). List a file's headings first (one `grep -n
   `## Bucketing a ramp for the degradation curve`, `## k6's own summary
   and exit status are evidence, never the verdict` (the void
   precondition the watching section applies), `## Reading a breakpoint
-  run` when the manifest names that type, and
-  `long-scenarios.md`'s `## Scenarios longer than a tool call` for the
-  watch's own poller;
+  run` when the manifest names that type — the watch itself is the
+  backend's script when its reference ships one, and
+  `long-scenarios.md`'s `## Scenarios longer than a tool call` only
+  when it ships none;
 - `odd-memory`'s `observe-run-report` reference: `## Recall: reading
   the memory` at step 5, and nothing else then; at report time,
   `## The script owns the format`, `## What the run decides`,

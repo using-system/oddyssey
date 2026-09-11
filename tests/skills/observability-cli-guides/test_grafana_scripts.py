@@ -84,6 +84,13 @@ if a[:2] == ["metrics", "series"]: out(fx("m_series"))
 if a[:2] == ["traces", "query"]:
     if "nope" in a[2]: out(fx("t_empty"))
     q = fx("t_query")
+    if os.environ.get("FAKE_T_WATCH") == "1":
+        # a watch polls one bin at a time: answer the traces that start inside it
+        from datetime import datetime
+        lo = datetime.fromisoformat(flag("--from").replace("Z", "+00:00")).timestamp() * 1e9
+        hi = datetime.fromisoformat(flag("--to").replace("Z", "+00:00")).timestamp() * 1e9
+        q = {"traces": [t for t in q["traces"] if lo <= int(t["startTimeUnixNano"]) < hi]}
+        out(q)
     if os.environ.get("FAKE_T_QUERY_REVERSE") == "1": q["traces"].reverse()
     if os.environ.get("FAKE_BAD_ID") == "1":
         q["traces"].append({"traceID": "bad" + "0" * 29, "rootServiceName": "llmbench-api", "rootTraceName": "GET /stats", "startTimeUnixNano": "1788885680000000000", "durationMs": 1})
@@ -1039,3 +1046,140 @@ def test_every_flag_and_subcommand_the_reference_states_exists():
             if sub not in subs and subs:
                 phantom.append(f"{script}: subcommand {sub}")
     assert not phantom, "stated but not implemented: " + ", ".join(sorted(phantom))
+
+
+# --- traces watch: a driven run's start and end, resumable ------------------------
+
+
+WATCH_SEL = '{ span.http.user_agent =~ "odd-bench/llmbench-store-load/.*" }'
+
+
+def watch(*args: str, state: Path | None = None) -> subprocess.CompletedProcess:
+    extra = ["--state", str(state)] if state else []
+    return subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS / "grafana-traces.py"),
+            "watch",
+            WATCH_SEL,
+            "--from",
+            "2026-09-08T16:40:00Z",
+            "--settle",
+            "0s",
+            "--every",
+            "0s",
+            *extra,
+            *args,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "FAKE_T_WATCH": "1"},
+    )
+
+
+def test_watch_finds_the_runs_span_and_ends_it_on_empty_bins(fake_gcx, tmp_path):
+    """The fixture's rows sit between 16:41:21 and 16:41:33; with a deadline
+    well past them the watch reports the run started, ended after four
+    empty 30 s bins, its span the rows' own, the identity read off the
+    first trace - never the watch's own clock."""
+    p = watch("--to", "2026-09-08T16:45:00Z", "--json", state=tmp_path / "w.json")
+    assert p.returncode == 0, p.stderr
+    o = json.loads(p.stdout)
+    assert o["status"] == "ended"
+    assert o["started"] == "2026-09-08T16:41:21Z"
+    assert o["ended"] == "2026-09-08T16:41:33Z"
+    assert o["span_s"] == 12
+    assert o["identity"] == ["odd-bench/llmbench-store-load/run-store-load-01"]
+    assert o["identity_attr"] == "http.user_agent"
+    assert o["several_identities"] is False
+    rows = [b for b in o["bins"] if b["new"]]
+    assert [(b["from"][11:19], b["new"]) for b in rows] == [
+        ("16:41:00", 4),
+        ("16:41:30", 1),
+    ]
+    empties = [b for b in o["bins"] if b["from"] >= "2026-09-08T16:42:00Z"]
+    assert len(empties) == 4 and all(b["new"] == 0 for b in empties)
+    assert o["polls"] == 1
+    assert any("traces get" in c for c in o["commands"])
+    log = fake_gcx.read_text()
+    assert log.count("traces query") == 8  # 16:40:00 .. 16:44:00, one call per bin
+    assert log.count("traces get") == 2  # the first and the last row's identity
+
+
+def test_watch_renders_the_records_lines(fake_gcx, tmp_path):
+    p = watch("--to", "2026-09-08T16:45:00Z", state=tmp_path / "w.json")
+    assert p.returncode == 0, p.stderr
+    text = p.stdout
+    assert text.startswith("watch: ended")
+    assert "Started (UTC): 2026-09-08T16:41:21Z" in text
+    assert "Ended   (UTC): 2026-09-08T16:41:33Z" in text
+    assert "four empty 30s bins" in text or "4 empty 30s bins" in text
+    assert (
+        "Identity:  http.user_agent odd-bench/llmbench-store-load/run-store-load-01"
+        in text
+    )
+    assert "Watch:" in text and "polled from" in text
+    assert "queries run (record these" in text
+
+
+def test_watch_resumes_from_its_state_file_without_requerying_closed_bins(
+    fake_gcx, tmp_path
+):
+    """A call that hits its bound reports running and keeps its state; the
+    next call continues from the last closed bin instead of restarting."""
+    state = tmp_path / "w.json"
+    p = watch("--to", "2026-09-08T16:42:30Z", "--max", "0s", "--json", state=state)
+    assert p.returncode == 3, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert o["status"] == "running" and o["started"] == "2026-09-08T16:41:21Z"
+    assert o["ended"] is None
+    assert state.is_file()
+    first = fake_gcx.read_text().count("traces query")
+    assert first == 5  # 16:40:00 .. 16:42:30
+    p = watch("--to", "2026-09-08T16:45:00Z", "--json", state=state)
+    assert p.returncode == 0, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert o["status"] == "ended" and o["ended"] == "2026-09-08T16:41:33Z"
+    assert o["polls"] == 2
+    assert (
+        fake_gcx.read_text().count("traces query") == first + 3
+    )  # 16:42:30 .. 16:44:00
+    saved = json.loads(state.read_text())
+    assert saved["status"] == "ended" and len(saved["bins"]) == 8
+
+
+def test_watch_before_the_first_row_says_not_started_never_ended(fake_gcx, tmp_path):
+    p = watch(
+        "--to",
+        "2026-09-08T16:41:00Z",
+        "--max",
+        "0s",
+        "--json",
+        state=tmp_path / "w.json",
+    )
+    assert p.returncode == 4, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert o["status"] == "not started" and o["started"] is None and o["ended"] is None
+    assert (
+        "not started"
+        in watch(
+            "--to", "2026-09-08T16:41:00Z", "--max", "0s", state=tmp_path / "v.json"
+        ).stdout
+    )
+
+
+def test_watch_needs_a_start_and_refuses_a_state_of_another_watch(fake_gcx, tmp_path):
+    p = subprocess.run(
+        [sys.executable, str(SCRIPTS / "grafana-traces.py"), "watch", WATCH_SEL],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert p.returncode != 0 and "--from" in (p.stderr + p.stdout)
+    state = tmp_path / "w.json"
+    state.write_text(
+        json.dumps({"traceql": "{ other }", "from": "2026-09-08T16:40:00Z"})
+    )
+    p = watch("--to", "2026-09-08T16:45:00Z", "--max", "0s", state=state)
+    assert p.returncode == 1 and "another watch" in p.stderr

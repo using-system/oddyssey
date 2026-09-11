@@ -40,9 +40,54 @@ wait is shipped, never authored. The
 whole flag surface is those three plus `--run-slug`, `-e KEY=value`,
 `--summary`, `--send-traceparent`, `--otel` (which sets the exporter
 environment the local stack needs, not only `-o opentelemetry`),
-`--dry-run` and `--json`:
+`--dry-run`, `--json`, and the `--stages` form below:
 there is nothing else, so `--help` has nothing to add and the file has
 nothing to read.
+
+- **The record** (`--json`; the text form prints the same fields as
+  `Benchmark:`, `Command:`, `Window:`, `Exit:`, `Summary:` lines):
+  `benchmark, directory, revision` (the benchmark directory's own last
+  commit), `clean` (false when its files are edited — no revision to
+  replay at), `run_slug, command` (the `k6 run` line verbatim, the
+  exporter environment prefixed under `--otel` — the record's "what it
+  ran" line, copied never composed), `summary_export, start_utc,
+  end_utc, exit_code, k6[]` (the `checks_succeeded`, `http_req_failed`
+  and `iterations` lines of k6's summary), `stderr` (its first 2 000
+  characters). `--detach` prints `start_utc` and `detached_in` at
+  launch; `--status` adds `finished` and, once finished, `end_utc`,
+  `exit_code`, `k6[]`, `stderr`. `end_utc` is the instant k6 exited —
+  the run's own last request is on the rows, and a stage boundary is
+  the manifest's, never carved back from this end.
+- **The detached directory** holds `replay-record.json` (the record
+  above), `runner.pid`, `k6-stdout.log`, `k6-stderr.log`,
+  `k6-exit.code` and `done` (written when k6 exited): the files
+  `--status` reads, in a directory this run alone owns — a directory
+  reused from another run is cleared of them at launch.
+
+```bash
+python3 <...>/replay_benchmark.py --stages <benchmark dir> --first-row <the run's first request row, RFC3339 UTC> [--segment 30s] [--json]
+```
+
+- `--stages` lays the manifest's stage offsets out in UTC from the
+  run's **first request row** (never k6's start, never its summary's,
+  never backwards from the end), and prints the record's `Stages
+  (UTC):` and `Warmup:` lines ready to paste, `t0` (the first quoted
+  stage's start — where the quoted numbers begin), `end` (the last
+  stage's), and every ramp's `--segment`-wide segments from the ramp's
+  own start with the offered rate interpolated at each segment's
+  midpoint (the reading a degradation curve repeats identically across
+  replays). The warmup is what the manifest schedules before the first
+  quoted stage and does not ramp; a ramp before it is a transition,
+  read in segments. A manifest that carries several scenarios lays each
+  scenario's stages out from the same first row. `--json`: `first_row,
+  t0, end, segment, stages[{scenario, name, from_s, to_s, from, to,
+  target, start_target, quote, ramp}], segments[{scenario, stage, from,
+  to, midpoint_rate}], warmup{stages[], seconds}, stages_line,
+  warmup_line`. Exit 1 with the reason when the manifest carries no
+  stages under `profile` or the instant is not RFC3339 UTC. Where the
+  manifest declares a per-request `stage` tag, the rows carry the
+  stages themselves and this arithmetic is a cross-check, not the
+  source.
 
 It **refuses** `--vus`, `--iterations`, `--duration`, `--stage`, `--rps`,
 `--execution-segment`, `--no-thresholds`, `--no-setup`/`--no-teardown` —

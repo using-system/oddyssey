@@ -539,3 +539,116 @@ def test_a_configured_grpc_port_reaches_the_exporter(benchmark, tmp_path, monkey
     env = module.otel_env()
     assert env["K6_OTEL_GRPC_EXPORTER_INSECURE"] == "true"
     assert env["K6_OTEL_GRPC_EXPORTER_ENDPOINT"] == "localhost:4319"
+
+
+# --- the stage boundaries a record needs, from the manifest and a first row ----
+
+ROOT = Path(__file__).resolve().parents[3]
+SPIKE = ROOT / ".odd/benchmarks/mcp-read-spike"
+BREAKPOINT = ROOT / ".odd/benchmarks/mcp-read-breakpoint"
+STORE_LOAD = ROOT / ".llms-benchmark/benchmark/llmbench-store-load"
+FIRST_ROW = "2026-09-06T08:30:11Z"
+
+
+def stages_cli(bench: Path, *args: str):
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), "--stages", str(bench), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_stages_convert_the_manifests_offsets_from_the_first_request_row():
+    """Block-style stages (the spike): every boundary laid out from the first
+    row, the quoted stages named, t0 the first quoted stage's start."""
+    p = stages_cli(SPIKE, "--first-row", FIRST_ROW, "--json")
+    assert p.returncode == 0, p.stderr
+    out = json.loads(p.stdout)
+    assert out["first_row"] == FIRST_ROW
+    names = [s["name"] for s in out["stages"]]
+    assert names == ["baseline", "ramp-up", "burst", "ramp-down", "recovery"]
+    burst = out["stages"][2]
+    assert burst["from"] == "2026-09-06T08:30:51Z"
+    assert burst["to"] == "2026-09-06T08:31:21Z"
+    assert burst["quote"] is True and burst["target"] == 100
+    assert out["t0"] == "2026-09-06T08:30:51Z"
+    assert out["stages"][0]["quote"] is False
+    assert out["warmup"] == {"stages": ["baseline"], "seconds": 30}
+    assert out["end"] == "2026-09-06T08:32:01Z"
+
+
+def test_stages_print_the_records_lines_ready_to_paste():
+    p = stages_cli(SPIKE, "--first-row", FIRST_ROW)
+    assert p.returncode == 0, p.stderr
+    text = p.stdout
+    assert text.startswith(
+        "Stages (UTC): offsets converted from the first request row 08:30:11"
+    )
+    assert "baseline 08:30:11–08:30:41 (excluded)" in text
+    assert "burst 08:30:51–08:31:21" in text
+    assert (
+        "t0 (first measured request, where the quoted numbers start) 08:30:51" in text
+    )
+    assert "ramp-up 08:30:41–08:30:51 read in 30 s segments" in text
+    assert "Warmup:    the manifest's baseline stage, 30 s (excluded" in text
+    assert "t0:  2026-09-06T08:30:51Z" in text
+
+
+def test_a_ramp_is_read_in_segments_with_the_rate_at_each_midpoint():
+    """The breakpoint's one stage ramps 1 -> 200 over 10 minutes; segments of
+    30 s from the stage's own start, the offered rate interpolated at the
+    segment's midpoint - never its start or its end."""
+    p = stages_cli(BREAKPOINT, "--first-row", "2026-09-06T08:54:02Z", "--json")
+    assert p.returncode == 0, p.stderr
+    out = json.loads(p.stdout)
+    ramp = out["stages"][0]
+    assert ramp["ramp"] is True and ramp["start_target"] == 1 and ramp["target"] == 200
+    segs = [s for s in out["segments"] if s["stage"] == "ramp"]
+    assert len(segs) == 20
+    assert segs[0]["from"] == "2026-09-06T08:54:02Z"
+    assert segs[0]["to"] == "2026-09-06T08:54:32Z"
+    # midpoint at 15 s of 600: 1 + 199 * 15 / 600
+    assert segs[0]["midpoint_rate"] == pytest.approx(5.975)
+    assert segs[-1]["midpoint_rate"] == pytest.approx(1 + 199 * 585 / 600)
+    assert out["t0"] is None  # a breakpoint quotes no steady stage
+    assert out["warmup"] == {"stages": [], "seconds": 0}
+    p = stages_cli(
+        BREAKPOINT, "--first-row", "2026-09-06T08:54:02Z", "--segment", "60s", "--json"
+    )
+    assert len(json.loads(p.stdout)["segments"]) == 10
+
+
+def test_a_steady_stage_has_no_segments_and_a_flow_style_manifest_parses():
+    """The store-load manifest writes its stages in flow style under two
+    scenarios; each scenario's stages start at the first row."""
+    p = stages_cli(STORE_LOAD, "--first-row", "2026-09-07T10:00:00Z", "--json")
+    assert p.returncode == 0, p.stderr
+    out = json.loads(p.stdout)
+    assert [(s["scenario"], s["name"]) for s in out["stages"]] == [
+        ("catalog", "steady"),
+        ("assistant", "steady"),
+    ]
+    assert out["stages"][0]["to"] == "2026-09-07T10:02:00Z"
+    assert out["stages"][1]["target"] == "1 per 15s"
+    assert out["segments"] == []
+    assert out["t0"] == "2026-09-07T10:00:00Z"
+    assert out["warmup"] == {"stages": [], "seconds": 0}
+    assert "no warmup stage" in out["warmup_line"]
+
+
+def test_stages_refuse_a_manifest_without_stages_and_a_bad_instant(tmp_path):
+    d = tmp_path / "x"
+    d.mkdir()
+    (d / "manifest.yaml").write_text("name: x\nprofile:\n  executor: constant-vus\n")
+    p = stages_cli(d, "--first-row", FIRST_ROW)
+    assert p.returncode == 1 and "no stages" in p.stderr
+    p = stages_cli(SPIKE, "--first-row", "yesterday")
+    assert p.returncode == 1 and "RFC3339" in p.stderr
+    p = subprocess.run(
+        [sys.executable, str(SCRIPT), "--stages", str(SPIKE)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert p.returncode != 0 and "--first-row" in (p.stderr + p.stdout)
