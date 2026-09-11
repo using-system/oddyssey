@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "contoso-appinsights",
+  "--analytics-query",
+  "print 1",
+  "--start-time",
+  "2026-09-11T11:18:44Z",
+  "--end-time",
+  "2026-09-11T11:23:44Z",
+  "-o",
+  "json"
+ ],
+ "code": 1,
+ "stdout": "",
+ "stderr": "ERROR: The command failed with an unexpected error. Here is the traceback:\nERROR: The Application Insight is not found. Please check the app id again.\nTraceback (most recent call last):\n  File \"/Users/example-user/.azure/cliextensions/application-insights/azext_applicationinsights/custom.py\", line 39, in execute_query\n    return client.query.execute(targets[0], QueryBody(query=analytics_query, timespan=get_timespan(cmd.cli_ctx, start_time, end_time, offset), applications=targets[1:]))\n           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/example-user/.azure/cliextensions/application-insights/azext_applicationinsights/vendored_sdks/applicationinsights/operations/query_operations.py\", line 87, in execute\n    raise models.ErrorResponseException(self._deserialize, response)\nazext_applicationinsights.vendored_sdks.applicationinsights.models.error_response_py3.ErrorResponseException: (PathNotFoundError) The requested path does not exist\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/opt/homebrew/Cellar/azure-cli/2.89.1/libexec/lib/python3.14/site-packages/knack/cli.py\", line 233, in invoke\n    cmd_result = self.invocation.execute(args)\n  File \"/opt/homebrew/Cellar/azure-cli/2.89.1/libexec/lib/python3.14/site-packages/azure/cli/core/commands/__init__.py\", line 677, in execute\n    raise ex\n  File \"/opt/homebrew/Cellar/azure-cli/2.89.1/libexec/lib/python3.14/site-packages/azure/cli/core/commands/__init__.py\", line 820, in _run_jobs_serially\n    results.append(self._run_job(expanded_arg, cmd_copy))\n                   ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/homebrew/Cellar/azure-cli/2.89.1/libexec/lib/python3.14/site-packages/azure/cli/core/commands/__init__.py\", line 789, in _run_job\n    result = cmd_copy(params)\n  File \"/opt/homebrew/Cellar/azure-cli/2.89.1/libexec/lib/python3.14/site-packages/azure/cli/core/commands/__init__.py\", line 335, in __call__\n    return self.handler(*args, **kwargs)\n           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\n  File \"/opt/homebrew/Cellar/azure-cli/2.89.1/libexec/lib/python3.14/site-packages/azure/cli/core/commands/command_operation.py\", line 120, in handler\n    return op(**command_args)\n  File \"/Users/example-user/.azure/cliextensions/application-insights/azext_applicationinsights/custom.py\", line 42, in execute_query\n    raise ValueError(\"The Application Insight is not found. Please check the app id again.\")\nValueError: The Application Insight is not found. Please check the app id again.\nTo check existing issues, please visit: https://github.com/Azure/azure-cli/issues\n"
+}

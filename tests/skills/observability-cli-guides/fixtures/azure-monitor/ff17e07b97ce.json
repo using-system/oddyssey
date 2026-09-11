@@ -1,0 +1,18 @@
+{
+ "args": [
+  "monitor",
+  "log-analytics",
+  "query",
+  "--workspace",
+  "bbbbbbbb-0000-0000-0000-00000000000b",
+  "--analytics-query",
+  "ContainerAppConsoleLogs_CL | where ContainerName_s in ('otel-collector') | extend lvl=extract(@\"^\\S+\\s+(\\w+)\\s\", 1, Log_s) | where lvl =~ 'info' | summarize matching=count()",
+  "--timespan",
+  "2026-09-10T11:23:38Z/2026-09-11T11:23:38Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "[\n  {\n    \"TableName\": \"PrimaryResult\",\n    \"matching\": \"18\"\n  }\n]\n",
+ "stderr": ""
+}

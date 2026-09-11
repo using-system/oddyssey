@@ -1,0 +1,18 @@
+{
+ "args": [
+  "monitor",
+  "log-analytics",
+  "query",
+  "--workspace",
+  "bbbbbbbb-0000-0000-0000-00000000000b",
+  "--analytics-query",
+  "ContainerAppConsoleLogs_CL | extend lvl=extract(@\"^\\S+\\s+(\\w+)\\s\", 1, Log_s) | summarize n=count(), latest=max(TimeGenerated) by ContainerName_s, lvl, Stream_s | order by ContainerName_s asc, n desc",
+  "--timespan",
+  "2026-09-10T11:23:37Z/2026-09-11T11:23:37Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "[\n  {\n    \"ContainerName_s\": \"load-generator\",\n    \"Stream_s\": \"stdout\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T11:23:36.0051965Z\",\n    \"lvl\": \"\",\n    \"n\": \"200892\"\n  },\n  {\n    \"ContainerName_s\": \"load-generator\",\n    \"Stream_s\": \"stderr\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T09:43:38.4755119Z\",\n    \"lvl\": \"to\",\n    \"n\": \"5\"\n  },\n  {\n    \"ContainerName_s\": \"orders-api\",\n    \"Stream_s\": \"stderr\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T11:23:36.0051965Z\",\n    \"lvl\": \"\",\n    \"n\": \"324675\"\n  },\n  {\n    \"ContainerName_s\": \"orders-api\",\n    \"Stream_s\": \"stdout\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T11:23:36.0051965Z\",\n    \"lvl\": \"\",\n    \"n\": \"161798\"\n  },\n  {\n    \"ContainerName_s\": \"orders-api\",\n    \"Stream_s\": \"stderr\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T09:43:57.3777227Z\",\n    \"lvl\": \"Waiting\",\n    \"n\": \"4\"\n  },\n  {\n    \"ContainerName_s\": \"orders-api\",\n    \"Stream_s\": \"stderr\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T09:43:57.3777227Z\",\n    \"lvl\": \"Application\",\n    \"n\": \"4\"\n  },\n  {\n    \"ContainerName_s\": \"orders-api\",\n    \"Stream_s\": \"stderr\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T09:43:42.3108368Z\",\n    \"lvl\": \"detected\",\n    \"n\": \"3\"\n  },\n  {\n    \"ContainerName_s\": \"orders-api\",\n    \"Stream_s\": \"stderr\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T09:43:18.613982Z\",\n    \"lvl\": \"Shutting\",\n    \"n\": \"2\"\n  },\n  {\n    \"ContainerName_s\": \"orders-api\",\n    \"Stream_s\": \"stderr\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T09:43:18.613982Z\",\n    \"lvl\": \"Finished\",\n    \"n\": \"2\"\n  },\n  {\n    \"ContainerName_s\": \"orders-api\",\n    \"Stream_s\": \"stderr\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T09:43:57.3777227Z\",\n    \"lvl\": \"Started\",\n    \"n\": \"2\"\n  },\n  {\n    \"ContainerName_s\": \"orders-api\",\n    \"Stream_s\": \"stderr\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T09:43:57.3777227Z\",\n    \"lvl\": \"Uvicorn\",\n    \"n\": \"2\"\n  },\n  {\n    \"ContainerName_s\": \"orders-api\",\n    \"Stream_s\": \"stderr\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T09:43:56.0418903Z\",\n    \"lvl\": \"of\",\n    \"n\": \"2\"\n  },\n  {\n    \"ContainerName_s\": \"otel-collector\",\n    \"Stream_s\": \"stderr\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T09:43:51.0648647Z\",\n    \"lvl\": \"info\",\n    \"n\": \"18\"\n  },\n  {\n    \"ContainerName_s\": \"otel-collector\",\n    \"Stream_s\": \"stderr\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T09:43:51.0648647Z\",\n    \"lvl\": \"warn\",\n    \"n\": \"10\"\n  }\n]\n",
+ "stderr": ""
+}

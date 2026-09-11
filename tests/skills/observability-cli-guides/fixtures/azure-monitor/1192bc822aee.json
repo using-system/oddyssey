@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "00000001-0000-0000-0000-000000000000",
+  "--analytics-query",
+  "print 1",
+  "--start-time",
+  "2026-09-11T11:18:43Z",
+  "--end-time",
+  "2026-09-11T11:23:43Z",
+  "-o",
+  "json"
+ ],
+ "code": 3,
+ "stdout": "",
+ "stderr": "ERROR: ApplicationNotFoundError: The application could not be found\n"
+}

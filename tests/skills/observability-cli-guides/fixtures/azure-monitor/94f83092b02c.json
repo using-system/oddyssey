@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "requests | summarize n=count(), failed=countif(success == false) by cloud_RoleName, name | order by n desc",
+  "--start-time",
+  "2026-09-11T11:07:57Z",
+  "--end-time",
+  "2026-09-11T11:22:57Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"cloud_RoleName\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"name\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"n\",\n          \"type\": \"long\"\n        },\n        {\n          \"name\": \"failed\",\n          \"type\": \"long\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"orders-api\",\n          \"GET /products\",\n          824,\n          0\n        ],\n        [\n          \"orders-api\",\n          \"POST /orders\",\n          412,\n          0\n        ],\n        [\n          \"orders-api\",\n          \"GET /orders/{order_id}\",\n          303,\n          46\n        ],\n        [\n          \"orders-api\",\n          \"POST /orders/{order_id}/checkout\",\n          109,\n          7\n        ],\n        [\n          \"orders-api\",\n          \"DELETE /orders/{order_id}\",\n          54,\n          8\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stderr": ""
+}

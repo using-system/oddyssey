@@ -281,9 +281,7 @@ def main() -> int:
     add_window(ap)
     ns = ap.parse_args()
     if not ns.app and not ns.workspace:
-        raise SystemExit(
-            "--app <app_insights_app> and/or --workspace <workspace> is required"
-        )
+        ap.error("--app <app_insights_app> and/or --workspace <workspace> is required")
     frm, to = resolve_window(ns)
     r = probe(ns, frm, to)
     emit(r, ns.json, lambda o: render(o, ns.top))

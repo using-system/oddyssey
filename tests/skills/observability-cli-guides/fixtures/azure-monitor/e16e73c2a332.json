@@ -1,0 +1,18 @@
+{
+ "args": [
+  "monitor",
+  "log-analytics",
+  "query",
+  "--workspace",
+  "bbbbbbbb-0000-0000-0000-00000000000b",
+  "--analytics-query",
+  "union withsource=T *_CL | summarize n=count(), latest=max(TimeGenerated) by T | order by n desc",
+  "--timespan",
+  "2026-09-10T11:23:36Z/2026-09-11T11:23:36Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "[\n  {\n    \"T\": \"ContainerAppConsoleLogs_CL\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T11:23:29.0422125Z\",\n    \"n\": \"687392\"\n  },\n  {\n    \"T\": \"ContainerAppSystemLogs_CL\",\n    \"TableName\": \"PrimaryResult\",\n    \"latest\": \"2026-09-11T09:44:11.8387749Z\",\n    \"n\": \"109\"\n  }\n]\n",
+ "stderr": ""
+}

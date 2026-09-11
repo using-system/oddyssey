@@ -1,0 +1,18 @@
+{
+ "args": [
+  "monitor",
+  "log-analytics",
+  "query",
+  "--workspace",
+  "bbbbbbbb-0000-0000-0000-00000000000b",
+  "--analytics-query",
+  "ContainerAppSystemLogs_CL | getschema | project ColumnName, ColumnType",
+  "--timespan",
+  "2026-09-11T10:23:37Z/2026-09-11T11:23:37Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "[\n  {\n    \"ColumnName\": \"TenantId\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"SourceSystem\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"MG\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"ManagementGroupName\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"TimeGenerated\",\n    \"ColumnType\": \"datetime\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"Computer\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"RawData\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"CappsEventKind_s\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"time_t\",\n    \"ColumnType\": \"datetime\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"_timestamp_d\",\n    \"ColumnType\": \"real\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"time_s\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"EnvironmentName_s\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"Reason_s\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"RevisionName_s\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"Log_s\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"ContainerAppName_s\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"EventSource_s\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"TimeStamp_s\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"Level\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"Count_d\",\n    \"ColumnType\": \"real\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"Type_s\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"ReplicaName_s\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"ExecutionName_s\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"JobName_s\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"Type\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  },\n  {\n    \"ColumnName\": \"_ResourceId\",\n    \"ColumnType\": \"string\",\n    \"TableName\": \"PrimaryResult\"\n  }\n]\n",
+ "stderr": ""
+}

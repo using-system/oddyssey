@@ -1,0 +1,18 @@
+{
+ "args": [
+  "monitor",
+  "log-analytics",
+  "query",
+  "--workspace",
+  "bbbbbbbb-0000-0000-0000-00000000000b",
+  "--analytics-query",
+  "ContainerAppConsoleLogs_CL | where ContainerName_s in ('otel-collector') | extend lvl=extract(@\"^\\S+\\s+(\\w+)\\s\", 1, Log_s) | where lvl =~ 'info' | top 3 by TimeGenerated desc | project TimeGenerated, ContainerName_s, lvl, Stream_s, Log_s",
+  "--timespan",
+  "2026-09-10T11:23:38Z/2026-09-11T11:23:38Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "[\n  {\n    \"ContainerName_s\": \"otel-collector\",\n    \"Log_s\": \"2026-09-11T09:43:50.124Z\\tinfo\\tservice@v0.159.0/service.go:259\\tStarting otelcol-contrib...\\t{\\\"resource\\\": {\\\"service.instance.id\\\": \\\"00000001-0000-0000-0000-000000000000\\\", \\\"service.name\\\": \\\"otelcol-contrib\\\", \\\"service.version\\\": \\\"0.159.0\\\"}, \\\"Version\\\": \\\"0.159.0\\\", \\\"NumCPU\\\": 4}\",\n    \"Stream_s\": \"stderr\",\n    \"TableName\": \"PrimaryResult\",\n    \"TimeGenerated\": \"2026-09-11T09:43:51.0648647Z\",\n    \"lvl\": \"info\"\n  },\n  {\n    \"ContainerName_s\": \"otel-collector\",\n    \"Log_s\": \"2026-09-11T09:43:50.125Z\\tinfo\\textensions/extensions.go:44\\tStarting extensions...\\t{\\\"resource\\\": {\\\"service.instance.id\\\": \\\"00000001-0000-0000-0000-000000000000\\\", \\\"service.name\\\": \\\"otelcol-contrib\\\", \\\"service.version\\\": \\\"0.159.0\\\"}}\",\n    \"Stream_s\": \"stderr\",\n    \"TableName\": \"PrimaryResult\",\n    \"TimeGenerated\": \"2026-09-11T09:43:51.0648647Z\",\n    \"lvl\": \"info\"\n  },\n  {\n    \"ContainerName_s\": \"otel-collector\",\n    \"Log_s\": \"2026-09-11T09:43:50.064Z\\tinfo\\totelconftelemetry/tracer.go:47\\tInternal trace telemetry disabled\\t{\\\"resource\\\": {\\\"service.instance.id\\\": \\\"00000001-0000-0000-0000-000000000000\\\", \\\"service.name\\\": \\\"otelcol-contrib\\\", \\\"service.version\\\": \\\"0.159.0\\\"}}\",\n    \"Stream_s\": \"stderr\",\n    \"TableName\": \"PrimaryResult\",\n    \"TimeGenerated\": \"2026-09-11T09:43:51.0648647Z\",\n    \"lvl\": \"info\"\n  }\n]\n",
+ "stderr": ""
+}

@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "requests | where cloud_RoleName in ('orders-api') | summarize n=count(), failed=countif(success == false), p50=percentile(duration, 50), p95=percentile(duration, 95), p99=percentile(duration, 99), max=max(duration) by cloud_RoleName, name | order by n desc",
+  "--start-time",
+  "2026-09-11T11:07:57Z",
+  "--end-time",
+  "2026-09-11T11:22:57Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"cloud_RoleName\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"name\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"n\",\n          \"type\": \"long\"\n        },\n        {\n          \"name\": \"failed\",\n          \"type\": \"long\"\n        },\n        {\n          \"name\": \"p50\",\n          \"type\": \"real\"\n        },\n        {\n          \"name\": \"p95\",\n          \"type\": \"real\"\n        },\n        {\n          \"name\": \"p99\",\n          \"type\": \"real\"\n        },\n        {\n          \"name\": \"max\",\n          \"type\": \"real\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"orders-api\",\n          \"GET /products\",\n          830,\n          0,\n          0.8842,\n          1.244,\n          2.002,\n          3.201\n        ],\n        [\n          \"orders-api\",\n          \"POST /orders\",\n          416,\n          0,\n          1.023,\n          1.525,\n          2.241,\n          2.979\n        ],\n        [\n          \"orders-api\",\n          \"GET /orders/{order_id}\",\n          307,\n          46,\n          0.8015000000000001,\n          1.528,\n          2.006,\n          4.451\n        ],\n        [\n          \"orders-api\",\n          \"POST /orders/{order_id}/checkout\",\n          109,\n          7,\n          546.667,\n          782.701,\n          790.852,\n          796.709\n        ],\n        [\n          \"orders-api\",\n          \"DELETE /orders/{order_id}\",\n          54,\n          8,\n          51.391,\n          52.505,\n          52.645,\n          52.645\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stderr": ""
+}

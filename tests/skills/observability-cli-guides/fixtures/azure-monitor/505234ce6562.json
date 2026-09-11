@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "union requests, dependencies, traces, customMetrics, exceptions | where cloud_RoleName in ('orders-api') | summarize n=count() by cloud_RoleName, itemType",
+  "--start-time",
+  "2026-09-11T11:07:58Z",
+  "--end-time",
+  "2026-09-11T11:22:58Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"cloud_RoleName\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"itemType\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"n\",\n          \"type\": \"long\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"orders-api\",\n          \"trace\",\n          1727\n        ],\n        [\n          \"orders-api\",\n          \"dependency\",\n          163\n        ],\n        [\n          \"orders-api\",\n          \"request\",\n          1701\n        ],\n        [\n          \"orders-api\",\n          \"customMetric\",\n          588\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stderr": ""
+}

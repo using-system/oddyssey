@@ -1,0 +1,18 @@
+{
+ "args": [
+  "monitor",
+  "log-analytics",
+  "query",
+  "--workspace",
+  "bbbbbbbb-0000-0000-0000-00000000000b",
+  "--analytics-query",
+  "ContainerAppSystemLogs_CL | summarize n=count() by NoSuchColumn_s",
+  "--timespan",
+  "2026-09-10T11:23:39Z/2026-09-11T11:23:39Z",
+  "-o",
+  "json"
+ ],
+ "code": 1,
+ "stdout": "",
+ "stderr": "ERROR: (BadArgumentError) The request had some invalid properties\nCode: BadArgumentError\nMessage: The request had some invalid properties\nInner error: {\n    \"code\": \"SemanticError\",\n    \"message\": \"A semantic error occurred.\",\n    \"innererror\": {\n        \"code\": \"SEM0100\",\n        \"message\": \"'summarize' operator: Failed to resolve scalar expression named 'NoSuchColumn_s'\"\n    }\n}\n"
+}

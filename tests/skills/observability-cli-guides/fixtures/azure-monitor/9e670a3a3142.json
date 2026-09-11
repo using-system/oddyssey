@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "union requests, dependencies, traces, exceptions | where operation_Id == '51fe548d6c6cdcdd8fa2a68820f34905' | project itemType, timestamp, id, operation_Id, operation_ParentId, cloud_RoleName, name, duration, success, resultCode, type, target, message, severityLevel, outerMessage, problemId | order by timestamp asc",
+  "--start-time",
+  "2026-09-11T11:07:57Z",
+  "--end-time",
+  "2026-09-11T11:22:57Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"itemType\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"timestamp\",\n          \"type\": \"datetime\"\n        },\n        {\n          \"name\": \"id\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"operation_Id\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"operation_ParentId\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"cloud_RoleName\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"name\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"duration\",\n          \"type\": \"real\"\n        },\n        {\n          \"name\": \"success\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"resultCode\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"type\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"target\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"message\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"severityLevel\",\n          \"type\": \"int\"\n        },\n        {\n          \"name\": \"outerMessage\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"problemId\",\n          \"type\": \"string\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"dependency\",\n          \"2026-09-11T11:10:46.9513246Z\",\n          \"e1c1d781b06f68d7\",\n          \"51fe548d6c6cdcdd8fa2a68820f34905\",\n          \"51fe548d6c6cdcdd8fa2a68820f34905\",\n          \"load-generator\",\n          \"POST\",\n          798.255,\n          \"True\",\n          \"200\",\n          \"HTTP\",\n          \"localhost:8000\",\n          \"\",\n          null,\n          \"\",\n          \"\"\n        ],\n        [\n          \"request\",\n          \"2026-09-11T11:10:46.9523392Z\",\n          \"84192512f6ba130b\",\n          \"51fe548d6c6cdcdd8fa2a68820f34905\",\n          \"e1c1d781b06f68d7\",\n          \"orders-api\",\n          \"POST /orders/{order_id}/checkout\",\n          796.709,\n          \"True\",\n          \"200\",\n          \"\",\n          \"\",\n          \"\",\n          null,\n          \"\",\n          \"\"\n        ],\n        [\n          \"dependency\",\n          \"2026-09-11T11:10:46.9526406Z\",\n          \"fb4dfc436ae2f81a\",\n          \"51fe548d6c6cdcdd8fa2a68820f34905\",\n          \"84192512f6ba130b\",\n          \"orders-api\",\n          \"payment.authorize\",\n          795.348,\n          \"True\",\n          \"0\",\n          \"Other\",\n          \"payment.authorize\",\n          \"\",\n          null,\n          \"\",\n          \"\"\n        ],\n        [\n          \"trace\",\n          \"2026-09-11T11:10:47.7482959Z\",\n          \"\",\n          \"51fe548d6c6cdcdd8fa2a68820f34905\",\n          \"84192512f6ba130b\",\n          \"orders-api\",\n          \"\",\n          null,\n          \"\",\n          \"\",\n          \"\",\n          \"\",\n          \"127.0.0.1:57566 - \\\"POST /orders/2345/checkout HTTP/1.1\\\" 200\",\n          1,\n          \"\",\n          \"\"\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stderr": ""
+}

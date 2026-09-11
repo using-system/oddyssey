@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "requests | where cloud_RoleName in ('orders-api') | where success == false | top 2 by timestamp desc | project timestamp, cloud_RoleName, name, duration, success, resultCode, operation_Id, id",
+  "--start-time",
+  "2026-09-11T11:07:57Z",
+  "--end-time",
+  "2026-09-11T11:22:57Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"timestamp\",\n          \"type\": \"datetime\"\n        },\n        {\n          \"name\": \"cloud_RoleName\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"name\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"duration\",\n          \"type\": \"real\"\n        },\n        {\n          \"name\": \"success\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"resultCode\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"operation_Id\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"id\",\n          \"type\": \"string\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"2026-09-11T11:22:15.2442219Z\",\n          \"orders-api\",\n          \"GET /orders/{order_id}\",\n          0.954,\n          \"False\",\n          \"404\",\n          \"8015164d4f2eb710f78badccf13027f2\",\n          \"c146aba9f2912773\"\n        ],\n        [\n          \"2026-09-11T11:22:09.3291453Z\",\n          \"orders-api\",\n          \"GET /orders/{order_id}\",\n          0.909,\n          \"False\",\n          \"404\",\n          \"4875678a59d063838e93a7d906aba956\",\n          \"77e90dd20d7aafe1\"\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stderr": ""
+}
