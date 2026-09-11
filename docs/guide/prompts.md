@@ -13,9 +13,10 @@ them is mapped in [plugin.md](plugin.md).
 
 Investigates a codebase and hands back everything needed to plan its
 OpenTelemetry instrumentation, as a report under
-`.odd/otel-instrumentation-reports/`. Arguments: the **path or
-repository** (default: the current repository) and the **export
-stack** (default: the local stack).
+`.odd/otel-instrumentation-reports/`, and closes with the synthesis
+`odd-memory`'s `odd_report.py show` renders from the stored report.
+Arguments: the **path or repository** (default: the current
+repository) and the **export stack** (default: the local stack).
 
 ```text
 /odd-instrument-otel add OpenTelemetry to this repository

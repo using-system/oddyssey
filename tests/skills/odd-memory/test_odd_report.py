@@ -469,15 +469,292 @@ def test_check_names_a_missing_section_and_a_frontmatter_problem(repo):
     assert "depth absent" in proc.stderr
 
 
-def test_check_reads_an_instrumentation_report_by_the_hook_rules(repo):
+def test_check_reads_an_instrumentation_report_by_the_hook_rules_and_its_body(repo):
     path = repo.write(
         f"{INS}/2026-08-09-1000-app-python.md",
         "---\nproject: myrepo/src\nstack: local\nrun_name: app-python\ndate: 2026-08-09\n---\n\n## 1. Stack inventory\n",
     )
-    assert run(repo, "check", str(path)).returncode == 0
+    proc = run(repo, "check", str(path))
+    assert proc.returncode == 2
+    assert "section 2 absent" in proc.stderr and "section 5 absent" in proc.stderr
+    assert "title absent" in proc.stderr
     path.write_text(path.read_text().replace("date: 2026-08-09", "date: 2026-08-10"))
     proc = run(repo, "check", str(path))
     assert proc.returncode == 2 and "date" in proc.stderr
+
+
+# --- the instrumentation kind ---------------------------------------------------------
+
+
+INSTRUMENTATION_NEW = (
+    "new",
+    "--kind",
+    "instrumentation",
+    "--project",
+    "checkout/src",
+    "--stack",
+    "local",
+    "--run-name",
+    "checkout-python",
+    "--at",
+    "2026-08-09T10:00:00Z",
+)
+
+
+def new_instrumentation(repo: Repo, *extra: str) -> tuple[Path, str]:
+    proc = run(repo, *INSTRUMENTATION_NEW, "--repo", str(repo.root), *extra)
+    assert proc.returncode == 0, proc.stderr
+    path = Path(proc.stdout.splitlines()[0])
+    assert path.is_file(), proc.stdout
+    return path, proc.stdout
+
+
+INSTRUMENTATION_BODY = """\
+# Instrumentation report — checkout-python
+
+**One service, zero-code approach.**
+
+## 1. Stack inventory
+
+- **Recalled baseline:** no previous report.
+- checkout — Python 3.12, FastAPI; entry `src/app.py`; container; no telemetry.
+
+## 2. Summary table
+
+| Service | Language + version | Runtime shape | Approach | Signals (maturity) | Key packages (pinned) | OTLP endpoint | Effort (S/M/L) | Risk flags |
+|---|---|---|---|---|---|---|---|---|
+| checkout | Python 3.12 | container | zero-code | traces (stable), metrics (stable) | opentelemetry-distro 0.60b0, opentelemetry-exporter-otlp 1.39.0 | http://host.docker.internal:4318 | S | none |
+| worker | Python 3.12 | host process | libraries | traces (stable) | opentelemetry-sdk 1.39.0 | http://localhost:4318 | M | batch consumer: span links |
+
+Implementation order: checkout first (the edge), then worker.
+
+## 3. Decisions made, with rationale
+
+- checkout — zero-code via `opentelemetry-instrument` ([docs](https://opentelemetry.io/docs/zero-code/python/)); `OTEL_SERVICE_NAME=checkout`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4318`.
+
+### GenAI approach — worker
+
+The plan adopts `opentelemetry-instrumentation-openai` 0.60b0 ([registry](https://opentelemetry.io/ecosystem/registry/)); it emits the `gen_ai.*` spans; cost stays hand-coded; `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` stays off.
+
+## 4. Decisions the spec must settle
+
+1. Sampling strategy — head sampling at 100 % on the local stack.
+2. Content capture — whether `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` is turned on.
+3. Cost attribution — who owns the price table.
+
+## 5. Verification protocol
+
+Start the stack with `odd_stack_up`, run each service with its `OTEL_*` block, then:
+
+| Check | Query | Expected outcome | Attribution evidence |
+|---|---|---|---|
+| spans of checkout searchable | `grafana-traces.py operations checkout --since 10m` | one row per operation | `service.instance.id` = the run's value |
+| gen_ai spans of worker | `grafana-traces.py operations worker --since 10m` | `gen_ai.*` operations | the same instance id |
+"""
+
+
+def test_new_instrumentation_names_the_file_and_writes_the_five_section_skeleton(
+    repo, report
+):
+    path, out = new_instrumentation(repo, "--genai", "worker")
+    assert path.name == "2026-08-09-1000-checkout-python.md"
+    assert path.parent == repo.root / INS
+    fm = frontmatter(report, path)
+    assert fm["project"] == "checkout/src" and fm["stack"] == "local"
+    assert fm["run_name"] == "checkout-python" and fm["date"] == "2026-08-09"
+    assert fm["revision"] and isinstance(fm["tree_anchor"], dict)
+    assert fm["repository"] == "github.com/example-org/checkout"
+    assert "mode" not in fm and "services" not in fm
+    assert list(fm)[:2] == ["project", "stack"]
+    _, body, _ = report.split_frontmatter(path.read_text(encoding="utf-8"))
+    sections = report.raw_sections(body)
+    assert [s["title"] for s in sections] == list(report.INSTRUMENTATION_TITLES)
+    assert body.lstrip().startswith("# Instrumentation report — checkout-python")
+    assert "| " + " | ".join(report.SUMMARY_HEADER) + " |" in body
+    assert "Implementation order: <fill>" in body
+    assert "### GenAI approach — worker" in body
+    assert "| " + " | ".join(report.CHECK_HEADER) + " |" in body
+    assert "--- the file below its frontmatter" in out
+
+
+def test_new_instrumentation_refuses_an_observation_flag_and_needs_its_own(repo):
+    proc = run(repo, *INSTRUMENTATION_NEW, "--repo", str(repo.root), "--mode", "drive")
+    assert proc.returncode == 2 and "observation report's flag" in proc.stderr
+    proc = run(
+        repo,
+        "new",
+        "--kind",
+        "instrumentation",
+        "--stack",
+        "local",
+        "--repo",
+        str(repo.root),
+    )
+    assert proc.returncode == 2 and "--project is required" in proc.stderr
+    proc = run(
+        repo, *NEW, "--repo", str(repo.root), "--run-name", "x", "--project", "y"
+    )
+    assert proc.returncode == 2 and "belong to --kind instrumentation" in proc.stderr
+
+
+def test_check_refuses_an_instrumentation_skeleton_and_passes_a_conformant_body(repo):
+    path, _ = new_instrumentation(repo, "--genai", "worker")
+    proc = run(repo, "check", str(path))
+    assert proc.returncode == 2 and "placeholder" in proc.stderr
+    path.write_text(
+        path.read_text(encoding="utf-8").split("\n\n", 1)[0]
+        + "\n\n"
+        + INSTRUMENTATION_BODY,
+        encoding="utf-8",
+    )
+    proc = run(repo, "check", str(path))
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_persist_instrumentation_takes_the_kinds_branch_and_subject_and_shows(
+    repo, report
+):
+    path, _ = new_instrumentation(repo, "--genai", "worker")
+    draft = repo.write("scratch/draft.md", INSTRUMENTATION_BODY)
+    proc = run(repo, "persist", str(path), "--body", str(draft))
+    assert proc.returncode == 0, proc.stderr
+    assert "branch: docs/odd-instrumentation-report-checkout-python" in proc.stdout
+    assert (
+        "subject: docs(odd): instrumentation investigation checkout-python"
+        in proc.stdout
+    )
+    assert (
+        "headline: **2 services, mixed approach, 3 pinned packages, 3 decisions open, "
+        "GenAI approach for 1 service, no previous report**" in proc.stdout
+    )
+    assert (
+        repo.git("branch", "--show-current")
+        == "docs/odd-instrumentation-report-checkout-python"
+    )
+    assert repo.git("show", "--name-only", "--format=", "HEAD").splitlines() == [
+        f"{INS}/2026-08-09-1000-checkout-python.md"
+    ]
+    shown = run(repo, "show", str(path))
+    assert shown.returncode == 0, shown.stderr
+    assert shown.stdout.startswith("**2 services, mixed approach, 3 pinned packages")
+    assert (
+        "| Service | Approach | Key packages (pinned) | Effort | Risk flags |"
+        in shown.stdout
+    )
+    assert "Language + version" not in shown.stdout, "the widest columns are dropped"
+    assert (
+        "Implementation order: checkout first (the edge), then worker." in shown.stdout
+    )
+    assert "GenAI approach (section 3, prose): worker" in shown.stdout
+    assert "Decisions the spec must settle: 3" in shown.stdout
+    assert "Verification protocol: 2 replayable checks in section 5" in shown.stdout
+    assert shown.stdout.rstrip().endswith(
+        "then build the spec-driven instrumentation plan from the report."
+    )
+    synthesis = run(repo, "synthesis", str(path)).stdout
+    assert (
+        "--- section 5: replayable checks" in synthesis
+        and "spans of checkout searchable" in synthesis
+    )
+    read = run(repo, "read", str(path)).stdout
+    assert (
+        "## 1. Stack inventory" in read
+        and "## 4. Decisions" in read
+        and "## 3." not in read
+    )
+
+
+def test_check_refuses_a_credential_projected_in_a_check(repo):
+    path, _ = new_instrumentation(repo)
+    leaking = INSTRUMENTATION_BODY.replace(
+        "| `service.instance.id` = the run's value |",
+        "| InstrumentationKey=0a1b2c3d-0000-4000-8000-000000000001 on the resource |",
+    )
+    path.write_text(
+        path.read_text(encoding="utf-8").split("\n\n", 1)[0] + "\n\n" + leaking,
+        encoding="utf-8",
+    )
+    proc = run(repo, "check", str(path))
+    assert proc.returncode == 2 and "section 5 projects a credential" in proc.stderr
+    projecting = INSTRUMENTATION_BODY.replace(
+        "`grafana-traces.py operations worker --since 10m`",
+        "`az monitor app-insights component show --app x -g y --query instrumentationKey`",
+    )
+    path.write_text(
+        path.read_text(encoding="utf-8").split("\n\n", 1)[0] + "\n\n" + projecting,
+        encoding="utf-8",
+    )
+    proc = run(repo, "check", str(path))
+    assert proc.returncode == 2 and "section 5 projects a credential" in proc.stderr
+    wired = INSTRUMENTATION_BODY.replace(
+        "| `service.instance.id` = the run's value |",
+        "| the header `Authorization: Bearer $OTEL_TOKEN` sourced from the env var by name |",
+    )
+    path.write_text(
+        path.read_text(encoding="utf-8").split("\n\n", 1)[0] + "\n\n" + wired,
+        encoding="utf-8",
+    )
+    assert run(repo, "check", str(path)).returncode == 0, (
+        "wiring by name is not a value"
+    )
+
+
+def test_check_refuses_a_genai_table_row_and_a_summary_table_missing_a_column(repo):
+    path, _ = new_instrumentation(repo)
+    as_row = INSTRUMENTATION_BODY.replace(
+        "### GenAI approach — worker\n",
+        "| Item | Choice |\n|---|---|\n| GenAI approach | opentelemetry-instrumentation-openai |\n\n### GenAI approach — worker\n",
+    )
+    path.write_text(
+        path.read_text(encoding="utf-8").split("\n\n", 1)[0] + "\n\n" + as_row,
+        encoding="utf-8",
+    )
+    proc = run(repo, "check", str(path))
+    assert (
+        proc.returncode == 2
+        and "renders the GenAI approach as a table row" in proc.stderr
+    )
+    narrow = (
+        INSTRUMENTATION_BODY.replace(" | OTLP endpoint | ", " | ")
+        .replace(" | http://host.docker.internal:4318 | ", " | ")
+        .replace(" | http://localhost:4318 | ", " | ")
+        .replace(
+            "|---|---|---|---|---|---|---|---|---|", "|---|---|---|---|---|---|---|---|"
+        )
+    )
+    path.write_text(
+        path.read_text(encoding="utf-8").split("\n\n", 1)[0] + "\n\n" + narrow,
+        encoding="utf-8",
+    )
+    proc = run(repo, "check", str(path))
+    assert (
+        proc.returncode == 2
+        and "section 2 carries no summary table with the columns" in proc.stderr
+    )
+    assert "missing: endpoint" in proc.stderr
+    no_checks = INSTRUMENTATION_BODY.split("| Check |")[0] + "The checks come later.\n"
+    path.write_text(
+        path.read_text(encoding="utf-8").split("\n\n", 1)[0] + "\n\n" + no_checks,
+        encoding="utf-8",
+    )
+    proc = run(repo, "check", str(path))
+    assert (
+        proc.returncode == 2 and "section 5 carries no replayable check" in proc.stderr
+    )
+
+
+def test_instrumentation_checks_may_be_bullets_with_four_parts(repo):
+    path, _ = new_instrumentation(repo)
+    bullets = INSTRUMENTATION_BODY.split("| Check |")[0] + (
+        "- spans of checkout searchable — `grafana-traces.py operations checkout --since 10m` — one row per operation — `service.instance.id` = the run's value\n"
+    )
+    path.write_text(
+        path.read_text(encoding="utf-8").split("\n\n", 1)[0] + "\n\n" + bullets,
+        encoding="utf-8",
+    )
+    assert run(repo, "check", str(path)).returncode == 0
+    shown = run(repo, "show", str(path)).stdout
+    assert "Verification protocol: 1 replayable check in section 5" in shown
 
 
 # --- a replay: verify and re-measure ------------------------------------------------

@@ -138,7 +138,11 @@ iteration counts). Its telemetry gaps sit in section 5 with the others.
 
 ## Instrumentation reports — `.odd/otel-instrumentation-reports/`
 
-Written by `/odd-instrument-otel`, one file per investigation.
+Written by `/odd-instrument-otel`, one file per investigation - the
+`odd-memory` skill's report script names the file and writes the
+frontmatter and the five headings (`new --kind instrumentation`),
+refuses to persist a report that breaks the rules below, and renders
+the closing synthesis (`show`).
 
 ```text
 YYYY-MM-DD-HHmm-<run_name>.md
@@ -186,12 +190,15 @@ checking that a protocol's query runs.
 4. **Decisions the spec must settle** — sampling, Collector topology,
    migration, propagation, naming.
 5. **Verification protocol** — one replayable check per planned
-   signal, with the identity that ties it to the process under test,
-   so `/odd-verify` can rule closed, present but unattributed, or
-   still missing.
+   signal, as a table (`Check | Query | Expected outcome | Attribution
+   evidence`) or a four-part bullet, with the identity that ties it to
+   the process under test, so `/odd-verify` can rule closed, present
+   but unattributed, or still missing. A check that projects a
+   credential is refused before the report is persisted.
 
 A service whose dependencies name a model SDK adds a **GenAI
-approach** to section 3 — the instrumentation library the plan adopts,
+approach** to section 3 under its own `### GenAI approach` heading —
+prose, never a table row: the instrumentation library the plan adopts,
 and what stays hand-coded — and two decisions to section 4: prompt and
 completion content capture (off unless you turn it on, named as the
 library's own switch) and cost attribution.
@@ -212,8 +219,8 @@ frontmatters alone.
 - **Committed alone.** Each report lands in its own commit
   (`docs(odd): observation report <run_name>`, and the verification,
   re-measure, and instrumentation variants).
-- **Written by the skill's script.** An observation report's filename,
-  frontmatter and headings come from the `odd-memory` skill's
+- **Written by the skill's script.** A report's filename, frontmatter
+  and headings - of both kinds - come from the `odd-memory` skill's
   report script, which also refuses to persist a report that breaks
   these rules; only the sections' content is the agent's.
 - **No secrets, ever.** No tokens, credentials, connection strings, or
