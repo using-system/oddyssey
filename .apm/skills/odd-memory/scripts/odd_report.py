@@ -153,6 +153,10 @@ CREDENTIAL_RE = re.compile(
 # what a credential's slot may hold without being one: an env var name, a
 # secret reference written as hyphenated words, a placeholder
 WIRING_RE = re.compile(r"^(?:[A-Z][A-Z0-9_]{3,}|[a-z]+(?:[-_][a-z]+)+|<[^>]+>)$")
+# what starts the value after a `Key=` prefix when it is wired, not written:
+# a placeholder, a variable, a template - never the empty string, which is
+# what follows a base64 value's `=` padding
+WIRING_OPENERS = ("<", "$", "{", "*", "`")
 CREDENTIAL_PROJECTION_RE = re.compile(
     r"(?i)--query\s+\S*(?:instrumentationKey|connectionString|primaryKey|secretKey|"
     r"apiKey|accessKey)"
@@ -1011,8 +1015,9 @@ def credential_in(text: str) -> str | None:
     placeholder; a --query projecting a credential field; a literal key."""
     for match in CREDENTIAL_RE.finditer(text):
         literal = match.group(1)
-        if literal.endswith(("=", ";")):
-            continue  # a key=value prefix: the value after it is judged on its own
+        following = text[match.end() : match.end() + 1]
+        if literal.endswith(("=", ";")) and following in WIRING_OPENERS:
+            continue  # a key=value prefix cut at a placeholder or a reference
         if not WIRING_RE.match(literal):
             return match.group(0)
     for regex in (CREDENTIAL_PROJECTION_RE, SECRET_LITERAL_RE):

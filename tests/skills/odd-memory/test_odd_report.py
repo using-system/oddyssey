@@ -1442,6 +1442,8 @@ def test_the_credential_rule_tells_a_value_from_its_wiring(report):
         "connection string: InstrumentationKey=<instrumentation_key>;IngestionEndpoint=<endpoint>",
         "OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer ${TOKEN}",
         "api key: redacted by the backend's show",
+        "connection string: InstrumentationKey=${APPINSIGHTS_KEY}",
+        "connection string: InstrumentationKey=<instrumentation_key>",
     )
     for text in wiring:
         assert report.credential_in(text) is None, text
@@ -1452,6 +1454,11 @@ def test_the_credential_rule_tells_a_value_from_its_wiring(report):
         "--query instrumentationKey",
         "api_key=sk-abcdefghijklmnopqrstuvwxyz0123",
         "password: hunter2hunter2hunter2",
+        "api_key: eyJrIjoiT0tTcE1tYVYifQ==",
+        "token: Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MA==",
+        "secret: SharedAccessKey=Abc123DefGhi456JklMno789PqrStu012VwxYz34=",
+        "authorization: Basic dXNlcjpwYXNzd29yZDEyMw==",
+        "connection string: InstrumentationKey=abcdefghijklmnop;",
     )
     for text in values:
         assert report.credential_in(text), text

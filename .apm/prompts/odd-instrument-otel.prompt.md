@@ -33,8 +33,9 @@ stored path:
 python3 <Skills>/odd-memory/scripts/odd_report.py show <stored path>
 ```
 
-(its whole surface) and render its output as the final answer, in the
-conversation's language, stating the stored path. The report file - not the synthesis - is the
-input the spec-driven instrumentation plan is built from: never re-dump
+Run it - that is its whole surface - and render its output as the final
+answer, in the conversation's language, stating the stored path. The
+report file - not the synthesis - is the input the spec-driven
+instrumentation plan is built from: never re-dump
 the raw report in the conversation, and never let the synthesis replace
 the stored file as the plan's input.

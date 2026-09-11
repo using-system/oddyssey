@@ -218,7 +218,8 @@ agent's contract, stated here once and read at report time:
    credential is a leak deferred to the first replay. A check that must
    prove a secret is wired proves the **wiring**: the secret reference
    or env var name the configuration points at, a non-empty or redacted
-   flag the backend exposes, the resource identity the secret binds to
+   flag the backend exposes (stated in prose, never as a `--query`
+   naming the credential field), the resource identity the secret binds to
    (a workspace id, an ingestion mode) — never the value; and a
    resource identity that carries a real subscription, resource group,
    workspace or account name — or any value persisted under a remote
