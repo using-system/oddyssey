@@ -40,7 +40,9 @@ UIDs. gcx is the stack's mandatory query CLI.
 
 For Grafana — remote or local — the query commands are the scripts under
 `scripts/grafana-*.py`; `grafana.md`'s `## Query by signal` is the one
-place that states them, with every flag.
+place that states them, with every flag. For Azure Monitor they are the
+scripts under `scripts/azure-monitor-*.py`, stated the same way by
+`azure-monitor.md`'s `## Query by signal`.
 
 ## Rules
 
