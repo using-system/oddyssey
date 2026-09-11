@@ -2,7 +2,7 @@
 
 The script has two callers: CI, on the built-in references (no
 argument), and the backend-configuration skill's switch, on a custom
-stack file (``--declaration``). Both read the same contract block.
+stack directory (``--declaration``). Both read the same contract block.
 """
 
 from __future__ import annotations
@@ -212,7 +212,7 @@ def test_declaration_reads_the_contracts_own_example(tmp_path):
 
 def test_declaration_refuses_a_builtin_name(tmp_path):
     # A learning about a stack the package ships is a package issue, never
-    # a custom file: refused at the check, before the server ever sees it.
+    # a custom stack: refused at the check, before the server ever sees it.
     path = custom_file(
         tmp_path,
         name="grafana",
@@ -322,7 +322,7 @@ def test_linked_guide_by_url_is_fetched_and_checked(tmp_path):
 
 
 def test_linked_guide_by_repo_is_cloned_and_checked(tmp_path):
-    # The guide may itself be a full custom stack file in another
+    # The guide may itself be a full custom stack guide in another
     # repository (frontmatter included): its headings are what is checked.
     origin = tmp_path / "origin"
     origin.mkdir()
@@ -379,6 +379,19 @@ def test_linked_guide_with_a_local_body_is_refused(tmp_path):
     result = _run("--declaration", str(path))
     assert result.returncode == 1
     assert "carries no body" in result.stderr
+
+
+def test_a_refused_pointer_is_not_fetched(tmp_path):
+    # A pointer with a body is refused before the link is followed: the
+    # fetch's own failure would bury the real cause.
+    path = linked_file(
+        tmp_path, "source_url: http://127.0.0.1:1/guide.md", body="## Notes\n"
+    )
+    result = _run("--declaration", str(path))
+    assert result.returncode == 1
+    assert "carries no body" in result.stderr
+    assert "cannot fetch" not in result.stderr
+    assert "fetched" not in result.stderr
 
 
 def test_linked_guide_that_breaks_the_contract_fails_naming_the_heading(tmp_path):

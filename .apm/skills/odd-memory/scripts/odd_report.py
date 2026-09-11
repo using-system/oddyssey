@@ -5,7 +5,8 @@ The observe-run-report reference used to spell out, in prose, what the
 inputs already fix: the file's name (the UTC stamp, the slug, the
 observer suffix, the replay prefixes, the ordinal on a collision), the
 frontmatter fields a repository answers (``date``, ``revision``,
-``tree_anchor``, ``repository``), the seven numbered sections, the
+``tree_anchor``, ``repository``), the numbered sections (seven, eight
+on a custom stack), the
 ruling table a replay opens section 3 with, the work branch and the
 lone commit, and the synthesis block a mission closes with. A run read
 that prose right before writing its report, with the whole
@@ -1667,7 +1668,7 @@ def next_action(data: dict) -> str:
 def splice_body(path: Path, draft: Path) -> list[str]:
     """The draft's text under the report's frontmatter, replacing the body.
 
-    The run writes its seven sections to a draft with its file tool and
+    The run writes its sections to a draft with its file tool and
     never edits the report file: the frontmatter stays the script's. A
     frontmatter block the draft opens with is dropped, and said."""
     notes: list[str] = []

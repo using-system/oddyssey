@@ -1,6 +1,6 @@
 # The reference contract
 
-Every stack file in this directory — one per backend, `builtin-stacks.md`
+Every stack reference in this directory — one per backend, `builtin-stacks.md`
 and this file excepted — carries the sections below, under these exact
 headings. The consumers find a section by its heading and read nothing
 else: the preflight reads three (`## CLI binary`, `## Setup`,

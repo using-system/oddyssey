@@ -492,8 +492,6 @@ def parse_seq_ts(s: str) -> datetime | None:
         sign = 1 if off[0] == "+" else -1
         tz = timezone(sign * timedelta(hours=int(off[1:3]), minutes=int(off[4:6])))
         dt = dt.replace(tzinfo=tz)
-    else:
-        dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
 
 

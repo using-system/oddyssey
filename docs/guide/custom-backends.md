@@ -58,8 +58,9 @@ expert, which verifies it live:
 The instruction becomes a diff to the sections and the scripts it
 touches, verified live and shown to you before it is committed. An
 instruction never marks a command verified on its own — the expert's
-run does. To check a stack by hand, run the switch's check from your
-repository's root:
+run does. To check a stack by hand, run the contract check from your
+repository's root (the switch runs the same script, with `--fetch-dir`
+for a linked stack):
 
 ```text
 python3 <the observability-cli-guides skill's directory>/scripts/check_stack_reference.py --declaration .odd/observability-stacks/seq

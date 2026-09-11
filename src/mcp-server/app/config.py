@@ -53,8 +53,8 @@ STACK_CONFIG_FIELDS: dict[str, frozenset[str] | None] = {
 
 # A custom stack (issue #228) is a backend the package does not ship,
 # described by a stack directory in the observed repository. The server never
-# reads that file: the caller passes its declaration - the stack name and
-# the stack_config fields the file names - and the server stores it under
+# reads that directory: the caller passes its declaration - the stack name and
+# the stack_config fields its guide names - and the server stores it under
 # "custom", keyed by stack, next to the built-in whitelist above. A name
 # outside STACKS is accepted only with a declaration; its stack_config is
 # validated against the declared list exactly like a built-in's. Names and

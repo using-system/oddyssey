@@ -2,7 +2,7 @@
 """Check stack reference files against the reference contract.
 
 The contract (references/CONTRACT.md, next to this script's directory)
-lists, in its first fenced block, the headings every stack file must
+lists, in its first fenced block, the headings every stack reference must
 carry: ``##`` sections, each followed by the ``###`` subsections it must
 contain. This script reads that block - the contract is the list - and
 checks the files it is given. Order is free; a missing heading, or a
@@ -39,7 +39,8 @@ A custom stack may **link** its guide instead of carrying it (issue
 alone, no scripts) or ``source_repo`` + ``source_path`` (+ optional
 ``source_ref``: a git repository the user can clone, and the stack's
 directory in it - ``guide.md`` and ``scripts/`` come whole; a path to
-a file brings the guide alone) - and its body stays empty.
+a file brings the guide alone) - and its body stays empty, with no
+``scripts/`` of its own (they come with the link, or not at all).
 ``--declaration`` then fetches the stack into ``--fetch-dir <dir>``
 as ``<dir>/<name>/`` (a temporary directory when the option is
 absent), checks the fetched copy - headings and scripts - and prints
@@ -378,7 +379,7 @@ def check_scripts(directory: Path, body: str) -> list[str]:
             if entry.is_file() and entry.suffix == ".py":
                 try:
                     compile(entry.read_text(encoding="utf-8"), str(entry), "exec")
-                except (SyntaxError, ValueError, UnicodeDecodeError) as error:
+                except (SyntaxError, ValueError, UnicodeDecodeError, OSError) as error:
                     problems.append(f"{SCRIPTS}/{entry.name} does not compile: {error}")
             else:
                 problems.append(
@@ -421,7 +422,7 @@ def check_custom(
             problems.append(
                 f"a linked stack carries no {SCRIPTS}/ of its own: they come with the link"
             )
-        else:
+        if not problems:
             base = fetch_dir or Path(tempfile.mkdtemp(prefix="odd-stack-"))
             target = base / name / GUIDE
             failure = fetch_source(source, target)
