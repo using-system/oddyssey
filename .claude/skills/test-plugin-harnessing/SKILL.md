@@ -143,15 +143,18 @@ the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
    python3 <this skill's directory>/scripts/analyze_run.py --record <study dir>/<tag>.record.json
    ```
 
-   Surface: `--record`, or `--cli` with `--run-id` (and `--cwd` for a
-   claude run, whose transcripts are keyed on the directory); `--gap`
-   (default 60 s) sets the gap it reports; `--json`. It reads the run's
-   own lines under that CLI — opencode's log and session store,
-   claude's root and subagent transcripts, copilot's events — and
-   prints the commands, the turns, the generation time and the median
-   turn, then the four behaviours a harnessing change removes — scripts
-   the run authored, stack resets, machine questions already answered
-   upstream, `--help` calls on shipped scripts — and every silent gap.
+   Surface: `--record`, or `--cli` with `--run-id` plus `--stdout` (the
+   run's stdout stream: required for copilot, whose model calls it
+   carries; claude's cost when the run reached its exit) and `--usage`
+   (copilot's usage file); `--gap` (default 60 s) sets the gap it
+   reports; `--json`. It reads the run's own lines under that CLI —
+   opencode's log and session store, claude's root and subagent
+   transcripts, copilot's events and stream — and prints the commands,
+   the turns, the generation time and the median turn, the tokens and
+   the cost the CLI states (`null` with the reason otherwise), then the
+   four behaviours a harnessing change removes — scripts the run
+   authored, stack resets, machine questions already answered upstream,
+   `--help` calls on shipped scripts — and every silent gap.
 
 6. **Read the gaps before believing the clock.** A gap with no command
    in it is the model generating. One far above the run's median turn is
@@ -178,12 +181,12 @@ taken on another day. State it on four axes at once: turns, tokens
 (input with the cached share, output), cost and wall clock — per phase,
 since the report phase is a tenth of a run and a change there vanishes
 in the investigation's spread. The analysis prints the tokens and the
-cost the CLI states for a stopped run — opencode's store carries both
-for the session tree; claude's transcripts carry the tokens per request
-and the cost only in the result the run prints at exit; copilot writes
-its usage file at exit and bills no dollars — so a phase stopped at its
-marker states what it can, `null` and why otherwise, and a run left to
-finish (`--keep-running`, a `whole` phase) is read the way
+cost the CLI states — opencode's store carries both for the session
+tree; claude's transcripts carry the tokens per request and the cost
+only in the result the run prints when it reaches its exit; copilot's
+usage file carries the tokens, a stopped run's included, and no dollars
+— `null` with the reason otherwise; a run left to finish
+(`--keep-running`, a `whole` phase) is read the way
 `launch-llms-benchmark` step 7 reads it. When a number looks like
 variance, replay rather than argue: two samples of the same
 configuration settle what one cannot.

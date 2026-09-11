@@ -12,11 +12,12 @@ what it does not:
 - **gaps** with no command in them, which are the model generating, not
   the package working. A gap far above the run's median turn is provider
   latency and invalidates a wall-clock comparison;
-- **tokens and cost**, as far as the CLI states them for a run stopped
-  at its phase marker: opencode's store carries both for the session
-  tree; claude's transcripts carry the tokens per request and the cost
-  only in the result the run prints at exit; copilot writes its usage
-  file at exit and bills no dollars. A `null` says which, and why.
+- **tokens and cost**, as far as the CLI states them: opencode's store
+  carries both for the session tree; claude's transcripts carry the
+  tokens per request and the cost only in the result the run prints
+  when it reaches its exit; copilot's usage file carries the tokens
+  (written when the run ends, a stopped one included) and no dollars.
+  A `null` says which, and why.
 
 It also counts the behaviours a harnessing change is meant to remove:
 shell scripts the run authored, stack resets, machine questions already
@@ -292,18 +293,29 @@ def copilot_run(session: str, stdout: Path | None, usage_file: Path | None) -> d
         if "odd_stack_reset" in tool:
             resets += 1
     latencies: list[float] = []
-    starts: list[datetime] = []
+    starts: dict[str, datetime] = {}
     for event in json_lines(stdout):
         kind = event.get("type")
+        data = event.get("data") or {}
         when = parse(str(event.get("timestamp") or ""))
         if not when:
             continue
+        turn = str(data.get("turnId"))
         if kind == "model.call_start":
-            starts.append(when)
-        elif kind == "model.call_finished" and starts:
-            latencies.append((when - starts.pop(0)).total_seconds())
+            starts[turn] = when
+        elif kind == "model.call_finished":
+            # the CLI's own figure when it carries one, else the pair's
+            duration = data.get("dispatchDurationMs")
+            started = starts.pop(turn, None)
+            if duration is not None:
+                latencies.append(float(duration) / 1000)
+            elif started is not None:
+                latencies.append((when - started).total_seconds())
     tokens: dict = dict(NO_TOKENS)
-    note = "written at exit only: a stopped run has none (--keep-running, or a whole phase)"
+    note = (
+        "no usage file passed or found: copilot writes it when the run ends "
+        "(--usage-output-file, the record's usage)"
+    )
     if usage_file and usage_file.is_file():
         try:
             metrics = json.loads(usage_file.read_text()).get("modelMetrics") or {}

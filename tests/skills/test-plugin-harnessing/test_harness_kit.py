@@ -356,7 +356,7 @@ def test_copilot_reads_the_events_and_the_model_calls_of_the_stream(tmp_path):
     assert report["commands"] == 1 and report["stack_resets"] == 1
     assert report["redundant_machine_questions"] == 1
     assert report["turns"] == 2 and report["generation_seconds"] == 3
-    assert report["input_tokens"] is None and "written at exit" in report["tokens_note"]
+    assert report["input_tokens"] is None and "no usage file" in report["tokens_note"]
     assert report["cost_usd"] is None and "premium requests" in report["cost_note"]
     report = analyze(
         tmp_path,
@@ -389,3 +389,60 @@ def test_a_record_names_the_cli_the_id_and_the_files(tmp_path):
     report = analyze(tmp_path, "--record", str(record))
     assert report["cli"] == "copilot" and report["turns"] == 2
     assert report["input_tokens"] == 5000
+
+
+# --- a dead run is never a measured phase --------------------------------------------
+
+
+def measure_with_stub(tmp_path: Path, script: str, *args: str) -> tuple[int, dict]:
+    stub = tmp_path / "bin" / "claude"
+    stub.parent.mkdir(exist_ok=True)
+    stub.write_text("#!/bin/bash\n" + script)
+    stub.chmod(0o755)
+    caffeinate = tmp_path / "bin" / "caffeinate"
+    caffeinate.write_text('#!/bin/bash\nshift\nexec "$@"\n')
+    caffeinate.chmod(0o755)
+    out = tmp_path / "out"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(MEASURE),
+            "--cli",
+            "claude",
+            "--model",
+            "anthropic/claude-haiku-4.5",
+            "--tag",
+            "t",
+            "--phase",
+            "whole",
+            "--prompt",
+            "hi",
+            "--out",
+            str(out),
+            *args,
+        ],
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "HOME": str(tmp_path),
+            "PATH": f"{tmp_path / 'bin'}:{os.environ['PATH']}",
+        },
+        check=False,
+        cwd=tmp_path,
+    )
+    return proc.returncode, json.loads((out / "t.record.json").read_text())
+
+
+def test_a_run_that_dies_is_not_a_measured_phase(tmp_path):
+    code, record = measure_with_stub(
+        tmp_path, 'echo "API Error: model not found" >&2; exit 1\n'
+    )
+    assert code == 1 and record["reached"] is False
+    assert "error" in record["note"]
+    code, record = measure_with_stub(tmp_path, "exit 3\n")
+    assert code == 1 and record["reached"] is False
+    assert record["note"] == "the run exited with status 3"
+    code, record = measure_with_stub(tmp_path, "exit 0\n")
+    assert code == 0 and record["reached"] is True
+    assert record["cli"] == "claude" and record["model_as_passed"] == "claude-haiku-4-5"
