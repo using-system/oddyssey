@@ -88,17 +88,20 @@ this order:
    when the depth was defaulted.
 6. **Verification or re-measure.** The same reference's `boundary`
    command on the baseline: `verification` when a runtime entry, an
-   uncommitted change, or the benchmark the record names moved since
-   the baseline's revision - the mission tests a fix; `re-measure`
-   when nothing did - calling it a verification would fabricate a fix
-   that never existed; `undecidable` with the entries it could not
-   classify - rule them with the user (`/odd-status "<entry> is
-   runtime | non-runtime"` records the ruling for good; `--runtime` /
-   `--non-runtime` holds for this run) and run it again, never read it
-   as "code changed". When its outcome contradicts how the caller
-   framed the mission - they asked to *verify* but nothing changed,
-   they said *re-measure* but commits landed - say so and ask which of
-   the two the mission is, never silently reclassify. When what
+   uncommitted change to one, or the benchmark the record names moved
+   since the baseline's revision - the mission tests a fix;
+   `re-measure` when nothing did - calling it a verification would
+   fabricate a fix that never existed; `undecidable` with what it
+   could not settle - an entry never ruled runtime or not: rule it
+   with the user (`/odd-status "<entry> is runtime | non-runtime"`
+   records the ruling for good; `--runtime` / `--non-runtime` holds
+   for this run) and run it again; an entry present on one side only,
+   which no ruling settles, or an `ask:` line (nothing fixes the
+   boundary): ask the user which of the two the mission is - never
+   read either as "code changed". When its outcome contradicts how
+   the caller framed the mission - they asked to *verify* but nothing
+   changed, they said *re-measure* but commits landed - say so and ask
+   which of the two the mission is, never silently reclassify. When what
    changed is the benchmark a drive replay runs, say that too: the
    agent rules the baseline's findings against the benchmark itself
    (a script defect, an unattainable threshold) on the new revision,

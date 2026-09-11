@@ -1555,7 +1555,7 @@ def test_baseline_resolves_the_newest_report_and_asks_when_the_kinds_span(repo):
     assert got["services"] == "checkout" and got["stack"] == "local"
     assert got["mode"] == "drive (the baseline's frontmatter)"
     assert got["depth"] == "full (the baseline's depth field)"
-    assert got["drive confirmation"] == "not needed (local stack, local target)"
+    assert got["drive confirmation"] == "not needed (local stack, no recorded target)"
     # an instrumentation report lands: the newest reports span both kinds
     repo.write(
         f"{INS}/2026-08-09-1000-app-python.md",
@@ -1763,7 +1763,7 @@ def test_boundary_is_a_verification_when_a_runtime_entry_or_the_tree_changed(rep
     proc = run(repo, "boundary", "--repo", str(repo.root), str(path))
     got = lines_of(proc)
     assert proc.returncode == 0 and got["boundary"] == "verification"
-    assert got["runtime entries differing"] == "src (1: src/app.py)"
+    assert got["runtime entries differing"] == "src (1 paths: src/app.py)"
     assert got["persist"] == "--mode verify"
     # an uncommitted change to a runtime entry is changed code too
     path = anchored(repo, "2026-08-09-1000-checkout-sweep.md")
@@ -1789,9 +1789,9 @@ def test_boundary_is_undecidable_until_an_entry_is_ruled(repo):
     assert proc.returncode == 3
     got = lines_of(proc)
     assert got["boundary"] == "undecidable"
-    assert got["unclassified entries differing"] == "lib (1: lib/util.py)"
+    assert got["unclassified entries differing"] == "lib (1 paths: lib/util.py)"
     assert got["persist"].startswith(
-        "undecided until the unclassified entries are ruled"
+        "undecided: until the unclassified entries are ruled"
     )
     got = lines_of(
         run(
@@ -1824,9 +1824,13 @@ def test_boundary_is_undecidable_until_an_entry_is_ruled(repo):
     proc = run(
         repo, "boundary", "--repo", str(repo.root), str(path), "--non-runtime", "tools"
     )
-    assert (
-        proc.returncode == 3
-        and lines_of(proc)["unclassified entries differing"] == "tools"
+    assert proc.returncode == 3
+    got = lines_of(proc)
+    assert got["unclassified entries differing"] == "none"
+    assert got["entries present on one side only (uncertain)"] == "tools"
+    assert got["persist"] == (
+        "undecided: no ruling settles an entry present on one side only - ask the "
+        "user which of the two the mission is"
     )
 
 
@@ -1843,7 +1847,7 @@ def test_boundary_counts_a_change_to_the_benchmark_the_record_names(repo):
     assert got["boundary"] == "re-measure"
     assert (
         got["benchmark"]
-        == ".odd/benchmarks/checkout-load: unchanged since the revision"
+        == ".odd/benchmarks/checkout-load: unchanged since the baseline"
     )
     repo.write(
         ".odd/benchmarks/checkout-load/manifest.yaml", "name: checkout-load\nvus: 5\n"
@@ -1853,7 +1857,18 @@ def test_boundary_counts_a_change_to_the_benchmark_the_record_names(repo):
     assert got["boundary"] == "verification"
     assert (
         got["benchmark"]
-        == ".odd/benchmarks/checkout-load: changed: 1 commit(s) since the revision"
+        == ".odd/benchmarks/checkout-load: changed: 1 commit(s) since the baseline"
+    )
+    # an uncommitted change to the benchmark counts too, and never as a
+    # dirty working tree: the loop's memory is left out of that line
+    path = anchored(repo, "2026-08-09-1000-checkout-sweep.md", text=text)
+    repo.write(".odd/benchmarks/checkout-load/script.js", "// edited\n")
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "verification"
+    assert got["working tree"] == "clean"
+    assert got["benchmark"] == (
+        ".odd/benchmarks/checkout-load: changed: 0 commit(s) since the baseline, "
+        "1 uncommitted path(s)"
     )
 
 
@@ -1890,4 +1905,89 @@ def test_boundary_falls_back_to_the_tree_at_the_revision_then_to_the_commit_date
     repo.commit("fix: v3", date="2026-08-22T10:00:00Z")
     got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
     assert got["boundary"] == "verification"
-    assert got["runtime entries differing"].startswith("src (1: ")
+    assert got["runtime entries differing"].startswith("src (1 commits: ")
+    # the benchmark the record names is counted from the same boundary
+    text = BASELINE.replace(
+        "Scenario: 30 GET /products.",
+        "Scenario: .odd/benchmarks/checkout-load replayed.",
+    )
+    stored(repo, "2026-08-10-1000-checkout-sweep.md", text)
+    repo.git("commit", "--amend", "--no-edit", "-q", date="2026-08-23T10:00:00Z")
+    path = repo.root / OBS / "2026-08-10-1000-checkout-sweep.md"
+    repo.write(".odd/benchmarks/checkout-load/manifest.yaml", "name: checkout-load\n")
+    repo.commit("feat(bench): checkout-load", date="2026-08-24T10:00:00Z")
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "verification"
+    assert got["benchmark"] == (
+        ".odd/benchmarks/checkout-load: changed: 1 commit(s) since the baseline"
+    )
+
+
+def test_boundary_sees_a_rename_leaving_a_runtime_entry(repo):
+    ruled(repo)
+    path = anchored(repo)
+    repo.git("mv", "src/app.py", "docs/app.py")
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "verification"
+    assert got["working tree"] == (
+        "dirty: src (runtime: src/app.py), docs (non-runtime: docs/app.py)"
+    )
+
+
+def test_boundary_asks_when_nothing_fixes_the_boundary(repo):
+    ruled(repo)
+    repo.write(f"{OBS}/2026-08-08-1000-checkout-sweep.md", BASELINE)  # not committed
+    proc = run(
+        repo,
+        "boundary",
+        "--repo",
+        str(repo.root),
+        f"{OBS}/2026-08-08-1000-checkout-sweep.md",
+    )
+    assert proc.returncode == 3
+    assert proc.stdout.startswith(
+        "ask: 2026-08-08-1000-checkout-sweep.md carries no tree anchor, no revision "
+        "and the file is not committed: nothing fixes the boundary"
+    )
+
+
+def test_baseline_treats_a_verification_by_name_as_one(repo):
+    stored(repo, "2026-08-08-1000-checkout-sweep.md")
+    stored(repo, "2026-08-09-1000-verify-checkout-sweep.md")  # mode drive, no verifies
+    proc = run(repo, "baseline", "--repo", str(repo.root))
+    assert proc.returncode == 3
+    assert "is a verify by name with no verifies field" in proc.stdout
+    proc = run(repo, "baseline", "--repo", str(repo.root), "--own-protocol")
+    assert proc.returncode == 0, proc.stderr
+    assert lines_of(proc)["baseline"].endswith(
+        "(observation, the verify by name's own protocol (the carve-out))"
+    )
+
+
+def test_baseline_asks_on_the_newest_day_only_and_takes_a_dotted_path(repo):
+    stored(
+        repo,
+        "2026-08-01-1000-orders-sweep.md",
+        services="[orders]",
+        run_name="orders-sweep",
+    )
+    stored(repo, "2026-08-08-1000-checkout-sweep.md")
+    # an older lineage does not make the newest day ambiguous
+    proc = run(repo, "baseline", "--repo", str(repo.root))
+    assert proc.returncode == 0 and "checkout-sweep" in lines_of(proc)["report"]
+    stored(
+        repo,
+        "2026-08-08-1100-orders-sweep.md",
+        services="[orders]",
+        run_name="orders-sweep",
+    )
+    proc = run(repo, "baseline", "--repo", str(repo.root))
+    assert proc.returncode == 3 and "cover several services" in proc.stdout
+    proc = run(
+        repo,
+        "baseline",
+        "--repo",
+        str(repo.root),
+        f"./{OBS}/2026-08-08-1000-checkout-sweep.md",
+    )
+    assert proc.returncode == 0 and "checkout-sweep" in lines_of(proc)["report"]

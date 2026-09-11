@@ -335,52 +335,45 @@ section 2's `### GenAI` heading:
 ## Resolving a replay
 
 What the inputs fix before a verification is dispatched, one command
-each — the caller runs both, puts an `ask:` line to the user verbatim
-and never guesses past it:
+each - the caller runs both before the dispatch, puts an `ask:` line
+to the user verbatim (exit 3) and never guesses past it; the mission
+block carries their lines. Exit 0 settled, 2 refused (`nothing to
+verify`, a report it cannot read, a repository it cannot compare).
 
-- `baseline` resolves the report the arguments name — a path under
+- `baseline` resolves the report the arguments name - a path under
   either store, enough of a run name (several runs matching is an
   `ask:`), or the newest across both stores under `--service`,
-  `--stack`, `--env` (an `ask:` when the newest reports cover several
-  services or span both kinds) — then the baseline: the report
-  itself, or, when it is a verification or a re-measure, the report
-  its `verifies` names, exactly one hop (`--own-protocol` is the
-  carve-out: the verification's own protocol is the baseline; a
-  `verifies` naming nothing stored, or absent on a pre-convention
-  report, is an `ask:`). It prints, one `key: value` per line:
-  `report`, `baseline` (its kind and how it was reached), `verifies`
-  (what the replay's `new --verifies` takes: the filename, the
-  repo-relative path of an instrumentation baseline), `services` (an
-  instrumentation baseline's summary table), `stack`, `environment`
-  (`none` on an instrumentation baseline: the comparison is skipped),
-  `mode` (the baseline's execution mode, or the first one the
-  `verifies` chain reaches — an instrumentation report at its end is
-  `drive`; a chain reaching none is an `ask:` for the mode),
-  `depth` (`--depth` wins; else the baseline's field; `quick` when an
-  observation baseline predates it, `full` for an instrumentation
-  one — the reason on the line), `revision`, `benchmark` (the one the
-  record names, or `none named`), `target` (the record's base URL),
-  `drive confirmation` (`required` when the mode is `drive` and the
-  stack or the recorded target is not local — the caller asks; `not
-  needed` otherwise). Exit 0; 3 on an `ask:`; 2 with nothing stored
-  (`nothing to verify`).
+  `--stack` and `--env` (an `ask:` when the newest day's reports cover
+  several services, or when the stores hold both kinds) - then the
+  baseline: the report itself, or, for a verification or a re-measure
+  (by `mode`, or by the filename's prefix on a pre-convention report),
+  the report its `verifies` names, exactly one hop; `--own-protocol`
+  is the carve-out that makes a verification's own protocol the
+  baseline; a `verifies` absent or naming nothing stored is an `ask:`
+  for the original. The mode is the baseline's execution mode, or the
+  first the `verifies` chain reaches - an instrumentation report at
+  its end is `drive`; a chain reaching none is an `ask:` for the mode.
+  The depth: `--depth`, else the baseline's field, else `quick` for an
+  observation baseline that predates it and `full` for an
+  instrumentation one. A drive needs the user's confirmation when the
+  stack or the record's base URL is not local. Its `verifies` line is
+  what the replay's `new --verifies` takes.
 - `boundary <baseline report>` decides **verification or
-  re-measure** from the baseline's `tree_anchor` against `HEAD` of
-  `--repo`, entry by entry — the tree at `revision` when there is no
-  anchor, the commits since the report's own commit date when the
-  revision does not resolve either — with the entry rulings of
-  `.odd/entry-classifications.md` (the `decisions` reference), the
-  built-in non-runtime list, and `--runtime` / `--non-runtime` for
-  this run; `.odd` is ignored, an entry present on one side only
-  stays uncertain. It prints `boundary` (`verification`: a runtime
-  entry, an uncommitted change to one, or the benchmark the record
-  names moved; `re-measure`: nothing did; `undecidable`: an entry it
-  cannot classify — exit 3), `revision`, `method`, the differing
-  entries by class with their paths, `working tree` (`clean`, or the
-  uncommitted entries by class), `benchmark` (commits since the
-  revision and uncommitted paths under it), and `persist`: the
-  `--mode` the replay's `new` takes. It reads git; it writes nothing
-  and never rules an entry itself.
+  re-measure**: the baseline's `tree_anchor` against `HEAD` of
+  `--repo`, entry by entry; the tree at `revision` when there is no
+  anchor; the commits since the report's own commit date when the
+  revision does not resolve either (an `ask:` when the file is not
+  committed). An entry is classed by `--runtime` / `--non-runtime`
+  for this run, then the latest row of `.odd/entry-classifications.md`
+  (the `decisions` reference), then the built-in non-runtime list;
+  `.odd` is ignored except the benchmark the record names, whose
+  commits and uncommitted paths since the baseline count as a change.
+  `verification`: a runtime entry, an uncommitted change to one, or
+  the benchmark moved; `re-measure`: nothing did; `undecidable` (exit
+  3): an entry no ruling covers - or one present on one side only,
+  which no ruling settles. Its `persist` line is the `--mode` the
+  replay's `new` takes. It reads git; it writes nothing and never
+  rules an entry itself.
 
 ## Recall: reading the memory
 

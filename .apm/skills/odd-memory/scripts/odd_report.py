@@ -2330,7 +2330,7 @@ def resolve_report(
         exact = [
             r
             for r in reports
-            if r["rel"] == target.strip("./")
+            if r["rel"] == re.sub(r"^\./", "", target)
             or r["name"] == wanted.name
             or (wanted.exists() and Path(r["path"]).resolve() == wanted.resolve())
         ]
@@ -2366,8 +2366,17 @@ def resolve_report(
             f"no stored report matches {scope}; stored: services "
             f"{', '.join(stored) or 'none'}; stacks {', '.join(stacks) or 'none'}"
         )
-    lineages: dict[tuple, dict] = {}
+    # the newest reports: the ones of the newest day, and the newest of the
+    # other kind when the stores hold both - several services or two kinds
+    # among them is the user's call
+    newest_day = matched[0]["name"][:10]
+    newest = [r for r in matched if r["name"][:10] == newest_day]
     for report in matched:
+        if report["kind"] != matched[0]["kind"]:
+            newest.append(report)
+            break
+    lineages: dict[tuple, dict] = {}
+    for report in newest:
         key = (
             report["kind"],
             tuple(sorted(s.lower() for s in report_services(report))),
@@ -2385,6 +2394,17 @@ def resolve_report(
     return matched[0]
 
 
+def replay_prefix(name: str) -> str | None:
+    """``verify`` or ``re-measure`` when the filename carries the replay
+    prefix - a pre-convention verification says so by name alone."""
+    match = REPORT_NAME_RE.match(name)
+    slug = match.group(2) if match else ""
+    for mode, prefix in PREFIXES.items():
+        if slug.startswith(prefix):
+            return mode
+    return None
+
+
 def hop_to_baseline(root: Path, resolved: dict, own_protocol: bool) -> tuple[dict, str]:
     """The baseline: the report itself, or - when the resolved report is a
     verification or a re-measure - the one its ``verifies`` names, exactly
@@ -2392,21 +2412,23 @@ def hop_to_baseline(root: Path, resolved: dict, own_protocol: bool) -> tuple[dic
     own protocol the baseline."""
     fm = resolved["frontmatter"]
     mode = str(fm.get("mode") or "").lower()
-    replay = resolved["kind"] == "observation" and mode in REPLAY_MODES
+    by_name = replay_prefix(resolved["name"])
+    replay = resolved["kind"] == "observation" and (mode in REPLAY_MODES or by_name)
+    what = mode if mode in REPLAY_MODES else f"{by_name} by name"
     if own_protocol:
         if not replay:
             raise Refusal(
                 f"--own-protocol applies to a verification or a re-measure; "
                 f"{resolved['name']} is {mode or 'an instrumentation report'}"
             )
-        return resolved, f"the {mode}'s own protocol (the carve-out)"
+        return resolved, f"the {what}'s own protocol (the carve-out)"
     if not replay:
         return resolved, "the resolved report itself"
     verifies = fm.get("verifies")
     if not verifies:
         raise Ask(
-            f"{resolved['name']} is a {mode} with no verifies field (a pre-convention "
-            "report): name the observation report to verify against"
+            f"{resolved['name']} is a {what} with no verifies field (a "
+            "pre-convention report): name the observation report to verify against"
         )
     baseline = stored_report(root, str(verifies))
     if baseline is None:
@@ -2509,8 +2531,10 @@ def baseline_facts(root: Path, args: argparse.Namespace) -> dict:
         confirmation = f"required: the stack {stack} is not local"
     elif target and not is_local_target(target):
         confirmation = f"required: the recorded target {target} is not local"
-    else:
+    elif target:
         confirmation = "not needed (local stack, local target)"
+    else:
+        confirmation = "not needed (local stack, no recorded target)"
     return {
         "report": resolved["rel"],
         "baseline": baseline["rel"],
@@ -2559,8 +2583,9 @@ def render_baseline(facts: dict) -> str:
 
 
 def porcelain_entries(root: Path) -> dict[str, list[str]]:
-    """The working tree's uncommitted paths by top-level entry, the loop's
-    own memory left out (a report being written is not changed code)."""
+    """The working tree's uncommitted paths by top-level entry - ``.odd``
+    included, for the benchmark a record names; the caller leaves the rest
+    of the loop's own memory out."""
     try:
         proc = subprocess.run(
             ["git", "-C", str(root), "status", "--porcelain", "-z"],
@@ -2575,19 +2600,21 @@ def porcelain_entries(root: Path) -> dict[str, list[str]]:
     # -z: "XY path\0", a rename adding its source as the next token; the
     # output is never stripped - the first status letter may be a space
     entries: dict[str, list[str]] = {}
-    skip = False
+    source_next = False
     for token in proc.stdout.split("\0"):
-        if skip:
-            skip = False
+        if source_next:  # a rename's source: that entry lost a file
+            source_next = False
+            top = token.split("/", 1)[0]
+            if top:
+                entries.setdefault(top, []).append(token)
             continue
         if len(token) < 4:
             continue
         status, path = token[:2], token[3:]
-        skip = status[0] in "RC"
+        source_next = status[0] in "RC"
         top = path.split("/", 1)[0]
-        if not top or top == ".odd":
-            continue  # the loop's own memory; a benchmark is judged on its own
-        entries.setdefault(top, []).append(path)
+        if top:
+            entries.setdefault(top, []).append(path)
     return entries
 
 
@@ -2644,6 +2671,8 @@ def boundary_facts(root: Path, path: Path, args: argparse.Namespace) -> dict:
     anchor = fm.get("tree_anchor")
     head_short = git(root, "rev-parse", "--short", "HEAD") or "HEAD"
     differing: dict[str, list[str]] = {}
+    one_sided: list[str] = []
+    differing_unit = "paths"
     if isinstance(anchor, dict):
         diff = tree_anchor_diff(root, anchor, head_tree, revision, opts)
         method = f"tree anchor ({len(anchor)} entries) against HEAD {head_short}"
@@ -2652,11 +2681,7 @@ def boundary_facts(root: Path, path: Path, args: argparse.Namespace) -> dict:
         )
         # an entry on one side only - added or removed since the anchor -
         # stays uncertain whatever its ruling (the ledger's rule)
-        groups["unclassified"] = sorted(
-            set(groups["unclassified"])
-            | set(diff["only_in_anchor"])
-            | set(diff["only_at_candidate"])
-        )
+        one_sided = sorted(set(diff["only_in_anchor"]) | set(diff["only_at_candidate"]))
         if diff["changed_paths"]:
             differing = {k: v["paths"] for k, v in diff["changed_paths"].items()}
     elif revision and revision["resolves"]:
@@ -2672,10 +2697,14 @@ def boundary_facts(root: Path, path: Path, args: argparse.Namespace) -> dict:
         commit = added_commit(store_root, rel)
         if commit is None:
             raise Ask(
-                f"{path.name} carries no tree anchor, its revision "
-                f"{fm.get('revision') or 'is absent'} does not resolve and the file is "
-                "not committed: nothing fixes the boundary - say whether the code "
-                "changed since the baseline"
+                f"{path.name} carries no tree anchor, "
+                + (
+                    f"its revision {fm.get('revision')} does not resolve"
+                    if fm.get("revision")
+                    else "no revision"
+                )
+                + " and the file is not committed: nothing fixes the boundary - say "
+                "whether the code changed since the baseline"
             )
         boundary = report_boundary(None, commit)
         commits = (
@@ -2691,29 +2720,37 @@ def boundary_facts(root: Path, path: Path, args: argparse.Namespace) -> dict:
             for entry in c["entries"]:
                 if entry != ".odd":
                     differing.setdefault(entry, []).append(c["sha"][:7])
+        differing_unit = "commits"
         groups = classify_names(list(differing), opts)
         method = (
             f"no tree anchor, revision {fm.get('revision') or 'absent'} unresolvable: "
             f"the {len(commits)} commit(s) since the report's own commit date "
             f"{commit['date']}"
         )
-    dirty = porcelain_entries(root)
+    uncommitted = porcelain_entries(root)
+    memory_paths = uncommitted.pop(".odd", [])  # a report being written, a ledger
+    dirty = uncommitted
     dirty_groups = classify_names(list(dirty), opts)
     sections = raw_sections(report["body"])
     benchmarks = []
+    own_commit = added_commit(store_root, rel)
+    bench_boundary = report_boundary(revision, own_commit)
     for mention in benchmark_mentions(sections, report["body"]):
         bpath = mention["path"]
-        since = None
-        if revision and revision["resolves"]:
-            since = commits_after(
-                store_root, {"kind": "revision", "sha": revision["sha"]}, [bpath]
-            )
-        touched = [p for paths in dirty.values() for p in paths if p.startswith(bpath)]
+        # commits since the revision, else since the report's own commit
+        # date (its own commit ignored) - the same boundary as the code's
+        since = commits_after(
+            store_root,
+            bench_boundary,
+            [bpath],
+            own_commit["sha"] if own_commit else None,
+        )
+        touched = [p for p in memory_paths if p == bpath or p.startswith(bpath + "/")]
         benchmarks.append({"path": bpath, "commits": since, "dirty": touched})
     benchmark_changed = any(b["commits"] or b["dirty"] for b in benchmarks)
     if groups["runtime"] or dirty_groups["runtime"] or benchmark_changed:
         verdict = "verification"
-    elif groups["unclassified"] or dirty_groups["unclassified"]:
+    elif groups["unclassified"] or dirty_groups["unclassified"] or one_sided:
         verdict = "undecidable"
     else:
         verdict = "re-measure"
@@ -2724,6 +2761,8 @@ def boundary_facts(root: Path, path: Path, args: argparse.Namespace) -> dict:
         "method": method,
         "groups": groups,
         "differing": differing,
+        "differing_unit": differing_unit,
+        "one_sided": one_sided,
         "dirty": dirty,
         "dirty_groups": dirty_groups,
         "benchmarks": benchmarks,
@@ -2741,6 +2780,8 @@ def _repository_values(fm: dict) -> list[str]:
 def render_boundary(facts: dict) -> str:
     groups, differing = facts["groups"], facts["differing"]
 
+    unit = facts["differing_unit"]
+
     def entries(names: list[str]) -> str:
         if not names:
             return "none"
@@ -2748,7 +2789,9 @@ def render_boundary(facts: dict) -> str:
         for name in names:
             paths = differing.get(name) or []
             parts.append(
-                f"{name} ({len(paths)}: {', '.join(paths[:3])})" if paths else name
+                f"{name} ({len(paths)} {unit}: {', '.join(paths[:3])})"
+                if paths
+                else name
             )
         return ", ".join(parts)
 
@@ -2763,14 +2806,14 @@ def render_boundary(facts: dict) -> str:
     bench_lines = []
     for b in facts["benchmarks"]:
         if b["commits"] is None and not b["dirty"]:
-            state = "no resolvable revision to count commits from"
+            state = "no boundary to count commits from"
         elif b["commits"] or b["dirty"]:
             state = (
-                f"changed: {len(b['commits'] or [])} commit(s) since the revision"
+                f"changed: {len(b['commits'] or [])} commit(s) since the baseline"
                 + (f", {len(b['dirty'])} uncommitted path(s)" if b["dirty"] else "")
             )
         else:
-            state = "unchanged since the revision"
+            state = "unchanged since the baseline"
         bench_lines.append(f"{b['path']}: {state}")
     revision = facts["revision"]
     rev_text = "none"
@@ -2781,10 +2824,22 @@ def render_boundary(facts: dict) -> str:
     persist = {
         "verification": "--mode verify",
         "re-measure": "--mode re-measure",
-        "undecidable": "undecided until the unclassified entries are ruled - "
-        '/odd-status "<entry> is runtime | non-runtime" records the ruling, '
-        "--runtime/--non-runtime holds for this run",
+        "undecidable": "undecided",
     }[facts["verdict"]]
+    if facts["verdict"] == "undecidable":
+        reasons = []
+        if groups["unclassified"] or facts["dirty_groups"]["unclassified"]:
+            reasons.append(
+                "until the unclassified entries are ruled - "
+                '/odd-status "<entry> is runtime | non-runtime" records the ruling, '
+                "--runtime/--non-runtime holds for this run"
+            )
+        if facts["one_sided"]:
+            reasons.append(
+                "no ruling settles an entry present on one side only - ask the "
+                "user which of the two the mission is"
+            )
+        persist += ": " + "; ".join(reasons)
     lines = [
         f"boundary: {facts['verdict']}",
         f"baseline: {facts['baseline']}",
@@ -2794,6 +2849,8 @@ def render_boundary(facts: dict) -> str:
         "non-runtime entries differing (ignored): "
         + (", ".join(groups["non-runtime"]) or "none"),
         f"unclassified entries differing: {entries(groups['unclassified'])}",
+        "entries present on one side only (uncertain): "
+        + (", ".join(facts["one_sided"]) or "none"),
         f"working tree: {dirty_text}",
         "benchmark: " + ("; ".join(bench_lines) if bench_lines else "none named"),
         f"persist: {persist}",
