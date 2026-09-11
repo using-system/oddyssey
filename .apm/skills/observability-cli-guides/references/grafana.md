@@ -262,7 +262,10 @@ Six subcommands, the whole surface above (`--since <duration>` replaces
   one `count`-shaped query per closed `--bin` (a bin closes once its end
   is `--settle` old, so a lagging store never ends a live run), until
   the run has started (its first row, exact to the row's own
-  timestamp) and then ended on `--ended-after` consecutive empty bins:
+  timestamp — rows already in the first polled bin make the watch walk
+  back before `--from`, bin by bin to an empty one, so a watch
+  dispatched after the run began still dates it from its first row)
+  and then ended on `--ended-after` consecutive empty bins:
   `Started (UTC)` and `Ended (UTC)` are the rows', never the watch's
   clock. Exit 0 ended, 3 still running at `--max` or `--to` (the
   deadline past which "no run observed" is the answer), 4 not started
@@ -311,7 +314,7 @@ rootServiceName, rootTraceName, startTimeUnixNano, durationMs}]`.
 new, capped}], note`. `watch` — `traceql, from, to, bin, every,
 ended_after, settle, status (not started, running, ended), started,
 ended, last_row, span_s, identity[], identity_attr, several_identities,
-empty_since_last_row, bins[{from, to, listed, new, capped}], polls,
+empty_since_last_row, walked_back, bins[{from, to, listed, new, capped}], polls,
 polls_this_call, last_poll, state, commands[]` — the text form prints
 the record's `Started (UTC):`, `Ended (UTC):`, `Identity:` and `Watch:`
 lines as they go on the run record. `breakdown` — `window, traceql, service, listed, rooted,

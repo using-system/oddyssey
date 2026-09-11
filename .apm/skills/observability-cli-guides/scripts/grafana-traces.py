@@ -677,6 +677,16 @@ def cmd_watch(ns) -> tuple[int, dict]:
             if new and starts:
                 first_ns, first_id = starts[0]
                 last_ns, last_id = starts[-1]
+                if state["started"] is None and len(state["bins"]) == 1:
+                    # rows in the very first bin: the run may have begun
+                    # before --from - walk back, bin by bin, to its first row
+                    earlier, got = _walk_back(ns, x, step, attrs)
+                    results.extend(got)
+                    if earlier:
+                        state["bins"] = earlier["bins"] + state["bins"]
+                        state["from"] = earlier["bins"][0]["from"]
+                        state["walked_back"] = len(earlier["bins"])
+                        first_ns, first_id = earlier["first"]
                 if state["started"] is None:
                     state["started"] = _ns_iso(first_ns)
                     state["started_id"] = first_id
@@ -716,6 +726,57 @@ def cmd_watch(ns) -> tuple[int, dict]:
         time.sleep(every)
 
 
+def _walk_back(
+    ns, first_bin_start, step, attrs, limit: int = 20
+) -> tuple[dict | None, list]:
+    """The bins before the first polled one, back to an empty bin (or
+    ``limit`` bins): the rows they carry, earliest first."""
+    got: list = []
+    bins: list[dict] = []
+    earliest: tuple[int, str] | None = None
+    y = first_bin_start
+    for _ in range(limit):
+        x = y - step
+        r = run_gcx(
+            [
+                "traces",
+                "query",
+                ns.traceql,
+                "--from",
+                iso(x),
+                "--to",
+                iso(y),
+                "--limit",
+                str(TRACE_LIMIT),
+            ]
+        )
+        got.append(r)
+        rows = traces_list(r.data) if r.ok else []
+        bins.insert(
+            0,
+            {
+                "from": iso(x),
+                "to": iso(y),
+                "listed": len(rows),
+                "new": len(rows),
+                "capped": len(rows) >= TRACE_LIMIT,
+            },
+        )
+        starts = sorted(
+            (int(t["startTimeUnixNano"]), hex_trace_id(t.get("traceID", "")))
+            for t in rows
+            if str(t.get("startTimeUnixNano", "")).isdigit()
+        )
+        if starts:
+            earliest = starts[0]
+        if not rows:
+            break
+        y = x
+    if earliest is None:
+        return None, got
+    return {"bins": bins, "first": earliest}, got
+
+
 def _watch_out(state: dict, ns, now, polls_this_call: int) -> dict:
     started, ended = state.get("started"), state.get("ended")
     span = None
@@ -738,6 +799,7 @@ def _watch_out(state: dict, ns, now, polls_this_call: int) -> dict:
         "identity_attr": state.get("identity_attr"),
         "several_identities": len(state.get("identity") or []) > 1,
         "empty_since_last_row": state.get("empty_since", 0),
+        "walked_back": state.get("walked_back", 0),
         "bins": state["bins"],
         "polls": state["polls"],
         "polls_this_call": polls_this_call,
@@ -1037,6 +1099,11 @@ def render(o: dict) -> str:
         if o["started"]:
             out.append(
                 f"Started (UTC): {o['started']}   # the run's first request row on the identity"
+                + (
+                    f" - {o['walked_back']} bin(s) before --from, the run had begun before the watch"
+                    if o.get("walked_back")
+                    else ""
+                )
             )
         if o["ended"]:
             out.append(

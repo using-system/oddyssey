@@ -1183,3 +1183,46 @@ def test_watch_needs_a_start_and_refuses_a_state_of_another_watch(fake_gcx, tmp_
     )
     p = watch("--to", "2026-09-08T16:45:00Z", "--max", "0s", state=state)
     assert p.returncode == 1 and "another watch" in p.stderr
+
+
+def test_watch_walks_back_before_from_when_the_run_was_already_going(
+    fake_gcx, tmp_path
+):
+    """A watch dispatched after the run began must still date the run from
+    its first row: when the first polled bin already carries rows, the
+    watch walks back bin by bin until an empty one."""
+    p = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS / "grafana-traces.py"),
+            "watch",
+            WATCH_SEL,
+            "--from",
+            "2026-09-08T16:41:30Z",
+            "--to",
+            "2026-09-08T16:45:00Z",
+            "--settle",
+            "0s",
+            "--every",
+            "0s",
+            "--state",
+            str(tmp_path / "w.json"),
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "FAKE_T_WATCH": "1"},
+    )
+    assert p.returncode == 0, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert o["started"] == "2026-09-08T16:41:21Z"  # before --from
+    assert o["ended"] == "2026-09-08T16:41:33Z"
+    assert o["from"] == "2026-09-08T16:40:30Z"  # the empty bin the walk stopped at
+    assert o["walked_back"] == 2
+    assert [b["from"][11:19] for b in o["bins"][:3]] == [
+        "16:40:30",
+        "16:41:00",
+        "16:41:30",
+    ]
+    assert "before --from" in p.stdout or o["walked_back"]
