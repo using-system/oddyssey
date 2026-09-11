@@ -291,11 +291,13 @@ decreases and the level at the window's start is at least the window's
 increment (the magnitude), `delta` when it decreases the way a per-push
 counter does, `ambiguous` when monotonic but the level too low (a
 process started inside the window, or a delta series that happened to
-rise - both readings printed), `flat` when unchanged -, `edge_diff`,
-`reset_suspected` (a cumulative series that dropped to near zero once
-and rose again: a process restart - the edge diff is then the per-epoch
-deltas summed across the restart, the value after the drop counting
-from zero, never the bare `latest - earliest`). Output of `window`: one row per full dimension set with
+rise - both readings printed), `flat` when unchanged, `undetermined`
+when fewer than two pushes were listed, the listing failed, or it hit
+its cap of 10 000 rows (the tail then unseen: narrow the window) -,
+`edge_diff`, `reset_suspected` (a cumulative series that dropped to
+near zero once or twice and rose again: a process restart - the edge
+diff is then the per-epoch deltas summed across the restarts, the value
+after a drop counting from zero, never the bare `latest - earliest`). Output of `window`: one row per full dimension set with
 `temporality`, `pushes` and, for a statistic set, `count` (the edge
 diff of `.Count` on a cumulative series, its sum on a delta one), `sum`
 (seconds, the same way) and `mean`; for a scalar, `value` (the edge

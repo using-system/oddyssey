@@ -858,7 +858,7 @@ def test_logs_count_sample_and_filter(fake):
         *WINDOW,
     )
     assert code == 0
-    assert 1 <= len(out["events"]) <= 3 and isinstance(out["truncated"], bool)
+    assert 1 <= len(out["events"]) <= 3 and out["truncated"] is True
     assert out["events"][0]["stream"] == "otel-collector"
 
 

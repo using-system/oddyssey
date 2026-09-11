@@ -278,14 +278,17 @@ def probe_series(ns, metric: str, frm, to, results: list) -> dict:
         if not r.ok:
             continue
         pushes: dict = {}
-        if rv.ok:
+        capped = (
+            rv.ok and len(rv.data or []) >= 10000
+        )  # the listing hit its cap: the tail is unseen
+        if rv.ok and not capped:
             for row in rv.data or []:
                 key = _dimkey({d: row.get(d) for d in group_fields})
                 pushes.setdefault(key, []).append(float(row.get("v") or 0))
         for row in r.data or []:
             key = {d: row.get(d) for d in group_fields}
             kind, reset, edge = classify_values(pushes.get(_dimkey(key), []))
-            if not rv.ok:
+            if not rv.ok or capped:
                 kind, reset, edge = "undetermined", False, None
             if shape == "statset":
                 if f.endswith(".Count"):
