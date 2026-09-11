@@ -1,7 +1,7 @@
 ---
 stack: seq
 stack_config_fields: []
-verified: 2026-09-11, seqcli 2026.1.2616 against Seq 2026.1.17114 (the repository's docker-compose/seq, no API key) - every script invocation below run over the built-in sample data (seqcli sample ingest, the Roastery applications, window 2026-09-11T07:15:00Z..07:20:00Z, 2 981 events, 355 metric points); logs, traces and metrics exercised, profiles not served; the authentication-failure shape of the connection proof and the install commands were not run (marked below)
+verified: 2026-09-11, seqcli 2026.1.2616 against Seq 2026.1.17114 (the repository's docker-compose/seq, no API key) - every script invocation below run over the built-in sample data (seqcli sample ingest, the Roastery applications, window 2026-09-11T07:15:00Z..07:20:00Z, 2 981 events, 355 metric points; the discover environment probe also over 07:25-07:30 and 07:50-08:00); logs, traces and metrics exercised, profiles not served; the authentication-failure shape of the connection proof, the install commands and a @Resource-carrying (OTel-fed) instance were not exercised (marked below)
 ---
 
 # Seq
@@ -100,7 +100,7 @@ aggregates in [SQL queries](https://datalust.co/docs/sql-queries),
 `@`-names in
 [built-in properties](https://datalust.co/docs/built-in-properties-and-functions).
 
-### First, in one call: what the window holds
+### First, in one call: what the window holds - and where the environment is read from
 
 ```bash
 python3 .odd/observability-stacks/seq/scripts/seq-discover.py --from <start> --to <end>
@@ -109,17 +109,59 @@ python3 .odd/observability-stacks/seq/scripts/seq-discover.py --service <svc> --
 
 Whole surface: `--service` / `--service-key`, a window, `--bucket
 <duration>` (the slice the data distribution is reported in, default
-`1m`), `--json`. Output: `signals` (log-event, span and metric-point
-totals; `profiles: not served`), `data_slices` (the slices that hold
-events - **where a sparse window's data sits**, the first thing to read
-before any narrower query), per service `logs`, `spans`, `traces`
-(distinct trace ids), `levels`, `exceptions`, `root_operations` (root
-spans by `@MessageTemplate`, the span's name), `metric_points`;
-`metric_definitions` (name, kind, unit); `failed` (exit 2 when
-non-empty). A service the window names by no value of the key is
-reported as `(no value)` - the sample's API-layer events are (verified
-2026-09-11: 269 such events). Runs six `query` and one `metrics search`
-concurrently.
+`1m`), `--sample N` (the newest events whose property names are
+inventoried, default 200), `--json`. **This is the first read of a
+window**: it carries the deployment-environment detection and the GenAI
+presence probe, so a run composes neither. Output: `signals` (log-event,
+span and metric-point totals; `profiles: not served`), `data_slices`
+(the slices that hold events - **where a sparse window's data sits**,
+read before any narrower query), `environment` (`resource_events` - how
+many events carry a `@Resource` object; `resource_identities` -
+`none`, or `per service` when the rows below name one;
+`environment_properties` - the count of each environment-naming
+property present among `Environment`, `EnvironmentName`,
+`MachineName`, `host.name`, `deployment.environment.name`, `Origin`;
+`gen_ai_events` - events carrying a `gen_ai.*` attribute on the event
+or its resource, the GenAI section runs when it is non-zero;
+`read_from` - the one place a run reads the environment from: the
+resource when any event carries one, else the properties present, else
+`nothing`), `environment_values` (the distinct values of each
+environment-naming property present, 20 at most), `sampled_keys` (the
+property names the newest `--sample` events carry, with counts - the
+inventory of what the store really holds, `@`-keys included), per
+service `logs`, `spans`, `traces` (distinct trace ids), `levels`,
+`exceptions`, `root_operations` (root spans by `@MessageTemplate`, the
+span's name), `metric_points`, `resource_events`,
+`resource_identities` (one row per distinct `service.name`,
+`service.instance.id`, `deployment.environment.name`,
+`service.version` of its `@Resource`, with the event count),
+`environment_properties`, `gen_ai_events`; `metric_definitions` (name,
+kind, unit); `failed` (exit 2 when non-empty). A service the window
+names by no value of the key is reported as `(no value)` - the sample's
+API-layer events are (269 in the first window). Runs nine `query`, one
+`metrics search` and one `search` concurrently, plus one `distinct`
+query per environment-naming property present.
+
+- OTLP resource attributes are collected into the `@Resource` object
+  every event carries, and dotted attribute names are **unflattened
+  into nested objects** - `service.name` is `@Resource.service.name`, a
+  `gen_ai.system` event attribute is `gen_ai.system`
+  ([ingestion with OpenTelemetry](https://datalust.co/docs/ingestion-with-opentelemetry));
+  the script probes the nested path and, for `gen_ai`, the flat
+  `@Properties['gen_ai.system']` a pre-2024.1 ingestion would have
+  stored. **Never `has(['x'])`**: a bare `['x']` is an array literal
+  and `has()` of it is true on every event (2 981 of 2 981, verified
+  2026-09-11) - the hand-composed GenAI probe that used it reported
+  GenAI everywhere.
+- Verified 2026-09-11 on the three windows the store held
+  (07:15-07:20, 07:25-07:30, 07:50-08:00 UTC, sample data): no event
+  carries a `@Resource` or a `@Scope` (`resource_events=0`,
+  `resource_identities: none` - the script says `none`, never errors),
+  `Origin` is the only environment-naming property present (every
+  event, one value, `seqcli sample ingest`), `gen_ai_events=0`. An
+  instance fed by an OTel SDK, where `@Resource` is present, is
+  unverified 2026-09-11 - the identity query ran and returned no rows,
+  its shape on data is the documentation's.
 
 ### Logs
 
@@ -282,6 +324,12 @@ profiles says so and moves on.
 - Structured properties are the way in: `discover` and `sample --spans`
   first, then the operation grouping on the properties the service
   actually emits - the whole operation, never one half of it.
+- The deployment environment is read where `discover`'s `read_from`
+  says - `@Resource.deployment.environment.name` on an OTel-fed
+  instance, an `Environment`-like property otherwise; on the sample
+  data it names `Origin`, whose one value marks the generator, not an
+  environment - a run states that, it does not invent one. The GenAI
+  section runs only when `gen_ai_events` is non-zero.
 - Spans carry the request's level, exception and status: an error
   budget is read off the spans (`operations` `errors`, `count`'s span
   line), not off the log events.
