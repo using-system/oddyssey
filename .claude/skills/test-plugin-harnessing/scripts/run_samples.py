@@ -153,8 +153,8 @@ def main() -> int:
         "--scope",
         action="append",
         metavar="LAB_PATH:HOME_PATH",
-        help="a deployed directory to sync into the fake home (repeatable; the "
-        "opencode pair is the default, the other CLIs need theirs stated)",
+        help="a deployed directory to sync into the fake home, both paths relative "
+        "(repeatable; the opencode pairs are the default, the other CLIs need theirs stated)",
     )
     ap.add_argument(
         "--scratch",
@@ -201,7 +201,14 @@ def main() -> int:
     for pair in args.scope or []:
         if ":" not in pair:
             raise SystemExit(f"--scope takes <lab path>:<fake-home path>, got {pair!r}")
-        scopes.append(tuple(pair.split(":", 1)))
+        src, dst = pair.split(":", 1)
+        for part in (src, dst):
+            if not part or Path(part).is_absolute() or ".." in Path(part).parts:
+                raise SystemExit(
+                    f"--scope paths are relative to the lab and to the fake home, "
+                    f"never absolute, never through ..: got {pair!r}"
+                )
+        scopes.append((src, dst))
     if not scopes:
         raise SystemExit(f"--cli {args.cli} needs its --scope pairs stated")
     branches = git(lab, "branch", "--format=%(refname:short)").splitlines()

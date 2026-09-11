@@ -267,7 +267,8 @@ Six subcommands, the whole surface above (`--since <duration>` replaces
   dispatched after the run began still dates it from its first row)
   and then ended on `--ended-after` consecutive empty bins:
   `Started (UTC)` and `Ended (UTC)` are the rows', never the watch's
-  clock. Exit 0 ended, 3 still running at `--max` or `--to` (the
+  clock. `--max` bounds one call, between and inside its polls (`0s`
+  is one whole poll). Exit 0 ended, 3 still running at `--max` or `--to` (the
   deadline past which "no run observed" is the answer), 4 not started
   there — the same invocation again resumes it from `--state`, the last
   closed bin onward, never re-querying what it already counted; a

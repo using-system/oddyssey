@@ -60,8 +60,9 @@ writing a command the package supplies. Nor does the watch of a run
 someone else drives, on a backend whose reference ships one
 (`benchmark-replay.md`'s watching section routes there). What follows
 is for an **ad-hoc** scenario, and for that watch on a backend that
-ships no script — the criteria then come from `benchmark-replay.md`. Start the job, then launch a small script with `nohup` that
-polls it and appends timestamped progress to a file. The scenario
+ships no script — the criteria then come from `benchmark-replay.md`.
+Start the job, then launch a small script with `nohup` that polls it
+and appends timestamped progress to a file. The scenario
 record cites the poller script and its output file verbatim — they are
 part of the protocol, and a replay re-runs the same poller, not a
 hand-watched approximation.

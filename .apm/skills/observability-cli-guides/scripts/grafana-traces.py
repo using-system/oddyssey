@@ -37,11 +37,16 @@ start), --to (the deadline; default none - the wall clock), --bin (default
 many consecutive empty closed bins), --settle (default 60s: a bin closes
 once its end is that old, so a lagging store never ends a live run),
 --every (default 30s between polls), --max (default 8m: the bound one call
-holds the watch for), --state FILE (the watch's state; the next call resumes
-from the last closed bin), --identity-attr (repeatable; default
-user_agent.original then http.user_agent: the span attribute read off the
-first and the last row's trace) - exit 0 ended, 3 running at the bound, 4
-not started at the bound. --json
+holds the watch for, between and inside its polls; 0 is one poll, whole),
+--state FILE (the
+watch's state; the next call resumes from the last closed bin), --identity-attr
+(repeatable; default user_agent.original then http.user_agent: the span
+attribute read off the first row's trace, the first row after a gap, and
+the last row's - two values are two runs). Rows already in the first bin
+make the watch walk back before --from to the run's first row; at the
+deadline the last --settle is read unsettled, and a deadline closer to the
+last row than ended-after x bin + settle says how much further --to must go.
+Exit 0 ended, 3 running at the bound, 4 not started at the bound. --json
 everywhere. Every subcommand prints the gcx commands it ran, so the report
 can record them. Reads GCX_CONFIG. Exit 0 on success, 1 when gcx errored -
 and then nothing but the error is printed.
@@ -696,6 +701,7 @@ def cmd_watch(ns) -> tuple[int, dict]:
     state = _load_watch_state(ns.state, ns.traceql, iso(frm), ns.bin)
     results: list = []
     recorded = 0
+    recorded_bins = 0  # bins queried by this call: --max never cuts the first
     began = time.monotonic()
     polls_this_call = 0
     while True:
@@ -712,6 +718,9 @@ def cmd_watch(ns) -> tuple[int, dict]:
         cursor = parse_ts(state["cursor"])
         error = None
         while cursor < horizon and state["status"] != "ended":
+            if bound and recorded_bins and time.monotonic() - began >= bound:
+                break  # --max binds the call, inside a poll as between two
+            recorded_bins += 1
             x, y = cursor, min(cursor + step, horizon)
             partial = y < cursor + step
             r = _query_bin(ns, x, y)
@@ -736,15 +745,24 @@ def cmd_watch(ns) -> tuple[int, dict]:
             if partial:
                 entry["partial"] = True
             previous_empty = not state["bins"] or not state["bins"][-1].get("new")
-            state["bins"].append(entry)
-            if not partial:
+            if partial:
+                # the clipped last bin before the deadline: read for the start
+                # and the rows, kept apart and replaced, never a closed bin
+                state["partial"] = entry
+            else:
+                state["bins"].append(entry)
+                state.pop("partial", None)
                 state["last_bin_ids"] = ids[-200:]
                 state["cursor"] = iso(y)
             cursor = y
             if new and starts:
                 first_ns, first_id = starts[0]
                 last_ns, last_id = starts[-1]
-                if state["started"] is None and len(state["bins"]) == 1:
+                if (
+                    state["started"] is None
+                    and iso(x) == state["from"]
+                    and not state["walked_back"]
+                ):
                     # rows in the very first bin: the run may have begun
                     # before --from - walk back, bin by bin, to its first row
                     earlier, got = _walk_back(ns, x, step)
@@ -787,11 +805,16 @@ def cmd_watch(ns) -> tuple[int, dict]:
             return 0, _watch_out(state, ns, now, polls_this_call)
         if at_deadline:
             need = ns.ended_after - state["empty_since"]
-            if state["started"]:
+            if state["started"] and state["empty_since"]:
                 state["deadline_note"] = (
                     f"the deadline closes {state['empty_since']} of the {ns.ended_after} "
                     f"empty {ns.bin} bins the end needs: extend --to past the last row by "
                     f"{ns.ended_after} x {ns.bin} + {ns.settle} ({need * int(step.total_seconds())} s more)"
+                )
+            elif state["started"]:
+                state["deadline_note"] = (
+                    "the run was still producing rows at the deadline: extend --to past "
+                    f"its end by {ns.ended_after} x {ns.bin} + {ns.settle}"
                 )
             else:
                 state["deadline_note"] = (
@@ -832,6 +855,7 @@ def _watch_out(state: dict, ns, now, polls_this_call: int) -> dict:
         "walked_back": state.get("walked_back", 0),
         "deadline_note": state.get("deadline_note"),
         "bins": state["bins"],
+        "partial_bin": state.get("partial"),
         "capped_bins": sum(1 for b in state["bins"] if b.get("capped")),
         "polls": state["polls"],
         "polls_this_call": polls_this_call,
@@ -1138,7 +1162,7 @@ def render(o: dict) -> str:
             )
         if o["ended"]:
             out.append(
-                f"Ended   (UTC): {o['ended']}   # last request row; {o['ended_after']} empty {o['bin']} bins after it"
+                f"Ended   (UTC): {o['ended']}   # last request row; {o['ended_after']} empty {o['bin']} bin(s) after it"
             )
         elif o["started"]:
             out.append(
@@ -1176,6 +1200,11 @@ def render(o: dict) -> str:
         for r in o["bins"][-12:]:
             out.append(
                 f"  {r['from'][11:19]} .. {r['to'][11:19]}  new={r.get('new')}{'  CAPPED' if r.get('capped') else ''}{'  ' + r['error'] if r.get('error') else ''}"
+            )
+        if o.get("partial_bin"):
+            r = o["partial_bin"]
+            out.append(
+                f"  {r['from'][11:19]} .. {r['to'][11:19]}  new={r.get('new')}  partial, up to the deadline: read again next call"
             )
         if o.get("deadline_note"):
             out.append(f"  deadline {o['to']}: {o['deadline_note']}")

@@ -1136,7 +1136,7 @@ def test_watch_renders_the_records_lines(fake_gcx, tmp_path):
     assert text.startswith("watch: ended")
     assert "Started (UTC): 2026-09-08T16:41:21Z" in text
     assert "Ended   (UTC): 2026-09-08T16:41:33Z" in text
-    assert "four empty 30s bins" in text or "4 empty 30s bins" in text
+    assert "4 empty 30s bin(s) after it" in text
     assert (
         "Identity:  http.user_agent odd-bench/llmbench-store-load/run-store-load-01"
         in text
@@ -1256,7 +1256,7 @@ def test_watch_resumes_after_a_walk_back_with_the_same_invocation(fake_gcx, tmp_
     watch's."""
     state = tmp_path / "w.json"
     p = watch("--to", "2026-09-08T16:42:30Z", "--max", "0s", "--json", state=state)
-    assert p.returncode == 0 or p.returncode == 3, p.stderr + p.stdout
+    assert p.returncode == 3, p.stderr + p.stdout
     o = json.loads(p.stdout)
     assert o["status"] == "running" and o["walked_back"] == 0
     p = subprocess.run(
@@ -1427,3 +1427,50 @@ def test_watch_stops_on_a_gcx_error_and_the_next_call_requeries_that_bin(
     o = json.loads(p.stdout)
     froms = [b["from"] for b in o["bins"]]
     assert len(froms) == len(set(froms)) == 8 and o["status"] == "ended"
+
+
+def test_watch_keeps_a_clipped_deadline_bin_apart_and_never_duplicates_it(
+    fake_gcx, tmp_path
+):
+    """Deadlines off the bin grid: the clipped last bin is read for the start
+    and the rows but never enters the closed bins, so resumed calls neither
+    duplicate nor double-count."""
+    state = tmp_path / "w.json"
+    o1 = json.loads(
+        watch(
+            "--to", "2026-09-08T16:41:45Z", "--max", "0s", "--json", state=state
+        ).stdout
+    )
+    assert o1["status"] == "running" and o1["started"] == "2026-09-08T16:41:21Z"
+    assert (
+        o1["partial_bin"]["from"] == "2026-09-08T16:41:30Z"
+        and o1["partial_bin"]["partial"] is True
+    )
+    assert [b["from"][11:19] for b in o1["bins"]] == [
+        "16:40:00",
+        "16:40:30",
+        "16:41:00",
+    ]
+    o2 = json.loads(
+        watch(
+            "--to", "2026-09-08T16:42:15Z", "--max", "0s", "--json", state=state
+        ).stdout
+    )
+    assert [b["from"][11:19] for b in o2["bins"]] == [
+        "16:40:00",
+        "16:40:30",
+        "16:41:00",
+        "16:41:30",
+    ]
+    assert o2["partial_bin"]["from"] == "2026-09-08T16:42:00Z"
+    o3 = json.loads(watch("--to", "2026-09-08T16:45:00Z", "--json", state=state).stdout)
+    assert o3["status"] == "ended" and o3["partial_bin"] is None
+    froms = [b["from"] for b in o3["bins"]]
+    assert len(froms) == len(set(froms)) == 8
+    assert sum(b["new"] for b in o3["bins"]) == 5
+    assert (
+        "partial"
+        in watch(
+            "--to", "2026-09-08T16:41:45Z", "--max", "0s", state=tmp_path / "v.json"
+        ).stdout
+    )

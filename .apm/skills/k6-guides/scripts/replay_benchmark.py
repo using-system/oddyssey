@@ -549,9 +549,9 @@ def stage_layout(text: str, first_row: str, segment: str) -> dict:
             s["name"] for s in stages if s["to_s"] <= first_quoted_s and not s["quote"]
         ]
         warmup_line = (
-            f"Warmup:    none declared - t0 is {gap} s after the first row: "
-            f"{' and '.join(before)} before it ramp{'s' if len(before) == 1 else ''}, "
-            "read in segments (excluded from the quoted numbers), not a warmup"
+            f"Warmup:    none declared - t0 is {gap} s after the first row; "
+            f"before it the {' and '.join(before)} stage{'s' if len(before) > 1 else ''} "
+            "ramp rather than warm up, read in segments (excluded from the quoted numbers)"
         )
     return {
         "first_row": first_row,

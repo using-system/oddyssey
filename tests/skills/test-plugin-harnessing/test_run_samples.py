@@ -330,3 +330,20 @@ def test_a_sample_spec_needs_all_three_parts():
         check=False,
     )
     assert p.returncode != 0 and "tag=branch:mission" in (p.stderr + p.stdout)
+
+
+def test_a_scope_path_outside_the_lab_or_the_fake_home_is_refused(lab, kit, tmp_path):
+    precious = tmp_path / "precious"
+    precious.mkdir()
+    (precious / "important.txt").write_text("keep\n")
+    out = tmp_path / "study"
+    for pair in (
+        f".agents/skills:{precious}",
+        f"{lab / '.agents/skills'}:.claude/x",
+        ".agents/skills:../x",
+    ):
+        p = run_samples(
+            lab, kit, out, f"s1=lab-main:{kit['mission']}", extra=("--scope", pair)
+        )
+        assert p.returncode == 1 and "never absolute" in p.stderr, pair
+    assert (precious / "important.txt").read_text() == "keep\n"

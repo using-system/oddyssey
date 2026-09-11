@@ -650,7 +650,7 @@ def test_a_ramp_before_the_quoted_stage_is_named_on_the_warmup_line_with_the_off
     out = json.loads(p.stdout)
     assert out["t0"] == "2026-09-06T10:05:00Z" and out["warmup"]["stages"] == []
     assert "t0 is 300 s after the first row" in out["warmup_line"]
-    assert "ramp before it ramps, read in segments" in out["warmup_line"]
+    assert "before it the ramp stage ramp rather than warm up" in out["warmup_line"]
 
 
 def test_stages_refuse_a_manifest_without_stages_and_a_bad_instant(tmp_path):
