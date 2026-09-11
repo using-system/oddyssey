@@ -838,8 +838,11 @@ for that shape of the work, that is **friction**, and it goes into
 your report's `## 8. Stack friction` section (the `observe-run-report`
 reference states the bullet: what did not work, the invocation as
 run, what it answered, what you did instead), one bullet per point —
-or the one `none` bullet when every shipped invocation answered as its
-guide states. Never a diff, never a commit, never a file touched under
+or the one `none` bullet, which states that every backend call of
+your run went through a shipped invocation and answered as its guide
+states: before writing it, read your own command list — every backend
+command you typed yourself, the one that failed on a trap the guide
+documents included, is a bullet, and `none` is false. Never a diff, never a commit, never a file touched under
 the stack's directory: authoring is the expert's responsibility, and
 the maintainer runs `/odd-instrument-stack from report <path>` on your
 report to turn the section into the fix, verified live and reviewed

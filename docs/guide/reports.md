@@ -109,7 +109,8 @@ the three.
    of friction with the stack as shipped (a script that failed as
    written, an output shape the guide did not state, a flag it lacked,
    a query composed by hand), each with the invocation, what it
-   answered and what the run did instead — or one `none` bullet. The
+   answered and what the run did instead — or one `none` bullet, which
+   states that every backend call went through a shipped script. The
    run never edits the stack; `/odd-instrument-stack from report
    <path>` fixes it from this section
    ([custom-backends.md](custom-backends.md)).

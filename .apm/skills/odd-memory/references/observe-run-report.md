@@ -314,9 +314,11 @@ section 2's `### GenAI` heading:
    the run could not follow, a query it had to compose by hand —
    `- <what did not work> — <the invocation, as run> — <what it
    answered> — <what the run did instead>`; or the one bullet
-   `- none — every shipped invocation answered as its guide states`.
-   A friction with the preflight's or the switch's sections is a
-   bullet like any other. `persist` counts the bullets into
+   `- none — every backend call of this run went through a shipped invocation, and each answered as its guide states`
+   — a statement about the run's own command list, false as soon as
+   one backend command was typed by hand, whatever it answered. A
+   friction with the preflight's or the switch's sections is a bullet
+   like any other. `persist` counts the bullets into
    `stack_friction`, `show` renders them, and
    `/odd-instrument-stack from report <path>` turns them into the fix
    — the run itself never edits the stack (the `observability-stack`

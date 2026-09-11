@@ -1051,7 +1051,10 @@ def custom_body(report, friction: list[str] | None) -> str:
     bullets = (
         "\n".join(f"- {f}" for f in friction)
         if friction
-        else "- none — every shipped invocation answered as its guide states"
+        else (
+            "- none — every backend call of this run went through a shipped "
+            "invocation, and each answered as its guide states"
+        )
     )
     sections.append(
         f"## {report.FRICTION_NUMBER}. {report.FRICTION_TITLE}\n\n{bullets}"
