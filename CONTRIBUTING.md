@@ -94,6 +94,12 @@ spec wins if this summary ever drifts):
 - CI must be green: the 8-target APM matrix runs on every PR; the
   server's lint, unit, and integration jobs all run when `src/`,
   `tests/`, or `integration-tests/` change.
+- **A change on the path of `/odd-observe`, `/odd-verify` or
+  `/odd-status` is measured before the PR** with the
+  `test-plugin-harnessing` skill (`.claude/skills/`), against main
+  measured just before the work, two samples per side, and the PR
+  states the numbers — AGENTS.md's "Plugin harnessing" section says
+  what counts as on the path and what the bar is.
 - Keep one logical change per PR, and match the surrounding style —
   the agent/skill markdown files are executable contracts, so wording
   changes there are behavior changes.

@@ -1,5 +1,6 @@
 ---
 description: Benchmark one LLM on the llms-benchmark demo stack - drive it through a coding-agent CLI (opencode, claude or copilot) on the stored scenario, grade the observation report it produced, and propose its row of the results table
+argument-hint: "<opencode | claude | copilot> <vendor/model> <full | quick>"
 ---
 
 Run the whole llms-benchmark protocol for one model on one CLI, end to
