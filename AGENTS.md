@@ -134,7 +134,7 @@ The rule governs the report stores — `.odd/observe-run-reports/`,
 `.odd/otel-instrumentation-reports/`, `.odd/decisions.md`, and
 `.odd/entry-classifications.md`. It does
 not reach `.odd/benchmarks/` or `.odd/observability-stacks/`: a
-benchmark or a custom stack file is living source, not a run record,
+benchmark or a custom stack is living source, not a run record,
 and its `odd-memory` reference updates it in place through reviewed
 diffs like any other committed code.
 
@@ -327,7 +327,7 @@ required to query it, the CLI or its install command changes, the
 resource prerequisite changes — or a backend is added to or removed
 from `STACKS` — the guide must keep matching
 `.apm/skills/observability-cli-guides/references/*.md`, the one place a
-stack's knowledge lives (its query surface, its `## Configuration
+built-in stack's knowledge lives (its query surface, its `## Configuration
 display`, its `## What to persist`); `references/builtin-stacks.md`
 there must list exactly the `STACKS` values (a unit test asserts it).
 
@@ -361,12 +361,12 @@ exhaustive.
 ## Keep the custom backends guide in sync
 
 `docs/guide/custom-backends.md` documents how a user creates, edits,
-shares and lets the runs amend a custom stack file. Update it in the
-same change whenever `/odd-config`'s create, link or complete shapes,
-`odd-memory`'s `observability-stack` reference, the contract check
-script's invocation, or `observe-run`'s learning rule change — the
-guide must never describe a contract that doesn't exist yet, or lag
-one that does. The README's "Every backend" section names the guide
+shares and fixes a custom stack from what the runs report. Update it in
+the same change whenever `/odd-instrument-stack`'s create, complete,
+link or fix-from-report shapes, `odd-memory`'s `observability-stack`
+reference, the contract check script's invocation, or the observation
+report's stack-friction section change — the guide must never
+describe a contract that doesn't exist yet, or lag one that does. The README's "Every backend" section names the guide
 and the built-in list; keep both true.
 The editorial rule above applies: keep the guide true, never
 exhaustive.

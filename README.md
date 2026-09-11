@@ -164,8 +164,9 @@ the missions at the remote stack: **its CLI must be installed and
 configured beforehand** (gcx for a Grafana stack), and `/odd-config`
 is the guided way to switch and prove the connection before any
 mission runs. A backend the package does not ship is one
-`/odd-config create a stack <name>` away: the file it writes lives in
-your repository, and you complete it as your runs teach you.
+`/odd-instrument-stack create a stack <name>` away: the stack it
+writes — a guide and its query scripts, verified live — lives in your
+repository, and your runs' reports say where it rubs.
 
 ```text
 /odd-config switch to grafana
@@ -233,6 +234,22 @@ the script without ever running the benchmark — running it is
 `/odd-observe`'s job: `/odd-observe run .odd/benchmarks/<name>/`. The
 lifecycle is in [docs/guide/benchmarks.md](docs/guide/benchmarks.md).
 
+#### /odd-instrument-stack
+
+```text
+/odd-instrument-stack create a stack seq from https://datalust.co/docs/command-line-client
+/odd-instrument-stack for stack seq: the traces endpoint is /api/traces
+/odd-instrument-stack from report .odd/observe-run-reports/<the report>.md
+```
+
+Writes a custom observability stack for a backend the package does
+not ship — a guide with the same sections as a built-in reference,
+and the query scripts it names — under `.odd/observability-stacks/<name>/`,
+verified live against the backend, as code you review like any other.
+An observe run against it never edits it: its report records the
+friction, and `from report` turns that into the fix. How, in
+[docs/guide/custom-backends.md](docs/guide/custom-backends.md).
+
 More invocation examples for every prompt live in
 [docs/guide/prompts.md](docs/guide/prompts.md).
 
@@ -247,11 +264,13 @@ query, the switch prompt and what gets persisted — see
 [docs/guide/backends.md](docs/guide/backends.md).
 
 You can add your own observability backend. A backend the package
-does not ship becomes one file in your repository, with the same
-sections as a built-in one, that `/odd-config` writes from the
-documentation you point at, your instructions, or its own research,
-and that your runs improve — or a pointer to a guide another
-repository already carries. How, in
+does not ship becomes a directory in your repository — a guide with
+the same sections as a built-in one, and the query scripts it names —
+that `/odd-instrument-stack` writes from the documentation you point
+at, your instructions, or its own research, verified live against
+the backend, and fixes from what your runs' reports record as
+friction — or a pointer to a stack another repository already
+carries. How, in
 [docs/guide/custom-backends.md](docs/guide/custom-backends.md).
 
 ## Multi-repo strategies

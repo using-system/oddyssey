@@ -1038,3 +1038,115 @@ def test_check_report_agrees_with_the_hook_on_the_stored_reports(report, hook):
         assert hook.check_file(path) == report.check_file(path, written_now=True), (
             path.name
         )
+
+
+# --- a custom stack: section 8, stack friction ----------------------------------
+
+
+def custom_body(report, friction: list[str] | None) -> str:
+    """A filled body with the eighth section: one bullet per friction, or none."""
+    sections = [
+        f"## {n}. {t}\n\ntext {n}" for n, t in enumerate(report.SECTION_TITLES, 1)
+    ]
+    bullets = (
+        "\n".join(f"- {f}" for f in friction)
+        if friction
+        else (
+            "- none — every backend call of this run went through a shipped "
+            "invocation, and each answered as its guide states"
+        )
+    )
+    sections.append(
+        f"## {report.FRICTION_NUMBER}. {report.FRICTION_TITLE}\n\n{bullets}"
+    )
+    return (
+        "\n\n".join(["# Observation report — checkout-sweep", "**Fine.**", *sections])
+        + "\n"
+    )
+
+
+def test_custom_stack_writes_the_counter_and_an_eighth_section(repo, report):
+    path = new(repo, "--custom-stack")
+    fm = frontmatter(report, path)
+    assert fm["stack_friction"] == "0"
+    assert list(fm)[-1] == "stack_friction"  # after the contract's other fields
+    _, body, _ = report.split_frontmatter(path.read_text(encoding="utf-8"))
+    sections = report.raw_sections(body)
+    assert [s["number"] for s in sections] == [1, 2, 3, 4, 5, 6, 7, 8]
+    assert sections[-1]["title"] == report.FRICTION_TITLE
+    assert path.read_text(encoding="utf-8").count("<fill") == 9
+
+
+def test_without_the_flag_the_report_carries_neither(repo, report):
+    path = new(repo)
+    assert "stack_friction" not in frontmatter(report, path)
+    assert f"## {report.FRICTION_NUMBER}." not in path.read_text(encoding="utf-8")
+
+
+def test_persist_recounts_the_friction_from_section_8(repo, report):
+    path = new(repo, "--custom-stack")
+    draft = repo.root / "draft.md"
+    draft.write_text(
+        custom_body(
+            report,
+            [
+                (
+                    "seq-logs.py --json printed no `Slices` on a group by time — "
+                    "`python3 .odd/observability-stacks/seq/scripts/seq-logs.py count`"
+                    " — a top-level Rows array — read Rows instead"
+                ),
+                (
+                    "the guide names no flag for a window end — `seq-traces.py ops"
+                    " --from` — usage error — composed the seqcli call by hand"
+                ),
+            ],
+        ),
+        encoding="utf-8",
+    )
+    proc = run(repo, "persist", str(path), "--body", str(draft))
+    assert proc.returncode == 0, proc.stderr
+    assert "stack_friction: 2 (section 8 recounted)" in proc.stderr
+    assert frontmatter(report, path)["stack_friction"] == "2"
+    shown = run(repo, "show", str(path))
+    assert "Stack friction: 2 — /odd-instrument-stack from report" in shown.stdout
+    assert "seq-logs.py --json printed" in shown.stdout
+    synthesis = run(repo, "synthesis", str(path))
+    assert "--- section 8: stack friction" in synthesis.stdout
+
+
+def test_a_none_bullet_counts_zero_and_shows_it(repo, report):
+    path = new(repo, "--custom-stack")
+    draft = repo.root / "draft.md"
+    draft.write_text(custom_body(report, None), encoding="utf-8")
+    proc = run(repo, "persist", str(path), "--body", str(draft))
+    assert proc.returncode == 0, proc.stderr
+    assert frontmatter(report, path)["stack_friction"] == "0"
+    shown = run(repo, "show", str(path))
+    assert (
+        "Stack friction: 0 — every backend call went through a shipped invocation"
+        in shown.stdout
+    )
+
+
+def test_check_refuses_a_custom_report_without_section_8_or_a_bullet(repo, report):
+    path = new(repo, "--custom-stack")
+    draft = repo.root / "draft.md"
+    seven = custom_body(report, None).split(f"## {report.FRICTION_NUMBER}.")[0]
+    draft.write_text(seven, encoding="utf-8")
+    proc = run(repo, "persist", str(path), "--body", str(draft))
+    assert proc.returncode == 2
+    assert f"section {report.FRICTION_NUMBER} absent" in proc.stderr
+    empty = seven + f"## {report.FRICTION_NUMBER}. {report.FRICTION_TITLE}\n\nprose\n"
+    draft.write_text(empty, encoding="utf-8")
+    proc = run(repo, "persist", str(path), "--body", str(draft))
+    assert proc.returncode == 2
+    assert "carries no bullet" in proc.stderr
+
+
+def test_check_refuses_section_8_on_a_report_that_counts_nothing(repo, report):
+    path = new(repo)
+    draft = repo.root / "draft.md"
+    draft.write_text(custom_body(report, None), encoding="utf-8")
+    proc = run(repo, "persist", str(path), "--body", str(draft))
+    assert proc.returncode == 2
+    assert "carries no stack_friction" in proc.stderr

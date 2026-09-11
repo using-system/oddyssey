@@ -26,8 +26,8 @@ configuration.
    `observability-cli-guides` skill's `references/builtin-stacks.md`
    lists (its **Also called** column maps a user's phrasing onto one),
    **or a custom stack the observed repository carries**: a phrasing on
-   no row is a custom stack's name when `.odd/observability-stacks/<name>.md`
-   exists in the observed repository - `<name>` is the file's stem, the
+   no row is a custom stack's name when `.odd/observability-stacks/<name>/guide.md`
+   exists in the observed repository - `<name>` is the directory's name, the
    phrasing lowercased and kebab-cased ("my stack seq" is `seq`). A
    phrasing on neither is a deployment-environment expectation ("on
    prod"), never a switch - see below; when it reads as a stack's name
@@ -36,13 +36,13 @@ configuration.
    environment). A named stack is persisted so the next run starts
    from it: a built-in one with `odd_config_set {"stack": "<name>"}`; a
    custom one the way the `backend-configuration` skill's `## Switch`
-   step 3 writes it - the file checked first, the payload the check
+   step 3 writes it - the stack checked first, the payload the check
    prints passed verbatim - never a bare name, which the server refuses
    for an undeclared stack. A local mission on a non-local stack
    switches to `local` - the local stack is self-serve, nothing to
    authenticate; every other **built-in** stack value names a remote
    backend (the preflight handoff says which instance), and a
-   custom stack is whatever its file targets.
+   custom stack is whatever its guide targets.
 
 2. Run the `backend-configuration` skill's `## Check`: show the CLI's effective
    configuration to the user (no confirmation needed), and stop where
@@ -127,8 +127,9 @@ defaults for every field not specified:
 Close the mission by running
 `python3 <Skills>/odd-memory/scripts/odd_report.py show <the stored path the agent's reply carries>`
 (its whole surface) and printing the rendering as the final answer,
-translated to the conversation's language, with the stack file's fate
-from the reply when the run changed one. The report file - not the synthesis - is the deliverable the
+translated to the conversation's language - on a custom stack its
+stack-friction count and entries are part of the rendering, with the
+prompt that fixes them. The report file - not the synthesis - is the deliverable the
 next spec-driven wave consumes: never re-dump the raw report in the
 conversation, and never let the synthesis replace the stored file as
 the plan's input.

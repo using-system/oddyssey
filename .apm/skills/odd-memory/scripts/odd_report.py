@@ -5,7 +5,8 @@ The observe-run-report reference used to spell out, in prose, what the
 inputs already fix: the file's name (the UTC stamp, the slug, the
 observer suffix, the replay prefixes, the ordinal on a collision), the
 frontmatter fields a repository answers (``date``, ``revision``,
-``tree_anchor``, ``repository``), the seven numbered sections, the
+``tree_anchor``, ``repository``), the numbered sections (seven, eight
+on a custom stack), the
 ruling table a replay opens section 3 with, the work branch and the
 lone commit, and the synthesis block a mission closes with. A run read
 that prose right before writing its report, with the whole
@@ -78,6 +79,12 @@ SECTION_TITLES = (
     "Decisions the spec must settle",
     "Measurement protocol for the fix",
 )
+# The eighth section, present only when the mission ran against a custom
+# stack: one bullet per point of friction with the stack as shipped, or a
+# `none` bullet; the frontmatter's stack_friction counts the entries.
+FRICTION_NUMBER = 8
+FRICTION_TITLE = "Stack friction"
+FRICTION_KEY = "stack_friction"
 FIELD_ORDER = (
     "services",
     "stack",
@@ -94,6 +101,7 @@ FIELD_ORDER = (
     "workload",
     "instance",
     "process_restarted",
+    "stack_friction",
 )
 VERDICTS = ("fixed", "still present", "worse", "not ruled (quick)")
 FATES = ("filled", "still missing", "new", "not ruled (quick)")
@@ -778,6 +786,45 @@ def local_paths(value: Any) -> list[str]:
     return [str(v) for v in values if v and LOCAL_PATH_RE.match(str(v).strip())]
 
 
+def friction_entries(sections: list[dict]) -> tuple[list[str], str | None]:
+    """Section 8's friction bullets (the `- ` items that are not the none
+    line), and the none line when the section carries one."""
+    current = section(sections, FRICTION_NUMBER)
+    if current is None:
+        return [], None
+    entries: list[str] = []
+    none: str | None = None
+    for item in items(current["lines"]):
+        if not item.startswith("- "):
+            continue
+        text = item[2:].strip()
+        if NONE_RE.match(text):
+            none = none or text
+        elif text:
+            entries.append(text)
+    return entries, none
+
+
+def recount_friction(path: Path) -> int | None:
+    """Rewrite the frontmatter's stack_friction from section 8's bullets;
+    the count, or None when the report carries no such field."""
+    text = path.read_text(encoding="utf-8")
+    fm, body, _ = split_frontmatter(text)
+    if FRICTION_KEY not in fm:
+        return None
+    entries, _ = friction_entries(raw_sections(body))
+    head = frontmatter_lines(text)
+    rewritten = [
+        f"{FRICTION_KEY}: {len(entries)}"
+        if line.startswith(f"{FRICTION_KEY}:")
+        else line
+        for line in head
+    ]
+    rest = text[len("\n".join(head)) :]
+    path.write_text("\n".join(rewritten) + rest, encoding="utf-8")
+    return len(entries)
+
+
 def check_body(report: dict, root: Path) -> list[str]:
     """What the body lacks at write time: the numbered sections, no
     placeholder left, and on a replay one ruling per baseline finding."""
@@ -785,7 +832,16 @@ def check_body(report: dict, root: Path) -> list[str]:
     body = report.get("body") or ""
     sections = raw_sections(body)
     numbers = [s["number"] for s in sections]
+    fm = report.get("frontmatter") or {}
+    custom = FRICTION_KEY in fm
     expected = list(range(1, 8)) if report["kind"] == "observation" else []
+    if report["kind"] == "observation" and custom:
+        expected.append(FRICTION_NUMBER)
+    if report["kind"] == "observation" and not custom and FRICTION_NUMBER in numbers:
+        problems.append(
+            f"section {FRICTION_NUMBER} present but the frontmatter carries no "
+            f"{FRICTION_KEY} (new --custom-stack writes it)"
+        )
     for number in expected:
         if number not in numbers:
             problems.append(f"section {number} absent")
@@ -804,7 +860,18 @@ def check_body(report: dict, root: Path) -> list[str]:
         if PLACEHOLDER_RE.search(line) and current not in flagged:
             flagged.add(current)
             problems.append(f"placeholder left {current}")
-    fm = report.get("frontmatter") or {}
+    if report["kind"] == "observation" and custom and FRICTION_NUMBER in numbers:
+        entries, none = friction_entries(sections)
+        if not entries and not none:
+            problems.append(
+                f"section {FRICTION_NUMBER} carries no bullet: one `- <friction>` per point "
+                "of friction with the stack as shipped, or one `- none` bullet"
+            )
+        elif str(fm.get(FRICTION_KEY)) != str(len(entries)):
+            problems.append(
+                f"{FRICTION_KEY} reads {fm.get(FRICTION_KEY)!r} where section "
+                f"{FRICTION_NUMBER} carries {len(entries)} (persist recounts it)"
+            )
     if report["kind"] == "observation":
         lines = body.splitlines()
         first = next(
@@ -946,9 +1013,13 @@ def gap_bullets(baseline: list[dict]) -> list[tuple[str, str]]:
 def skeleton(fields: dict, baseline: list[dict] | None, verdict_fill: bool) -> str:
     """The body: the title, the headline placeholder, the seven sections -
     and on a replay, section 3's ruling table and section 5's gaps carried
-    from the baseline, their verdicts and fates left to the run."""
+    from the baseline, their verdicts and fates left to the run - plus the
+    eighth, stack friction, when the frontmatter counts it (a custom stack)."""
     lines = [f"# Observation report — {fields['run_name']}", "", PLACEHOLDER, ""]
-    for number, title in enumerate(SECTION_TITLES, start=1):
+    titles = list(SECTION_TITLES)
+    if FRICTION_KEY in fields:
+        titles.append(FRICTION_TITLE)
+    for number, title in enumerate(titles, start=1):
         lines += [f"## {number}. {title}", ""]
         if number == 3 and baseline is not None and verdict_fill:
             ids = [
@@ -1144,6 +1215,8 @@ def new_report(args: argparse.Namespace) -> tuple[Path, str, list[str]]:
         fields["process_restarted"] = parse_pairs(
             args.process_restarted, "--process-restarted", booleans=True
         )
+    if args.custom_stack:
+        fields[FRICTION_KEY] = 0
 
     store.mkdir(parents=True, exist_ok=True)
     body = skeleton(fields, baseline_sections, replay)
@@ -1234,7 +1307,12 @@ def synthesis_data(text: str) -> dict:
         "gaps": [],
         "decisions": [],
         "decisions_none": None,
+        "custom_stack": FRICTION_KEY in fm,
+        "friction": [],
+        "friction_none": None,
     }
+    if FRICTION_KEY in fm:
+        data["friction"], data["friction_none"] = friction_entries(sections)
     one = section(sections, 1)
     if one is not None:
         listed = items(one["lines"])
@@ -1375,6 +1453,12 @@ def synthesis_text(data: dict) -> str:
         out += [f"- {d}" for d in data["decisions"]]
     else:
         out.append(data["decisions_none"] or "(none stated)")
+    if data["custom_stack"]:
+        out.append(f"--- section {FRICTION_NUMBER}: stack friction")
+        if data["friction"]:
+            out += [f"- {f}" for f in data["friction"]]
+        else:
+            out.append(data["friction_none"] or "(no bullet in section 8)")
     return "\n".join(out) + "\n"
 
 
@@ -1538,6 +1622,24 @@ def render_show(data: dict, rel: str, commit: str | None) -> str:
         out.append(f"+{count - MAX_ROWS} more in the report")
     if not count and data["decisions_none"]:
         out.append(cap(data["decisions_none"], MAX_LINE)[0])
+    if data["custom_stack"]:
+        out.append("")
+        friction = len(data["friction"])
+        out.append(
+            f"Stack friction: {friction}"
+            + (
+                " — /odd-instrument-stack from report fixes the stack from them"
+                if friction
+                else (
+                    " — every backend call went through a shipped invocation, "
+                    "and each answered as its guide states"
+                )
+            )
+        )
+        for entry in data["friction"][:MAX_ROWS]:
+            out.append(f"- {cap(entry, MAX_LINE)[0]}")
+        if friction > MAX_ROWS:
+            out.append(f"+{friction - MAX_ROWS} more in the report")
     out.append("")
     out.append("Next: " + next_action(data))
     return "\n".join(out) + "\n"
@@ -1569,7 +1671,7 @@ def next_action(data: dict) -> str:
 def splice_body(path: Path, draft: Path) -> list[str]:
     """The draft's text under the report's frontmatter, replacing the body.
 
-    The run writes its seven sections to a draft with its file tool and
+    The run writes its sections to a draft with its file tool and
     never edits the report file: the frontmatter stays the script's. A
     frontmatter block the draft opens with is dropped, and said."""
     notes: list[str] = []
@@ -1587,6 +1689,9 @@ def splice_body(path: Path, draft: Path) -> list[str]:
     if not head:
         raise Refusal(f"{path.name} carries no frontmatter to keep; run new first")
     path.write_text("\n".join(head) + "\n\n" + text.strip() + "\n", encoding="utf-8")
+    counted = recount_friction(path)
+    if counted is not None:
+        notes.append(f"{FRICTION_KEY}: {counted} (section {FRICTION_NUMBER} recounted)")
     frontmatter_problems = check_file(path, written_now=True)
     problems = check_file(path, written_now=True, body=True)
     if problems:
@@ -1759,6 +1864,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="the observed code is in no repository the run can reach",
     )
+    p.add_argument(
+        "--custom-stack",
+        action="store_true",
+        help="the stack is a custom one: the report carries section 8, stack friction, "
+        "and the frontmatter counts its entries",
+    )
 
     for name, doc in (
         ("check", "the memory contract's checks, one problem per stderr line"),
@@ -1786,7 +1897,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--body",
         help="a draft holding the report's body (the title, the headline and the "
-        "seven sections): written under the frontmatter in place of the file's body",
+        "sections - seven, eight on a custom stack): written under the frontmatter "
+        "in place of the file's body",
     )
     p.add_argument(
         "--no-commit", action="store_true", help="write nothing to git; say so"

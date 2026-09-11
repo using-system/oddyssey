@@ -286,10 +286,12 @@ run record.
    its reference file's sections **except** the four the preflight
    owns — `## CLI binary`, `## Setup`, `## Configuration display`,
    `## What to persist`. A **custom stack** (the handoff says
-   `backend=<name> (custom)`) has its reference file in the observed
-   repository, `.odd/observability-stacks/<name>.md`, read by the same
-   sections — and what the run teaches it goes back into it, the
-   section before the report says how. Everything else is yours: the query surface
+   `backend=<name> (custom)`) has its reference in the observed
+   repository, `.odd/observability-stacks/<name>/guide.md`, read by the
+   same sections, and the scripts it names under `scripts/` beside it —
+   run as the guide states them, never rewritten; what did not work as
+   shipped is section 8 of your report, the section before the report
+   says how, and never an edit. Everything else is yours: the query surface
    per signal (the scripts it names, when it ships them), remote targeting, resource discovery,
    planning notes — the discovery and query commands come from there,
    not from memory; when a reference routes a section elsewhere,
@@ -450,7 +452,8 @@ a contract), never a cheaper way to write a full report:
   the probe that would confirm them, and that is the expected shape
   at this depth.
 - **Report** — the seven headings stay (the recall reads by section
-  number). Sections 1, 2 and 7 are complete. Section 3 is the ranked
+  number), and section 8 with them on a custom stack, complete at
+  both depths. Sections 1, 2 and 7 are complete. Section 3 is the ranked
   table only, no detail per row — a verify or re-measure keeps its
   baseline-ruling table above it whole, one row per baseline finding,
   `not ruled (quick)` where the queried signals could not rule. Sections 4 and 6 are one line each;
@@ -823,47 +826,39 @@ it, and when it does not, section 5's not-queried statement names it
 with the signals — `not queried (quick): ..., the agent loop` — a
 statement about the mission, never a gap of the service.
 
-## What the run teaches a custom stack file
+## What the run reports about a custom stack
 
-A custom stack's file starts from documentation and the user's word;
-your run is what verifies it. When a command the file documents fails
-as written, returns a shape its section did not describe, or needs a
-flag the section does not carry, and you find what works, the
-correction is a **proposed diff** to that section, persisted through
-`odd-memory`'s `observability-stack` reference (its `## Rules`): the
-corrected command, the output shape you observed, today's UTC date,
-and the documentation page when one settles it. A note the file marks
-unverified that your run exercised successfully gets its date and
-loses the mark; a note the run could not exercise stays as it is —
-never upgraded without a measurement.
-
-Three bounds. **Sections**: only the ones you read — `## Query by
-signal`, `## Planning notes` and the file's own optional sections;
-`## CLI binary`, `## Setup`, `## Configuration display` and `## What
-to persist` are the preflight's and the switch's — a learning about
-those (a connection proof that reads the wrong signal, a field the
-switch should persist) is stated in section 1's run record for the
-user to apply through `/odd-config for stack <name>: ...`, never
-edited from here. **Never a built-in**: a learning about a stack the
+A custom stack is authored and fixed by one prompt,
+`/odd-instrument-stack`, and its expert agent — never by you. Your run
+is what exercises it: when a script the guide names fails as written,
+prints a shape its `## Query by signal` did not state, lacks a flag
+the work needed, when a section could not be followed, or when you
+composed a backend call by hand — for a shape the guide shipped none
+for, or in place of a script it did ship — that is **friction**, and
+it goes into your report's `## 8. Stack friction` section (the
+`observe-run-report` reference states the bullet: what did not work,
+the invocation as run, what it answered, what you did instead), one
+bullet per point — or the one `none` bullet, which states that every
+backend call of your run went through a shipped invocation and
+answered as its guide states: before writing it, read section 2, which
+already carries every query with the invocation that produced it — a
+backend command you typed yourself there, the one that failed on a
+trap the guide documents included, is a bullet, and `none` is false.
+Never a diff, never a commit, never a file touched under the stack's
+directory: authoring is the expert's responsibility, and the
+maintainer runs `/odd-instrument-stack from report <path>` on your
+report to turn the section into the fix, verified live and reviewed on
+the stack's own branch. Three bounds. **Sections**: a friction with
+the preflight's or the switch's sections (a connection proof that
+reads the wrong signal, a field the switch should persist) is a bullet
+like any other. **Never a built-in**: a friction with a stack the
 package ships is a finding for the package (state it in section 1,
-name the reference and the command), never an edit — its reference
-changes through a package PR with live verification. **Never
-silent**: the diff is a commit of its own on the mission's work
-branch, after the report's, subject `docs(odd): stack <name> - <what
-the run learned>`; section 1's run record names the file and that
-commit next to the report's, the persistence's return value carries
-it, and the closing synthesis says "the stack file changed" with the
-one-line reason, so the maintainer reviews it like any other committed
-change. When the file cannot be committed (the caller said not to, no
-work branch possible), the diff is still applied to the file and the
-run record says `not committed` with the reason. When the file
-**links** its guide (the handoff's `Reference:` line names the link
-and the fetched copy), the local file is never edited: the
-`observability-stack` reference says where the diff goes — a pull
-request on the linked repository when the user can push to it, opened
-with their go, or the proposed diff displayed in your reply for them
-to apply — and section 1 names that proposal the way it would name
-the commit.
+name the reference and the command), never a bullet of section 8 — its
+reference changes through a package PR with live verification. **Never
+silent**: a query you composed by hand — the stack shipped no script
+for it, or you typed one anyway — is a bullet even when it worked,
+because the next run would compose it again; section 8 is how the
+stack stops making runs compose.
 
 ## The report (your only deliverable)
 
@@ -873,13 +868,15 @@ flag surface included, in its `## The script owns the format` — read
 that section, never `--help` (it answers nothing the section does not)
 — and run it with the run's values (the services, the stack, the
 detected environment, the mode, the depth, the window, the run name,
-the replayed report, the identity). It prints the path of the file it
+the replayed report, the identity, and `--custom-stack` when the
+handoff names a custom stack). It prints the path of the file it
 wrote, then the file's body: the title, a `<fill>` for the one-line
-headline, then the seven headings, each followed by a `<fill>`. Write
-that body, filled, to a **draft file of your own**
-with your file tool — the seven sections in this order (at `quick`
-depth, in the collapsed shape the Depth section gives sections 3 to
-6), every `<fill>` replaced, the headings kept — never open, read or
+headline, then the seven headings — eight on a custom stack — each
+followed by a `<fill>`. Write that body, filled, to a **draft file of
+your own** with your file tool — the sections in this order (at
+`quick` depth, in the collapsed shape the Depth section gives sections
+3 to 6; section 8 complete at both depths), every `<fill>` replaced,
+the headings kept — never open, read or
 edit the report file itself, never rewrite its frontmatter — then run
 the reference's `persist --body <draft>` on the path: it writes the
 draft under the frontmatter, checks the file, commits it alone on the
@@ -889,11 +886,11 @@ committed. Your reply carries those lines verbatim and nothing of the
 report: the caller renders the closing synthesis from the stored file,
 once.
 
-What each of the seven sections carries is stated once, in that
+What each of the sections carries is stated once, in that
 reference's `## The body` — read it at report time, with the
 invocation, never earlier: the Investigation above is what fills them,
-and the Depth section is what collapses sections 3 to 6 at `quick`
-depth.
+the Depth section is what collapses sections 3 to 6 at `quick` depth,
+and the section above is what fills section 8 on a custom stack.
 
 ## Rules
 
@@ -902,9 +899,9 @@ depth.
   change it — the report feeds the plan.
 - Every query you run comes from the backend's reference file or its
   fetched documentation, never from memory; name the backend and CLI in
-  the report. On a custom stack, what the run taught the file is
-  applied as a diff or stated for the user — never lost in the report's
-  prose, never edited into a built-in reference.
+  the report. On a custom stack, every friction with it is a bullet of
+  section 8 — never a diff, never an edit under its directory, never
+  lost in the report's prose, never edited into a built-in reference.
 - Never invent, echo, or store credentials; refer to them by variable or
   secret name only. The same for real identifiers — tenant, workspace,
   subscription, resource-group or site names and GUIDs, logins,
@@ -977,5 +974,5 @@ depth.
   report or says there was none) and the report was written and
   persisted by `odd-memory`'s report script (`new`, then
   `persist --body` with the filled draft), its `persist` output in the
-  reply; on a custom stack, section 1 states the stack file's
-  fate and the reply carries its commit when it changed.
+  reply; on a custom stack, section 8 carries the friction and the
+  reply carries nothing of the stack but the count `persist` printed.

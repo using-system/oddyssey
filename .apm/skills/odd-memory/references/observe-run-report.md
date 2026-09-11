@@ -17,7 +17,7 @@ python3 <this skill's directory>/scripts/odd_report.py new [--repo <observed rep
   --window <start>/<end> | --from <start> --to <end> --run-name <slug> \
   [--verifies <baseline>] [--workload <text>] [--instance <service>=<identity> ...] \
   [--process-restarted <true|false|service=true|false> ...] [--repository <value>] \
-  [--at <UTC instant>] [--no-revision]
+  [--at <UTC instant>] [--no-revision] [--custom-stack]
 python3 <this skill's directory>/scripts/odd_report.py check <path>
 python3 <this skill's directory>/scripts/odd_report.py read <path> [--sections 1,2,3,7] [--record]
 python3 <this skill's directory>/scripts/odd_report.py persist <path> --body <draft> [--no-commit]
@@ -37,7 +37,10 @@ the only kind `new` writes.
   `remeasure-` prefixes, the next free ordinal when the path is taken),
   fills `date`, `revision`, `tree_anchor` and `repository` from the
   repository itself, writes the frontmatter and the seven-section
-  skeleton, and on a replay pre-fills section 3's ruling table and
+  skeleton — eight with `--custom-stack`, the flag a mission passes
+  when the handoff names a custom stack: the frontmatter then carries
+  `stack_friction: 0` and the skeleton the `## 8. Stack friction`
+  heading — and on a replay pre-fills section 3's ruling table and
   section 5's gaps from the baseline, and prints that body after the
   path. Every `<fill>` it leaves is yours to replace: the sections are
   the judgment — written, filled, to a **draft** file of your own with
@@ -50,8 +53,9 @@ the only kind `new` writes.
 - `read` prints the frontmatter and the named sections, nothing else;
   `--record` reduces section 1 to its scenario record and replay notes.
 - `persist --body <draft>` writes the draft under the file's
-  frontmatter (a frontmatter the draft carries is dropped), runs
-  `check` — a failing draft leaves the file as `new` wrote it, rulings
+  frontmatter (a frontmatter the draft carries is dropped), recounts
+  `stack_friction` from section 8's bullets when the file carries the
+  field, runs `check` — a failing draft leaves the file as `new` wrote it, rulings
   and gaps included, and names what the draft lacks; nothing committed —
   leaves the default branch for `docs/odd-observe-run-report-<run_name>`,
   commits the file alone (`docs(odd): observation report <run_name>`,
@@ -103,8 +107,8 @@ The frontmatter mirrors the run **as it executed**, defaults applied —
 
 ## The body
 
-Seven numbered sections, read by number by the recall, the status and
-`show`. What each carries is the calling agent's judgment, stated here
+Seven numbered sections — an eighth on a custom stack — read by
+number by the recall, the status and `show`. What each carries is the calling agent's judgment, stated here
 beside the format it fills and read at report time — its Investigation
 gathers the evidence, its Depth section collapses sections 3 to 6 at
 `quick` depth. Three shapes in it are the script's, never yours to
@@ -136,10 +140,10 @@ section 2's `### GenAI` heading:
    line carries the User-Agent you selected on with the slug you read
    off the rows. Name the run's driver there too — the driving mission
    as the mission block states it (or that it names none), and its
-   stored report by path when that report is already committed. On a custom stack, close the run
-   record with the stack file's fate: unchanged, or changed with its
-   commit and the one-line reason (the agent's custom-stack learning rule), and
-   any learning left for the user to apply.
+   stored report by path when that report is already committed. On a
+   custom stack, name the stack's directory (the handoff's `Reference:`
+   line); what the run met as friction with it is section 8's, never
+   here.
 2. **Observed behavior** — start with the per-operation summary table:
 
    | Operation | Requests | Rate | p50 | p95 | p99 | Error % | DB/downstream calls per req | Notable |
@@ -302,6 +306,25 @@ section 2's `### GenAI` heading:
    structural or magnitude-bounded — never a value from one or two
    samples.
 
+8. **Stack friction** — present only when the mission ran against a
+   custom stack (`new --custom-stack` wrote the heading and the
+   frontmatter's `stack_friction`): one bullet per point of friction
+   with the stack **as shipped** — a script that failed as written, an
+   output shape the guide did not state, a flag it lacked, a section
+   the run could not follow, a query it had to compose by hand —
+   `- <what did not work> — <the invocation, as run> — <what it
+   answered> — <what the run did instead>`; or the one bullet
+   `- none — every backend call of this run went through a shipped invocation, and each answered as its guide states`
+   — a statement about the run's own command list, false as soon as
+   one backend command was typed by hand, whatever it answered. A
+   friction with the preflight's or the switch's sections is a bullet
+   like any other. `persist` counts the bullets into
+   `stack_friction`, `show` renders them, and
+   `/odd-instrument-stack from report <path>` turns them into the fix
+   — the run itself never edits the stack (the `observability-stack`
+   reference's rule). Stated once, here, never spliced into section 1
+   or 5: a friction is about the stack, a gap is about the service.
+
 ## Recall: reading the memory
 
 1. `python3 <this skill's directory>/scripts/odd_recall.py --repo <path>
@@ -361,19 +384,19 @@ section 2's `### GenAI` heading:
 ## Return value
 
 `persist` prints it: `path:`, `commit:` (or `not committed` with the
-reason), `headline:`, plus `branch:` and `subject:` when it committed.
-The reply carries those lines verbatim, plus, on a custom stack, the
-stack file's fate (the `observability-stack` reference's learning
-rule) — and nothing of the body: the synthesis is rendered once, by the
-caller's `show`, and the next wave reads the file at the stored path.
+reason), `headline:`, plus `branch:` and `subject:` when it committed,
+and on a custom stack the `stack_friction` count it recounted, on
+stderr. The reply carries those lines verbatim — and nothing of the
+body: the synthesis is rendered once, by the caller's `show`, and the
+next wave reads the file at the stored path.
 `synthesis <path>` prints the inputs `show` renders from, quoted from
 the file, for a reader who wants them rather than the rendering.
 
 ## Show
 
 `show <path>` renders the closing synthesis from the stored file and
-its carrying commit, in English, one screen; what running it cannot
-tell the caller: print it translated to the conversation's language,
-add the stack file's fate from the reply when the run changed one, and
-never let it replace the file — the next wave consumes the file, whose
-path the reply states.
+its carrying commit, in English, one screen — on a custom stack, its
+friction count and entries, with the prompt that fixes them; what
+running it cannot tell the caller: print it translated to the
+conversation's language, and never let it replace the file — the next
+wave consumes the file, whose path the reply states.

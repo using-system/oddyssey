@@ -113,13 +113,13 @@ def odd_config_set(config: dict) -> dict:
     stack is one of: local (the local stack - the default), grafana (a
     REMOTE Grafana - the CLI context says which instance), azure-monitor,
     cloudwatch, datadog, dynatrace - or a custom stack (a backend
-    the package does not ship, described by a stack file in the observed
+    the package does not ship, described by a stack directory in the observed
     repository) declared under custom in the same call or an earlier one:
     {"stack": "seq", "custom": {"seq": {"stack_config_fields":
     ["base_url"]}}}. A custom name is kebab-case, never a built-in one; its
-    declaration lists the stack_config fields the stack file names (an
+    declaration lists the stack_config fields the stack's guide names (an
     empty list when it persists nothing), and a re-declaration replaces
-    the list. The server never reads the stack file - the caller derives
+    the list. The server never reads the stack's guide - the caller derives
     the declaration from it. Custom declarations survive a switch to a
     built-in stack; {"custom": {"seq": null}} removes one (refused while
     seq is the configured stack, unless the same call switches away).

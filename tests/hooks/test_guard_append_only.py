@@ -74,7 +74,7 @@ class Memory:
         self.decisions = root / ".odd" / "decisions.md"
         self.classifications = root / ".odd" / "entry-classifications.md"
         self.benchmark = root / ".odd" / "benchmarks" / "orders" / "manifest.yaml"
-        self.stack = root / ".odd" / "observability-stacks" / "contoso.md"
+        self.stack = root / ".odd" / "observability-stacks" / "contoso" / "guide.md"
         for path in (
             self.observation,
             self.instrumentation,
@@ -248,7 +248,8 @@ def test_a_read_tool_names_nothing(guard):
         ("/repo/.odd/decisions.md", "ledger"),
         ("/repo/.odd/entry-classifications.md", "ledger"),
         ("/repo/.odd/benchmarks/orders/manifest.yaml", None),
-        ("/repo/.odd/observability-stacks/contoso.md", None),
+        ("/repo/.odd/observability-stacks/contoso/guide.md", None),
+        ("/repo/.odd/observability-stacks/contoso/scripts/contoso-logs.py", None),
         ("/repo/.odd/inbox/2026-08-22-x.md", None),
         ("/repo/.odd/notes.md", None),
         ("/repo/.odd", None),
