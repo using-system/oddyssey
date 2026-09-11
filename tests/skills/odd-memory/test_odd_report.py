@@ -1763,7 +1763,7 @@ def test_boundary_is_a_verification_when_a_runtime_entry_or_the_tree_changed(rep
     proc = run(repo, "boundary", "--repo", str(repo.root), str(path))
     got = lines_of(proc)
     assert proc.returncode == 0 and got["boundary"] == "verification"
-    assert got["runtime entries differing"] == "src (1 paths: src/app.py)"
+    assert got["runtime entries differing"] == "src (1 path: src/app.py)"
     assert got["persist"] == "--mode verify"
     # an uncommitted change to a runtime entry is changed code too
     path = anchored(repo, "2026-08-09-1000-checkout-sweep.md")
@@ -1789,7 +1789,7 @@ def test_boundary_is_undecidable_until_an_entry_is_ruled(repo):
     assert proc.returncode == 3
     got = lines_of(proc)
     assert got["boundary"] == "undecidable"
-    assert got["unclassified entries differing"] == "lib (1 paths: lib/util.py)"
+    assert got["unclassified entries differing"] == "lib (1 path: lib/util.py)"
     assert got["persist"].startswith(
         "undecided: until the unclassified entries are ruled"
     )
@@ -1905,7 +1905,7 @@ def test_boundary_falls_back_to_the_tree_at_the_revision_then_to_the_commit_date
     repo.commit("fix: v3", date="2026-08-22T10:00:00Z")
     got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
     assert got["boundary"] == "verification"
-    assert got["runtime entries differing"].startswith("src (1 commits: ")
+    assert got["runtime entries differing"].startswith("src (1 commit: ")
     # the benchmark the record names is counted from the same boundary
     text = BASELINE.replace(
         "Scenario: 30 GET /products.",

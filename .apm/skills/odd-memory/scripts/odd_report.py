@@ -2438,7 +2438,7 @@ def hop_to_baseline(root: Path, resolved: dict, own_protocol: bool) -> tuple[dic
         )
     if "unreadable" in baseline:
         raise Refusal(f"{verifies} cannot be read: {baseline['unreadable']}")
-    return baseline, f"one hop from {resolved['name']} ({mode})"
+    return baseline, f"one hop from {resolved['name']} ({what})"
 
 
 def walk_mode(root: Path, baseline: dict) -> tuple[str, str]:
@@ -2789,7 +2789,7 @@ def render_boundary(facts: dict) -> str:
         for name in names:
             paths = differing.get(name) or []
             parts.append(
-                f"{name} ({len(paths)} {unit}: {', '.join(paths[:3])})"
+                f"{name} ({plural(len(paths), unit[:-1])}: {', '.join(paths[:3])})"
                 if paths
                 else name
             )
