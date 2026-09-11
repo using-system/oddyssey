@@ -113,8 +113,11 @@ absorbs the surface's traps once; one script per shape of the work —
 discovery, then one per signal the backend serves, plus a context or
 a landing proof where the backend needs one; `--json` on each; each
 ending its output with the backend commands it ran, one per line, the
-way an observation report records a shipped query. `## Query by
-signal` names each script with its **whole flag surface** and a
+way an observation report records a shipped query — the binary by its
+name, the way the guide's `## CLI binary` section names it, whatever
+path the module resolved it at. `scripts/` holds `.py` files and
+nothing else (a `__pycache__` the check leaves behind is ignored, not
+shipped). `## Query by signal` names each script with its **whole flag surface** and a
 copy-pasteable invocation run from the observed repository's root
 (`python3 .odd/observability-stacks/<name>/scripts/<name>-logs.py ...`),
 and states the output shapes, so no run reads a script's source; the

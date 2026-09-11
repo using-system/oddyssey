@@ -90,10 +90,13 @@ is how a prompt offers the custom stacks the repository carries.
   change. The persistence never rewrites a stored stack without that
   diff being visible.
 - **Commit discipline** (the memory contract): the work branch is
-  `docs/odd-stack-<name>`; the commit carries the directory alone,
-  subject `docs(odd): stack <name>` for a new stack,
-  `docs(odd): stack <name> - <what changed>` for an update; the reply
-  states the stored path.
+  `docs/odd-stack-<name>`, created when the repository sits on its
+  default branch — on any other branch the commit lands where the
+  repository is, as the contract says for every kind; the commit
+  carries the directory alone (`git add -- .odd/observability-stacks/<name>`;
+  a `__pycache__` the check left is ignored, never added), subject
+  `docs(odd): stack <name>` for a new stack, `docs(odd): stack <name>
+  - <what changed>` for an update; the reply states the stored path.
 - **A mission never edits a stack.** An observe or verify run that
   meets friction with the stack as shipped — a script that failed as
   written, an output shape the guide did not state, a flag it lacked,

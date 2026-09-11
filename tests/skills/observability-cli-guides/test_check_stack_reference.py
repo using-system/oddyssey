@@ -589,3 +589,19 @@ def test_a_linked_url_brings_the_guide_alone(tmp_path):
     # problem, named as such
     assert result.returncode == 1
     assert "names scripts/seq-logs.py, which is not a file of" in result.stderr
+
+
+def test_scripts_holds_py_files_only_and_ignores_a_pycache(tmp_path):
+    directory = stack_dir(
+        tmp_path, body=body_naming("seq-logs.py"), scripts={"seq-logs.py": "x = 1\n"}
+    )
+    (directory / "scripts" / "__pycache__").mkdir()
+    (directory / "scripts" / "__pycache__" / "seq-logs.cpython-313.pyc").write_bytes(
+        b"x"
+    )
+    result = _run("--declaration", str(directory))
+    assert result.returncode == 0, result.stderr
+    (directory / "scripts" / "notes.md").write_text("x")
+    result = _run("--declaration", str(directory))
+    assert result.returncode == 1
+    assert "scripts/ holds .py files only, got notes.md" in result.stderr

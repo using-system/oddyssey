@@ -373,12 +373,20 @@ def check_scripts(directory: Path, body: str) -> list[str]:
                 f"{directory}/{SCRIPTS}/"
             )
     if scripts.is_dir():
-        for script in sorted(scripts.glob("*.py")):
-            try:
-                py_compile.compile(str(script), doraise=True, quiet=1)
-            except py_compile.PyCompileError as error:
+        for entry in sorted(scripts.iterdir()):
+            if entry.name == "__pycache__":
+                continue
+            if entry.is_file() and entry.suffix == ".py":
+                try:
+                    py_compile.compile(str(entry), doraise=True, quiet=1)
+                except py_compile.PyCompileError as error:
+                    problems.append(
+                        f"{SCRIPTS}/{entry.name} does not compile: {error.msg}"
+                    )
+            else:
                 problems.append(
-                    f"{SCRIPTS}/{script.name} does not compile: {error.msg}"
+                    f"{SCRIPTS}/ holds .py files only, got {entry.name}"
+                    + ("/" if entry.is_dir() else "")
                 )
     return problems
 
