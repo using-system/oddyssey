@@ -42,6 +42,7 @@ from azure_monitor_az import (
     ai_rows,
     commands,
     emit,
+    failures,
     iso,
     kql_in,
     kql_str,
@@ -55,6 +56,7 @@ from azure_monitor_az import (
 DIAGNOSIS = {
     "not-found": "the persisted value does not resolve (exit 3) - a wrong value, not a connection problem: route to the switch to correct it",
     "not-an-appid": "the persisted value is not an appId GUID - typically the component's resource name: route to the switch to persist the appId",
+    "not-a-workspace-id": "the persisted value is not the workspace's customer ID GUID - typically its resource name: route to the switch to persist the customer ID",
     "identity": "the identity must log in again - az account show reads the local profile and passes on a stale token; az login is yours to run",
     "rights": "authenticated, but the identity lacks query rights on this resource - a permissions problem, re-persisting the same value will not fix it",
     "usage": "az could not parse the command - a defect in the invocation, never a stored value",
@@ -134,9 +136,14 @@ def cmd_check(ns) -> tuple[int, dict]:
             ),
         }
         if not r.ok and code == 0:
-            code = 3 if r.kind in ("not-found",) else (2 if r.kind == "usage" else 1)
+            code = (
+                3
+                if r.kind in ("not-found", "not-a-workspace-id")
+                else (2 if r.kind == "usage" else 1)
+            )
     out["connected"] = code == 0
     out["commands"] = commands(results)
+    out["failed"] = failures(results)
     return code, out
 
 

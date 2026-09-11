@@ -2,7 +2,7 @@
 
 Every trap this module absorbs was measured on azure-cli 2.89.1 (extensions
 application-insights 1.2.3, log-analytics 1.0.0b1) on 2026-09-11 and is
-written down in guide.md; the scripts import it so no run re-applies one by
+written down in references/azure-monitor.md; the scripts import it so no run re-applies one by
 hand:
 
 - ``az monitor app-insights query -o json`` answers ``{"tables": [{"columns":
@@ -44,13 +44,14 @@ import json
 import os
 import re
 import subprocess
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 TIMEOUT = 180
-WORKERS = 6
+WORKERS = 8
 
 MASKS = {
     "--app": "<app_insights_app>",
@@ -121,8 +122,6 @@ def classify(stderr: str, code: int) -> tuple[str, str]:
         return "usage", "az could not parse the command: " + (
             msg or (tail[0] if tail else "exit 2")
         )
-    if code == 3 or "ApplicationNotFoundError" in text or "ResourceNotFound" in text:
-        return "not-found", msg or "the resource does not exist (exit 3)"
     if "The Application Insight is not found" in text:
         return (
             "not-an-appid",
@@ -131,6 +130,16 @@ def classify(stderr: str, code: int) -> tuple[str, str]:
                 "persist the component's appId"
             ),
         )
+    if "PathNotFoundError" in text:
+        return (
+            "not-a-workspace-id",
+            (
+                "the --workspace value is not a customer ID GUID (a resource name): "
+                "persist the workspace's customer ID"
+            ),
+        )
+    if code == 3 or "ApplicationNotFoundError" in text or "ResourceNotFound" in text:
+        return "not-found", msg or "the resource does not exist (exit 3)"
     if "AADSTS" in text or "az login" in text or "re-authenticate" in text.lower():
         return (
             "identity",
@@ -263,9 +272,7 @@ def failures(results: list[Result]) -> list[dict]:
 # --- the two query commands --------------------------------------------------
 
 
-def ai_call(
-    app: str, kql: str, frm: str, to: str, subscription: str | None = None
-) -> list[str]:
+def ai_call(app: str, kql: str, frm: str, to: str) -> list[str]:
     """`app-insights query` with the explicit pair - the appId takes no -g and no subscription."""
     return [
         "monitor",
@@ -371,28 +378,30 @@ def kql_in(column: str, values: list[str]) -> str:
 # --- time --------------------------------------------------------------------
 
 
+def usage(message: str) -> None:
+    """A usage error the way argparse reports one: the message on stderr, exit 2."""
+    print(f"usage error: {message}", file=sys.stderr)
+    sys.exit(2)
+
+
 def parse_duration(s: str) -> int:
     s = (s or "").strip()
     units = {"s": 1, "m": 60, "h": 3600, "d": 86400}
     if len(s) < 2 or s[-1] not in units:
-        raise SystemExit(
-            f"a duration is <number><s|m|h|d>, e.g. 90s or 30m - got {s!r}"
-        )
+        usage(f"a duration is <number><s|m|h|d>, e.g. 90s or 30m - got {s!r}")
     try:
         return int(float(s[:-1]) * units[s[-1]])
     except ValueError:
-        raise SystemExit(
-            f"a duration is <number><s|m|h|d>, e.g. 90s or 30m - got {s!r}"
-        ) from None
+        usage(f"a duration is <number><s|m|h|d>, e.g. 90s or 30m - got {s!r}")
+        raise
 
 
 def parse_ts(s: str) -> datetime:
     try:
         dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
     except ValueError:
-        raise SystemExit(
-            f"a timestamp is RFC3339 UTC, e.g. 2026-09-11T10:40:00Z - got {s!r}"
-        ) from None
+        usage(f"a timestamp is RFC3339 UTC, e.g. 2026-09-11T10:40:00Z - got {s!r}")
+        raise
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
@@ -400,7 +409,7 @@ def iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def add_window(ap, required: bool = True):
+def add_window(ap):
     ap.add_argument(
         "--from",
         dest="frm",
@@ -421,14 +430,15 @@ def resolve_window(ns, default_since: str | None = None) -> tuple[str, str]:
     if getattr(ns, "frm", None) and getattr(ns, "to", None):
         a, b = parse_ts(ns.frm), parse_ts(ns.to)
         if b <= a:
-            raise SystemExit("--to must be after --from")
+            usage("--to must be after --from")
         return iso(a), iso(b)
     if default_since:
         end = datetime.now(timezone.utc).replace(microsecond=0)
         return iso(end - timedelta(seconds=parse_duration(default_since))), iso(end)
-    raise SystemExit(
+    usage(
         "a window is required: --from <RFC3339> --to <RFC3339>, or --since <duration>"
     )
+    raise AssertionError
 
 
 def kql_bin(duration: str) -> str:

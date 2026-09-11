@@ -65,10 +65,9 @@ def probe(ns, frm: str, to: str) -> dict:
     }
     calls, tags = [], []
     if ns.app:
-        env = "iff(isempty(tostring(customDimensions['deployment.environment.name'])), tostring(customDimensions['deployment.environment']), tostring(customDimensions['deployment.environment.name']))"
         kqls = {
             "tables": f"union requests, dependencies, traces, customMetrics, exceptions {svc}| summarize n=count() by cloud_RoleName, itemType",
-            "environment": f"union requests, dependencies, traces, customMetrics {svc}| summarize n=count() by cloud_RoleName, environment={env}, version=tostring(customDimensions['service.version']), instance=tostring(customDimensions['service.instance.id'])",
+            "environment": f"union requests, dependencies, traces, customMetrics {svc}| summarize n=count() by cloud_RoleName, env_name=tostring(customDimensions['deployment.environment.name']), env_old=tostring(customDimensions['deployment.environment']), version=tostring(customDimensions['service.version']), instance=tostring(customDimensions['service.instance.id'])",
             "operations": f"requests {svc}| summarize n=count(), failed=countif(success == false) by cloud_RoleName, name | order by n desc",
             "metrics": f"customMetrics {svc}| summarize rows=count(), points=sum(valueCount), max_value_count=max(valueCount) by cloud_RoleName, name | order by cloud_RoleName asc, name asc",
             "severities": f"traces {svc}| summarize n=count() by cloud_RoleName, severityLevel | order by cloud_RoleName asc, severityLevel asc",
@@ -102,7 +101,10 @@ def probe(ns, frm: str, to: str) -> dict:
             e = comp["services"].setdefault(r["cloud_RoleName"], _empty())
             e["resource"].append(
                 {
-                    "environment": r["environment"],
+                    "environment": r["env_name"] or r["env_old"],
+                    "environment_key": "deployment.environment.name"
+                    if r["env_name"]
+                    else ("deployment.environment" if r["env_old"] else None),
                     "version": r["version"],
                     "instance": r["instance"],
                     "rows": r["n"],
@@ -136,10 +138,13 @@ def probe(ns, frm: str, to: str) -> dict:
         for e in comp["services"].values():
             envs = sorted({x["environment"] for x in e["resource"] if x["environment"]})
             e["environment"] = envs[0] if len(envs) == 1 else (envs or None)
+            keys = sorted(
+                {x["environment_key"] for x in e["resource"] if x["environment_key"]}
+            )
             e["environment_read_from"] = (
-                "resource attributes in customDimensions"
-                if envs
-                else "nothing (no deployment.environment.name on the rows)"
+                ", ".join(keys)
+                if keys
+                else "nothing (neither deployment.environment.name nor deployment.environment on the rows)"
             )
         report["component"] = comp
     else:

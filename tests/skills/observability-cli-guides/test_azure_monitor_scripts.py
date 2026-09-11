@@ -87,7 +87,7 @@ with open(os.environ["FAKE_LOG"], "a") as f:
 path = os.path.join(F, key + ".json")
 if not os.path.exists(path):
     sys.stderr.write("ERROR: no fixture " + key + " for " + json.dumps(args) + "\n")
-    sys.exit(1)
+    sys.exit(97)
 case = json.load(open(path))
 if os.environ.get("FAKE_WARN") == "1":
     sys.stderr.write("WARNING: The installed extension 'application-insights' is in preview.\n")
@@ -118,7 +118,7 @@ def fake(tmp_path):
             e = dict(env)
             if warn:
                 e["FAKE_WARN"] = "1"
-            return subprocess.run(
+            result = subprocess.run(
                 [sys.executable, str(SCRIPTS / f"azure-monitor-{script}.py"), *args],
                 capture_output=True,
                 text=True,
@@ -126,6 +126,12 @@ def fake(tmp_path):
                 cwd=tmp_path,
                 check=False,
             )
+            assert "no fixture" not in result.stderr + result.stdout, (
+                "the fake az had no fixture for a call: "
+                + result.stderr
+                + result.stdout
+            )
+            return result
 
         def json(self, script: str, *args: str, **kw):
             result = self.run(script, *args, "--json", **kw)
@@ -241,8 +247,20 @@ def test_the_printed_commands_carry_field_names_never_the_values(fake):
             or "--workspace <workspace>" in command
         )
     code, out = fake.json(
-        "metrics", "platform", "--resource", RID, "--metric", "Requests", *WINDOW
+        "metrics",
+        "platform",
+        "--resource",
+        RID,
+        "--metric",
+        "Requests",
+        "RestartCount",
+        "--aggregation",
+        "Total",
+        "--interval",
+        "PT1M",
+        *WINDOW,
     )
+    assert code == 0
     assert (
         RID not in out["commands"][0] and "--resource <resource>" in out["commands"][0]
     )
@@ -276,7 +294,7 @@ def test_discover_reads_both_sides_and_the_environment(fake):
         "customMetric": 588,
     }
     assert svc["environment"] == "dev"
-    assert svc["environment_read_from"] == "resource attributes in customDimensions"
+    assert svc["environment_read_from"] == "deployment.environment.name"
     assert svc["operations"][0] == {"name": "GET /products", "n": 824, "failed": 0}
     assert {o["name"]: o["failed"] for o in svc["operations"]}[
         "DELETE /orders/{order_id}"
@@ -573,7 +591,9 @@ def test_metrics_platform_reads_values_and_states_the_two_absences(fake):
     )
     assert code == 0
     assert out["metrics"][0]["series"] == []
-    assert out["metrics"][0]["absence"].startswith("empty timeseries")
+    assert out["metrics"][0]["absence"] == (
+        "empty timeseries: no series matched (a --dimension split or a --filter with no match)"
+    )
 
 
 def test_metrics_platform_failures_are_classified_in_the_output(fake):
@@ -582,6 +602,7 @@ def test_metrics_platform_failures_are_classified_in_the_output(fake):
     )
     assert result.returncode == 1
     assert "[unknown-metric] unknown metric; valid: UsageNanoCores," in result.stdout
+    before = len(fake.calls())
     result = fake.run(
         "metrics",
         "platform",
@@ -595,11 +616,9 @@ def test_metrics_platform_failures_are_classified_in_the_output(fake):
         "statusCodeCategory eq 'nope'",
         *WINDOW,
     )
-    assert result.returncode == 1
-    assert (
-        "[error] usage: --dimension and --filter parameters are mutually exclusive."
-        in result.stdout
-    )
+    assert result.returncode == 2
+    assert "--dimension and --filter are mutually exclusive" in result.stderr
+    assert len(fake.calls()) == before, "refused before any az call"
 
 
 # --- logs --------------------------------------------------------------------
@@ -734,6 +753,7 @@ def test_context_check_proves_identity_and_both_targets(fake):
     assert out["identity"]["ok"] is True and out["identity"]["user_type"] == "user"
     assert "user_name" not in out["identity"] and "example-user" not in json.dumps(out)
     assert out["targeting"]["component"]["ok"] and out["targeting"]["workspace"]["ok"]
+    assert out["failed"] == []
     assert out["commands"][0] == "az account show -o json"
     assert "print 1" in out["commands"][1] and "-g" not in out["commands"][1]
     assert "--subscription" not in out["commands"][1]
@@ -751,6 +771,37 @@ def test_context_check_wrong_values_exit_three_with_the_diagnosis(fake):
     assert result.returncode == 3
     assert "FAILED [not-an-appid]" in result.stdout
     assert "typically the component's resource name" in result.stdout
+
+
+def test_context_check_a_workspace_value_that_is_not_the_customer_id_exits_three(fake):
+    result = fake.run("context", "check", "--app", APP, "--workspace", "contoso-logs")
+    assert result.returncode == 3
+    assert "FAILED [not-a-workspace-id]" in result.stdout
+    assert "route to the switch to persist the customer ID" in result.stdout
+    result = fake.run(
+        "context",
+        "check",
+        "--app",
+        APP,
+        "--workspace",
+        "12345678-1234-1234-1234-123456789abc",
+    )
+    assert result.returncode == 3
+    assert "FAILED [not-found] (WorkspaceNotFoundError)" in result.stdout
+
+
+def test_usage_errors_exit_two_before_any_az_call(fake):
+    result = fake.run("discover", "--app", APP, "--since", "5x")
+    assert result.returncode == 2 and "a duration is <number><s|m|h|d>" in result.stderr
+    result = fake.run("traces", "operations", "--app", APP, "--from", TO, "--to", FROM)
+    assert result.returncode == 2 and "--to must be after --from" in result.stderr
+    result = fake.run(
+        "metrics", "list", "--app", APP, "--from", "yesterday", "--to", TO
+    )
+    assert result.returncode == 2 and "a timestamp is RFC3339 UTC" in result.stderr
+    result = fake.run("logs", "traces", "--app", APP)
+    assert result.returncode == 2 and "a window is required" in result.stderr
+    assert fake.calls() == []
 
 
 def test_context_landing_polls_the_identity_count_and_is_bounded(fake):
@@ -871,4 +922,9 @@ def test_the_reference_whole_surface_paragraphs_match_the_parsers():
         for flag in flags:
             assert flag in accepted, (
                 f"{script}: {flag} stated in the reference, not accepted by the script"
+            )
+        stated = flags | {"--help", "--from", "--to", "--since", "--json"}
+        for flag in set(re.findall(r"(--[a-z-]+)", accepted)):
+            assert flag in stated, (
+                f"{script}: {flag} accepted by the script, not stated in the reference"
             )

@@ -80,7 +80,8 @@ names plus `commands` and `failed`; exit 0 means every query ran (an empty
 answer is a result), 1 that a query failed - **the failure is in the
 output**, under `FAILED` with its classification -, 2 a usage error.
 **Every subcommand ends by printing the `az` commands it ran** - `queries
-run (record these):` - with the targeting values and a resource id
+run (record these):`, the header saying how many calls when exact
+repeats were folded - with the targeting values and a resource id
 **replaced by their field names in angle brackets** (`--app
 <app_insights_app>`, `--workspace <workspace>`, `--resource <resource>`),
 so the lines go into a committed report as printed. The scripts run their
@@ -121,8 +122,8 @@ Output: per service (`cloud_RoleName`) `tables` (rows per `itemType`:
 `request`, `dependency`, `customMetric`, `trace`, `exception`),
 `environment` (read off the resource attributes the rows carry in
 `customDimensions` - `deployment.environment.name`, falling back to
-`deployment.environment` - with `environment_read_from` saying which, or
-`nothing`), `resource` (one row per `service.version` and
+`deployment.environment` - with `environment_read_from` naming the key
+that answered, or `nothing`), `resource` (one row per `service.version` and
 `service.instance.id`), `operations` (the request names with `n` and
 `failed`), `metrics` (the `customMetrics` names with `rows`, `points` =
 `sum(valueCount)` and `aggregated` when a row carries several points),
@@ -132,12 +133,11 @@ Output: per service (`cloud_RoleName`) `tables` (rows per `itemType`:
 `failed` (exit 1 when non-empty). A side not given is a **stated gap,
 never worked around**: without `--app` the output says the run is
 logs-only and distributed tracing a telemetry gap; without `--workspace`
-that the platform's console and system tables are not read. Runs six
-component and two workspace queries concurrently. Verified 2026-09-11
+that the platform's console and system tables are not read. Verified 2026-09-11
 (both sides; component only; workspace only): the environment came back
 `dev` from `deployment.environment.name` on every row - the
 `deployment.environment` fallback is unverified 2026-09-11 (no row carries
-the old key).
+the old key). Runs its eight queries side by side.
 
 ### Traces
 
@@ -167,7 +167,8 @@ name>` (repeatable), `--slow N` (the slowest requests, default 3),
 - `operations` - Output: one row per service and request `name` - `n`,
   `failed` (`success == false`), `failed_codes` (`resultCode` counts of
   the failures), `p50`, `p95`, `p99`, `max` of `duration` in ms; `bins`
-  with `--bin`. The percentiles are one `summarize ... by name` - there
+  with `--bin` (one row per bucket over every service given - name one
+  `--service` for a per-service series). The percentiles are one `summarize ... by name` - there
   is no `percentileif`, and none is needed. Verified 2026-09-11: five
   operations, `--bin 5m` three buckets.
 - `dependencies` - Output: `per_operation` (each dependency `type`/`name`
@@ -223,9 +224,10 @@ auto|delta|cumulative|gauge|histogram` (default `auto`), a window,
 (repeatable, or several values), `--aggregation` (`Average`, `Count`,
 `Maximum`, `Minimum`, `Total` - several allowed; omitted, the metric's
 primary one), `--interval` (ISO 8601, default `PT1M`), `--dimension`
-(repeatable, splits the series), `--filter` (an OData dimension filter,
-`"statusCodeCategory eq '5xx'"`), `--show` (points printed per series,
-the newest, default 6), a window, `--json`. `definitions` -
+(repeatable, splits the series) **or** `--filter` (an OData dimension
+filter, `"statusCodeCategory eq '5xx'"` - the two are mutually exclusive
+on az, and the pair is a usage error here), `--show` (points printed
+per series, the newest, default 6), a window, `--json`. `definitions` -
 `--resource`, `--resource-group`, `--resource-type`, `--subscription`,
 `--json`. `resources` - `--resource-group`, `--resource-type` (default
 `Microsoft.App/containerApps`), `--subscription`, `--json`.
@@ -259,7 +261,10 @@ the newest, default 6), a window, `--json`. `definitions` -
   rule is the built-in reference's 2026-09-03 observation), an unknown
   name (`none`, exit 0).
 - `resources` - Output: the resources of the group with `name`, `type`,
-  `location`, `id` - the id `platform --resource` takes. `definitions` -
+  `location`, `id` - the id `platform --resource` takes, and a real
+  identifier (the subscription GUID, the group, the resource's name):
+  for that flag only, never for a report - the commands the scripts
+  print mask it as `<resource>`. `definitions` -
   Output: `name`, `unit`, `primary` aggregation, `supported` aggregations,
   `dimensions` per metric: the `--metric`, `--aggregation` and
   `--dimension` values `platform` accepts. Verified 2026-09-11 (two
@@ -271,9 +276,9 @@ the newest, default 6), a window, `--json`. `definitions` -
   unpublished metric or a quiet one answers points without a value key**
   (`GpuUtilizationPercentage` on a container app: `0 of 3 points carry a
   value` - read it as "nothing happened" only when another metric over
-  the same window returned values), **a `--filter` matching no series
-  answers an empty `timeseries`**; both are stated, never printed as
-  zeros. A metric that is published but idle (`RestartCount`) answers
+  the same window returned values), **a `--dimension` split or a
+  `--filter` that no series matches answers an empty `timeseries`**;
+  both are stated, never printed as zeros. A metric that is published but idle (`RestartCount`) answers
   zeros, which are values. An unknown `--metric` fails with the valid
   names listed; a `--dimension` the metric lacks fails naming the
   supported ones - both classified, exit 1. Verified 2026-09-11 on all
@@ -311,7 +316,8 @@ the second whitespace-separated field: `^\S+\s+(\w+)\s`; a line that
 opens with the level takes `^(\w+)`; no double quote in it), a window,
 `--json`; `sample` adds `--level` (case-insensitive equality on the
 extracted level), `--contains <substring of the message>`, `--show` (the
-newest lines, default 20). `schema` - `--workspace`, `--table`, `--json`.
+newest lines, default 20). `schema` - `--workspace`, `--table`, a window
+(default the last hour: `getschema` needs one), `--json`.
 `tables` - `--workspace`, a window, `--json`. `traces` - `--app`,
 `--service`, `--min-severity` (0 verbose, 1 information, 2 warning, 3
 error, 4 critical; default 0), `--contains`, `--show` (default 20), a
@@ -349,6 +355,22 @@ string, `--show` (rows printed, default 50), a window, `--json`.
   sides, and the two error shapes: a `SEM0100` from the workspace naming
   the column, a tokenless `BadArgumentError` from the component (`first=`
   alias), both exit 1.
+
+### The landing of a driven run
+
+```bash
+python3 <Skills>/observability-cli-guides/scripts/azure-monitor-context.py landing --app <app_insights_app> --identity <the run's user agent> --expect <request count> --from <start> --to <end>
+```
+
+Whole surface: `--app`, `--identity` (matched on
+`customDimensions['user_agent.original']`), `--expect N`, a window,
+`--dimension` (another `customDimensions` key to match on), `--service`,
+`--every` (seconds between polls, default 20), `--cap` (the bound,
+default `3m`), `--json`. Output: `polls` (elapsed seconds and the count
+read in json at `tables[0].rows[0][0]`), `landed`, `count`; exit 0
+landed, 1 the cap was reached with the last count in the output.
+Verified 2026-09-11 (landed on the first poll; an identity that never
+lands ran three polls to a 40 s cap, exit 1).
 
 ### Profiles
 
@@ -399,8 +421,9 @@ A mission records profiles as a telemetry gap and moves on.
   `discover` states it; the report records distributed tracing as a
   telemetry gap, never a fallback kept quiet.
 - **Ingest latency is seconds to tens of seconds, never a fixed sleep**:
-  wait with `azure-monitor-context.py landing` (below), which polls the run-identity
-  count every ~20 s, capped; verified 2026-09-11 - a 10-minute window of
+  wait with `azure-monitor-context.py landing` (`## Query by signal`,
+  the landing subsection), which polls the run-identity count every
+  ~20 s, capped; verified 2026-09-11 - a 10-minute window of
   the driven traffic answered its count on the first poll.
 - **`customMetrics` temporality: probed before trusted** - `metrics.py
   query` does it on every read; the collector observed 2026-09-11
@@ -491,7 +514,9 @@ The exit code is the verdict, and the output carries the diagnosis:
   (`ApplicationNotFoundError`, az's exit 3) or a value that is not an
   appId GUID (`The Application Insight is not found. Please check the app
   id again.` behind a traceback banner, az's exit 1 - typically the
-  component's resource name). A wrong value, never a "CLI not
+  component's resource name); on the workspace, an unknown customer ID
+  (`WorkspaceNotFoundError`) or a resource name in its place
+  (`PathNotFoundError`), both az's exit 3 (verified 2026-09-11). A wrong value, never a "CLI not
   configured" error: route to `backend-configuration`'s `## Switch`
   **once** for a corrected value, then stop and report rather than
   bouncing. Both shapes verified 2026-09-11.
@@ -512,21 +537,9 @@ The exit code is the verdict, and the output carries the diagnosis:
 `app_insights_app` unset is not a failed proof: it is the degradation
 stated above, and the mission proceeds logs-only having said so.
 
-**The landing poll of a driven run**, once the proof passed:
-
-```bash
-python3 <Skills>/observability-cli-guides/scripts/azure-monitor-context.py landing --app <app_insights_app> --identity <the run's user agent> --expect <request count> --from <start> --to <end>
-```
-
-Whole surface: `--app`, `--identity` (matched on
-`customDimensions['user_agent.original']`), `--expect N`, a window,
-`--dimension` (another `customDimensions` key to match on), `--service`,
-`--every` (seconds between polls, default 20), `--cap` (the bound,
-default `3m`), `--json`. Output: `polls` (elapsed seconds and the count
-read in json at `tables[0].rows[0][0]`), `landed`, `count`; exit 0
-landed, 1 the cap was reached with the last count in the output.
-Verified 2026-09-11 (landed on the first poll; an identity that never
-lands ran three polls to a 40 s cap, exit 1).
+**The landing poll of a driven run** is a query-time tool:
+`azure-monitor-context.py landing`, stated with its whole surface under
+`## Query by signal`.
 
 ### Change-request phrasing
 

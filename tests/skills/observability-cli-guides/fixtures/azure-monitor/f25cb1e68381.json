@@ -1,0 +1,18 @@
+{
+ "args": [
+  "monitor",
+  "log-analytics",
+  "query",
+  "--workspace",
+  "00000001-0000-0000-0000-000000000000",
+  "--analytics-query",
+  "print 1",
+  "--timespan",
+  "2026-09-11T11:44:13Z/2026-09-11T11:49:13Z",
+  "-o",
+  "json"
+ ],
+ "code": 3,
+ "stdout": "",
+ "stderr": "ERROR: (WorkspaceNotFoundError) The workspace could not be found\nCode: WorkspaceNotFoundError\nMessage: The workspace could not be found\n"
+}

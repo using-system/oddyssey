@@ -1,0 +1,18 @@
+{
+ "args": [
+  "monitor",
+  "log-analytics",
+  "query",
+  "--workspace",
+  "contoso-logs",
+  "--analytics-query",
+  "print 1",
+  "--timespan",
+  "2026-09-11T11:44:11Z/2026-09-11T11:49:11Z",
+  "-o",
+  "json"
+ ],
+ "code": 3,
+ "stdout": "",
+ "stderr": "ERROR: (PathNotFoundError) The requested path does not exist\nCode: PathNotFoundError\nMessage: The requested path does not exist\n"
+}

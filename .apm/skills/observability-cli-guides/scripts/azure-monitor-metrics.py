@@ -63,6 +63,7 @@ from azure_monitor_az import (
     run_az,
     run_many,
     table,
+    usage,
 )
 
 RESOURCE_KEYS = ("service.", "telemetry.", "deployment.", "instrumentationlibrary.")
@@ -357,6 +358,10 @@ def _resource_args(ns) -> list[str]:
 
 
 def cmd_platform(ns) -> tuple[int, dict]:
+    if ns.dimension and ns.filter:
+        usage(
+            "--dimension and --filter are mutually exclusive on az: split the series with --dimension, or select them with --filter"
+        )
     frm, to = resolve_window(ns)
     args = [
         "monitor",
@@ -414,7 +419,9 @@ def cmd_platform(ns) -> tuple[int, dict]:
                 }
             )
         if not v.get("timeseries"):
-            m["absence"] = "empty timeseries: the dimension filter matched no series"
+            m["absence"] = (
+                "empty timeseries: no series matched (a --dimension split or a --filter with no match)"
+            )
         elif all(s["points"] == 0 for s in m["series"]):
             m["absence"] = (
                 "no point carries a value: nothing happened, or a metric this resource does not publish - read it as nothing happened only when another metric over the same window returned values"
@@ -576,8 +583,9 @@ def main() -> int:
     }[ns.cmd]
     code, o = fn[0](ns)
     if ns.cmd == "platform":
-        o["show"] = ns.show
-    emit(o, ns.json, fn[1])
+        emit(o, ns.json, lambda x: fn[1]({**x, "show": ns.show}))
+    else:
+        emit(o, ns.json, fn[1])
     return code
 
 
