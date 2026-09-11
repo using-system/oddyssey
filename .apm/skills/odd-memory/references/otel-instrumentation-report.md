@@ -47,9 +47,12 @@ python3 <this skill's directory>/scripts/odd_report.py synthesis <path>
   `### GenAI approach — <service>` heading per `--genai` service (one
   per service the investigation found calling a model), section 5
   opening with
-  the checks' header row. Every `<fill>` is the run's to replace: the
-  sections are the judgment — written, filled, to a **draft** file of
-  the run's own with its file tool, never by editing the report file.
+  the checks' header row — and, after the skeleton, one line naming
+  what `persist` checks the draft for, so the run reads neither this
+  file nor the script to learn the shapes. Every `<fill>` is the run's
+  to replace: the sections are the judgment — written, filled, to a
+  **draft** file of the run's own with its file tool, never by editing
+  the report file.
 - `check` runs the memory contract's checks — what a host's hook
   enforces after a write, the title and the one-line headline before
   section 1, the five sections in order, no placeholder left, and the

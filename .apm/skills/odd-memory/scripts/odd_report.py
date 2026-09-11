@@ -127,6 +127,19 @@ CHECK_PATTERNS = (
     r"attribut|identity|evidence",
 )
 GENAI_TITLE = "GenAI approach"
+# printed after the skeleton by new --kind instrumentation: what persist
+# checks the draft for, so the run reads neither this file nor the check's
+# code to learn the shapes
+INSTRUMENTATION_RULES = (
+    "--- persist checks the draft for: the title and one headline paragraph before "
+    "section 1; the five headings in order, no <fill> left; section 2's table under "
+    "the header row above, `Service` first, one row per service, and the "
+    "`Implementation order:` line; section 5's checks as rows of the table above "
+    "(or bullets `- <check> — <query> — <expected outcome> — <attribution "
+    "evidence>`); no credential value in a check (an env var name, a secret "
+    "reference or a <placeholder> is wiring, and passes); the GenAI approach as "
+    "prose under its heading, never a table row."
+)
 GENAI_HEADING_RE = re.compile(r"^#{3,}\s+GenAI approach\b", re.IGNORECASE)
 GENAI_CELL_RE = re.compile(r"gen\s?ai", re.IGNORECASE)
 ORDER_RE = re.compile(r"implementation order", re.IGNORECASE)
@@ -1336,7 +1349,7 @@ def new_instrumentation_report(args: argparse.Namespace) -> tuple[Path, str, lis
     store.mkdir(parents=True, exist_ok=True)
     body = instrumentation_skeleton(fields, genai)
     path.write_text(format_frontmatter(fields) + "\n" + body, encoding="utf-8")
-    return path, body, notes
+    return path, body + "\n\n" + INSTRUMENTATION_RULES, notes
 
 
 def repository_value(text: str) -> Any:

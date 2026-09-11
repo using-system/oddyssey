@@ -575,6 +575,10 @@ def test_new_instrumentation_names_the_file_and_writes_the_five_section_skeleton
     assert "### GenAI approach — worker" in body
     assert "| " + " | ".join(report.CHECK_HEADER) + " |" in body
     assert "--- the file below its frontmatter" in out
+    assert "--- persist checks the draft for:" in out, (
+        "the rules travel with the skeleton"
+    )
+    assert "--- persist checks" not in path.read_text(encoding="utf-8")
 
 
 def test_new_instrumentation_refuses_an_observation_flag_and_needs_its_own(repo):
