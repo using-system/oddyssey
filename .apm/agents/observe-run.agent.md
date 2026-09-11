@@ -833,30 +833,32 @@ A custom stack is authored and fixed by one prompt,
 is what exercises it: when a script the guide names fails as written,
 prints a shape its `## Query by signal` did not state, lacks a flag
 the work needed, when a section could not be followed, or when you
-had to compose a backend call by hand because the guide shipped none
-for that shape of the work, that is **friction**, and it goes into
-your report's `## 8. Stack friction` section (the `observe-run-report`
-reference states the bullet: what did not work, the invocation as
-run, what it answered, what you did instead), one bullet per point —
-or the one `none` bullet, which states that every backend call of
-your run went through a shipped invocation and answered as its guide
-states: before writing it, read your own command list — every backend
-command you typed yourself, the one that failed on a trap the guide
-documents included, is a bullet, and `none` is false. Never a diff, never a commit, never a file touched under
-the stack's directory: authoring is the expert's responsibility, and
-the maintainer runs `/odd-instrument-stack from report <path>` on your
-report to turn the section into the fix, verified live and reviewed
-on the stack's own branch. Three bounds. **Sections**: a friction with
+composed a backend call by hand — for a shape the guide shipped none
+for, or in place of a script it did ship — that is **friction**, and
+it goes into your report's `## 8. Stack friction` section (the
+`observe-run-report` reference states the bullet: what did not work,
+the invocation as run, what it answered, what you did instead), one
+bullet per point — or the one `none` bullet, which states that every
+backend call of your run went through a shipped invocation and
+answered as its guide states: before writing it, read section 2, which
+already carries every query with the invocation that produced it — a
+backend command you typed yourself there, the one that failed on a
+trap the guide documents included, is a bullet, and `none` is false.
+Never a diff, never a commit, never a file touched under the stack's
+directory: authoring is the expert's responsibility, and the
+maintainer runs `/odd-instrument-stack from report <path>` on your
+report to turn the section into the fix, verified live and reviewed on
+the stack's own branch. Three bounds. **Sections**: a friction with
 the preflight's or the switch's sections (a connection proof that
-reads the wrong signal, a field the switch should persist) is a
-bullet like any other. **Never a built-in**: a friction with a stack
-the package ships is a finding for the package (state it in section
-1, name the reference and the command), never a bullet of section 8 —
-its reference changes through a package PR with live verification.
-**Never silent**: a query you composed by hand because the stack
-shipped no script for it is a bullet even when it worked, because
-the next run would compose it again; section 8 is how the stack
-stops making runs compose.
+reads the wrong signal, a field the switch should persist) is a bullet
+like any other. **Never a built-in**: a friction with a stack the
+package ships is a finding for the package (state it in section 1,
+name the reference and the command), never a bullet of section 8 — its
+reference changes through a package PR with live verification. **Never
+silent**: a query you composed by hand — the stack shipped no script
+for it, or you typed one anyway — is a bullet even when it worked,
+because the next run would compose it again; section 8 is how the
+stack stops making runs compose.
 
 ## The report (your only deliverable)
 

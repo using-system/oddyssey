@@ -1122,7 +1122,10 @@ def test_a_none_bullet_counts_zero_and_shows_it(repo, report):
     assert proc.returncode == 0, proc.stderr
     assert frontmatter(report, path)["stack_friction"] == "0"
     shown = run(repo, "show", str(path))
-    assert "Stack friction: 0 — every shipped invocation answered" in shown.stdout
+    assert (
+        "Stack friction: 0 — every backend call went through a shipped invocation"
+        in shown.stdout
+    )
 
 
 def test_check_refuses_a_custom_report_without_section_8_or_a_bullet(repo, report):

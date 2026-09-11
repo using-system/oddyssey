@@ -1630,7 +1630,10 @@ def render_show(data: dict, rel: str, commit: str | None) -> str:
             + (
                 " — /odd-instrument-stack from report fixes the stack from them"
                 if friction
-                else " — every shipped invocation answered as its guide states"
+                else (
+                    " — every backend call went through a shipped invocation, "
+                    "and each answered as its guide states"
+                )
             )
         )
         for entry in data["friction"][:MAX_ROWS]:
