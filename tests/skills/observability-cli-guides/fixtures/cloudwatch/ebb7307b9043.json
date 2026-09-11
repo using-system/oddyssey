@@ -1,0 +1,17 @@
+{
+ "args": [
+  "logs",
+  "get-query-results",
+  "--query-id",
+  "00000001-0000-0000-0000-000000000000",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n    \"queryLanguage\": \"CWLI\",\n    \"results\": [\n        [\n            {\n                \"field\": \"statset\",\n                \"value\": \"0\"\n            },\n            {\n                \"field\": \"scalar\",\n                \"value\": \"100\"\n            },\n            {\n                \"field\": \"with_service\",\n                \"value\": \"0\"\n            },\n            {\n                \"field\": \"with_instance\",\n                \"value\": \"0\"\n            },\n            {\n                \"field\": \"n\",\n                \"value\": \"280\"\n            }\n        ]\n    ],\n    \"statistics\": {\n        \"recordsMatched\": 280.0,\n        \"recordsScanned\": 280.0,\n        \"estimatedRecordsSkipped\": 0.0,\n        \"bytesScanned\": 211854.0,\n        \"estimatedBytesSkipped\": 0.0,\n        \"logGroupsScanned\": 1.0,\n        \"resultCount\": 1.0\n    },\n    \"status\": \"Complete\"\n}\n",
+ "stderr": ""
+}

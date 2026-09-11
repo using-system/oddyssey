@@ -1,0 +1,23 @@
+{
+ "args": [
+  "logs",
+  "start-query",
+  "--log-group-name",
+  "/contoso/logs",
+  "--start-time",
+  "1789130611",
+  "--end-time",
+  "1789131211",
+  "--query-string",
+  "filter `resource.service.name` in [\"orders-api\"] | parse body /\"(?<method>[A-Z]+) (?<path>\\S+) HTTP\\/[0-9.]+\" (?<status>[0-9]{3})/ | parse path /^(?<route>\\/[a-z_-]+)(\\/[^\\/]+)?(?<tail>\\/[a-z_-]+)?$/ | stats count() as n by method, route, tail, status",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\"queryId\": \"54f23cf5-ae9a-0000-0000-000000000000\"}\n",
+ "stderr": ""
+}

@@ -1,0 +1,17 @@
+{
+ "args": [
+  "logs",
+  "describe-log-groups",
+  "--log-group-name-prefix",
+  "/contoso/logs",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n    \"logGroups\": [\n        {\n            \"logGroupName\": \"/contoso/logs\",\n            \"creationTime\": 1788196440589,\n            \"retentionInDays\": 7,\n            \"metricFilterCount\": 0,\n            \"arn\": \"arn:aws:logs:eu-central-1:123456789012:log-group:/contoso/logs:*\",\n            \"storedBytes\": 329018137,\n            \"logGroupClass\": \"STANDARD\",\n            \"logGroupArn\": \"arn:aws:logs:eu-central-1:123456789012:log-group:/contoso/logs\",\n            \"deletionProtectionEnabled\": false,\n            \"bearerTokenAuthenticationEnabled\": false\n        }\n    ]\n}\n",
+ "stderr": ""
+}

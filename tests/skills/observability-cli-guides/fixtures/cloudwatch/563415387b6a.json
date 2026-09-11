@@ -1,0 +1,23 @@
+{
+ "args": [
+  "logs",
+  "start-query",
+  "--log-group-name",
+  "/contoso/metrics",
+  "--start-time",
+  "1789130626",
+  "--end-time",
+  "1789131226",
+  "--query-string",
+  "stats max(@timestamp) as newest, count() as n by `_aws.CloudWatchMetrics.0.Namespace`",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\"queryId\": \"56341538-7b6a-0000-0000-000000000000\"}\n",
+ "stderr": ""
+}

@@ -1,0 +1,15 @@
+{
+ "args": [
+  "sts",
+  "get-caller-identity",
+  "--profile",
+  "no-such-profile",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 255,
+ "stdout": "",
+ "stderr": "\naws: [ERROR]: The config profile (no-such-profile) could not be found\n"
+}

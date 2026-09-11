@@ -1,0 +1,23 @@
+{
+ "args": [
+  "logs",
+  "start-query",
+  "--log-group-name",
+  "/contoso/metrics",
+  "--start-time",
+  "1789130611",
+  "--end-time",
+  "1789131211",
+  "--query-string",
+  "filter ispresent(`http.server.request.duration.Count`) | stats min(`http.server.request.duration.Count`) as mn, max(`http.server.request.duration.Count`) as mx, earliest(`http.server.request.duration.Count`) as first, latest(`http.server.request.duration.Count`) as last, sum(`http.server.request.duration.Count`) as total, count() as n by OTelLib, `error.type`, `http.request.method`, `http.response.status_code`, `http.route`, `network.protocol.version`, `url.scheme`",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\"queryId\": \"f7127348-0763-0000-0000-000000000000\"}\n",
+ "stderr": ""
+}

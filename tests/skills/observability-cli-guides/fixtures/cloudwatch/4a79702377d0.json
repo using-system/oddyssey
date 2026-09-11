@@ -1,0 +1,23 @@
+{
+ "args": [
+  "logs",
+  "start-query",
+  "--log-group-name",
+  "/contoso/metrics",
+  "--start-time",
+  "1789130611",
+  "--end-time",
+  "1789131211",
+  "--query-string",
+  "stats sum(ispresent(`http.server.request.duration.Count`)) as statset, sum(ispresent(`http.server.request.duration`)) as scalar, sum(ispresent(`resource.service.name`)) as with_service, sum(ispresent(`resource.service.instance.id`)) as with_instance, count() as n",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\"queryId\": \"4a797023-77d0-0000-0000-000000000000\"}\n",
+ "stderr": ""
+}
