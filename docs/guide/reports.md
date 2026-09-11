@@ -73,20 +73,19 @@ process_restarted: true
 | `workload` | optional | The input that shaped the run, when the service alone does not | free-form |
 | `instance` | optional | Which process the numbers belong to | service to identity |
 | `process_restarted` | optional | Whether the process restarted before the window | boolean, or per service |
+| `stack_friction` | custom stack | How many points of friction with the custom stack the run met, counted from section 8 | integer; present only when the stack is a custom one |
 
 A report predating a field simply lacks it; `/odd-status` says so
 rather than guessing.
 
-### Body — seven sections
+### Body — seven sections, eight on a custom stack
 
 A title line, then one paragraph — the headline, how the run went in
 one sentence — then the seven numbered sections; the skill's script
 refuses to persist a report missing any of the three.
 
 1. **Mission and run record** — the mission as understood and, in
-   drive mode, the scenario record that replays it verbatim; on a
-   custom stack, whether the run changed the stack file, with the
-   commit that carries the change.
+   drive mode, the scenario record that replays it verbatim.
 2. **Observed behavior** — the per-operation table (requests, rate,
    p50/p95/p99, errors), every number with the query that produced it —
    for a query run through a backend's shipped script, the script
@@ -105,6 +104,14 @@ refuses to persist a report missing any of the three.
    every check with its before-value, its pass criterion, and how its
    query was validated — on today's data only, or on the shape the
    pass criterion expects too — or `not validated`.
+8. **Stack friction** — on a custom stack only: one bullet per point
+   of friction with the stack as shipped (a script that failed as
+   written, an output shape the guide did not state, a flag it lacked,
+   a query composed by hand), each with the invocation, what it
+   answered and what the run did instead — or one `none` bullet. The
+   run never edits the stack; `/odd-instrument-stack from report
+   <path>` fixes it from this section
+   ([custom-backends.md](custom-backends.md)).
 
 A `quick` report keeps the seven headings with sections 1, 2 and 7
 complete and 3 to 6 reduced to their essentials; section 5 names the

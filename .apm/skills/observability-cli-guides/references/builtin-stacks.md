@@ -19,7 +19,7 @@ edits both in the same change.
 
 Mapping a user's phrasing onto a value goes through the **Also called**
 column; anything that maps onto no row is a custom stack when the
-observed repository carries `.odd/observability-stacks/<name>.md`, and
+observed repository carries `.odd/observability-stacks/<name>/guide.md`, and
 otherwise an error naming the valid list and that location, never a
 guess. `grafana` always means a **remote** Grafana — the local stack is
 its own value, `local`.

@@ -58,8 +58,8 @@ this order:
    one (and it does not rewrite the configuration: the divergence is
    stated, not persisted). That `stack` may be a custom name - a value
    on no row of `builtin-stacks.md`: step 3's `## Check` resolves it
-   from `.odd/observability-stacks/<name>.md` in this clone and, when
-   that file is absent, stops with the `observability-stack`
+   from `.odd/observability-stacks/<name>/guide.md` in this clone and, when
+   that directory is absent, stops with the `observability-stack`
    reference's error naming the built-in list and that location -
    carry that stop: the report's contract cannot be replayed from a
    guess, and never from the configured stack instead.
@@ -312,8 +312,8 @@ Then build the mission block from that report:
 Close the mission by running
 `python3 <Skills>/odd-memory/scripts/odd_report.py show <the stored path the agent's reply carries>`
 (its whole surface) and printing the rendering as the final answer,
-translated to the conversation's language, with the stack file's fate
-from the reply when the run changed one. The report file, stored in
+translated to the conversation's language - on a custom stack its
+stack-friction count and entries are part of the rendering. The report file, stored in
 `.odd/observe-run-reports/`, remains the versioned record that the
 fix - or the planned instrumentation - was measured, not assumed:
 never re-dump the raw report in the conversation, and never let the

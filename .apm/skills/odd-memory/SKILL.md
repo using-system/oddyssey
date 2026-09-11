@@ -1,6 +1,6 @@
 ---
 name: odd-memory
-description: The .odd/ memory - its contract and one reference per kind. The contract states what every kind shares (where the memory lives, the frontmatter and the whole body, append-only reports versus living-source benchmarks, recall by frontmatter then by section, the no-secrets rule, the work branch and the lone commit, the reply that carries a synthesis and never the artifact); each reference says how to persist, recall and show its kind - observation reports, instrumentation reports, benchmarks, the maintainer-ruling ledgers (finding decisions, tree-entry classifications), custom stack files. Read when a report, a benchmark, a custom stack file or a decision is persisted, recalled, shown or inventoried, or when a finding is declined (wontfix) or such a decision reversed, or a tree entry is ruled runtime or non-runtime; never invoked on its own.
+description: The .odd/ memory - its contract and one reference per kind. The contract states what every kind shares (where the memory lives, the frontmatter and the whole body, append-only reports versus living-source benchmarks, recall by frontmatter then by section, the no-secrets rule, the work branch and the lone commit, the reply that carries a synthesis and never the artifact); each reference says how to persist, recall and show its kind - observation reports, instrumentation reports, benchmarks, the maintainer-ruling ledgers (finding decisions, tree-entry classifications), custom stacks. Read when a report, a benchmark, a custom stack or a decision is persisted, recalled, shown or inventoried, or when a finding is declined (wontfix) or such a decision reversed, or a tree entry is ruled runtime or non-runtime; never invoked on its own.
 ---
 
 # The `.odd/` memory contract
@@ -19,7 +19,7 @@ stored one is shown):
 | Instrumentation reports | `.odd/otel-instrumentation-reports/` | [references/otel-instrumentation-report.md](references/otel-instrumentation-report.md) |
 | Maintainer rulings | `.odd/decisions.md` (findings) and `.odd/entry-classifications.md` (tree entries), written by `scripts/odd_ledger.py` | [references/decisions.md](references/decisions.md) |
 | Benchmarks | `.odd/benchmarks/<name>/` | [references/benchmark.md](references/benchmark.md) |
-| Custom stacks | `.odd/observability-stacks/<name>.md` | [references/observability-stack.md](references/observability-stack.md) |
+| Custom stacks | `.odd/observability-stacks/<name>/` (`guide.md` and `scripts/`) | [references/observability-stack.md](references/observability-stack.md) |
 
 This file owns what they share; a reference states only its
 specifics. A sixth kind is a new row in this table and a new
@@ -82,11 +82,11 @@ report reference is what the persistence hands the caller, and what
   place through reviewed diffs, and git history, not file accumulation,
   is its memory. It is never overwritten silently — an update is a diff
   the maintainer reviews like any other committed change. A **custom
-  stack file** is living source the same way.
+  stack** is living source the same way.
 - The consumers keep the two apart: `/odd-verify` and `/odd-status`
   treat a commit that touches only the report stores or a ledger as
   memory, not code, while a commit that changes a benchmark or a custom
-  stack file is a code change.
+  stack is a code change.
 
 ## Recall: reading the memory
 

@@ -438,13 +438,54 @@ Across all of them:
   finding reference is ambiguous or the rationale missing, and
   records nothing you did not ask for.
 
+## /odd-instrument-stack
+
+Authors a custom observability stack for a backend the package does
+not ship — a directory in your repository, `guide.md` plus the query
+scripts it names — through the `stack-instrumentation-expert` agent,
+every invocation verified live against the backend. Arguments: the
+**shape** and the **name**, with the sources and instructions the
+shape takes.
+
+```text
+/odd-instrument-stack create a stack seq
+/odd-instrument-stack create a stack seq from https://datalust.co/docs/command-line-client : query it with seqcli, no profiling
+```
+
+"create a stack seq" is the name; "from <URL>" the documentation to
+read first; the text after the colon your instructions, which win
+over the documentation. The prompt asks once how the backend is
+reached from your machine, by name — a creation stops when it does not
+answer.
+
+```text
+/odd-instrument-stack for stack seq: the traces endpoint is /api/traces, it takes a service query parameter
+```
+
+"for stack seq: ..." completes a stored stack: the sections and the
+scripts the instruction touches, verified, shown as a diff.
+
+```text
+/odd-instrument-stack create a stack seq linked to https://github.com/example-org/obs-guides stacks/seq
+```
+
+"linked to <repository> <path>" writes the pointer only; the linked
+stack is fetched and checked at every switch.
+
+```text
+/odd-instrument-stack from report .odd/observe-run-reports/2026-09-11-0710-roastery-web-frontend-seq.md
+```
+
+"from report <path>" fixes the stack from that report's stack-friction
+section, one bullet at a time, verified live; "from report" alone
+takes the latest report on a custom stack.
+
 ## /odd-config
 
 Displays the current backend configuration — stack, targeted
 instance, connection proof — then offers to change it. Arguments: a
-**target stack**, a value to **persist** or **clear** for one, or a
-**custom stack to create or complete** for a backend the package does
-not ship.
+**target stack**, or a value to **persist** or **clear** for one. A
+custom stack is written by `/odd-instrument-stack`, never here.
 
 ```text
 /odd-config
@@ -479,41 +520,3 @@ without switching.
 
 A local port change: it resets the local stack container, and the
 prompt says so first.
-
-```text
-/odd-config create a stack seq
-/odd-config create a stack seq from https://datalust.co/docs/command-line-client
-/odd-config create a stack seq from ./docs/seq/ : query it with seqcli, the connection is set with seqcli config, no profiling
-```
-
-"create a stack seq" is the custom stack to create — `seq` becomes
-`.odd/observability-stacks/seq.md`; "from <URL or path>" is the
-documentation to read first, and what follows the colon is your own
-instructions, written in as told; the web fills what those left open.
-The file is checked against the reference contract, committed, and the
-switch to it offered.
-
-```text
-/odd-config create a stack seq linked to https://github.com/example-org/obs-guides stacks/seq.md
-```
-
-"linked to <repository and path>" (or a URL) writes only a pointer to a
-guide another repository carries — one guide for the whole team; the
-switch fetches and checks it every time.
-
-```text
-/odd-config for stack seq: the traces endpoint is /api/traces, it takes a service query parameter
-```
-
-"for stack seq: ..." completes an existing custom stack file: the
-instruction becomes a diff to the section it touches, shown before it
-is committed — or, for a linked guide, proposed as a pull request on
-the repository that carries it, or shown for you to apply there. A
-built-in stack is refused here — it changes through the package.
-
-```text
-/odd-config switch to seq
-```
-
-"switch to seq" names a custom stack the repository carries: the same
-guided switch, with the file checked against the contract first.

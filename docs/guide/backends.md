@@ -11,16 +11,17 @@ each backend's reference under the
 skill; this page restates it, never extends it. Naming a stack in an
 `/odd-observe` mission switches the configuration too.
 
-A backend outside that list is a **custom stack**: one file in your
-repository, `.odd/observability-stacks/<name>.md`, with the same
-sections as a built-in reference, that `/odd-config` writes and your
-runs improve; the switch checks it against the contract before
-persisting anything, and `stack_config` then holds exactly the fields
-the file declares. Creating, editing, sharing and amending one is
-[custom-backends.md](custom-backends.md).
+A backend outside that list is a **custom stack**: a directory in
+your repository, `.odd/observability-stacks/<name>/`, holding a guide
+with the same sections as a built-in reference and the query scripts
+it names, that `/odd-instrument-stack` writes and fixes from what
+your runs' reports record; the switch checks it against the contract
+before persisting anything, and `stack_config` then holds exactly the
+fields the guide declares. Creating, editing, sharing and fixing one
+is [custom-backends.md](custom-backends.md).
 
 ```text
-/odd-config create a stack <name> from <docs URL or path>
+/odd-instrument-stack create a stack <name> from <docs URL or path>
 /odd-config switch to <name>
 ```
 

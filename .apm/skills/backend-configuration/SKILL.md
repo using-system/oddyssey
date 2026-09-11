@@ -28,11 +28,12 @@ fails, what to persist — lives in that stack's reference file: in the
 `observability-cli-guides` skill, `references/<stack>.md`, for a stack
 the package ships (the list of those, their aliases and their CLIs is
 that skill's `references/builtin-stacks.md`), or in the observed
-repository, `.odd/observability-stacks/<stack>.md`, for a **custom
-stack** the team wrote itself (the `odd-memory` skill's
-`observability-stack` reference owns that file's lifecycle). Both
-carry the same sections, and this skill reads them the same way. This
-file is the method; the reference is the content.
+repository, `.odd/observability-stacks/<stack>/guide.md`, for a
+**custom stack** the team wrote through `/odd-instrument-stack` (the
+`odd-memory` skill's `observability-stack` reference owns that
+directory's lifecycle; its `scripts/` hold the query scripts the guide
+names). Both carry the same sections, and this skill reads them the
+same way. This file is the method; the reference is the content.
 
 **Read by section, never the whole file.** A reference runs a few
 hundred lines, and this skill needs the four sections the reference
@@ -93,9 +94,9 @@ persists is the **caller's call**: `odd-observe` persists it with
 the divergence and does not persist (the stored report is the contract
 it replays). Open the stack's row in `builtin-stacks.md` and, from it,
 the stack's reference file; a name on no row is a custom stack, its
-reference file `.odd/observability-stacks/<name>.md` in the observed
+reference `.odd/observability-stacks/<name>/guide.md` in the observed
 repository (absent too: the error of `## Switch`'s step 1) — or, when
-that file links its guide, the fetched copy: run the switch's check
+that guide links its source, the fetched copy: run the switch's check
 command again here (it is cheap, and a copy left by an earlier run may
 lag the guide), and read the copy it writes. The rest of this section
 is that file's `## Configuration display`, applied in order.
@@ -203,10 +204,10 @@ a custom stack the observed repository carries. Map the user's phrasing
 onto a row through that table's **Also called** column — a vendor name,
 a product name, or the words for the stack on this machine each name
 exactly one value there. A phrasing on no row is a custom stack's name
-when `.odd/observability-stacks/<name>.md` exists in the observed
-repository — `<name>` is the file's stem, the phrasing lowercased and
-kebab-cased ("use Seq" → `seq`); that file is the target's reference
-for every step below. Read `odd_config_get` here too: the configured
+when `.odd/observability-stacks/<name>/guide.md` exists in the observed
+repository — `<name>` is the directory's name, the phrasing lowercased
+and kebab-cased ("use Seq" → `seq`); that guide is the target's
+reference for every step below. Read `odd_config_get` here too: the configured
 stack (a switch to it is a no-op worth saying) and, for a custom name,
 whether its declaration is already stored under `custom`.
 
@@ -258,16 +259,18 @@ A **custom stack** is checked before it is written, and written with
 its declaration. Run
 
 ```text
-python3 <the observability-cli-guides skill's directory>/scripts/check_stack_reference.py --declaration --fetch-dir <a scratch directory outside the repository> .odd/observability-stacks/<name>.md
+python3 <the observability-cli-guides skill's directory>/scripts/check_stack_reference.py --declaration --fetch-dir <a scratch directory outside the repository> .odd/observability-stacks/<name>
 ```
 
-from the observed repository's root. When the file **links** its
-guide (the contract's `source_*` keys), the check fetches the guide
-into that directory as `<name>.md`: that copy is the stack's
-reference for every later read — this skill's `## Check`, the
-agents' — so carry its path in the handoff, and never commit it. A
-non-zero exit lists what the file lacks against the reference
-contract, or why the link could not be fetched — stop there, naming
+from the observed repository's root. When the guide **links** its
+source (the contract's `source_*` keys), the check fetches the stack
+into that directory as `<name>/` — `guide.md`, and `scripts/` when the
+link is a repository's directory: that copy is the stack's reference
+for every later read — this skill's `## Check`, the agents' — so carry
+its path in the handoff, and never commit it. A non-zero exit lists
+what the stack lacks against the reference contract — a heading, a
+script the guide names, a script that does not compile — or why the
+link could not be fetched — stop there, naming
 the problems; the fix is an edit to the file (or to the linked guide,
 where it lives), through the `odd-memory` reference, never a switch to
 an unchecked stack. A zero exit prints one

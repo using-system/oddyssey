@@ -117,6 +117,12 @@ def test_stores_report_absence_and_the_newest_entries(preflight, tmp_path):
     assert store["count"] == 4
     assert store["newest"] == ["2026-04-01-d.md", "2026-03-01-c.md", "2026-02-01-b.md"]
     assert result[".odd/benchmarks"] == {"exists": False, "count": 0, "newest": []}
+    # a custom stack is a directory (issue #525): it lists as an entry
+    stacks = tmp_path / ".odd/observability-stacks"
+    (stacks / "seq" / "scripts").mkdir(parents=True)
+    (stacks / "seq" / "guide.md").write_text("x")
+    listed = preflight.stores(tmp_path)[".odd/observability-stacks"]
+    assert listed == {"exists": True, "count": 1, "newest": ["seq"]}
 
 
 def test_repo_state_outside_a_git_tree_is_unknown_not_fatal(preflight, tmp_path):

@@ -318,7 +318,7 @@ def test_linked_guide_by_url_is_fetched_and_checked(tmp_path):
         "custom": {"seq": {"stack_config_fields": []}},
     }
     # The fetched copy lands at a deterministic path the skills read.
-    assert (fetch_dir / "seq.md").read_text() == guide.read_text()
+    assert (fetch_dir / "seq" / "guide.md").read_text() == guide.read_text()
 
 
 def test_linked_guide_by_repo_is_cloned_and_checked(tmp_path):
@@ -343,7 +343,7 @@ def test_linked_guide_by_repo_is_cloned_and_checked(tmp_path):
     result = _run("--declaration", "--fetch-dir", str(fetch_dir), str(path))
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["stack"] == "seq"
-    assert "## CLI binary" in (fetch_dir / "seq.md").read_text()
+    assert "## CLI binary" in (fetch_dir / "seq" / "guide.md").read_text()
 
 
 def test_linked_guide_reports_where_the_copy_landed(tmp_path):
@@ -353,11 +353,11 @@ def test_linked_guide_reports_where_the_copy_landed(tmp_path):
     path = linked_file(tmp_path, f"source_url: {guide.as_uri()}")
     result = _run("--declaration", "--fetch-dir", str(fetch_dir), str(path))
     assert result.returncode == 0, result.stderr
-    assert f"fetched {guide.as_uri()} to {fetch_dir / 'seq.md'}" in result.stderr
+    assert f"fetched {guide.as_uri()} to {fetch_dir / 'seq'}" in result.stderr
     # Without --fetch-dir the copy lands in a temporary directory, still named.
     result = _run("--declaration", str(path))
     assert result.returncode == 0, result.stderr
-    assert "fetched " in result.stderr and "/seq.md" in result.stderr
+    assert "fetched " in result.stderr and "/seq" in result.stderr
 
 
 def test_a_link_to_a_pointer_is_refused(tmp_path):
@@ -431,3 +431,161 @@ def test_help_prints_usage():
     result = _run("--help")
     assert result.returncode == 0
     assert result.stdout.startswith("usage:")
+
+
+# --- the directory form (issue #525) --------------------------------------------
+
+
+def stack_dir(
+    tmp_path: Path, name="seq", body=None, scripts: dict[str, str] | None = None
+) -> Path:
+    """A custom stack as a directory: guide.md plus the scripts it names."""
+    directory = tmp_path / name
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "guide.md").write_text(
+        f"---\nstack: {name}\nstack_config_fields: []\n---\n"
+        + (conforming_body() if body is None else body)
+    )
+    for script, source in (scripts or {}).items():
+        (directory / "scripts").mkdir(exist_ok=True)
+        (directory / "scripts" / script).write_text(source)
+    return directory
+
+
+def body_naming(*scripts: str) -> str:
+    lines = " ".join(
+        f"`python3 .odd/observability-stacks/seq/scripts/{name} --json`"
+        for name in scripts
+    )
+    return conforming_body().replace(
+        "[docs](https://example.test/cli.md)",
+        f"[docs](https://example.test/cli.md) {lines}",
+    )
+
+
+def test_a_directory_is_checked_through_its_guide_and_declared_by_its_name(tmp_path):
+    directory = stack_dir(
+        tmp_path,
+        body=body_naming("seq-logs.py"),
+        scripts={"seq-logs.py": "print('ok')\n", "seq_cli.py": "X = 1\n"},
+    )
+    result = _run("--declaration", str(directory))
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {
+        "stack": "seq",
+        "custom": {"seq": {"stack_config_fields": []}},
+    }
+
+
+def test_a_directory_without_a_guide_is_a_named_failure(tmp_path):
+    directory = tmp_path / "seq"
+    directory.mkdir()
+    result = _run("--declaration", str(directory))
+    assert result.returncode == 1
+    assert "directory holding guide.md" in result.stderr
+
+
+def test_the_stack_name_is_the_directory_s_never_the_guide_s(tmp_path):
+    directory = stack_dir(tmp_path, name="seq")
+    (directory / "guide.md").write_text(
+        "---\nstack: other\nstack_config_fields: []\n---\n" + conforming_body()
+    )
+    result = _run("--declaration", str(directory))
+    assert result.returncode == 1
+    assert "does not match the stack's name `seq`" in result.stderr
+    # A guide.md checked on its own takes its parent's name.
+    result = _run("--declaration", str(directory / "guide.md"))
+    assert result.returncode == 1
+    assert "`seq`" in result.stderr
+
+
+def test_a_script_the_guide_names_must_exist(tmp_path):
+    directory = stack_dir(tmp_path, body=body_naming("seq-logs.py", "seq-traces.py"))
+    (directory / "scripts").mkdir()
+    (directory / "scripts" / "seq-logs.py").write_text("print('ok')\n")
+    result = _run("--declaration", str(directory))
+    assert result.returncode == 1
+    assert "names scripts/seq-traces.py, which is not a file of" in result.stderr
+    assert "seq-logs.py" not in result.stderr
+
+
+def test_every_script_under_scripts_must_compile(tmp_path):
+    directory = stack_dir(
+        tmp_path,
+        body=body_naming("seq-logs.py"),
+        scripts={"seq-logs.py": "print('ok')\n", "seq_cli.py": "def (:\n"},
+    )
+    result = _run("--declaration", str(directory))
+    assert result.returncode == 1
+    assert "scripts/seq_cli.py does not compile" in result.stderr
+
+
+def test_a_guide_naming_no_script_needs_no_scripts_directory(tmp_path):
+    directory = stack_dir(tmp_path)
+    result = _run("--declaration", str(directory))
+    assert result.returncode == 0, result.stderr
+
+
+def test_a_directory_without_declaration_flag_checks_headings_and_scripts(tmp_path):
+    directory = stack_dir(tmp_path, body=body_naming("seq-logs.py"))
+    result = _run(str(directory))
+    assert result.returncode == 1
+    assert "names scripts/seq-logs.py" in result.stderr
+
+
+def test_a_linked_repository_path_brings_the_directory_scripts_included(tmp_path):
+    origin = tmp_path / "origin"
+    stack_dir(
+        origin / "stacks",
+        body=body_naming("seq-logs.py"),
+        scripts={"seq-logs.py": "print('ok')\n"},
+    )
+    for command in (
+        ["git", "init", "-q", "-b", "main"],
+        ["git", "add", "-A"],
+        ["git", "commit", "-q", "-m", "stack"],
+    ):
+        subprocess.run(command, cwd=origin, check=True, env=GIT_ENV)
+    fetch_dir = tmp_path / "fetched"
+    local = tmp_path / "repo" / "seq"
+    local.mkdir(parents=True)
+    (local / "guide.md").write_text(
+        f"---\nstack: seq\nstack_config_fields: []\nsource_repo: {origin}\n"
+        "source_path: stacks/seq\nsource_ref: main\n---\n"
+    )
+    result = _run("--declaration", "--fetch-dir", str(fetch_dir), str(local))
+    assert result.returncode == 0, result.stderr
+    assert (fetch_dir / "seq" / "guide.md").is_file()
+    assert (
+        fetch_dir / "seq" / "scripts" / "seq-logs.py"
+    ).read_text() == "print('ok')\n"
+    assert f"fetched {origin} stacks/seq to {fetch_dir / 'seq'}" in result.stderr
+
+
+def test_a_linked_directory_without_a_guide_is_refused(tmp_path):
+    origin = tmp_path / "origin"
+    (origin / "stacks" / "seq").mkdir(parents=True)
+    (origin / "stacks" / "seq" / "notes.md").write_text("x")
+    for command in (
+        ["git", "init", "-q", "-b", "main"],
+        ["git", "add", "-A"],
+        ["git", "commit", "-q", "-m", "stack"],
+    ):
+        subprocess.run(command, cwd=origin, check=True, env=GIT_ENV)
+    path = linked_file(tmp_path, f"source_repo: {origin}\nsource_path: stacks/seq")
+    result = _run("--declaration", str(path))
+    assert result.returncode == 1
+    assert "carries no guide.md" in result.stderr
+
+
+def test_a_linked_url_brings_the_guide_alone(tmp_path):
+    guide = tmp_path / "guides" / "seq-guide.md"
+    guide.parent.mkdir()
+    guide.write_text("# Seq\n\n" + body_naming("seq-logs.py"))
+    fetch_dir = tmp_path / "fetched"
+    path = linked_file(tmp_path, f"source_url: {guide.as_uri()}")
+    result = _run("--declaration", "--fetch-dir", str(fetch_dir), str(path))
+    # a guide alone that names a script it cannot bring is the linked guide's
+    # problem, named as such
+    assert result.returncode == 1
+    assert "names scripts/seq-logs.py, which is not a file of" in result.stderr

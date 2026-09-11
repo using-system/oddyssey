@@ -30,7 +30,7 @@ accepts, with its reference, CLI, and aliases — is
 | Azure Monitor (App Insights, Log Analytics) | `az` (KQL) | [references/azure-monitor.md](references/azure-monitor.md) |
 | AWS CloudWatch + X-Ray | `aws` | [references/cloudwatch.md](references/cloudwatch.md) |
 
-Authoring a reference, or a custom stack file: every reference follows
+Authoring a reference, or a custom stack's guide: every reference follows
 [references/CONTRACT.md](references/CONTRACT.md) — the sections it must
 carry, what each answers, and who reads it. A mission never opens it.
 

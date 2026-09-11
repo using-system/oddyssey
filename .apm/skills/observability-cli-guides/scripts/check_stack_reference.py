@@ -16,24 +16,35 @@ Two callers, one checker:
 - no argument: every built-in reference under references/ except
   builtin-stacks.md and the contract itself (what CI runs on every
   pull request);
-- ``--declaration <file>``: a custom stack file (issue #228) - its
-  headings are checked the same way, and its frontmatter declaration is
-  printed as the ``odd_config_set`` payload that switches to it,
-  ``{"stack": "<name>", "custom": {"<name>": {"stack_config_fields":
-  [...]}}}``, to pass as the tool's ``config`` argument verbatim (any
-  other frontmatter key belongs to the file and is not forwarded). The
-  stack name must be the file's stem - the name is how the file is
-  found.
+- ``--declaration <stack>``: a custom stack (issues #228, #525) - a
+  **directory**, ``.odd/observability-stacks/<name>/``, holding
+  ``guide.md`` (the reference: frontmatter plus the contract's
+  sections) and ``scripts/`` (the query scripts the guide names). The
+  guide's headings are checked the same way, every script
+  ``## Query by signal`` names as ``scripts/<file>.py`` must exist
+  under ``scripts/`` and compile, and every ``.py`` there must compile;
+  the frontmatter declaration is printed as the ``odd_config_set``
+  payload that switches to the stack, ``{"stack": "<name>", "custom":
+  {"<name>": {"stack_config_fields": [...]}}}``, to pass as the tool's
+  ``config`` argument verbatim (any other frontmatter key belongs to
+  the guide and is not forwarded). The stack name must be the
+  directory's name - the name is how the stack is found. A plain file
+  is accepted too, checked as a guide on its own (a copy an agent
+  fetched somewhere): its name is then the stack's when the file is a
+  ``guide.md`` inside a directory of that name, else the file's stem.
 
-A custom file may **link** its guide instead of carrying it (issue
-#323): its frontmatter names the guide - ``source_url`` (a URL the
-file is fetched from as-is) or ``source_repo`` + ``source_path`` (+
-optional ``source_ref``: a git repository the user can clone, the
-path in it) - and its body stays empty. ``--declaration`` then fetches
-the guide into ``--fetch-dir <dir>`` (``<dir>/<name>.md``; a
-temporary directory when the option is absent), checks the fetched
-copy's headings, and prints the same payload; the fetched copy is what
-the skills read, never committed.
+A custom stack may **link** its guide instead of carrying it (issue
+#323): ``guide.md`` carries the frontmatter only, naming the guide -
+``source_url`` (a URL the guide is fetched from as-is: the guide
+alone, no scripts) or ``source_repo`` + ``source_path`` (+ optional
+``source_ref``: a git repository the user can clone, and the stack's
+directory in it - ``guide.md`` and ``scripts/`` come whole; a path to
+a file brings the guide alone) - and its body stays empty.
+``--declaration`` then fetches the stack into ``--fetch-dir <dir>``
+as ``<dir>/<name>/`` (a temporary directory when the option is
+absent), checks the fetched copy - headings and scripts - and prints
+the same payload; the fetched copy is what the skills read, never
+committed.
 
 Problems go to stderr, one per line, prefixed by the file; the exit
 code is 1 when any file breaks the contract. Standard library only.
@@ -42,6 +53,7 @@ code is 1 when any file breaks the contract. Standard library only.
 from __future__ import annotations
 
 import json
+import py_compile
 import re
 import shutil
 import subprocess
@@ -58,6 +70,9 @@ COMMENT_RE = re.compile(r"\s+#.*$")
 HEADING_RE = re.compile(r"^(#{2,3}) (.+?)\s*$")
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 FIELD_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+GUIDE = "guide.md"
+SCRIPTS = "scripts"
+SCRIPT_RE = re.compile(r"scripts/([A-Za-z0-9_.-]+\.py)")
 
 
 def required_headings(contract: str) -> dict[str, list[str]]:
@@ -229,7 +244,7 @@ def fetch_source(source: dict, target: Path) -> str | None:
         except Exception as error:  # noqa: BLE001
             return f"source_url: cannot fetch {source['source_url']}: {error}"
         return None
-    clone = target.parent / f".{target.stem}-repo"
+    clone = target.parent.parent / f".{target.parent.name}-repo"
     if clone.exists():
         shutil.rmtree(clone)
     command = ["git", "clone", "--quiet", "--depth", "1"]
@@ -239,10 +254,27 @@ def fetch_source(source: dict, target: Path) -> str | None:
     result = subprocess.run(command, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         return f"source_repo: cannot clone {source['source_repo']}: {result.stderr.strip()}"
-    guide = clone / source["source_path"]
-    if not guide.is_file():
-        return f"source_path: {source['source_path']} is not a file of {source['source_repo']}"
-    target.write_bytes(guide.read_bytes())
+    linked = clone / source["source_path"]
+    if linked.is_dir():
+        # the stack's directory: the guide and its scripts come whole
+        if not (linked / GUIDE).is_file():
+            return (
+                f"source_path: {source['source_path']} of {source['source_repo']} "
+                f"carries no {GUIDE}"
+            )
+        scripts = linked / SCRIPTS
+        if scripts.is_dir():
+            if (target.parent / SCRIPTS).exists():
+                shutil.rmtree(target.parent / SCRIPTS)
+            shutil.copytree(scripts, target.parent / SCRIPTS)
+        target.write_bytes((linked / GUIDE).read_bytes())
+        return None
+    if not linked.is_file():
+        return (
+            f"source_path: {source['source_path']} is neither a directory nor a "
+            f"file of {source['source_repo']}"
+        )
+    target.write_bytes(linked.read_bytes())
     return None
 
 
@@ -267,7 +299,8 @@ def declaration_of(frontmatter: str | None, stem: str) -> tuple[dict | None, lis
         )
     elif stack != stem:
         problems.append(
-            f"frontmatter: `stack: {stack}` does not match the file name `{stem}.md`"
+            f"frontmatter: `stack: {stack}` does not match the stack's name `{stem}` "
+            "(the directory holding guide.md)"
         )
     elif stack in builtin_stacks():
         problems.append(
@@ -316,29 +349,71 @@ def check_builtin(required: dict[str, list[str]]) -> int:
     return 0
 
 
+def stack_name_of(path: Path) -> str:
+    """The stack's name a path stands for: the directory's, or a guide.md's
+    parent's, or a plain file's stem."""
+    if path.is_dir():
+        return path.name
+    if path.name == GUIDE:
+        return path.parent.name
+    return path.stem
+
+
+def check_scripts(directory: Path, body: str) -> list[str]:
+    """Every script the query section names exists under scripts/ and
+    compiles, and so does every other script there."""
+    problems: list[str] = []
+    text = section_text(body, LINKED_SECTION) or ""
+    named = sorted(set(SCRIPT_RE.findall(text)))
+    scripts = directory / SCRIPTS
+    for name in named:
+        if not (scripts / name).is_file():
+            problems.append(
+                f"`## {LINKED_SECTION}` names {SCRIPTS}/{name}, which is not a file of "
+                f"{directory}/{SCRIPTS}/"
+            )
+    if scripts.is_dir():
+        for script in sorted(scripts.glob("*.py")):
+            try:
+                py_compile.compile(str(script), doraise=True, quiet=1)
+            except py_compile.PyCompileError as error:
+                problems.append(
+                    f"{SCRIPTS}/{script.name} does not compile: {error.msg}"
+                )
+    return problems
+
+
 def check_custom(
     path: Path, required: dict[str, list[str]], declare: bool, fetch_dir: Path | None
 ) -> int:
+    name = stack_name_of(path)
+    guide = path / GUIDE if path.is_dir() else path
+    display = str(path)
     try:
-        text = path.read_text(encoding="utf-8")
+        text = guide.read_text(encoding="utf-8")
     except OSError as error:
-        report(str(path), [f"cannot read: {error.strerror}"])
+        problems = [f"cannot read {guide}: {error.strerror}"]
+        if path.is_dir() and not guide.exists():
+            problems = [
+                f"a custom stack is a directory holding {GUIDE}: {guide} is absent"
+            ]
+        report(display, problems)
         return 1
     frontmatter, body = split_frontmatter(text)
     values = frontmatter_values(frontmatter or "")
     source, problems = source_of(values)
     linked = any(key in values for key in SOURCE_KEYS)
+    checked_dir: Path | None = path if path.is_dir() else None
     if source:
         # A linked guide: the body lives at the link, the local file is
         # the pointer - a body here would fork the guide silently.
         if body.strip():
             problems.append(
-                "a linked stack file carries no body: the guide is the linked file"
+                "a linked stack carries no body: the guide is the linked one"
             )
         else:
-            target = (
-                fetch_dir or Path(tempfile.mkdtemp(prefix="odd-stack-"))
-            ) / f"{path.stem}.md"
+            base = fetch_dir or Path(tempfile.mkdtemp(prefix="odd-stack-"))
+            target = base / name / GUIDE
             failure = fetch_source(source, target)
             if failure:
                 problems.append(failure)
@@ -346,7 +421,7 @@ def check_custom(
                 origin = source.get("source_url") or (
                     f"{source['source_repo']} {source['source_path']}"
                 )
-                print(f"fetched {origin} to {target}", file=sys.stderr)
+                print(f"fetched {origin} to {target.parent}", file=sys.stderr)
                 guide_front, body = split_frontmatter(
                     target.read_text(encoding="utf-8")
                 )
@@ -358,17 +433,20 @@ def check_custom(
                     )
                 else:
                     problems.extend(check_headings(body, required))
+                    checked_dir = target.parent
     elif not linked:
         problems.extend(check_headings(body, required))
     # A malformed link (source problems, no source): the body check is
     # skipped - the file is a pointer by intent, and six missing-heading
     # lines would bury the real cause.
+    if checked_dir is not None and not problems:
+        problems.extend(check_scripts(checked_dir, body))
     declaration = None
     if declare:
-        declaration, more = declaration_of(frontmatter, path.stem)
+        declaration, more = declaration_of(frontmatter, name)
         problems.extend(more)
     if problems:
-        report(str(path), problems)
+        report(display, problems)
         return 1
     if declare:
         print(json.dumps(declaration))
@@ -377,13 +455,15 @@ def check_custom(
     return 0
 
 
-USAGE = """usage: check_stack_reference.py [--declaration] [--fetch-dir DIR] [FILE ...]
+USAGE = """usage: check_stack_reference.py [--declaration] [--fetch-dir DIR] [STACK ...]
 
-No FILE: check the built-in references against the contract (CI).
-FILE ...: check those files' headings.
---declaration FILE: check one custom stack file and print the odd_config_set
+No STACK: check the built-in references against the contract (CI).
+STACK ...: check those stacks - a directory holding guide.md and scripts/,
+  or a guide file on its own - headings and scripts.
+--declaration STACK: check one custom stack and print the odd_config_set
   payload that switches to it; a linked guide is fetched into --fetch-dir
-  (a temporary directory when absent) as <name>.md and checked there.
+  (a temporary directory when absent) as <name>/guide.md, its scripts
+  beside it, and checked there.
 """
 
 
@@ -410,7 +490,7 @@ def main(argv: list[str]) -> int:
             rest.append(arg)
     paths = [Path(a) for a in rest]
     if declare and len(paths) != 1:
-        print("--declaration takes exactly one custom stack file", file=sys.stderr)
+        print("--declaration takes exactly one custom stack", file=sys.stderr)
         return 2
     if not paths:
         return check_builtin(required)
