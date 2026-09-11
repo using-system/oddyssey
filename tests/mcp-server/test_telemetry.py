@@ -150,6 +150,26 @@ def metric_capture(monkeypatch):
     return reader
 
 
+def test_traced_tool_translates_daemon_unreachable_to_tool_error(span_capture):
+    # Issue #521 review: the daemon-refusal remedy must reach the client
+    # as a ToolError - a bare RuntimeError (which DaemonUnreachable
+    # subclasses) would be withheld by mcp 2.1.1 as an unexpected crash.
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    @telemetry.traced_tool
+    def odd_no_daemon() -> dict:
+        raise type("DaemonUnreachable", (RuntimeError,), {})(
+            "the Docker daemon does not answer - restart Docker Desktop and retry"
+        )
+
+    with pytest.raises(ToolError, match="the Docker daemon does not answer"):
+        odd_no_daemon()
+
+    (span,) = span_capture.get_finished_spans()
+    assert not span.status.is_ok
+    assert span.events[0].name == "exception"
+
+
 def test_traced_tool_records_duration_histogram(span_capture, metric_capture):
     @telemetry.traced_tool
     def odd_measured() -> dict:

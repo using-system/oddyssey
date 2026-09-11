@@ -16,6 +16,8 @@ jq -e '[.tools[].name] | sort == ["odd_config_get", "odd_config_set", "odd_stack
 step "odd_stack_status reports down before start"
 mcp_call odd_stack_status > "$workdir/status-down.json"
 assert_result_contains "$workdir/status-down.json" '"running": false'
+# Issue #521: a healthy daemon answers even before the stack exists.
+assert_result_contains "$workdir/status-down.json" '"daemon": "ok"'
 
 step "odd_stack_up starts the real stack (pull + startup inside the call)"
 # The tool call carries the whole cost on its own; raise the client timeout.
@@ -26,6 +28,7 @@ assert_result_contains "$workdir/up.json" '"running": true'
 step "odd_stack_status confirms it is up"
 mcp_call odd_stack_status > "$workdir/status-up.json"
 assert_result_contains "$workdir/status-up.json" '"running": true'
+assert_result_contains "$workdir/status-up.json" '"daemon": "ok"'
 # Issue #118: a running stack also reports the container's identity, so a
 # report's instance fields need no docker inspect on the caller's side. The
 # tag is matched by prefix, not by the exact pin, so a bump stays green.
