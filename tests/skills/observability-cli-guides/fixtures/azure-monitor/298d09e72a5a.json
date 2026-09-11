@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "union requests, dependencies, traces, customMetrics | where cloud_RoleName in ('orders-api') | summarize n=count() by cloud_RoleName, env_name=tostring(customDimensions['deployment.environment.name']), env_old=tostring(customDimensions['deployment.environment']), version=tostring(customDimensions['service.version']), instance=tostring(customDimensions['service.instance.id'])",
+  "--start-time",
+  "2026-09-11T11:34:09Z",
+  "--end-time",
+  "2026-09-11T11:49:09Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"cloud_RoleName\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"env_name\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"env_old\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"version\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"instance\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"n\",\n          \"type\": \"long\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"orders-api\",\n          \"dev\",\n          \"\",\n          \"0.1.0\",\n          \"00000001-0000-0000-0000-000000000000\",\n          4157\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stderr": ""
+}

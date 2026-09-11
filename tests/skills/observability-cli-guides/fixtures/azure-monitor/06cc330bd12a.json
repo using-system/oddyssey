@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "customMetrics | where cloud_RoleName in ('orders-api') | summarize rows=count(), points=sum(valueCount), max_value_count=max(valueCount) by cloud_RoleName, name | order by cloud_RoleName asc, name asc",
+  "--start-time",
+  "2026-09-11T11:07:58Z",
+  "--end-time",
+  "2026-09-11T11:22:58Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"cloud_RoleName\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"name\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"rows\",\n          \"type\": \"long\"\n        },\n        {\n          \"name\": \"points\",\n          \"type\": \"long\"\n        },\n        {\n          \"name\": \"max_value_count\",\n          \"type\": \"int\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"orders-api\",\n          \"http.server.active_requests\",\n          42,\n          42,\n          1\n        ],\n        [\n          \"orders-api\",\n          \"http.server.request.body.size\",\n          42,\n          495,\n          32\n        ],\n        [\n          \"orders-api\",\n          \"http.server.request.duration\",\n          112,\n          1603,\n          57\n        ],\n        [\n          \"orders-api\",\n          \"http.server.response.body.size\",\n          112,\n          1603,\n          57\n        ],\n        [\n          \"orders-api\",\n          \"orders.checked_out\",\n          140,\n          140,\n          1\n        ],\n        [\n          \"orders-api\",\n          \"orders.created\",\n          140,\n          140,\n          1\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stderr": ""
+}

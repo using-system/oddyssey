@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "union requests, dependencies, traces, exceptions | where operation_Id == '00000000000000000000000000000000' | project itemType, timestamp, id, operation_Id, operation_ParentId, cloud_RoleName, name, duration, success, resultCode, type, target, message, severityLevel, outerMessage, problemId | order by timestamp asc",
+  "--start-time",
+  "2026-09-11T11:07:57Z",
+  "--end-time",
+  "2026-09-11T11:22:57Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"itemType\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"timestamp\",\n          \"type\": \"datetime\"\n        },\n        {\n          \"name\": \"id\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"operation_Id\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"operation_ParentId\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"cloud_RoleName\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"name\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"duration\",\n          \"type\": \"real\"\n        },\n        {\n          \"name\": \"success\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"resultCode\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"type\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"target\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"message\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"severityLevel\",\n          \"type\": \"int\"\n        },\n        {\n          \"name\": \"outerMessage\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"problemId\",\n          \"type\": \"string\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": []\n    }\n  ]\n}\n",
+ "stderr": ""
+}

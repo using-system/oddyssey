@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "traces | summarize n=count() by cloud_RoleName, severityLevel | order by cloud_RoleName asc, severityLevel asc",
+  "--start-time",
+  "2026-09-11T11:07:57Z",
+  "--end-time",
+  "2026-09-11T11:22:57Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"cloud_RoleName\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"severityLevel\",\n          \"type\": \"int\"\n        },\n        {\n          \"name\": \"n\",\n          \"type\": \"long\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"orders-api\",\n          1,\n          1704\n        ],\n        [\n          \"orders-api\",\n          2,\n          15\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stderr": ""
+}

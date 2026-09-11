@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "customMetrics | where name == 'http.server.request.duration' | summarize points=sum(valueCount), total=sum(valueSum), vmax=max(valueMax), vmin=min(valueMin) by by0=tostring(customDimensions['http.route']), by1=tostring(customDimensions['http.response.status_code'])",
+  "--start-time",
+  "2026-09-11T11:07:57Z",
+  "--end-time",
+  "2026-09-11T11:22:57Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"by0\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"by1\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"points\",\n          \"type\": \"long\"\n        },\n        {\n          \"name\": \"total\",\n          \"type\": \"real\"\n        },\n        {\n          \"name\": \"vmax\",\n          \"type\": \"real\"\n        },\n        {\n          \"name\": \"vmin\",\n          \"type\": \"real\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"/orders/{order_id}\",\n          \"404\",\n          46,\n          0.05757731800076725,\n          0.00172088133300955,\n          0\n        ],\n        [\n          \"/orders/{order_id}/checkout\",\n          \"200\",\n          102,\n          55.439599314001484,\n          0.631615667285587,\n          0\n        ],\n        [\n          \"/orders/{order_id}\",\n          \"204\",\n          46,\n          2.380540669996663,\n          0.0523488499998166,\n          0\n        ],\n        [\n          \"/orders/{order_id}\",\n          \"200\",\n          261,\n          0.2989355100071407,\n          0.00135431966691613,\n          0\n        ],\n        [\n          \"/orders/{order_id}/checkout\",\n          \"502\",\n          16,\n          4.375463926000521,\n          0.791155631999573,\n          0\n        ],\n        [\n          \"/products\",\n          \"200\",\n          831,\n          1.050752652022311,\n          0.00130694101893103,\n          0\n        ],\n        [\n          \"/orders\",\n          \"201\",\n          416,\n          0.5748018829890498,\n          0.00150592713785515,\n          0\n        ],\n        [\n          \"/orders/{order_id}\",\n          \"500\",\n          16,\n          0.41647668600126087,\n          0.0522368700003426,\n          0\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stderr": ""
+}

@@ -1,0 +1,11 @@
+{
+ "args": [
+  "account",
+  "show",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"environmentName\": \"AzureCloud\",\n  \"homeTenantId\": \"cccccccc-0000-0000-0000-00000000000c\",\n  \"id\": \"dddddddd-0000-0000-0000-00000000000d\",\n  \"isDefault\": true,\n  \"managedByTenants\": [],\n  \"name\": \"Contoso\",\n  \"state\": \"Enabled\",\n  \"tenantDefaultDomain\": \"contoso.onmicrosoft.com\",\n  \"tenantDisplayName\": \"Default Directory\",\n  \"tenantId\": \"cccccccc-0000-0000-0000-00000000000c\",\n  \"user\": {\n    \"name\": \"example-user@example.com\",\n    \"type\": \"user\"\n  }\n}\n",
+ "stderr": ""
+}

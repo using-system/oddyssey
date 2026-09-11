@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "customMetrics | where cloud_RoleName in ('orders-api') | summarize rows=count(), points=sum(valueCount), max_value_count=max(valueCount), earliest=min(timestamp), latest=max(timestamp) by cloud_RoleName, name | order by cloud_RoleName asc, name asc",
+  "--start-time",
+  "2026-09-11T11:07:57Z",
+  "--end-time",
+  "2026-09-11T11:22:57Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"cloud_RoleName\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"name\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"rows\",\n          \"type\": \"long\"\n        },\n        {\n          \"name\": \"points\",\n          \"type\": \"long\"\n        },\n        {\n          \"name\": \"max_value_count\",\n          \"type\": \"int\"\n        },\n        {\n          \"name\": \"earliest\",\n          \"type\": \"datetime\"\n        },\n        {\n          \"name\": \"latest\",\n          \"type\": \"datetime\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"orders-api\",\n          \"http.server.active_requests\",\n          45,\n          45,\n          1,\n          \"2026-09-11T11:08:55.7275289Z\",\n          \"2026-09-11T11:22:55.8006592Z\"\n        ],\n        [\n          \"orders-api\",\n          \"http.server.request.body.size\",\n          45,\n          534,\n          34,\n          \"2026-09-11T11:08:55.7275289Z\",\n          \"2026-09-11T11:22:55.8006592Z\"\n        ],\n        [\n          \"orders-api\",\n          \"http.server.request.duration\",\n          120,\n          1734,\n          58,\n          \"2026-09-11T11:08:55.7275289Z\",\n          \"2026-09-11T11:22:55.8006592Z\"\n        ],\n        [\n          \"orders-api\",\n          \"http.server.response.body.size\",\n          120,\n          1734,\n          58,\n          \"2026-09-11T11:08:55.7275289Z\",\n          \"2026-09-11T11:22:55.8006592Z\"\n        ],\n        [\n          \"orders-api\",\n          \"orders.checked_out\",\n          150,\n          150,\n          1,\n          \"2026-09-11T11:08:55.7275289Z\",\n          \"2026-09-11T11:22:55.8006592Z\"\n        ],\n        [\n          \"orders-api\",\n          \"orders.created\",\n          150,\n          150,\n          1,\n          \"2026-09-11T11:08:55.7275289Z\",\n          \"2026-09-11T11:22:55.8006592Z\"\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stderr": ""
+}

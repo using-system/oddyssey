@@ -1,0 +1,17 @@
+{
+ "args": [
+  "resource",
+  "list",
+  "--resource-group",
+  "contoso-rg",
+  "--resource-type",
+  "Microsoft.App/containerApps",
+  "--subscription",
+  "Contoso",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "[\n  {\n    \"changedTime\": \"2026-09-03T21:21:42.431338+00:00\",\n    \"createdTime\": \"2026-08-29T15:24:36.344765+00:00\",\n    \"extendedLocation\": null,\n    \"id\": \"/subscriptions/dddddddd-0000-0000-0000-00000000000d/resourceGroups/contoso-rg/providers/Microsoft.App/containerApps/contoso-app-collector\",\n    \"identity\": {\n      \"principalId\": null,\n      \"tenantId\": null,\n      \"type\": \"None\",\n      \"userAssignedIdentities\": null\n    },\n    \"kind\": null,\n    \"location\": \"westeurope\",\n    \"managedBy\": null,\n    \"name\": \"contoso-collector\",\n    \"plan\": null,\n    \"properties\": null,\n    \"provisioningState\": \"Succeeded\",\n    \"resourceGroup\": \"contoso-rg\",\n    \"sku\": null,\n    \"systemData\": {\n      \"createdAt\": \"2026-08-29T15:24:36.3871372Z\",\n      \"createdBy\": \"00000001-0000-0000-0000-000000000000\",\n      \"createdByType\": \"Application\",\n      \"lastModifiedAt\": \"2026-09-03T21:11:26.0112118Z\",\n      \"lastModifiedBy\": \"00000001-0000-0000-0000-000000000000\",\n      \"lastModifiedByType\": \"Application\"\n    },\n    \"tags\": {\n      \"managed_by\": \"terraform\",\n      \"project\": \"contoso-app\"\n    },\n    \"type\": \"Microsoft.App/containerApps\"\n  },\n  {\n    \"changedTime\": \"2026-09-02T23:10:24.857887+00:00\",\n    \"createdTime\": \"2026-08-29T16:27:20.879396+00:00\",\n    \"extendedLocation\": null,\n    \"id\": \"/subscriptions/dddddddd-0000-0000-0000-00000000000d/resourceGroups/contoso-rg/providers/Microsoft.App/containerApps/contoso-app\",\n    \"identity\": {\n      \"principalId\": null,\n      \"tenantId\": null,\n      \"type\": \"UserAssigned\",\n      \"userAssignedIdentities\": {\n        \"/subscriptions/dddddddd-0000-0000-0000-00000000000d/resourcegroups/contoso-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/contoso-app-identity\": {\n          \"clientId\": \"00000002-0000-0000-0000-000000000000\",\n          \"principalId\": \"00000003-0000-0000-0000-000000000000\"\n        }\n      }\n    },\n    \"kind\": null,\n    \"location\": \"westeurope\",\n    \"managedBy\": null,\n    \"name\": \"contoso-app\",\n    \"plan\": null,\n    \"properties\": null,\n    \"provisioningState\": \"Succeeded\",\n    \"resourceGroup\": \"contoso-rg\",\n    \"sku\": null,\n    \"systemData\": {\n      \"createdAt\": \"2026-08-29T16:27:20.9055399Z\",\n      \"createdBy\": \"00000001-0000-0000-0000-000000000000\",\n      \"createdByType\": \"Application\",\n      \"lastModifiedAt\": \"2026-09-02T23:01:02.9966666Z\",\n      \"lastModifiedBy\": \"00000001-0000-0000-0000-000000000000\",\n      \"lastModifiedByType\": \"Application\"\n    },\n    \"tags\": {\n      \"managed_by\": \"terraform\",\n      \"project\": \"contoso-app\"\n    },\n    \"type\": \"Microsoft.App/containerApps\"\n  }\n]\n",
+ "stderr": ""
+}

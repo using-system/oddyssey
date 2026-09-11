@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "requests | summarize first=min(timestamp)",
+  "--start-time",
+  "2026-09-11T11:07:57Z",
+  "--end-time",
+  "2026-09-11T11:22:57Z",
+  "-o",
+  "json"
+ ],
+ "code": 1,
+ "stdout": "",
+ "stderr": "ERROR: BadArgumentError: The request had some invalid properties\n"
+}

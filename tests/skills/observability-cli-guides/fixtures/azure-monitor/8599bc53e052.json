@@ -1,0 +1,18 @@
+{
+ "args": [
+  "monitor",
+  "log-analytics",
+  "query",
+  "--workspace",
+  "bbbbbbbb-0000-0000-0000-00000000000b",
+  "--analytics-query",
+  "union withsource=T *_CL | summarize n=count() by T | order by n desc",
+  "--timespan",
+  "2026-09-11T11:07:59Z/2026-09-11T11:22:59Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "[\n  {\n    \"T\": \"ContainerAppConsoleLogs_CL\",\n    \"TableName\": \"PrimaryResult\",\n    \"n\": \"7281\"\n  }\n]\n",
+ "stderr": ""
+}

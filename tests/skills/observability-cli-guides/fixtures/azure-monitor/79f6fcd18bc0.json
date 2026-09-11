@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "requests | summarize n=count() by name | take 3",
+  "--start-time",
+  "2026-09-11T11:07:57Z",
+  "--end-time",
+  "2026-09-11T11:22:57Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"name\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"n\",\n          \"type\": \"long\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"GET /products\",\n          830\n        ],\n        [\n          \"POST /orders\",\n          416\n        ],\n        [\n          \"GET /orders/{order_id}\",\n          307\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stderr": ""
+}

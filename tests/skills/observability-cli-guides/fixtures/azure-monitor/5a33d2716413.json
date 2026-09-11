@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "requests | where cloud_RoleName in ('orders-api') | top 2 by duration desc | project timestamp, cloud_RoleName, name, duration, success, resultCode, operation_Id, id",
+  "--start-time",
+  "2026-09-11T11:07:57Z",
+  "--end-time",
+  "2026-09-11T11:22:57Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"timestamp\",\n          \"type\": \"datetime\"\n        },\n        {\n          \"name\": \"cloud_RoleName\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"name\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"duration\",\n          \"type\": \"real\"\n        },\n        {\n          \"name\": \"success\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"resultCode\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"operation_Id\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"id\",\n          \"type\": \"string\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"2026-09-11T11:10:46.9523392Z\",\n          \"orders-api\",\n          \"POST /orders/{order_id}/checkout\",\n          796.709,\n          \"True\",\n          \"200\",\n          \"51fe548d6c6cdcdd8fa2a68820f34905\",\n          \"84192512f6ba130b\"\n        ],\n        [\n          \"2026-09-11T11:08:05.4425919Z\",\n          \"orders-api\",\n          \"POST /orders/{order_id}/checkout\",\n          790.852,\n          \"False\",\n          \"502\",\n          \"d460e57292ad08c472c14df9eee4ff82\",\n          \"f8c992d680666eb2\"\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stderr": ""
+}
