@@ -81,6 +81,7 @@ def cmd_check(ns) -> tuple[int, dict]:
             "diagnosis": "not logged in: az login is yours to run, never done for you",
         }
         out["commands"] = commands(results)
+        out["failed"] = failures(results)
         return 1, out
     d = acct.data or {}
     out["identity"] = {

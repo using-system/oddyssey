@@ -844,12 +844,14 @@ def test_context_landing_polls_the_identity_count_and_is_bounded(fake):
 # --- the reference states what the parsers accept ----------------------------
 
 
-def reference_invocations() -> list[tuple[str, str | None, list[str]]]:
-    """(script, subcommand, flags) per invocation line of the reference's fenced blocks."""
+def reference_invocations(
+    text: str | None = None,
+) -> list[tuple[str, str | None, list[str]]]:
+    """(script, subcommand, flags) per invocation line of the fenced blocks of the
+    reference, or of the section given."""
     found = []
-    for block in re.findall(
-        r"```bash\n(.*?)```", REFERENCE.read_text(encoding="utf-8"), re.DOTALL
-    ):
+    text = REFERENCE.read_text(encoding="utf-8") if text is None else text
+    for block in re.findall(r"```bash\n(.*?)```", text, re.DOTALL):
         for line in block.splitlines():
             m = re.match(
                 r"python3 <Skills>/observability-cli-guides/scripts/azure-monitor-(\w+)\.py(.*)",
@@ -897,6 +899,7 @@ def test_the_reference_whole_surface_paragraphs_match_the_parsers():
         "Traces": "traces",
         "Metrics": "metrics",
         "Logs": "logs",
+        "The landing of a driven run": "context",
     }
     for section in sections:
         title = section.split("\n", 1)[0]
@@ -907,7 +910,7 @@ def test_the_reference_whole_surface_paragraphs_match_the_parsers():
         assert surface, title
         flags = set(re.findall(r"`(--[a-z-]+)", surface.group(1)))
         assert flags, title
-        subs = {sub for s, sub, _ in reference_invocations() if s == script}
+        subs = {sub for s, sub, _ in reference_invocations(section) if s == script}
         accepted = ""
         for sub in subs or {None}:
             cmd = [

@@ -425,14 +425,12 @@ A mission records profiles as a telemetry gap and moves on.
   the landing subsection), which polls the run-identity count every
   ~20 s, capped; verified 2026-09-11 - a 10-minute window of
   the driven traffic answered its count on the first poll.
-- **`customMetrics` temporality: probed before trusted** - `metrics.py
-  query` does it on every read; the collector observed 2026-09-11
+- **`customMetrics` temporality: probed before trusted** - `azure-monitor-metrics.py query` does it on every read; the collector observed 2026-09-11
   converts to deltas (each row one export's increment; `sum(value)` is
   the count); a cumulative pipeline reads as running totals per series
   where `sum(value)` multiplies the total by the export count.
 - **This backend derives no per-operation metrics from the spans**
-  (verified 2026-09-11): the per-operation table is `traces.py
-  operations`; a service publishing its own per-route series has them in
+  (verified 2026-09-11): the per-operation table is `azure-monitor-traces.py operations`; a service publishing its own per-route series has them in
   `customMetrics` (`azure-monitor-metrics.py list` says).
 - **Profiles are a coverage gap** on the CLI: portal-only, recorded in
   the report's telemetry gaps.

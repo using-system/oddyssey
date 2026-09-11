@@ -49,6 +49,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from typing import NoReturn
 
 TIMEOUT = 180
 WORKERS = 8
@@ -289,9 +290,7 @@ def ai_call(app: str, kql: str, frm: str, to: str) -> list[str]:
     ]
 
 
-def la_call(
-    workspace: str, kql: str, frm: str, to: str, subscription: str | None = None
-) -> list[str]:
+def la_call(workspace: str, kql: str, frm: str, to: str) -> list[str]:
     """`log-analytics query` with the timespan as an ISO 8601 interval."""
     args = [
         "monitor",
@@ -304,8 +303,6 @@ def la_call(
         "--timespan",
         f"{frm}/{to}",
     ]
-    if subscription:
-        args += ["--subscription", subscription]
     return args
 
 
@@ -378,7 +375,7 @@ def kql_in(column: str, values: list[str]) -> str:
 # --- time --------------------------------------------------------------------
 
 
-def usage(message: str) -> None:
+def usage(message: str) -> NoReturn:
     """A usage error the way argparse reports one: the message on stderr, exit 2."""
     print(f"usage error: {message}", file=sys.stderr)
     sys.exit(2)
@@ -393,7 +390,6 @@ def parse_duration(s: str) -> int:
         return int(float(s[:-1]) * units[s[-1]])
     except ValueError:
         usage(f"a duration is <number><s|m|h|d>, e.g. 90s or 30m - got {s!r}")
-        raise
 
 
 def parse_ts(s: str) -> datetime:
@@ -401,7 +397,6 @@ def parse_ts(s: str) -> datetime:
         dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
     except ValueError:
         usage(f"a timestamp is RFC3339 UTC, e.g. 2026-09-11T10:40:00Z - got {s!r}")
-        raise
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 

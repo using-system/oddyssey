@@ -56,16 +56,11 @@ from azure_monitor_az import (
     run_az,
     run_many,
     table,
+    usage,
 )
 
 DEFAULT_LEVEL_REGEX = r"^\S+\s+(\w+)\s"
 SEVERITY = {0: "verbose", 1: "information", 2: "warning", 3: "error", 4: "critical"}
-
-
-def usage(message: str) -> None:
-    """A usage error the way argparse reports one: the message on stderr, exit 2."""
-    print(f"usage error: {message}", file=sys.stderr)
-    sys.exit(2)
 
 
 def _regex_literal(rx: str) -> str:
