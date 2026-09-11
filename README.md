@@ -234,10 +234,6 @@ the script without ever running the benchmark — running it is
 `/odd-observe`'s job: `/odd-observe run .odd/benchmarks/<name>/`. The
 lifecycle is in [docs/guide/benchmarks.md](docs/guide/benchmarks.md).
 
-More invocation examples for every prompt live in
-[docs/guide/prompts.md](docs/guide/prompts.md).
-
-
 #### /odd-instrument-stack
 
 ```text
@@ -253,6 +249,9 @@ verified live against the backend, as code you review like any other.
 An observe run against it never edits it: its report records the
 friction, and `from report` turns that into the fix. How, in
 [docs/guide/custom-backends.md](docs/guide/custom-backends.md).
+
+More invocation examples for every prompt live in
+[docs/guide/prompts.md](docs/guide/prompts.md).
 
 ## Every backend
 

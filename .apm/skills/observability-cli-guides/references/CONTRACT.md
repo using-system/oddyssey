@@ -9,7 +9,7 @@ else: the preflight reads three (`## CLI binary`, `## Setup`,
 agents the rest. A section under another name is a section nobody
 reads. This skill's `scripts/check_stack_reference.py` enforces the
 list from the block below — in CI on the built-in references, and at
-switch time on a custom stack file; the block is the list.
+switch time on a custom stack's guide; the block is the list.
 
 ```text
 ## CLI binary
@@ -116,8 +116,8 @@ ending its output with the backend commands it ran, one per line, the
 way an observation report records a shipped query — the binary by its
 name, the way the guide's `## CLI binary` section names it, whatever
 path the module resolved it at. `scripts/` holds `.py` files and
-nothing else (a `__pycache__` the check leaves behind is ignored, not
-shipped). `## Query by signal` names each script with its **whole flag surface** and a
+nothing else (a `__pycache__` running the scripts leaves behind is
+ignored, not shipped). `## Query by signal` names each script with its **whole flag surface** and a
 copy-pasteable invocation run from the observed repository's root
 (`python3 .odd/observability-stacks/<name>/scripts/<name>-logs.py ...`),
 and states the output shapes, so no run reads a script's source; the
@@ -134,8 +134,10 @@ CI for a custom stack (the package cannot test a script it does not
 ship); the checker verifies the shape.
 
 The switch runs
-`python3 <this skill's directory>/scripts/check_stack_reference.py --declaration .odd/observability-stacks/<name>`:
-the guide's headings are checked as for a built-in, the name is refused
+`python3 <this skill's directory>/scripts/check_stack_reference.py --declaration --fetch-dir <a scratch directory outside the repository> .odd/observability-stacks/<name>`
+— that is the whole surface: `--declaration`, `--fetch-dir` (where a
+linked stack is fetched; a temporary directory when absent), the stack
+— and the guide's headings are checked as for a built-in, the name is refused
 when `builtin-stacks.md` lists it, every script `## Query by signal`
 names as `scripts/<file>.py` must exist under `scripts/` and compile
 (and so must every other `.py` there), and the declaration is printed

@@ -327,7 +327,7 @@ required to query it, the CLI or its install command changes, the
 resource prerequisite changes — or a backend is added to or removed
 from `STACKS` — the guide must keep matching
 `.apm/skills/observability-cli-guides/references/*.md`, the one place a
-stack's knowledge lives (its query surface, its `## Configuration
+built-in stack's knowledge lives (its query surface, its `## Configuration
 display`, its `## What to persist`); `references/builtin-stacks.md`
 there must list exactly the `STACKS` values (a unit test asserts it).
 

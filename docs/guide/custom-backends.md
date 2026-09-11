@@ -48,8 +48,8 @@ present and compiling — and ends in the connection proof.
 
 ## Edit
 
-The stack is source: edit it in a branch and review it like code, or
-dictate the change:
+The stack is source, reviewed like code; the change is dictated to the
+expert, which verifies it live:
 
 ```text
 /odd-instrument-stack for stack seq: the traces endpoint is /api/traces, it takes a service query parameter
@@ -69,7 +69,7 @@ It lists the headings the guide lacks and the named scripts it cannot
 find or compile, or prints the declaration the switch stores; a stack
 that fails it is never switched to.
 
-## What a run teaches the stack
+## What a run reports about the stack
 
 An observe or verify run against the custom stack never edits it. Its
 report carries an eighth section, **Stack friction**: one bullet per
@@ -121,6 +121,6 @@ dotnet tool install --global seqcli
 The connection proof shows `"status":"healthy"` from
 `seqcli node health --json`, and a `/odd-observe` against the sample
 data Seq ships (`seqcli sample ingest --confirm`, stopped after a
-minute) runs the stack's scripts for logs and traces.
+minute) runs the stack's scripts for logs, traces and metrics.
 `docker compose -f docker-compose/seq/docker-compose.yml down -v`
 removes the instance and its data.

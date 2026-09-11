@@ -192,7 +192,7 @@ configuration, one of the values in [backends.md](backends.md) -
 ```
 
 "my stack seq" is a custom stack the repository carries as
-`.odd/observability-stacks/seq.md` ([custom-backends.md](custom-backends.md)):
+`.odd/observability-stacks/seq/` ([custom-backends.md](custom-backends.md)):
 naming it switches the configuration too; "checkout" is the service.
 
 ```text
@@ -315,8 +315,8 @@ environment: the newest report whose run was detected on prod.
 ```
 
 "my last report on seq" resolves the baseline by stack: the newest
-report whose `stack` is `seq`, a custom stack - its file
-`.odd/observability-stacks/seq.md` must exist in this clone, or the
+report whose `stack` is `seq`, a custom stack - its directory
+`.odd/observability-stacks/seq/` must exist in this clone, or the
 prompt stops and says so.
 
 ```text
@@ -520,3 +520,10 @@ without switching.
 
 A local port change: it resets the local stack container, and the
 prompt says so first.
+
+```text
+/odd-config switch to seq
+```
+
+"switch to seq" names a custom stack the repository carries: the same
+guided switch, with the stack checked against the contract first.

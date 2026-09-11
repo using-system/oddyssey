@@ -85,7 +85,8 @@ the same result as one object carrying the keys the `Output` line
 names plus `commands` (the seqcli calls) and `error` (empty on
 success); exit 0 means every query ran (an empty answer is a result),
 exit 1 that seqcli errored - **and then the only line printed is the
-error**; a usage error exits 2. **Every subcommand ends by printing the
+error**; a usage error exits 2, and so does `seq-discover.py` when one
+of its probes failed (its `failed` list says which). **Every subcommand ends by printing the
 seqcli commands it ran** - `queries run (record these):` - and those
 lines, with the script invocation above them, are what the report
 records as the query. The scripts run their calls **concurrently**
@@ -269,7 +270,7 @@ description in `@Definitions`, its value in a property named after it
 ([metrics](https://datalust.co/docs/metrics),
 [metrics from OpenTelemetry](https://datalust.co/docs/metrics-from-opentelemetry-sdks)).
 Verified 2026-09-11 on the sample's 12 definitions (Gauge, Sum and
-Exponential kinds) - the earlier stack file had never exercised them.
+Exponential kinds) - the earlier single-file stack had never exercised them.
 
 ```bash
 python3 .odd/observability-stacks/seq/scripts/seq-metrics.py list --service <svc> --from <start> --to <end>

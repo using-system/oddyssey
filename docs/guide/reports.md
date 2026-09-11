@@ -81,8 +81,9 @@ rather than guessing.
 ### Body — seven sections, eight on a custom stack
 
 A title line, then one paragraph — the headline, how the run went in
-one sentence — then the seven numbered sections; the skill's script
-refuses to persist a report missing any of the three.
+one sentence — then the seven numbered sections, an eighth on a custom
+stack; the skill's script refuses to persist a report missing any of
+the three.
 
 1. **Mission and run record** — the mission as understood and, in
    drive mode, the scenario record that replays it verbatim.
@@ -114,8 +115,9 @@ refuses to persist a report missing any of the three.
    ([custom-backends.md](custom-backends.md)).
 
 A `quick` report keeps the seven headings with sections 1, 2 and 7
-complete and 3 to 6 reduced to their essentials; section 5 names the
-signals the run did not query. A verification adds its verdicts:
+complete and 3 to 6 reduced to their essentials — section 8, on a
+custom stack, complete at both depths; section 5 names the signals
+the run did not query. A verification adds its verdicts:
 section 3 opens with one row per finding of the baseline — its id as
 the baseline wrote it (`1`, `F4`), then `fixed`, `still present`,
 `worse`, or `not ruled (quick)` — before the findings the run names
@@ -210,7 +212,7 @@ frontmatters alone.
   (`docs(odd): observation report <run_name>`, and the verification,
   re-measure, and instrumentation variants).
 - **Written by the skill's script.** An observation report's filename,
-  frontmatter and seven headings come from the `odd-memory` skill's
+  frontmatter and headings come from the `odd-memory` skill's
   report script, which also refuses to persist a report that breaks
   these rules; only the sections' content is the agent's.
 - **No secrets, ever.** No tokens, credentials, connection strings, or

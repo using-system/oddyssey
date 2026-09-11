@@ -591,7 +591,7 @@ def test_a_linked_url_brings_the_guide_alone(tmp_path):
     assert "names scripts/seq-logs.py, which is not a file of" in result.stderr
 
 
-def test_scripts_holds_py_files_only_and_ignores_a_pycache(tmp_path):
+def test_scripts_holds_py_files_only_and_ignores_caches(tmp_path):
     directory = stack_dir(
         tmp_path, body=body_naming("seq-logs.py"), scripts={"seq-logs.py": "x = 1\n"}
     )
@@ -599,9 +599,34 @@ def test_scripts_holds_py_files_only_and_ignores_a_pycache(tmp_path):
     (directory / "scripts" / "__pycache__" / "seq-logs.cpython-313.pyc").write_bytes(
         b"x"
     )
+    (directory / "scripts" / ".ruff_cache").mkdir()
     result = _run("--declaration", str(directory))
     assert result.returncode == 0, result.stderr
     (directory / "scripts" / "notes.md").write_text("x")
     result = _run("--declaration", str(directory))
     assert result.returncode == 1
     assert "scripts/ holds .py files only, got notes.md" in result.stderr
+
+
+def test_the_check_leaves_no_pycache_behind(tmp_path):
+    directory = stack_dir(
+        tmp_path, body=body_naming("seq-logs.py"), scripts={"seq-logs.py": "x = 1\n"}
+    )
+    result = _run("--declaration", str(directory))
+    assert result.returncode == 0, result.stderr
+    assert not (directory / "scripts" / "__pycache__").exists()
+
+
+def test_a_linked_stack_with_scripts_of_its_own_is_refused(tmp_path):
+    guide = tmp_path / "guides" / "seq-guide.md"
+    guide.parent.mkdir()
+    guide.write_text("# Seq\n\n" + conforming_body())
+    local = tmp_path / "repo" / "seq"
+    (local / "scripts").mkdir(parents=True)
+    (local / "scripts" / "seq-logs.py").write_text("x = 1\n")
+    (local / "guide.md").write_text(
+        f"---\nstack: seq\nstack_config_fields: []\nsource_url: {guide.as_uri()}\n---\n"
+    )
+    result = _run("--declaration", str(local))
+    assert result.returncode == 1
+    assert "a linked stack carries no scripts/ of its own" in result.stderr

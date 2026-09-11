@@ -222,9 +222,9 @@ lets the user correct it in one turn.
 Open the target's reference and read its `## CLI binary` section — it
 names the binary, the **Detect** command, and the **Install** steps. A
 reference may route that section to another reference's when the same
-binary queries both stacks; follow it. A custom file that **links** its
-guide has no body to read: run step 3's check first (it fetches the
-copy), then read the section from the copy.
+binary queries both stacks; follow it. A custom stack that **links**
+its guide has no body to read: run step 3's check first (it fetches
+the copy), then read the section from the copy.
 
 Run the Detect command as written, in a shell **without `set -u`** — a
 Detect command may reference an environment variable that is usually
@@ -271,18 +271,18 @@ its path in the handoff, and never commit it. A non-zero exit lists
 what the stack lacks against the reference contract — a heading, a
 script the guide names, a script that does not compile — or why the
 link could not be fetched — stop there, naming
-the problems; the fix is an edit to the file (or to the linked guide,
-where it lives), through the `odd-memory` reference, never a switch to
-an unchecked stack. A zero exit prints one
+the problems; the fix is a change to the stack through
+`/odd-instrument-stack` (on the linked guide, where it lives), never
+a switch to an unchecked stack. A zero exit prints one
 JSON object: the `config` argument of the switch's `odd_config_set`
 call — pass it verbatim, never rebuilt by hand (step 4's `stack_config`
 values may ride in the same call when they are already known). The
 server stores the declaration it carries and validates step 4's values
-against it; it never reads the file, and a name it has no declaration
+against it; it never reads the guide, and a name it has no declaration
 for is the error the check exists to prevent. When the check cannot
 run — `python3` missing, or an install that dropped the skill's
 `scripts/` — the switch stops there too, saying which of the two: an
-unchecked file is not persisted, and the fix is the user's.
+unchecked stack is not persisted, and the fix is the user's.
 
 The switch alone touches nothing else: it does not boot, reset, or stop
 the local stack container. A `stack_reset` block appears in the result

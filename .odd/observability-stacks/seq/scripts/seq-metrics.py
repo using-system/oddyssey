@@ -67,7 +67,22 @@ def cmd_list(ns) -> tuple[int, dict]:
     frm, to = resolve_window(ns)
     svc = service_clause(ns.service, ns.service_key)
     r, defs = definitions(svc, frm, to)
-    dims = run_many([(["metrics", "dimensions", "-m", d["Name"], *window_flags(frm, to), "--json"], "object") for d in defs])
+    dims = run_many(
+        [
+            (
+                [
+                    "metrics",
+                    "dimensions",
+                    "-m",
+                    d["Name"],
+                    *window_flags(frm, to),
+                    "--json",
+                ],
+                "object",
+            )
+            for d in defs
+        ]
+    )
     out = []
     for d, dr in zip(defs, dims):
         out.append(
@@ -76,11 +91,20 @@ def cmd_list(ns) -> tuple[int, dict]:
                 "kind": d.get("Kind"),
                 "unit": d.get("Unit"),
                 "description": d.get("Description"),
-                "dimensions": [x.get("Accessor") for x in (dr.data or []) if isinstance(x, dict)] if dr.ok else [],
+                "dimensions": [
+                    x.get("Accessor") for x in (dr.data or []) if isinstance(x, dict)
+                ]
+                if dr.ok
+                else [],
             }
         )
     err = errors([r, *dims])
-    return (1 if err else 0), {"error": err, "window": [frm, to], "metrics": out, "commands": commands([r, *dims])}
+    return (1 if err else 0), {
+        "error": err,
+        "window": [frm, to],
+        "metrics": out,
+        "commands": commands([r, *dims]),
+    }
 
 
 def _value(v):
@@ -111,13 +135,25 @@ def cmd_query(ns) -> tuple[int, dict]:
     if ns.step and groups:
         for s in series(q):
             for sl in s["slices"]:
-                rows.append({"group": s["key"], "time": sl["time"], "value": _value(sl.get("v"))})
+                rows.append(
+                    {
+                        "group": s["key"],
+                        "time": sl["time"],
+                        "value": _value(sl.get("v")),
+                    }
+                )
     elif ns.step:
         for sl in slices(q):
             rows.append({"group": {}, "time": sl["time"], "value": _value(sl.get("v"))})
     else:
         for row in table(q):
-            rows.append({"group": {g: row.get(g) for g in groups}, "time": None, "value": _value(row.get("v"))})
+            rows.append(
+                {
+                    "group": {g: row.get(g) for g in groups},
+                    "time": None,
+                    "value": _value(row.get("v")),
+                }
+            )
     err = errors(results)
     return (1 if err else 0), {
         "error": err,
@@ -138,11 +174,18 @@ def render(o: dict) -> str:
     out = [f"window {o['window'][0]} .. {o['window'][1]}"]
     if "metrics" in o:
         for m in o["metrics"]:
-            out.append(f"  {m['name']} ({m['kind']}, {m['unit']}): {m['description']}  dims: {', '.join(m['dimensions']) or '-'}")
+            out.append(
+                f"  {m['name']} ({m['kind']}, {m['unit']}): {m['description']}  dims: {', '.join(m['dimensions']) or '-'}"
+            )
         if not o["metrics"]:
             out.append("  no metric definitions in this window")
     else:
-        out.append(f"{o['agg']}({o['metric']})" + (f" kind {o['kind']}" if o.get("kind") else "") + (f" by {', '.join(o['group_by'])}" if o["group_by"] else "") + (f" every {o['step']}" if o["step"] else ""))
+        out.append(
+            f"{o['agg']}({o['metric']})"
+            + (f" kind {o['kind']}" if o.get("kind") else "")
+            + (f" by {', '.join(o['group_by'])}" if o["group_by"] else "")
+            + (f" every {o['step']}" if o["step"] else "")
+        )
         for r in o["rows"]:
             g = " ".join(f"{k}={v}" for k, v in r["group"].items())
             t = (r["time"] or "")[:19]
@@ -165,8 +208,15 @@ def main() -> int:
     p = sub.add_parser("query")
     p.add_argument("metric", help="the metric name, as `list` prints it")
     add_service(p)
-    p.add_argument("--agg", default="", choices=["", "mean", "max", "min", "sum", "last", "count"], help="aggregate (default by kind)")
-    p.add_argument("--group-by", action="append", default=[], help="a dimension; repeatable")
+    p.add_argument(
+        "--agg",
+        default="",
+        choices=["", "mean", "max", "min", "sum", "last", "count"],
+        help="aggregate (default by kind)",
+    )
+    p.add_argument(
+        "--group-by", action="append", default=[], help="a dimension; repeatable"
+    )
     p.add_argument("--step", default="", help="time slice, e.g. 1m (default: none)")
     add_window(p)
     ns = ap.parse_args()

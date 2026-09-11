@@ -101,8 +101,9 @@ invokes it), never for its backend.
 
 1. **Recall.** The stack's directory, when it exists: read `guide.md`
    by section and list `scripts/`. The check's verdict on it as it
-   stands (`check_stack_reference.py --declaration <directory>`, the
-   contract's invocation) is your baseline — on a completion or a fix,
+   stands (the contract's invocation, `--declaration` with a
+   `--fetch-dir` outside the repository, on the directory) is your
+   baseline — on a completion or a fix,
    what you change is a diff against this.
 2. **Research the query surface** from the sources in the mission's
    order: the surface (a dedicated CLI, an HTTP API through `curl`,

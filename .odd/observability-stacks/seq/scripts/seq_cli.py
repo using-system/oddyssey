@@ -90,7 +90,9 @@ def _quote(a: str) -> str:
     )
 
 
-def _run_raw(args: list[str], timeout: int) -> tuple[subprocess.CompletedProcess | None, Result | None]:
+def _run_raw(
+    args: list[str], timeout: int
+) -> tuple[subprocess.CompletedProcess | None, Result | None]:
     if not SEQCLI:
         return None, Result(
             args,
@@ -108,7 +110,9 @@ def _run_raw(args: list[str], timeout: int) -> tuple[subprocess.CompletedProcess
             check=False,
         )
     except subprocess.TimeoutExpired:
-        return None, Result(args, False, error=f"timed out after {timeout}s", exit_code=124)
+        return None, Result(
+            args, False, error=f"timed out after {timeout}s", exit_code=124
+        )
     proc.seconds = time.monotonic() - started  # type: ignore[attr-defined]
     return proc, None
 
@@ -137,7 +141,14 @@ def run(args: list[str], kind: str = "object", timeout: int = TIMEOUT) -> Result
     out = proc.stdout or ""
     if kind == "text":
         if proc.returncode != 0:
-            return Result(args, False, error=_error_text(proc), exit_code=proc.returncode, seconds=seconds, stderr=proc.stderr)
+            return Result(
+                args,
+                False,
+                error=_error_text(proc),
+                exit_code=proc.returncode,
+                seconds=seconds,
+                stderr=proc.stderr,
+            )
         return Result(args, True, data=out.strip(), seconds=seconds, stderr=proc.stderr)
     if kind == "ndjson":
         rows = []
@@ -150,7 +161,14 @@ def run(args: list[str], kind: str = "object", timeout: int = TIMEOUT) -> Result
             except ValueError:
                 continue
         if proc.returncode != 0:
-            return Result(args, False, error=_error_text(proc), exit_code=proc.returncode, seconds=seconds, stderr=proc.stderr)
+            return Result(
+                args,
+                False,
+                error=_error_text(proc),
+                exit_code=proc.returncode,
+                seconds=seconds,
+                stderr=proc.stderr,
+            )
         return Result(args, True, data=rows, seconds=seconds, stderr=proc.stderr)
     body = out.strip()
     payload = None
@@ -169,13 +187,29 @@ def run(args: list[str], kind: str = "object", timeout: int = TIMEOUT) -> Result
             seconds=seconds,
         )
     if proc.returncode != 0:
-        return Result(args, False, error=_error_text(proc), exit_code=proc.returncode, seconds=seconds, stderr=proc.stderr)
+        return Result(
+            args,
+            False,
+            error=_error_text(proc),
+            exit_code=proc.returncode,
+            seconds=seconds,
+            stderr=proc.stderr,
+        )
     if payload is None:
-        return Result(args, False, error=(body or "no JSON on stdout")[:300], exit_code=proc.returncode, seconds=seconds, stderr=proc.stderr)
+        return Result(
+            args,
+            False,
+            error=(body or "no JSON on stdout")[:300],
+            exit_code=proc.returncode,
+            seconds=seconds,
+            stderr=proc.stderr,
+        )
     return Result(args, True, data=payload, seconds=seconds, stderr=proc.stderr)
 
 
-def run_many(calls: list[tuple], workers: int = WORKERS, timeout: int = TIMEOUT) -> list[Result]:
+def run_many(
+    calls: list[tuple], workers: int = WORKERS, timeout: int = TIMEOUT
+) -> list[Result]:
     """Run (args, kind) pairs concurrently - measured safe, 8 side by side."""
     if not calls:
         return []
@@ -235,7 +269,13 @@ def _normalise_query(d) -> dict:
             "series": [
                 {
                     "key": s.get("Key") or [],
-                    "slices": [{"time": _slice_time(sl.get("Time")), "rows": sl.get("Rows") or []} for sl in s.get("Slices") or []],
+                    "slices": [
+                        {
+                            "time": _slice_time(sl.get("Time")),
+                            "rows": sl.get("Rows") or [],
+                        }
+                        for sl in s.get("Slices") or []
+                    ],
                 }
                 for s in d["Series"]
             ],
@@ -243,7 +283,10 @@ def _normalise_query(d) -> dict:
     if "Slices" in d:
         return {
             "columns": cols,
-            "slices": [{"time": _slice_time(sl.get("Time")), "rows": sl.get("Rows") or []} for sl in d["Slices"]],
+            "slices": [
+                {"time": _slice_time(sl.get("Time")), "rows": sl.get("Rows") or []}
+                for sl in d["Slices"]
+            ],
         }
     return {"columns": cols, "rows": d.get("Rows") or []}
 
@@ -296,10 +339,16 @@ def _n_value_columns(d: dict) -> int:
         for sl in s.get("slices") or []:
             if sl.get("rows"):
                 return len(sl["rows"][0])
-    return max(1, len(d.get("columns") or []) - len((d.get("series") or [{}])[0].get("key") or []))
+    return max(
+        1,
+        len(d.get("columns") or [])
+        - len((d.get("series") or [{}])[0].get("key") or []),
+    )
 
 
-def search(filt: str, count: int, frm: str = "", to: str = "", timeout: int = TIMEOUT) -> Result:
+def search(
+    filt: str, count: int, frm: str = "", to: str = "", timeout: int = TIMEOUT
+) -> Result:
     """`seqcli search -f <filter> -c <count> --json` -> data = the events,
     newest first. An empty answer is re-validated: the same filter is run as
     `select count(*) from stream where <filter>`, and a syntax error there
@@ -310,7 +359,9 @@ def search(filt: str, count: int, frm: str = "", to: str = "", timeout: int = TI
     args.append("--json")
     r = run(args, "ndjson", timeout)
     if r.ok and not r.data:
-        check = query(f"select count(*) as n from stream where {filt}", frm, to, timeout)
+        check = query(
+            f"select count(*) as n from stream where {filt}", frm, to, timeout
+        )
         r.extra.append(check.command)
         if not check.ok:
             r.ok = False
@@ -389,7 +440,9 @@ def contains_clause(text: str) -> str:
 
 def where(*clauses: str) -> str:
     parts = [c for c in clauses if c]
-    return " and ".join(f"({c})" if " or " in c and not c.startswith("(") else c for c in parts)
+    return " and ".join(
+        f"({c})" if " or " in c and not c.startswith("(") else c for c in parts
+    )
 
 
 def sql_where(*clauses: str) -> str:
@@ -408,7 +461,11 @@ def render_message(ev: dict) -> str:
 
     def sub(m):
         v = ev.get(m.group(1))
-        return m.group(0) if v is None else (json.dumps(v) if isinstance(v, (dict, list)) else str(v))
+        return (
+            m.group(0)
+            if v is None
+            else (json.dumps(v) if isinstance(v, (dict, list)) else str(v))
+        )
 
     return _TEMPLATE_HOLE.sub(sub, mt)
 
@@ -417,13 +474,18 @@ def parse_seq_ts(s: str) -> datetime | None:
     """A Seq timestamp (7-digit fraction, any offset) -> aware UTC datetime."""
     if not s:
         return None
-    m = re.match(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})?$", s.strip())
+    m = re.match(
+        r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})?$",
+        s.strip(),
+    )
     if not m:
         return None
     base, frac, off = m.groups()
     micro = int((frac or "0")[:6].ljust(6, "0"))
     try:
-        dt = datetime.strptime(base, "%Y-%m-%dT%H:%M:%S").replace(microsecond=micro)
+        dt = datetime.strptime(base, "%Y-%m-%dT%H:%M:%S").replace(
+            microsecond=micro, tzinfo=timezone.utc
+        )
     except ValueError:
         return None
     if off and off != "Z":
@@ -471,11 +533,19 @@ def is_span(ev: dict) -> bool:
 def hist_quantiles(h, qs=(0.5, 0.95, 0.99)) -> dict:
     """An Exponential histogram object -> approximate quantiles from its
     bucket midpoints, plus the exact count, min and max it carries."""
-    out = {f"p{int(q * 100)}": None for q in qs} | {"count": 0, "min": None, "max": None}
+    out = {f"p{int(q * 100)}": None for q in qs} | {
+        "count": 0,
+        "min": None,
+        "max": None,
+    }
     if not isinstance(h, dict):
         return out
     buckets = sorted(
-        ((b.get("midpoint"), b.get("count") or 0) for b in h.get("buckets") or [] if b.get("midpoint") is not None),
+        (
+            (b.get("midpoint"), b.get("count") or 0)
+            for b in h.get("buckets") or []
+            if b.get("midpoint") is not None
+        ),
         key=lambda b: b[0],
     )
     total = sum(c for _, c in buckets)
@@ -505,18 +575,24 @@ def parse_duration(s: str) -> int:
     s = (s or "").strip()
     units = {"s": 1, "m": 60, "h": 3600, "d": 86400}
     if len(s) < 2 or s[-1] not in units:
-        raise SystemExit(f"a duration is <number><s|m|h|d>, e.g. 90s or 30m - got {s!r}")
+        raise SystemExit(
+            f"a duration is <number><s|m|h|d>, e.g. 90s or 30m - got {s!r}"
+        )
     try:
         return int(float(s[:-1]) * units[s[-1]])
     except ValueError:
-        raise SystemExit(f"a duration is <number><s|m|h|d>, e.g. 90s or 30m - got {s!r}") from None
+        raise SystemExit(
+            f"a duration is <number><s|m|h|d>, e.g. 90s or 30m - got {s!r}"
+        ) from None
 
 
 def parse_ts(s: str) -> datetime:
     try:
         dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
     except ValueError:
-        raise SystemExit(f"a timestamp is RFC3339 UTC, e.g. 2026-09-11T07:15:00Z - got {s!r}") from None
+        raise SystemExit(
+            f"a timestamp is RFC3339 UTC, e.g. 2026-09-11T07:15:00Z - got {s!r}"
+        ) from None
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
@@ -525,13 +601,22 @@ def iso(dt: datetime) -> str:
 
 
 def iso_ms(dt: datetime) -> str:
-    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"
+    return (
+        dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.")
+        + f"{dt.microsecond // 1000:03d}Z"
+    )
 
 
 def add_window(ap):
-    ap.add_argument("--from", dest="frm", help="window start, RFC3339 UTC (e.g. 2026-09-11T07:15:00Z)")
+    ap.add_argument(
+        "--from",
+        dest="frm",
+        help="window start, RFC3339 UTC (e.g. 2026-09-11T07:15:00Z)",
+    )
     ap.add_argument("--to", help="window end, RFC3339 UTC")
-    ap.add_argument("--since", help="lookback ending now instead of --from/--to (e.g. 30m)")
+    ap.add_argument(
+        "--since", help="lookback ending now instead of --from/--to (e.g. 30m)"
+    )
     ap.add_argument("--json", action="store_true", help="machine-readable output")
 
 
@@ -558,7 +643,9 @@ def resolve_window(ns) -> tuple[str, str]:
         if b <= a:
             raise SystemExit("--to must be after --from")
         return iso(a), iso(b)
-    raise SystemExit("a window is required: --from <RFC3339> --to <RFC3339>, or --since <duration>")
+    raise SystemExit(
+        "a window is required: --from <RFC3339> --to <RFC3339>, or --since <duration>"
+    )
 
 
 def emit(obj, as_json: bool, render=None) -> None:

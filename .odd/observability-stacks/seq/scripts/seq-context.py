@@ -42,7 +42,9 @@ def probe() -> tuple[int, dict]:
         "commands": [],
     }
     if not SEQCLI:
-        out["error"] = "seqcli is not installed: not on PATH and not at ~/.dotnet/tools/seqcli"
+        out["error"] = (
+            "seqcli is not installed: not on PATH and not at ~/.dotnet/tools/seqcli"
+        )
         return 127, out
     results = []
     ver = run(["version"], "text")
@@ -50,7 +52,10 @@ def probe() -> tuple[int, dict]:
     out["client_version"] = ver.data if ver.ok else None
     env_url = os.environ.get("SEQCLI_CONNECTION_SERVERURL")
     if env_url:
-        out["server_url"], out["server_url_from"] = env_url, "SEQCLI_CONNECTION_SERVERURL"
+        out["server_url"], out["server_url_from"] = (
+            env_url,
+            "SEQCLI_CONNECTION_SERVERURL",
+        )
     else:
         cfg = run(["config", "get", "-k", "connection.serverUrl"], "text")
         results.append(cfg)
@@ -65,11 +70,13 @@ def probe() -> tuple[int, dict]:
             out["api_key"], out["api_key_from"] = "set", "SeqCli.json connection.apiKey"
     h = health()
     results.append(h)
-    out["health"] = h.data if h.ok else {"status": "unreachable", "description": h.error}
+    out["health"] = (
+        h.data if h.ok else {"status": "unreachable", "description": h.error}
+    )
     if h.ok and out["server_url"]:
         api = out["server_url"].rstrip("/") + "/api"
         try:
-            with urllib.request.urlopen(api, timeout=15) as resp:  # noqa: S310 - the configured server
+            with urllib.request.urlopen(api, timeout=15) as resp:
                 out["server_version"] = json.load(resp).get("Version")
             out["commands_extra"] = [f"curl -s {api}"]
         except (urllib.error.URLError, ValueError, OSError):
@@ -85,12 +92,18 @@ def render(o: dict) -> str:
     lines = []
     if not o.get("seqcli"):
         return "ERROR " + o["error"]
-    lines.append(f"seqcli: {o['seqcli']} (found on {o['found_in']}), client {o['client_version']}")
-    lines.append(f"server: {o['server_url']} (from {o['server_url_from']}), api key {o['api_key']}"
-                 + (f" ({o['api_key_from']})" if o.get("api_key_from") else ""))
+    lines.append(
+        f"seqcli: {o['seqcli']} (found on {o['found_in']}), client {o['client_version']}"
+    )
+    lines.append(
+        f"server: {o['server_url']} (from {o['server_url_from']}), api key {o['api_key']}"
+        + (f" ({o['api_key_from']})" if o.get("api_key_from") else "")
+    )
     h = o.get("health") or {}
-    lines.append(f"health: {h.get('status')} - {h.get('description')}"
-                 + (f"; server version {o['server_version']}" if o.get("server_version") else ""))
+    lines.append(
+        f"health: {h.get('status')} - {h.get('description')}"
+        + (f"; server version {o['server_version']}" if o.get("server_version") else "")
+    )
     if o.get("error"):
         lines.append("ERROR " + o["error"])
     lines += render_commands(o)

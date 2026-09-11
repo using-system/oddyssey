@@ -53,7 +53,6 @@ code is 1 when any file breaks the contract. Standard library only.
 from __future__ import annotations
 
 import json
-import py_compile
 import re
 import shutil
 import subprocess
@@ -282,7 +281,7 @@ def declaration_of(frontmatter: str | None, stem: str) -> tuple[dict | None, lis
     """The odd_config_set payload for the switch, or the problems that prevent one."""
     if frontmatter is None:
         return None, [
-            "no frontmatter: a custom stack file opens with `---`, `stack: <name>`, `stack_config_fields: [...]`, `---`"
+            "no frontmatter: a custom stack's guide opens with `---`, `stack: <name>`, `stack_config_fields: [...]`, `---`"
         ]
     values = frontmatter_values(frontmatter)
     stack = values["stack"][0] if "stack" in values else None
@@ -304,7 +303,7 @@ def declaration_of(frontmatter: str | None, stem: str) -> tuple[dict | None, lis
         )
     elif stack in builtin_stacks():
         problems.append(
-            f"frontmatter: `stack: {stack}` is a built-in stack, never a custom file"
+            f"frontmatter: `stack: {stack}` is a built-in stack, never a custom one"
         )
     if not seen_fields:
         problems.append(
@@ -374,15 +373,13 @@ def check_scripts(directory: Path, body: str) -> list[str]:
             )
     if scripts.is_dir():
         for entry in sorted(scripts.iterdir()):
-            if entry.name == "__pycache__":
-                continue
+            if entry.name == "__pycache__" or entry.name.startswith("."):
+                continue  # a cache running or linting the scripts left; never shipped
             if entry.is_file() and entry.suffix == ".py":
                 try:
-                    py_compile.compile(str(entry), doraise=True, quiet=1)
-                except py_compile.PyCompileError as error:
-                    problems.append(
-                        f"{SCRIPTS}/{entry.name} does not compile: {error.msg}"
-                    )
+                    compile(entry.read_text(encoding="utf-8"), str(entry), "exec")
+                except (SyntaxError, ValueError, UnicodeDecodeError) as error:
+                    problems.append(f"{SCRIPTS}/{entry.name} does not compile: {error}")
             else:
                 problems.append(
                     f"{SCRIPTS}/ holds .py files only, got {entry.name}"
@@ -414,10 +411,15 @@ def check_custom(
     checked_dir: Path | None = path if path.is_dir() else None
     if source:
         # A linked guide: the body lives at the link, the local file is
-        # the pointer - a body here would fork the guide silently.
+        # the pointer - a body here would fork the guide silently, and
+        # so would scripts beside the pointer.
         if body.strip():
             problems.append(
                 "a linked stack carries no body: the guide is the linked one"
+            )
+        if path.is_dir() and (path / SCRIPTS).exists():
+            problems.append(
+                f"a linked stack carries no {SCRIPTS}/ of its own: they come with the link"
             )
         else:
             base = fetch_dir or Path(tempfile.mkdtemp(prefix="odd-stack-"))

@@ -69,8 +69,8 @@ is how a prompt offers the custom stacks the repository carries.
 ## Rules
 
 - **Checked before it is trusted.** A switch to a custom stack runs
-  `python3 <the observability-cli-guides skill's directory>/scripts/check_stack_reference.py --declaration .odd/observability-stacks/<name>`
-  first: a stack that breaks the contract — a heading missing, a script
+  `python3 <the observability-cli-guides skill's directory>/scripts/check_stack_reference.py --declaration --fetch-dir <a scratch directory outside the repository> .odd/observability-stacks/<name>`
+  first (the whole surface, stated by the contract): a stack that breaks the contract — a heading missing, a script
   the guide names absent or not compiling — does not get persisted, and
   neither does one the check could not run on; the fix is a change to
   the stack, through `/odd-instrument-stack`. What the check prints is
@@ -94,7 +94,7 @@ is how a prompt offers the custom stacks the repository carries.
   default branch — on any other branch the commit lands where the
   repository is, as the contract says for every kind; the commit
   carries the directory alone (`git add -- .odd/observability-stacks/<name>`;
-  a `__pycache__` the check left is ignored, never added), subject
+  a `__pycache__` running the scripts left is ignored, never added), subject
   `docs(odd): stack <name>` for a new stack, `docs(odd): stack <name>
   - <what changed>` for an update; the reply states the stored path.
 - **A mission never edits a stack.** An observe or verify run that

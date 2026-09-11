@@ -37,8 +37,8 @@ from seq_cli import (
     emit,
     errors,
     event_time,
-    quote,
     query,
+    quote,
     render_commands,
     render_message,
     resolve_window,
@@ -59,22 +59,47 @@ def cmd_count(ns) -> tuple[int, dict]:
     frm, to = resolve_window(ns)
     svc = service_clause(ns.service, ns.service_key)
     key = ns.service_key
-    r1 = query(f"select count(*) as n from stream{sql_where('not has(@Start)', svc)} group by {key}, @Level", frm, to)
-    r2 = query(f"select count(*) as n from stream{sql_where('has(@Exception)', svc)} group by {key}, has(@Start)", frm, to)
-    r3 = query(f"select count(*) as n from stream{sql_where('has(@Start)', svc)} group by {key}, @Level", frm, to)
+    r1 = query(
+        f"select count(*) as n from stream{sql_where('not has(@Start)', svc)} group by {key}, @Level",
+        frm,
+        to,
+    )
+    r2 = query(
+        f"select count(*) as n from stream{sql_where('has(@Exception)', svc)} group by {key}, has(@Start)",
+        frm,
+        to,
+    )
+    r3 = query(
+        f"select count(*) as n from stream{sql_where('has(@Start)', svc)} group by {key}, @Level",
+        frm,
+        to,
+    )
     per: dict[str, dict] = {}
 
     def entry(name):
-        return per.setdefault(name, {"lines": 0, "levels": {}, "exceptions": 0, "span_levels": {}, "span_exceptions": 0})
+        return per.setdefault(
+            name,
+            {
+                "lines": 0,
+                "levels": {},
+                "exceptions": 0,
+                "span_levels": {},
+                "span_exceptions": 0,
+            },
+        )
 
     for row in table(r1):
         e = entry(_key(row.get(key)))
         e["levels"][_key(row.get("@Level"))] = row.get("n") or 0
         e["lines"] += row.get("n") or 0
     for row in table(r2):
-        entry(_key(row.get(key)))["span_exceptions" if row.get("has(@Start)") else "exceptions"] = row.get("n") or 0
+        entry(_key(row.get(key)))[
+            "span_exceptions" if row.get("has(@Start)") else "exceptions"
+        ] = row.get("n") or 0
     for row in table(r3):
-        entry(_key(row.get(key)))["span_levels"][_key(row.get("@Level"))] = row.get("n") or 0
+        entry(_key(row.get(key)))["span_levels"][_key(row.get("@Level"))] = (
+            row.get("n") or 0
+        )
     for e in per.values():
         e["levels"] = dict(sorted(e["levels"].items(), key=lambda kv: -kv[1]))
         e["span_levels"] = dict(sorted(e["span_levels"].items(), key=lambda kv: -kv[1]))
@@ -113,7 +138,9 @@ def cmd_sample(ns) -> tuple[int, dict]:
         "window": [frm, to],
         "filter": filt,
         "matching": n,
-        "note": "" if ns.spans else "span events are excluded; an instrumented service's request errors sit on its spans - pass --spans to reach them",
+        "note": ""
+        if ns.spans
+        else "span events are excluded; an instrumented service's request errors sit on its spans - pass --spans to reach them",
         "samples": [
             {
                 "ts": event_time(ev),
@@ -134,12 +161,20 @@ def cmd_correlate(ns) -> tuple[int, dict]:
     frm, to = resolve_window(ns)
     svc = service_clause(ns.service, ns.service_key)
     key = ns.service_key
-    r1 = query(f"select count(*) as n from stream{sql_where('not has(@Start)', svc)} group by {key}, has(@TraceId)", frm, to)
-    orphan_filter = " and ".join(c for c in ["not has(@Start) and not has(@TraceId)", svc] if c)
+    r1 = query(
+        f"select count(*) as n from stream{sql_where('not has(@Start)', svc)} group by {key}, has(@TraceId)",
+        frm,
+        to,
+    )
+    orphan_filter = " and ".join(
+        c for c in ["not has(@Start) and not has(@TraceId)", svc] if c
+    )
     r2 = search(orphan_filter, 10, frm, to)
     per: dict[str, dict] = {}
     for row in table(r1):
-        e = per.setdefault(_key(row.get(key)), {"lines": 0, "with_trace_id": 0, "without": 0})
+        e = per.setdefault(
+            _key(row.get(key)), {"lines": 0, "with_trace_id": 0, "without": 0}
+        )
         n = row.get("n") or 0
         e["lines"] += n
         e["with_trace_id" if row.get("has(@TraceId)") else "without"] += n
@@ -149,7 +184,12 @@ def cmd_correlate(ns) -> tuple[int, dict]:
         "window": [frm, to],
         "services": dict(sorted(per.items(), key=lambda kv: -kv[1]["lines"])),
         "orphan_samples": [
-            {"ts": event_time(ev), "service": _key(ev.get(key)), "message": render_message(ev)[:160]} for ev in (r2.data or [])
+            {
+                "ts": event_time(ev),
+                "service": _key(ev.get(key)),
+                "message": render_message(ev)[:160],
+            }
+            for ev in (r2.data or [])
         ],
         "note": "startup, batch and health-check lines legitimately carry no trace id - classify the orphans before calling this a gap",
         "commands": commands([r1, r2]),
@@ -163,23 +203,33 @@ def render(o: dict) -> str:
     if "samples" in o:
         out.append(f"{o['matching']} matching events (filter: {o['filter']})")
         for s in o["samples"]:
-            out.append(f"  {s['ts']} {s['level']:11s} {s['trace_id'][:16] or '-':16s} {s['message']}")
+            out.append(
+                f"  {s['ts']} {s['level']:11s} {s['trace_id'][:16] or '-':16s} {s['message']}"
+            )
             if s["exception"]:
                 out.append("      " + s["exception"].splitlines()[0][:150])
         if o.get("note") and not o["samples"]:
             out.append("  " + o["note"])
     elif "orphan_samples" in o:
         for name, e in o["services"].items():
-            out.append(f"{name}: {e['lines']} log events, {e['with_trace_id']} with a trace id, {e['without']} without")
+            out.append(
+                f"{name}: {e['lines']} log events, {e['with_trace_id']} with a trace id, {e['without']} without"
+            )
         for s in o["orphan_samples"]:
             out.append(f"  orphan {s['ts']} {s['service']}: {s['message']}")
         out.append("  " + o["note"])
     else:
         out.append(f"{o['lines']} log events")
         for name, e in o["services"].items():
-            out.append(f"{name}: {e['lines']} log events, exceptions={e['exceptions']}  " + "  ".join(f"{k}={v}" for k, v in e["levels"].items()))
+            out.append(
+                f"{name}: {e['lines']} log events, exceptions={e['exceptions']}  "
+                + "  ".join(f"{k}={v}" for k, v in e["levels"].items())
+            )
             if e["span_levels"]:
-                out.append(f"  span levels: exceptions={e['span_exceptions']}  " + "  ".join(f"{k}={v}" for k, v in e["span_levels"].items()))
+                out.append(
+                    f"  span levels: exceptions={e['span_exceptions']}  "
+                    + "  ".join(f"{k}={v}" for k, v in e["span_levels"].items())
+                )
         out.append("  " + o["note"])
     out += render_commands(o)
     return "\n".join(out)
@@ -193,13 +243,27 @@ def main() -> int:
         add_service(p)
         if name == "sample":
             p.add_argument("--level", default="", help="exact @Level value, e.g. Error")
-            p.add_argument("--contains", default="", help="case-insensitive substring of the message or the exception")
-            p.add_argument("--filter", default="", help="a Seq filter expression, and-ed in")
-            p.add_argument("--spans", action="store_true", help="include span events (default: log events only)")
-            p.add_argument("--show", type=int, default=20, help="events to print (default 20)")
+            p.add_argument(
+                "--contains",
+                default="",
+                help="case-insensitive substring of the message or the exception",
+            )
+            p.add_argument(
+                "--filter", default="", help="a Seq filter expression, and-ed in"
+            )
+            p.add_argument(
+                "--spans",
+                action="store_true",
+                help="include span events (default: log events only)",
+            )
+            p.add_argument(
+                "--show", type=int, default=20, help="events to print (default 20)"
+            )
         add_window(p)
     ns = ap.parse_args()
-    code, out = {"count": cmd_count, "sample": cmd_sample, "correlate": cmd_correlate}[ns.cmd](ns)
+    code, out = {"count": cmd_count, "sample": cmd_sample, "correlate": cmd_correlate}[
+        ns.cmd
+    ](ns)
     emit(out, ns.json, render)
     return code
 

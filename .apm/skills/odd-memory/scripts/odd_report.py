@@ -1893,7 +1893,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--body",
         help="a draft holding the report's body (the title, the headline and the "
-        "seven sections): written under the frontmatter in place of the file's body",
+        "sections - seven, eight on a custom stack): written under the frontmatter "
+        "in place of the file's body",
     )
     p.add_argument(
         "--no-commit", action="store_true", help="write nothing to git; say so"

@@ -452,7 +452,8 @@ a contract), never a cheaper way to write a full report:
   the probe that would confirm them, and that is the expected shape
   at this depth.
 - **Report** — the seven headings stay (the recall reads by section
-  number). Sections 1, 2 and 7 are complete. Section 3 is the ranked
+  number), and section 8 with them on a custom stack, complete at
+  both depths. Sections 1, 2 and 7 are complete. Section 3 is the ranked
   table only, no detail per row — a verify or re-measure keeps its
   baseline-ruling table above it whole, one row per baseline finding,
   `not ruled (quick)` where the queried signals could not rule. Sections 4 and 6 are one line each;

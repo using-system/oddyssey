@@ -46,8 +46,8 @@ from seq_cli import (
     flatten_trace,
     fmt_ms,
     properties,
-    quote,
     query,
+    quote,
     render_commands,
     render_message,
     resolve_window,
@@ -90,8 +90,15 @@ def cmd_operations(ns) -> tuple[int, dict]:
         frm,
         to,
     )
-    q2 = query(f"select count(*) as errors from stream{sql_where(*base, '@Level = ' + quote('Error'))} group by {gb}", frm, to)
-    err_by = {tuple(_key(row.get(g)) for g in [key, *groups]): row.get("errors") or 0 for row in table(q2)}
+    q2 = query(
+        f"select count(*) as errors from stream{sql_where(*base, '@Level = ' + quote('Error'))} group by {gb}",
+        frm,
+        to,
+    )
+    err_by = {
+        tuple(_key(row.get(g)) for g in [key, *groups]): row.get("errors") or 0
+        for row in table(q2)
+    }
     rows = []
     for row in table(q1):
         k = tuple(_key(row.get(g)) for g in [key, *groups])
@@ -131,7 +138,9 @@ def cmd_exemplars(ns) -> tuple[int, dict]:
     clauses = _span_clauses(ns)
     if ns.above and ns.above not in ("0", ""):
         if not _DURATION.match(ns.above):
-            raise SystemExit(f"--above is a Seq duration literal (100ms, 1s) or ticks - got {ns.above!r}")
+            raise SystemExit(
+                f"--above is a Seq duration literal (100ms, 1s) or ticks - got {ns.above!r}"
+            )
         clauses.append(f"@Elapsed > {ns.above}")
     if ns.filter:
         clauses.append(f"({ns.filter})")
@@ -201,7 +210,13 @@ def cmd_children(ns) -> tuple[int, dict]:
         )
     rows.sort(key=lambda r: -r["count"])
     err = errors([q])
-    return (1 if err else 0), {"error": err, "window": [frm, to], "group_by": groups, "children": rows, "commands": commands([q])}
+    return (1 if err else 0), {
+        "error": err,
+        "window": [frm, to],
+        "group_by": groups,
+        "children": rows,
+        "commands": commands([q]),
+    }
 
 
 def cmd_trace(ns) -> tuple[int, dict]:
@@ -219,7 +234,9 @@ def cmd_trace(ns) -> tuple[int, dict]:
             "duration_ms": root["elapsed_ms"] if root else None,
             "spans": len(spans),
             "logs": sum(1 for n in nodes if n["type"] == "log"),
-            "errors": sum(1 for n in nodes if (n["level"] or "").lower() in ("error", "fatal")),
+            "errors": sum(
+                1 for n in nodes if (n["level"] or "").lower() in ("error", "fatal")
+            ),
             "longest": [
                 {"message": s["message"][:80], "elapsed_ms": s["elapsed_ms"]}
                 for s in sorted(spans, key=lambda s: -(s["elapsed_ms"] or 0))[:5]
@@ -235,21 +252,33 @@ def render(o: dict) -> str:
         return "ERROR " + o["error"]
     out = []
     if "operations" in o:
-        out.append(f"window {o['window'][0]} .. {o['window'][1]}  ({o['scope']}, grouped by {', '.join(o['group_by'])})")
-        out.append(f"  {'count':>6s} {'errors':>6s} {'p50ms':>8s} {'p95ms':>8s} {'p99ms':>8s} {'maxms':>8s}  service | operation")
+        out.append(
+            f"window {o['window'][0]} .. {o['window'][1]}  ({o['scope']}, grouped by {', '.join(o['group_by'])})"
+        )
+        out.append(
+            f"  {'count':>6s} {'errors':>6s} {'p50ms':>8s} {'p95ms':>8s} {'p99ms':>8s} {'maxms':>8s}  service | operation"
+        )
         for r in o["operations"]:
             out.append(
                 f"  {r['count']:6d} {r['errors']:6d} {fmt_ms(r['p50_ms']):>8s} {fmt_ms(r['p95_ms']):>8s} "
                 f"{fmt_ms(r['p99_ms']):>8s} {fmt_ms(r['max_ms']):>8s}  {r['service']} | {r['operation']}"
             )
     elif "exemplars" in o:
-        out.append(f"window {o['window'][0]} .. {o['window'][1]}  {o['matching']} spans match (filter: {o['filter']})")
+        out.append(
+            f"window {o['window'][0]} .. {o['window'][1]}  {o['matching']} spans match (filter: {o['filter']})"
+        )
         for e in o["exemplars"]:
-            out.append(f"  {fmt_ms(e['elapsed_ms']):>8s} ms  {e['trace_id']}  {e['level']:11s} {e['message']}")
+            out.append(
+                f"  {fmt_ms(e['elapsed_ms']):>8s} ms  {e['trace_id']}  {e['level']:11s} {e['message']}"
+            )
         out.append("  " + o["note"])
     elif "children" in o:
-        out.append(f"window {o['window'][0]} .. {o['window'][1]}  (child spans, grouped by {', '.join(o['group_by'])})")
-        out.append(f"  {'count':>6s} {'traces':>6s} {'/trace':>6s} {'p50ms':>8s} {'p99ms':>8s} {'maxms':>8s}  service | operation")
+        out.append(
+            f"window {o['window'][0]} .. {o['window'][1]}  (child spans, grouped by {', '.join(o['group_by'])})"
+        )
+        out.append(
+            f"  {'count':>6s} {'traces':>6s} {'/trace':>6s} {'p50ms':>8s} {'p99ms':>8s} {'maxms':>8s}  service | operation"
+        )
         for r in o["children"]:
             out.append(
                 f"  {r['count']:6d} {r['traces']:6d} {fmt_ms(r['calls_per_trace']):>6s} {fmt_ms(r['p50_ms']):>8s} "
@@ -257,13 +286,19 @@ def render(o: dict) -> str:
             )
     else:
         s = o["summary"]
-        out.append(f"trace {o['trace_id']}  complete={o['complete']}  {s['spans']} spans, {s['logs']} logs, {s['errors']} errors, root {fmt_ms(s['duration_ms'])} ms: {s['root']}")
+        out.append(
+            f"trace {o['trace_id']}  complete={o['complete']}  {s['spans']} spans, {s['logs']} logs, {s['errors']} errors, root {fmt_ms(s['duration_ms'])} ms: {s['root']}"
+        )
         for n in o["nodes"]:
             pad = "  " * n["depth"]
             if n["type"] == "span":
-                out.append(f"  {pad}[span {fmt_ms(n['elapsed_ms']):>7s} ms] {n['level'][:3].upper():3s} {n['message'][:150]}")
+                out.append(
+                    f"  {pad}[span {fmt_ms(n['elapsed_ms']):>7s} ms] {n['level'][:3].upper():3s} {n['message'][:150]}"
+                )
             else:
-                out.append(f"  {pad}  log {n['level'][:3].upper():3s} {n['message'][:150]}")
+                out.append(
+                    f"  {pad}  log {n['level'][:3].upper():3s} {n['message'][:150]}"
+                )
             if n.get("exception"):
                 out.append(f"  {pad}      {str(n['exception']).splitlines()[0][:150]}")
     out += render_commands(o)
@@ -276,23 +311,54 @@ def main() -> int:
     for name in ("operations", "exemplars", "children"):
         p = sub.add_parser(name)
         add_service(p)
-        p.add_argument("--all-spans", action="store_true", help="every span, not only the root spans")
-        p.add_argument("--kind", default="", help="a @SpanKind value: Server, Client, Internal, Producer, Consumer")
+        p.add_argument(
+            "--all-spans",
+            action="store_true",
+            help="every span, not only the root spans",
+        )
+        p.add_argument(
+            "--kind",
+            default="",
+            help="a @SpanKind value: Server, Client, Internal, Producer, Consumer",
+        )
         if name in ("operations", "children"):
-            p.add_argument("--group-by", action="append", default=[], help="a property naming the operation; repeatable (default @MessageTemplate)")
+            p.add_argument(
+                "--group-by",
+                action="append",
+                default=[],
+                help="a property naming the operation; repeatable (default @MessageTemplate)",
+            )
         if name == "operations":
-            p.add_argument("--min-count", type=int, default=1, help="drop groups with fewer spans (default 1)")
+            p.add_argument(
+                "--min-count",
+                type=int,
+                default=1,
+                help="drop groups with fewer spans (default 1)",
+            )
         if name == "exemplars":
-            p.add_argument("--above", default="", help="duration literal (100ms, 1s) or ticks; spans slower than it")
-            p.add_argument("--filter", default="", help="a Seq filter expression, and-ed in")
-            p.add_argument("--show", type=int, default=10, help="exemplars to print (default 10)")
+            p.add_argument(
+                "--above",
+                default="",
+                help="duration literal (100ms, 1s) or ticks; spans slower than it",
+            )
+            p.add_argument(
+                "--filter", default="", help="a Seq filter expression, and-ed in"
+            )
+            p.add_argument(
+                "--show", type=int, default=10, help="exemplars to print (default 10)"
+            )
         add_window(p)
     p = sub.add_parser("trace")
     p.add_argument("trace_id")
     p.add_argument("--no-logs", action="store_true", help="spans only")
     p.add_argument("--json", action="store_true", help="machine-readable output")
     ns = ap.parse_args()
-    code, out = {"operations": cmd_operations, "exemplars": cmd_exemplars, "children": cmd_children, "trace": cmd_trace}[ns.cmd](ns)
+    code, out = {
+        "operations": cmd_operations,
+        "exemplars": cmd_exemplars,
+        "children": cmd_children,
+        "trace": cmd_trace,
+    }[ns.cmd](ns)
     emit(out, ns.json, render)
     return code
 

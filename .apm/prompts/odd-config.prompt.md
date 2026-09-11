@@ -23,8 +23,9 @@ request, skip the display-first flow and route straight to the
 backend runs the full switch, a bare targeting value enters at its
 `stack_config` step and stands alone, and a clear is the same step's
 null write. The verification it ends with produces the display anyway,
-so nothing is lost by skipping ahead. A create or complete request
-goes to the section of its own below, before anything else.
+so nothing is lost by skipping ahead. A request to create, complete,
+link or fix a custom stack is answered by the last section, before
+anything else.
 
 An explicit local-port ask is neither of those - ports never belong in
 `stack_config`. It is an `odd_config_set {"local": {...}}` write this

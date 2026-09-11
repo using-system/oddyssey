@@ -107,8 +107,8 @@ The frontmatter mirrors the run **as it executed**, defaults applied —
 
 ## The body
 
-Seven numbered sections, read by number by the recall, the status and
-`show`. What each carries is the calling agent's judgment, stated here
+Seven numbered sections — an eighth on a custom stack — read by
+number by the recall, the status and `show`. What each carries is the calling agent's judgment, stated here
 beside the format it fills and read at report time — its Investigation
 gathers the evidence, its Depth section collapses sections 3 to 6 at
 `quick` depth. Three shapes in it are the script's, never yours to
@@ -141,8 +141,8 @@ section 2's `### GenAI` heading:
    off the rows. Name the run's driver there too — the driving mission
    as the mission block states it (or that it names none), and its
    stored report by path when that report is already committed. On a
-   custom stack, name the stack's directory and the check's verdict on
-   it; what the run met as friction with it is section 8's, never
+   custom stack, name the stack's directory (the handoff's `Reference:`
+   line); what the run met as friction with it is section 8's, never
    here.
 2. **Observed behavior** — start with the per-operation summary table:
 
