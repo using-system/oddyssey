@@ -351,7 +351,8 @@ Across all of them:
   a refusal ends the mission;
 - when nothing changed in the code since the report, the run is
   stored as a re-measure whatever the wording; when the code state
-  contradicts how you framed the mission, the prompt asks;
+  contradicts how you framed the mission, or a changed directory has
+  never been ruled runtime or not, the prompt asks;
 - "full verify" / "quick check" sets the depth; otherwise it is the
   baseline report's, `quick` for a report written before the field,
   and the prompt says which before dispatching.

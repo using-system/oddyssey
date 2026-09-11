@@ -207,10 +207,12 @@ library's own switch) and cost attribution.
 
 An observation records before-values at a `revision`; a fix lands; a
 verification replays the protocol and rules on everything the
-observation recorded; a re-measure replays it when nothing changed.
-`verifies` always names the report whose protocol was actually
-replayed, and `/odd-status` reads the whole chain from filenames and
-frontmatters alone.
+observation recorded; a re-measure replays it when nothing changed -
+which of the two a replay is, the `odd-memory` skill's report script
+decides from the baseline's `tree_anchor` against the current tree,
+before `/odd-verify` dispatches. `verifies` always names the report
+whose protocol was actually replayed, and `/odd-status` reads the
+whole chain from filenames and frontmatters alone.
 
 ## What a reviewer can hold a report to
 

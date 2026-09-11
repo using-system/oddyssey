@@ -23,6 +23,11 @@ python3 <this skill's directory>/scripts/odd_report.py read <path> [--sections 1
 python3 <this skill's directory>/scripts/odd_report.py persist <path> --body <draft> [--no-commit]
 python3 <this skill's directory>/scripts/odd_report.py synthesis <path>
 python3 <this skill's directory>/scripts/odd_report.py show <path>
+python3 <this skill's directory>/scripts/odd_report.py baseline [--repo <path>] \
+  [<report path | enough of a run name>] [--service <name>]... [--stack <stack>] \
+  [--env <environment>] [--depth <quick|full>] [--own-protocol]
+python3 <this skill's directory>/scripts/odd_report.py boundary [--repo <observed repo>] \
+  <baseline report path> [--runtime <entry>]... [--non-runtime <entry>]...
 ```
 
 That is the whole surface; `--help` adds nothing and the file has
@@ -65,6 +70,8 @@ instrumentation` is the other kind's, stated in its own reference.
   says `not committed` and why.
 - `synthesis` prints the synthesis block of a stored report; `show`
   renders the closing synthesis from it.
+- `baseline` and `boundary` are a replay's preflight, run by the
+  caller before the dispatch — `## Resolving a replay` below.
 
 ## What the run decides
 
@@ -324,6 +331,56 @@ section 2's `### GenAI` heading:
    — the run itself never edits the stack (the `observability-stack`
    reference's rule). Stated once, here, never spliced into section 1
    or 5: a friction is about the stack, a gap is about the service.
+
+## Resolving a replay
+
+What the inputs fix before a verification is dispatched, one command
+each — the caller runs both, puts an `ask:` line to the user verbatim
+and never guesses past it:
+
+- `baseline` resolves the report the arguments name — a path under
+  either store, enough of a run name (several runs matching is an
+  `ask:`), or the newest across both stores under `--service`,
+  `--stack`, `--env` (an `ask:` when the newest reports cover several
+  services or span both kinds) — then the baseline: the report
+  itself, or, when it is a verification or a re-measure, the report
+  its `verifies` names, exactly one hop (`--own-protocol` is the
+  carve-out: the verification's own protocol is the baseline; a
+  `verifies` naming nothing stored, or absent on a pre-convention
+  report, is an `ask:`). It prints, one `key: value` per line:
+  `report`, `baseline` (its kind and how it was reached), `verifies`
+  (what the replay's `new --verifies` takes: the filename, the
+  repo-relative path of an instrumentation baseline), `services` (an
+  instrumentation baseline's summary table), `stack`, `environment`
+  (`none` on an instrumentation baseline: the comparison is skipped),
+  `mode` (the baseline's execution mode, or the first one the
+  `verifies` chain reaches — an instrumentation report at its end is
+  `drive`; a chain reaching none is an `ask:` for the mode),
+  `depth` (`--depth` wins; else the baseline's field; `quick` when an
+  observation baseline predates it, `full` for an instrumentation
+  one — the reason on the line), `revision`, `benchmark` (the one the
+  record names, or `none named`), `target` (the record's base URL),
+  `drive confirmation` (`required` when the mode is `drive` and the
+  stack or the recorded target is not local — the caller asks; `not
+  needed` otherwise). Exit 0; 3 on an `ask:`; 2 with nothing stored
+  (`nothing to verify`).
+- `boundary <baseline report>` decides **verification or
+  re-measure** from the baseline's `tree_anchor` against `HEAD` of
+  `--repo`, entry by entry — the tree at `revision` when there is no
+  anchor, the commits since the report's own commit date when the
+  revision does not resolve either — with the entry rulings of
+  `.odd/entry-classifications.md` (the `decisions` reference), the
+  built-in non-runtime list, and `--runtime` / `--non-runtime` for
+  this run; `.odd` is ignored, an entry present on one side only
+  stays uncertain. It prints `boundary` (`verification`: a runtime
+  entry, an uncommitted change to one, or the benchmark the record
+  names moved; `re-measure`: nothing did; `undecidable`: an entry it
+  cannot classify — exit 3), `revision`, `method`, the differing
+  entries by class with their paths, `working tree` (`clean`, or the
+  uncommitted entries by class), `benchmark` (commits since the
+  revision and uncommitted paths under it), and `persist`: the
+  `--mode` the replay's `new` takes. It reads git; it writes nothing
+  and never rules an entry itself.
 
 ## Recall: reading the memory
 

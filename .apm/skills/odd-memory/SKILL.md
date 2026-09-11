@@ -124,6 +124,12 @@ recalled by name, each ledger is one file; their references own that:
 - The first line printed is the baseline: read it **by section, never
   whole** — the kind's reference names the sections a mission needs,
   and the command that prints them when it ships one.
+- A replay's baseline is not recalled but resolved — the report the
+  caller named or the newest, its one-hop source, the mode and the
+  depth to replay, and whether the code changed since it — by the
+  report script's `baseline` and `boundary` commands, stated in the
+  observation reference's `## Resolving a replay`; the caller runs
+  them before the dispatch and the mission block carries their lines.
   Reading beyond that set is the exception, for a stated need that the
   calling agent records. A benchmark recall has no baseline: the whole
   listing is the set the mission checks itself against, and its
