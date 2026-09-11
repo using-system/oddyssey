@@ -57,7 +57,8 @@ python3 <this skill's directory>/scripts/odd_report.py synthesis <path>
   enforces after a write, the title and the one-line headline before
   section 1, the five sections in order, no placeholder left, and the
   shapes of `## The body` below: the summary table's columns, `Service`
-  first, with one row at least; section 5's checks in the replayable
+  first, with one row at least, and the `Implementation order:` line;
+  section 5's checks in the replayable
   form; no credential in a check (a key, token, password or
   connection-string value, a `--query` projecting a credential field —
   an env var name, a secret reference or a placeholder in that slot is

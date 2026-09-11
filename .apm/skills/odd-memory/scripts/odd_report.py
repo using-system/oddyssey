@@ -147,16 +147,17 @@ ORDER_RE = re.compile(r"implementation order", re.IGNORECASE)
 # that is neither a variable, a placeholder nor a redaction
 CREDENTIAL_RE = re.compile(
     r"(?i)(?:instrumentation[_ -]?key|connection[_ -]?string|api[_ -]?key|secret|"
-    r"password|passwd|token|bearer|authorization)\s*[:=]\s*(?:(?:bearer|basic)\s+)?"
+    r"password|passwd|token|bearer|authorization)\s*[:=]\s*[\"']?(?:(?:bearer|basic)\s+)?"
     r"(?![$<{*`]|redacted|none|\(|from |the )([A-Za-z0-9+/=._-]{12,})"
 )
 # what a credential's slot may hold without being one: an env var name, a
 # secret reference written as hyphenated words, a placeholder
 WIRING_RE = re.compile(r"^(?:[A-Z][A-Z0-9_]{3,}|[a-z]+(?:[-_][a-z]+)+|<[^>]+>)$")
 # what starts the value after a `Key=` prefix when it is wired, not written:
-# a placeholder, a variable, a template - never the empty string, which is
-# what follows a base64 value's `=` padding
-WIRING_OPENERS = ("<", "$", "{", "*", "`")
+# a placeholder, a variable, a template - never a span delimiter (a backtick
+# or an asterisk closes the span the value sits in) nor the empty string,
+# which is what follows a base64 value's `=` padding
+WIRING_OPENERS = ("<", "$", "{")
 CREDENTIAL_PROJECTION_RE = re.compile(
     r"(?i)--query\s+\S*(?:instrumentationKey|connectionString|primaryKey|secretKey|"
     r"apiKey|accessKey)"
@@ -1050,6 +1051,12 @@ def check_instrumentation_body(sections: list[dict]) -> list[str]:
         elif not [r for r in table["rows"] if r and r[0].strip()]:
             problems.append(
                 "section 2's summary table carries no row (one per service)"
+            )
+        if not any(
+            ORDER_RE.search(line) and not line.startswith("|") for line in two["lines"]
+        ):
+            problems.append(
+                "section 2 carries no `Implementation order:` line (show renders it)"
             )
     three = section(sections, 3)
     if three is not None:
@@ -2480,8 +2487,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "new":
             path, body, notes = new_report(args)
-            # the path first, then the body as written: the run replaces
-            # every <fill> from this text and never reads the file back
+            # the path first, then the body as written (plus, for the
+            # instrumentation kind, the rules footer that never reaches the
+            # file): the run replaces every <fill> from this text and never
+            # reads the file back
             print(path)
             print(
                 "--- the file below its frontmatter: write it filled (every <fill> "

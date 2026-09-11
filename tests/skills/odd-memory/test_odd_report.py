@@ -1444,6 +1444,7 @@ def test_the_credential_rule_tells_a_value_from_its_wiring(report):
         "api key: redacted by the backend's show",
         "connection string: InstrumentationKey=${APPINSIGHTS_KEY}",
         "connection string: InstrumentationKey=<instrumentation_key>",
+        "`connection string: InstrumentationKey=<instrumentation_key>`",
     )
     for text in wiring:
         assert report.credential_in(text) is None, text
@@ -1459,6 +1460,11 @@ def test_the_credential_rule_tells_a_value_from_its_wiring(report):
         "secret: SharedAccessKey=Abc123DefGhi456JklMno789PqrStu012VwxYz34=",
         "authorization: Basic dXNlcjpwYXNzd29yZDEyMw==",
         "connection string: InstrumentationKey=abcdefghijklmnop;",
+        "`api_key: eyJrIjoiT0tTcE1tYVYifQ==`",
+        "**token: Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MA==**",
+        "| check | q | `api_key: eyJrIjoiT0tTcE1tYVYifQ==` | id |",
+        'api_key: "eyJrIjoiT0tTcE1tYVYifQ=="',
+        "token: 'ghp_16C7e42F292c6912E7710c838347Ae178B4a'",
     )
     for text in values:
         assert report.credential_in(text), text
@@ -1487,3 +1493,16 @@ def test_new_instrumentation_refuses_every_observation_flag(repo):
         assert proc.returncode == 2 and "observation report's flag" in proc.stderr, (
             flags
         )
+
+
+def test_check_refuses_a_summary_without_the_implementation_order_line(repo):
+    path, _ = new_instrumentation(repo)
+    without = INSTRUMENTATION_BODY.replace(
+        "Implementation order: checkout first (the edge), then worker.\n", ""
+    )
+    assert "Implementation order" not in without
+    head = path.read_text(encoding="utf-8").split("\n\n", 1)[0]
+    path.write_text(head + "\n\n" + without, encoding="utf-8")
+    proc = run(repo, "check", str(path))
+    assert proc.returncode == 2
+    assert "no `Implementation order:` line" in proc.stderr
