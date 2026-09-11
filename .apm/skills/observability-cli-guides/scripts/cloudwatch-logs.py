@@ -79,6 +79,18 @@ def _base(ns) -> tuple[dict, list]:
     return {"window": [iso(frm), iso(to)], "commands": [], "failed": []}, [frm, to]
 
 
+def scrub(row: dict) -> dict:
+    """A result row without @ptr (a pointer nothing reads) and with @log reduced to the group: its prefix is the account id."""
+    out = {}
+    for k, v in row.items():
+        if k == "@ptr":
+            continue
+        if k == "@log" and isinstance(v, str) and ":" in v:
+            v = v.split(":", 1)[1]
+        out[k] = v
+    return out
+
+
 def cmd_count(ns) -> dict:
     o, (frm, to) = _base(ns)
     by = "`resource.service.name`, severity_number"
@@ -140,11 +152,7 @@ def cmd_sample(ns) -> dict:
         f"fields {FIELDS} " + filt + f"| sort @timestamp desc | limit {int(ns.show)}"
     ).strip()
     r = insights_query([ns.log_group], q, frm, to, ns.profile, ns.region)
-    o["records"] = (
-        [{k: v for k, v in row.items() if k != "@ptr"} for row in (r.data or [])]
-        if r.ok
-        else []
-    )
+    o["records"] = [scrub(row) for row in (r.data or [])] if r.ok else []
     o["commands"], o["failed"] = commands([r]), failures([r])
     return o
 
@@ -267,9 +275,7 @@ def cmd_query(ns) -> dict:
     o["status"] = r.extra.get("status")
     o["statistics"] = r.extra.get("statistics")
     o["rows_total"] = len(rows)
-    o["rows"] = [
-        {k: v for k, v in row.items() if k != "@ptr"} for row in rows[: ns.show]
-    ]
+    o["rows"] = [scrub(row) for row in rows[: ns.show]]
     o["commands"], o["failed"] = commands([r]), failures([r])
     return o
 

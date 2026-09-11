@@ -67,7 +67,13 @@ its message (`malformed-query`), an X-Ray `InvalidRequestException`
 (`invalid-request`), a `ResourceNotFoundException` on a log group
 (`not-found`, the account id it embeds scrubbed), a missing right
 (`rights`), a throttle (`throttled`), a command the CLI refuses with
-exit 252 (`usage`). Each invocation below is copy-pasteable - `<Skills>` is
+exit 252 (`usage`), a call past the CLI's own timeout (`timeout`), a
+binary that is not there (`missing`), and a Logs Insights query that
+ended `Failed`, `Timeout` or `Cancelled` (`query-failed`,
+`query-timeout`, `query-stopped`). Exercised live 2026-09-11: a missing
+group, a missing profile, a malformed query, a 25 h X-Ray range refused
+before the call; the others are classified from the CLI's documented
+messages and **unverified 2026-09-11**. Each invocation below is copy-pasteable - `<Skills>` is
 the `skills` line the preflight handoff carries (the `package-layout`
 skill's `scripts/layout.py`) - and states the script's **whole** flag
 surface: `--help` has nothing to add and the files have nothing to read.
@@ -91,9 +97,11 @@ call ran (an empty answer is a result), 1 that a call failed - **the
 failure is in the output**, under `FAILED` with its classification -, 2
 a usage error, 3 (context only) a persisted value that does not resolve.
 **Every subcommand ends by printing the `aws` commands it ran** -
-`queries run (record these):` - with the targeting values **replaced by
-their field names in angle brackets** (`--profile <profile> --region
-<region>`, `--log-group-name <log_group>`, `--group-name <xray>`, the
+`queries run (record these):`, the header saying how many calls when
+exact repeats were folded (the `--json` list stays whole) - with the
+targeting values **replaced by their field names in angle brackets**
+(`--profile <profile> --region <region>`, `--log-group-name
+<log_group>`, `--namespace <namespace>`, `--group-name <xray>`, the
 queries file as `file://<queries.json>`), so the lines go into a
 committed report as printed. The scripts run their independent calls
 **concurrently** against one SSO profile - verified 2026-09-11,
@@ -135,9 +143,10 @@ run composes nothing for it. Output: `logs` - the group resolved
 count - the `max(@timestamp)` probe, never a stream's
 `lastEventTimestamp`), `by_service_severity` (rows per
 `resource.service.name` and `severity_number` with the OTel severity
-range), `environment` (one row per service, `deployment.environment.name`
-falling back to `deployment.environment`, `service.version`,
-`service.instance.id`); `metrics` - the group resolved, `namespaces`
+range), `services` (the names seen), `environment` (one row per service,
+`deployment.environment.name` falling back to `deployment.environment`,
+`service.version`, `service.instance.id`); `metrics` - the group
+resolved, `namespaces`
 (from the records' `_aws.CloudWatchMetrics.0.Namespace`, with count and
 newest), `resource_fields` (how many EMF records carry
 `resource.service.name` / `resource.service.instance.id` - the guard the
@@ -155,7 +164,8 @@ from `deployment.environment.name`, the EMF records carried no resource
 field (0 of 420), one namespace with seven metric names, nine graph
 nodes; the `deployment.environment` fallback and an account with a
 profiling group are unverified 2026-09-11 (no record carries the old
-key, no group exists). Runs its five queries and four calls side by side.
+key, no group exists). Runs its five queries and four calls side by
+side, then one `list-metrics` per namespace.
 
 ### Traces
 
@@ -197,7 +207,11 @@ UUID-like segments folded to `{id}` - a client-side stand-in, the true
 `partial` (summaries with `IsPartial` or no `Http` block - a root not
 yet indexed - counted apart), `exemplars.slowest` and
 `exemplars.failed` (ids with start, operation, status, duration,
-flags), the three notes on whose span `Duration` is. Output of `trace`:
+flags), `traces_of_services`, `traces_of_identity` and
+`warmup_excluded` (the counts the table was cut to),
+`traces_processed_count_per_page` (what the page header said - never
+the population), `seconds` (the call's), the three notes on whose span
+`Duration` is. Output of `trace`:
 per id `duration_s`, `segments`, `tree` - each node `name`, `kind`
 (`segment`, `subsegment`, `inferred`), `start`, `ms`, `method`, `url`,
 `status`, `error`/`fault`/`throttle`, `metadata` (the flat dotted
@@ -264,22 +278,24 @@ through a JSON file), `--stat` (repeatable; default `SampleCount`,
 multiple of 60, default 60), `--show` (points per stat, the newest,
 default 10), a window, `--json`. Output of `list`: per metric name the
 `series` count, the `full_dimension_set`, the `dimension_sets` with
-their series counts. Output of `probe`: `shape` (`statset` or `scalar`,
-with the record counts), `dimensions`, `qualified_by_instance` (the
+their series counts. Output of `probe`: `shape` (`statset`, `scalar`, or
+`absent` with a note, with the record counts), `dimensions`, `qualified_by_instance` (the
 `ispresent()` guard: whether the records carry
 `resource.service.instance.id` - when they do not, the output says a
 restart shows as `reset_suspected` only), and per series (the full
 dimension set, plus the instance id when carried) and per field
 (`.Count` and `.Sum` for a statistic set) `pushes`, `min`, `earliest`,
-`latest`, `max`, `sum`, `temporality` - `cumulative` when `min ==
-earliest`, `max == latest` and the level at the window's start is at
-least the window's increment (the magnitude), `delta` when the pushes
-fell inside the window, `ambiguous` when monotonic but the level too
-low (a process started inside the window, or a delta series that
-happened to rise - both readings printed), `flat` when unchanged -,
-`edge_diff`, `reset_suspected` (a cumulative series whose `max - min`
-differs from `latest - earliest` decreased inside the window: a
-restart). Output of `window`: one row per full dimension set with
+`latest`, `max`, `sum`, `temporality` - read off the pushes in time order (a second
+query per field lists them): `cumulative` when the series never
+decreases and the level at the window's start is at least the window's
+increment (the magnitude), `delta` when it decreases the way a per-push
+counter does, `ambiguous` when monotonic but the level too low (a
+process started inside the window, or a delta series that happened to
+rise - both readings printed), `flat` when unchanged -, `edge_diff`,
+`reset_suspected` (a cumulative series that dropped to near zero once
+and rose again: a process restart - the edge diff is then the per-epoch
+deltas summed across the restart, the value after the drop counting
+from zero, never the bare `latest - earliest`). Output of `window`: one row per full dimension set with
 `temporality`, `pushes` and, for a statistic set, `count` (the edge
 diff of `.Count` on a cumulative series, its sum on a delta one), `sum`
 (seconds, the same way) and `mean`; for a scalar, `value` (the edge
@@ -334,19 +350,21 @@ saying when more exist), `--stream-prefix`. `routes`: `--service`,
 `method`, `path`, `status`, then the path into `route` (the first
 segment) and `tail` (a trailing segment after a folded id:
 `/orders/{n}/checkout` reads as route `/orders`, tail `/checkout`),
-then `stats count() by method, route, tail, status`. `query`: the CWLI
-string, `--log-group` repeatable and `--metrics-log-group` (optional:
-the EMF group joins the query, masked by its own field name), `--show`
+then `stats count() by method, route, tail, status`. `query`: the CWLI string, `--log-group` repeatable (a second and third
+group print as `<log_group_2>`, `<log_group_3>`) and
+`--metrics-log-group` (optional: the EMF group joins the query, masked
+by its own field name), `--show`
 (rows printed, default 50), `--cap` (the poll's bound, seconds, default
 120) - the one escape hatch, through the same transport (the window
 converted, the poll bounded, a `MalformedQueryException` classified
 with its message). Output: `count` - rows with `resource.service.name`,
-`severity_number`, `severity` (the OTel range), `n`, `last`, and
-`total`; `sample` - `records` with `@timestamp`, service, severity,
+`severity_number`, `severity` (the OTel range), `n`, `last` (and `bin`
+with `--bin`), and `total`; `sample` - `records` with `@timestamp`, service, severity,
 `body`, `trace_id`, `span_id`, `scope.name`; `filter` - `events`
 (`timestamp`, `stream`, `message`), `truncated`; `routes` - `rows` by
-`method`, `route`, `tail`, `status`, `n`, and `not_access_lines` (the
-records with no method parsed - the application's own lines); `query` -
+`method`, `route`, `tail`, `status`, `n` (and `bin` with `--bin`), and
+`not_access_lines` (the records with no method parsed - the
+application's own lines); `query` -
 `status`, `rows` (every field the query returned; `@ptr` dropped),
 `rows_total`, `statistics` (records scanned and matched, bytes).
 Verified 2026-09-11: `count` (1 698 records: INFO and WARN), `count
@@ -412,9 +430,12 @@ report's stack-friction section.
   `fields` (`MalformedQueryException: Ephemeral field is already
   defined`).
 - Grouping by an absent field errors nowhere: every record lands in one
-  null group - `ispresent()` first (the scripts do).
-- `@log` in a result carries the account id as its prefix: never copied
-  into a report.
+  null group - `ispresent()` first on a field a count depends on (the
+  scripts guard the metric field and the resource fields; a grouping
+  dimension's null group is a series of its own, and stays).
+- `@log` in a result carries the account id as its prefix: `sample` and
+  `query` drop `@ptr` and reduce `@log` to the group's name; a
+  hand-composed call copies neither into a report.
 - A Logs Insights query is bounded by its own poll, never by an external
   `timeout` wrapper (`timeout(1)` is absent on macOS).
 - `-o` is not accepted as the short form of `--output`; `--extended-statistics`
@@ -659,12 +680,11 @@ the configuration.
 - `metrics_log_group` - same listing; ask the user which group (if any)
   the account's metrics exporter writes EMF records to, distinctly from
   the application-logs group. A raw EMF record has an
-  `_aws.CloudWatchMetrics` key at the top level - `cloudwatch-logs.py
-  filter --log-group <candidate> --pattern '{ $._aws.CloudWatchMetrics[0].Namespace = "*" }'
-  --limit 1 --since 15m` on a candidate confirms it is the metrics
-  source (verified 2026-09-11: one event on the EMF group, none on the
-  application group; the group given to `--log-group` prints as
-  `<log_group>` whichever it is).
+  `_aws.CloudWatchMetrics` key at the top level -
+  `aws logs filter-log-events --profile <profile> --region <region> --log-group-name <candidate> --filter-pattern '{ $._aws.CloudWatchMetrics[0].Namespace = "*" }' --limit 1 --start-time <epoch ms, 15 minutes ago> --end-time <epoch ms, now> --output json`
+  on a candidate confirms it is the metrics source: one event or more,
+  it is (verified 2026-09-11: one on the EMF group, none on the
+  application group).
 - `xray` - `aws xray get-groups --profile <profile> --region <region>
   --output json` lists the groups (`Groups[].GroupName`; `Default`
   always exists - verified 2026-09-11 as the only one on the account).

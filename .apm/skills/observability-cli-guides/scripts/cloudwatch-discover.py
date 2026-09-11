@@ -220,6 +220,10 @@ def probe(ns, frm, to) -> dict:
             else "the EMF records carry resource.service.instance.id: the edge diff groups by it"
         )
     wanted = ns.namespace or [n["namespace"] for n in met["namespaces"]]
+    for n in wanted:
+        register_targets(
+            namespace=n
+        )  # a discovered namespace names the company as often as a persisted one
     met["by_namespace"] = []
     if wanted:
         lm = run_many(
@@ -435,6 +439,7 @@ def main() -> int:
         log_group=ns.log_group,
         metrics_log_group=ns.metrics_log_group,
         xray=ns.xray_group,
+        namespace=(ns.namespace[0] if ns.namespace else None),
     )
     frm, to = resolve_window(ns)
     xray_range(frm, to)

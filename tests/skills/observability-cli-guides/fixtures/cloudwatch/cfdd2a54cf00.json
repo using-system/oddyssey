@@ -1,0 +1,23 @@
+{
+ "args": [
+  "logs",
+  "start-query",
+  "--log-group-name",
+  "/contoso/metrics",
+  "--start-time",
+  "1789132294",
+  "--end-time",
+  "1789132894",
+  "--query-string",
+  "filter ispresent(`http.server.request.duration.Sum`) | fields @timestamp, `http.server.request.duration.Sum` as v, OTelLib, `error.type`, `http.request.method`, `http.response.status_code`, `http.route`, `network.protocol.version`, `url.scheme` | sort @timestamp asc | limit 10000",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\"queryId\": \"cfdd2a54-cf00-0000-0000-000000000000\"}\n",
+ "stderr": ""
+}

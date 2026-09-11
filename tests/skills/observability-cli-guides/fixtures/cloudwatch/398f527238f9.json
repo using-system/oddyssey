@@ -1,0 +1,18 @@
+{
+ "args": [
+  "logs",
+  "get-query-results",
+  "--query-id",
+  "94210cc7-c59c-0000-0000-000000000000",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"status\": \"Complete\",\n  \"results\": [\n    [\n      {\n        \"field\": \"product.id\",\n        \"value\": \"1\"\n      },\n      {\n        \"field\": \"mn\",\n        \"value\": \"5\"\n      },\n      {\n        \"field\": \"mx\",\n        \"value\": \"180\"\n      },\n      {\n        \"field\": \"first\",\n        \"value\": \"100\"\n      },\n      {\n        \"field\": \"last\",\n        \"value\": \"30\"\n      },\n      {\n        \"field\": \"total\",\n        \"value\": \"597\"\n      },\n      {\n        \"field\": \"n\",\n        \"value\": \"7\"\n      }\n    ],\n    [\n      {\n        \"field\": \"product.id\",\n        \"value\": \"2\"\n      },\n      {\n        \"field\": \"mn\",\n        \"value\": \"9\"\n      },\n      {\n        \"field\": \"mx\",\n        \"value\": \"20\"\n      },\n      {\n        \"field\": \"first\",\n        \"value\": \"10\"\n      },\n      {\n        \"field\": \"last\",\n        \"value\": \"20\"\n      },\n      {\n        \"field\": \"total\",\n        \"value\": \"52\"\n      },\n      {\n        \"field\": \"n\",\n        \"value\": \"4\"\n      }\n    ]\n  ],\n  \"statistics\": {\n    \"recordsMatched\": 2,\n    \"recordsScanned\": 100.0,\n    \"bytesScanned\": 1000.0\n  }\n}\n",
+ "stderr": "",
+ "synthetic": "crafted"
+}

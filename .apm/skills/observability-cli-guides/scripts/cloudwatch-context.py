@@ -225,6 +225,7 @@ def cmd_landing(ns) -> tuple[int, dict]:
         "newest": None,
         "metrics_log_group": None,
         "commands": [],
+        "failed": [],
         "notes": [
             "logs: proven when the newest record reaches --until (the Logs Insights max(@timestamp) probe, never a stream's lastEventTimestamp)",
             "metrics: the probe on the EMF group is a lower bound only - the metric read itself (cloudwatch-metrics.py window/series answering datapoints) is the proof",

@@ -1,0 +1,18 @@
+{
+ "args": [
+  "logs",
+  "get-query-results",
+  "--query-id",
+  "35351cf0-2bfa-0000-0000-000000000000",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"status\": \"Complete\",\n  \"results\": [\n    [\n      {\n        \"field\": \"statset\",\n        \"value\": \"0\"\n      },\n      {\n        \"field\": \"scalar\",\n        \"value\": \"11\"\n      },\n      {\n        \"field\": \"with_service\",\n        \"value\": \"0\"\n      },\n      {\n        \"field\": \"with_instance\",\n        \"value\": \"0\"\n      },\n      {\n        \"field\": \"n\",\n        \"value\": \"40\"\n      }\n    ]\n  ],\n  \"statistics\": {\n    \"recordsMatched\": 1,\n    \"recordsScanned\": 100.0,\n    \"bytesScanned\": 1000.0\n  }\n}\n",
+ "stderr": "",
+ "synthetic": "crafted"
+}

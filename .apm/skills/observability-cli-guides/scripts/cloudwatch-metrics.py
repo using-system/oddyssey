@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import itertools
 import os
 import re
 import sys
@@ -139,10 +140,6 @@ def render_list(o: dict) -> str:
 def dimension_set(ns, metric: str, results: list) -> list[str]:
     if ns.by:
         return list(dict.fromkeys(ns.by))
-    if not ns.namespace:
-        usage(
-            "give --by <dimension> (repeatable) or --namespace <namespace> so the full dimension set can be read off list-metrics"
-        )
     r = run_aws(
         [
             "cloudwatch",
@@ -188,38 +185,49 @@ def shape_of(ns, metric: str, frm, to, results: list) -> tuple[str, dict]:
     return "absent", facts
 
 
-def close(a, b) -> bool:
-    """Equal within what Logs Insights prints: min()/max() are rounded to 4 decimals, earliest()/latest() are not (measured 2026-09-11)."""
-    try:
-        return abs(float(a) - float(b)) <= 1e-4 * max(1.0, abs(float(b)))
-    except (TypeError, ValueError):
-        return False
+def classify_values(vals: list[float]) -> tuple[str, bool, float | None]:
+    """(temporality, reset_suspected, edge_diff) off a series' pushes in time order.
 
-
-def classify_row(row: dict) -> str:
-    mn, mx, first, last, n = (
-        row.get("mn"),
-        row.get("mx"),
-        row.get("first"),
-        row.get("last"),
-        row.get("n", 0),
-    )
-    if None in (mn, mx, first, last):
-        return "undetermined"
-    if n < 2:
-        return "undetermined"
-    if close(mn, first) and close(mx, last):
-        if close(first, last):
-            return "flat"
-        if first >= (
-            last - first
-        ):  # the level at the window's start is at least the window's increment
-            return "cumulative"
-        return "ambiguous"  # monotonic, but a level too small for a process older than the window
-    return "delta"
+    Monotonic non-decreasing: cumulative when the level at the window's start is
+    at least the window's increment, else ambiguous; unchanged: flat. A drop to
+    near zero followed by a rise is a cumulative counter reset by a process
+    restart: cumulative, reset_suspected, and the edge diff is the per-epoch
+    deltas summed across the restart (the value after the drop counts from
+    zero). Any other decrease is a delta series.
+    """
+    if len(vals) < 2:
+        return "undetermined", False, None
+    first, last = vals[0], vals[-1]
+    increases = decreases = 0
+    summed = 0.0
+    running_max = first
+    restart_shaped = True
+    for a, b in itertools.pairwise(vals):
+        if b > a + 1e-4:
+            increases += 1
+            summed += b - a
+        elif b < a - 1e-4:
+            decreases += 1
+            if b > 0.1 * running_max:
+                restart_shaped = False  # a bounce, not a counter back to zero
+            summed += b
+        running_max = max(running_max, b)
+    if decreases == 0:
+        if increases == 0:
+            return "flat", False, 0.0
+        if first >= last - first:
+            return "cumulative", False, last - first
+        return "ambiguous", False, last - first
+    if restart_shaped and decreases <= 2 and increases >= decreases:
+        return "cumulative", True, summed
+    return "delta", False, None
 
 
 def probe_series(ns, metric: str, frm, to, results: list) -> dict:
+    if not ns.by and not ns.namespace:
+        usage(
+            "give --by <dimension> (repeatable) or --namespace <namespace> so the full dimension set can be read off list-metrics"
+        )
     shape, facts = shape_of(ns, metric, frm, to, results)
     out = {
         "metric": metric,
@@ -244,6 +252,9 @@ def probe_series(ns, metric: str, frm, to, results: list) -> dict:
         out["qualified_by_instance"] = True
     else:
         out["qualified_by_instance"] = False
+    group_fields = list(dims) + (
+        ["resource.service.instance.id"] if out["qualified_by_instance"] else []
+    )
     specs = []
     for f in fields:
         c = cw_field(f)
@@ -253,28 +264,36 @@ def probe_series(ns, metric: str, frm, to, results: list) -> dict:
                 f"filter ispresent({c}) | stats min({c}) as mn, max({c}) as mx, earliest({c}) as first, latest({c}) as last, sum({c}) as total, count() as n by {by}",
             )
         )
+        specs.append(
+            (
+                [ns.metrics_log_group],
+                f"filter ispresent({c}) | fields @timestamp, {c} as v, {by} | sort @timestamp asc | limit 10000",
+            )
+        )
     rs = insights_many(specs, frm, to, ns.profile, ns.region)
     results.extend(rs)
     count_kind: dict = {}  # a statistic set's temporality is its .Count's, applied to .Sum
-    for f, r in zip(fields, rs):
+    for i, f in enumerate(fields):
+        r, rv = rs[2 * i], rs[2 * i + 1]
         if not r.ok:
             continue
+        pushes: dict = {}
+        if rv.ok:
+            for row in rv.data or []:
+                key = _dimkey({d: row.get(d) for d in group_fields})
+                pushes.setdefault(key, []).append(float(row.get("v") or 0))
         for row in r.data or []:
-            key = {d: row.get(d) for d in dims}
-            if out["qualified_by_instance"]:
-                key["resource.service.instance.id"] = row.get(
-                    "resource.service.instance.id"
-                )
-            kind = classify_row(row)
+            key = {d: row.get(d) for d in group_fields}
+            kind, reset, edge = classify_values(pushes.get(_dimkey(key), []))
+            if not rv.ok:
+                kind, reset, edge = "undetermined", False, None
             if shape == "statset":
                 if f.endswith(".Count"):
                     count_kind[_dimkey(key)] = kind
                 else:
                     kind = count_kind.get(_dimkey(key), kind)
-            reset = kind == "cumulative" and not close(
-                row.get("mx", 0) - row.get("mn", 0),
-                row.get("last", 0) - row.get("first", 0),
-            )
+                    if kind == "cumulative" and edge is None:
+                        edge = row.get("last", 0) - row.get("first", 0)
             out["series"].append(
                 {
                     "field": f,
@@ -287,9 +306,7 @@ def probe_series(ns, metric: str, frm, to, results: list) -> dict:
                     "sum": row.get("total"),
                     "temporality": kind,
                     "reset_suspected": reset,
-                    "edge_diff": (row.get("last", 0) - row.get("first", 0))
-                    if kind == "cumulative"
-                    else None,
+                    "edge_diff": edge if kind == "cumulative" else None,
                 }
             )
     return out
@@ -349,7 +366,7 @@ def render_probe(o: dict) -> str:
         ],
     )
     out.append(
-        "  cumulative: min == earliest, max == latest and the level at the start >= the window's increment - the window's count is the edge diff (latest - earliest); delta: the window's count is sum; ambiguous: monotonic but too low a level (both readings); flat: unchanged; a gauge is never detected - tell window --as gauge"
+        "  read off the pushes in time order - cumulative: never decreasing and the level at the start >= the window's increment, the window's count is the edge diff (latest - earliest); cumulative RESET?: one drop to near zero then rising (a process restart), the edge diff is the per-epoch deltas summed across it; delta: decreases that are not a reset, the window's count is sum; ambiguous: monotonic but too low a level (both readings); flat: unchanged; a gauge is never detected - tell window --as gauge"
     )
     out += render_failures(o)
     out += render_commands(o)
@@ -443,7 +460,7 @@ def cmd_window(ns) -> dict:
         )
     if any(r.get("reset_suspected") for r in o["rows"]):
         o["notes"].append(
-            "reset_suspected: the series decreased inside the window (a process restart resets a cumulative counter) - the edge diff under-reads; split the window at the restart, or attribute through the log records' instance id"
+            "reset_suspected: the series dropped to near zero inside the window (a process restart resets a cumulative counter) - the count is the per-epoch deltas summed across the restart, the value after the drop counting from zero"
         )
     if p["shape"] == "statset":
         o["notes"].append(
@@ -638,7 +655,10 @@ def main() -> int:
     s.add_argument("--show", type=int, default=10)
     add_window(s)
     ns = ap.parse_args()
-    register_targets(metrics_log_group=getattr(ns, "metrics_log_group", None))
+    register_targets(
+        metrics_log_group=getattr(ns, "metrics_log_group", None),
+        namespace=getattr(ns, "namespace", None),
+    )
     if ns.cmd == "list":
         o = cmd_list(ns)
         emit(o, ns.json, render_list)

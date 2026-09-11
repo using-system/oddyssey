@@ -1,0 +1,18 @@
+{
+ "args": [
+  "logs",
+  "get-query-results",
+  "--query-id",
+  "bd25363a-9288-0000-0000-000000000000",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"status\": \"Complete\",\n  \"results\": [\n    [\n      {\n        \"field\": \"@timestamp\",\n        \"value\": \"2026-09-11 12:40:00.000\"\n      },\n      {\n        \"field\": \"v\",\n        \"value\": \"100\"\n      },\n      {\n        \"field\": \"product.id\",\n        \"value\": \"1\"\n      }\n    ],\n    [\n      {\n        \"field\": \"@timestamp\",\n        \"value\": \"2026-09-11 12:40:30.000\"\n      },\n      {\n        \"field\": \"v\",\n        \"value\": \"10\"\n      },\n      {\n        \"field\": \"product.id\",\n        \"value\": \"2\"\n      }\n    ],\n    [\n      {\n        \"field\": \"@timestamp\",\n        \"value\": \"2026-09-11 12:41:00.000\"\n      },\n      {\n        \"field\": \"v\",\n        \"value\": \"120\"\n      },\n      {\n        \"field\": \"product.id\",\n        \"value\": \"1\"\n      }\n    ],\n    [\n      {\n        \"field\": \"@timestamp\",\n        \"value\": \"2026-09-11 12:41:30.000\"\n      },\n      {\n        \"field\": \"v\",\n        \"value\": \"13\"\n      },\n      {\n        \"field\": \"product.id\",\n        \"value\": \"2\"\n      }\n    ],\n    [\n      {\n        \"field\": \"@timestamp\",\n        \"value\": \"2026-09-11 12:42:00.000\"\n      },\n      {\n        \"field\": \"v\",\n        \"value\": \"150\"\n      },\n      {\n        \"field\": \"product.id\",\n        \"value\": \"1\"\n      }\n    ],\n    [\n      {\n        \"field\": \"@timestamp\",\n        \"value\": \"2026-09-11 12:42:30.000\"\n      },\n      {\n        \"field\": \"v\",\n        \"value\": \"9\"\n      },\n      {\n        \"field\": \"product.id\",\n        \"value\": \"2\"\n      }\n    ],\n    [\n      {\n        \"field\": \"@timestamp\",\n        \"value\": \"2026-09-11 12:43:00.000\"\n      },\n      {\n        \"field\": \"v\",\n        \"value\": \"180\"\n      },\n      {\n        \"field\": \"product.id\",\n        \"value\": \"1\"\n      }\n    ],\n    [\n      {\n        \"field\": \"@timestamp\",\n        \"value\": \"2026-09-11 12:43:30.000\"\n      },\n      {\n        \"field\": \"v\",\n        \"value\": \"20\"\n      },\n      {\n        \"field\": \"product.id\",\n        \"value\": \"2\"\n      }\n    ],\n    [\n      {\n        \"field\": \"@timestamp\",\n        \"value\": \"2026-09-11 12:44:00.000\"\n      },\n      {\n        \"field\": \"v\",\n        \"value\": \"5\"\n      },\n      {\n        \"field\": \"product.id\",\n        \"value\": \"1\"\n      }\n    ],\n    [\n      {\n        \"field\": \"@timestamp\",\n        \"value\": \"2026-09-11 12:45:00.000\"\n      },\n      {\n        \"field\": \"v\",\n        \"value\": \"12\"\n      },\n      {\n        \"field\": \"product.id\",\n        \"value\": \"1\"\n      }\n    ],\n    [\n      {\n        \"field\": \"@timestamp\",\n        \"value\": \"2026-09-11 12:46:00.000\"\n      },\n      {\n        \"field\": \"v\",\n        \"value\": \"30\"\n      },\n      {\n        \"field\": \"product.id\",\n        \"value\": \"1\"\n      }\n    ]\n  ],\n  \"statistics\": {\n    \"recordsMatched\": 11,\n    \"recordsScanned\": 100.0,\n    \"bytesScanned\": 1000.0\n  }\n}\n",
+ "stderr": "",
+ "synthetic": "crafted"
+}

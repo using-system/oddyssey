@@ -48,6 +48,7 @@ Only the standard library is used, so the scripts run wherever python3 does.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import subprocess
@@ -73,8 +74,10 @@ _VALUE_MASKS: dict[str, str] = {}
 def register_targets(**values: str | None) -> None:
     """Register field=value pairs so the value is masked as <field> in printed commands."""
     for name, value in values.items():
-        if value:
-            _VALUE_MASKS[value] = f"<{name}>"
+        if value and value not in _VALUE_MASKS:
+            _VALUE_MASKS[value] = (
+                f"<{name}>"  # the first field registered names a shared value
+            )
 
 
 @dataclass
@@ -528,7 +531,7 @@ def percentiles(values: list[float], ps=(50, 95, 99)) -> dict:
     xs = sorted(values)
     out = {}
     for p in ps:
-        k = max(1, round(p / 100 * len(xs) + 0.5))
+        k = max(1, math.ceil(p / 100 * len(xs)))
         out[f"p{p}"] = xs[min(k, len(xs)) - 1]
     return out
 

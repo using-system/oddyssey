@@ -3,13 +3,13 @@
   "logs",
   "start-query",
   "--log-group-name",
-  "/contoso/logs",
+  "/contoso/metrics",
   "--start-time",
   "1789132294",
   "--end-time",
   "1789132894",
   "--query-string",
-  "stats count() as n, max(@timestamp) as last by bin(5m), `resource.service.name`, severity_number",
+  "filter ispresent(`orders.created`) | fields @timestamp, `orders.created` as v, `product.id`, OTelLib | sort @timestamp asc | limit 10000",
   "--profile",
   "contoso",
   "--region",
@@ -18,6 +18,6 @@
   "json"
  ],
  "code": 0,
- "stdout": "{\"queryId\": \"26618cbf-939e-0000-0000-000000000000\"}\n",
+ "stdout": "{\"queryId\": \"cfa1f911-d672-0000-0000-000000000000\"}\n",
  "stderr": ""
 }

@@ -12,6 +12,6 @@
   "json"
  ],
  "code": 0,
- "stdout": "{\n    \"queryLanguage\": \"CWLI\",\n    \"results\": [\n        [\n            {\n                \"field\": \"newest\",\n                \"value\": \"2026-09-11 12:53:00.032\"\n            },\n            {\n                \"field\": \"n\",\n                \"value\": \"476\"\n            }\n        ]\n    ],\n    \"statistics\": {\n        \"recordsMatched\": 476.0,\n        \"recordsScanned\": 497.0,\n        \"estimatedRecordsSkipped\": 0.0,\n        \"bytesScanned\": 390062.0,\n        \"estimatedBytesSkipped\": 0.0,\n        \"logGroupsScanned\": 1.0,\n        \"resultCount\": 1.0\n    },\n    \"status\": \"Complete\"\n}\n",
+ "stdout": "{\n    \"queryLanguage\": \"CWLI\",\n    \"results\": [\n        [\n            {\n                \"field\": \"newest\",\n                \"value\": \"2026-09-11 13:21:00.139\"\n            },\n            {\n                \"field\": \"n\",\n                \"value\": \"476\"\n            }\n        ]\n    ],\n    \"statistics\": {\n        \"recordsMatched\": 476.0,\n        \"recordsScanned\": 476.0,\n        \"estimatedRecordsSkipped\": 0.0,\n        \"bytesScanned\": 369713.0,\n        \"estimatedBytesSkipped\": 0.0,\n        \"logGroupsScanned\": 1.0,\n        \"resultCount\": 1.0\n    },\n    \"status\": \"Complete\"\n}\n",
  "stderr": ""
 }
