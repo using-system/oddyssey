@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import pwd
 import re
 import signal
 import subprocess
@@ -43,8 +44,9 @@ from pathlib import Path
 
 CLIS = ("opencode", "claude", "copilot")
 HOME = Path.home()
+# claude keeps its transcripts under the account's home whatever HOME says
+HOMES = list(dict.fromkeys([HOME, Path(pwd.getpwuid(os.getuid()).pw_dir)]))
 OPENCODE_LOG = HOME / ".local/share/opencode/log/opencode.log"
-CLAUDE_PROJECTS = HOME / ".claude/projects"
 COPILOT_SESSIONS = HOME / ".copilot/session-state"
 POLL = 2
 # the variables a Claude Code session exports into its shells: a nested
@@ -75,10 +77,15 @@ def cli_model(cli: str, model: str) -> str:
     return name  # copilot: the bare name its model picker lists
 
 
-def claude_project_dir(cwd: Path) -> Path:
-    """Where Claude Code keeps a directory's transcripts: the path with
-    every ``/`` turned into ``-``."""
-    return CLAUDE_PROJECTS / str(cwd.resolve()).replace("/", "-")
+def claude_transcripts(session: str) -> list[Path]:
+    """The root transcript and the subagents' beside it, wherever Claude
+    Code keyed the directory (its encoding of the path is its own)."""
+    for home in HOMES:
+        for root in sorted((home / ".claude/projects").glob(f"*/{session}.jsonl")):
+            return [root] + sorted(
+                (root.parent / session / "subagents").glob("agent-*.jsonl")
+            )
+    return []
 
 
 def k6_driving() -> bool:
@@ -134,7 +141,7 @@ def find_opencode_run_id(model: str, since: float) -> str | None:
     return found
 
 
-def run_lines(cli: str, run_id: str | None, cwd: Path) -> list[str]:
+def run_lines(cli: str, run_id: str | None) -> list[str]:
     """Every line this run has written so far - opencode's log filtered to
     its id, claude's transcripts (root and subagents), copilot's events."""
     if not run_id:
@@ -145,10 +152,7 @@ def run_lines(cli: str, run_id: str | None, cwd: Path) -> list[str]:
         with OPENCODE_LOG.open(errors="replace") as handle:
             return [ln for ln in handle if f"run={run_id}" in ln]
     if cli == "claude":
-        project = claude_project_dir(cwd)
-        files = [project / f"{run_id}.jsonl"] + sorted(
-            (project / run_id / "subagents").glob("agent-*.jsonl")
-        )
+        files = claude_transcripts(run_id)
     else:
         files = [COPILOT_SESSIONS / run_id / "events.jsonl"]
     lines: list[str] = []
@@ -359,13 +363,22 @@ def main() -> int:
         if run_id is None and args.cli == "opencode":
             # the log names the model in its canonical form (modelID=...)
             run_id = find_opencode_run_id(args.model, started_at)
-        lines = run_lines(args.cli, run_id, cwd)
-        if proc.poll() is not None:
-            reached = args.phase in ("observation", "whole")
-            note = "the run exited" + ("" if reached else " before the phase closed")
-            break
+        lines = run_lines(args.cli, run_id)
         if run_id and run_errored(args.cli, lines, stderr):
             note = "the run logged an error - the number would be meaningless"
+            break
+        if proc.poll() is not None:
+            # a run that dies is not a measured phase: an exit status other
+            # than 0, or an error on stderr, fails loudly
+            if proc.returncode != 0:
+                note = f"the run exited with status {proc.returncode}"
+            elif run_errored(args.cli, run_lines(args.cli, run_id), stderr):
+                note = "the run exited after logging an error"
+            else:
+                reached = args.phase in ("observation", "whole")
+                note = "the run exited" + (
+                    "" if reached else " before the phase closed"
+                )
             break
         if phase_reached(args.phase, lines, started_at, args.end_pattern):
             reached = True
@@ -398,6 +411,7 @@ def main() -> int:
         "command": command,
         "command_form": form,
         "stdout": str(out / f"{args.tag}.stdout.json"),
+        "usage": str(out / f"{args.tag}.usage.json") if args.cli == "copilot" else None,
     }
     (out / f"{args.tag}.record.json").write_text(json.dumps(record, indent=2))
     print(json.dumps(record, indent=2))

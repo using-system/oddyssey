@@ -270,11 +270,14 @@ on the path). The measurement is the `test-plugin-harnessing` skill's
 procedure, its two scripts drive and analyse a run), on the CLI the
 change is about — opencode, claude or copilot, the three the package
 is benchmarked on — against main measured just before the work with
-the same mission, two samples per side; the PR states the numbers on
-the four axes and names the commands it removed. No degradation is the
-bar: a change that cannot show it is reworked, not argued. A host that
-does not load that skill natively reads its `SKILL.md` as a file and
-runs its scripts the same way. `launch-llms-benchmark`
+the same mission, two samples per side; the PR states the four axes —
+turns, tokens, cost, wall clock — per phase. The bar depends on why
+the change was made: a change made *for* the harness owes a
+substantial gain (the skill's judging rules say what counts); a change
+on the path made for another reason owes no degradation. A change that
+cannot show its bar is reworked, not argued. A host that does not load
+that skill natively reads its `SKILL.md` as a file and runs its scripts
+the same way. `launch-llms-benchmark`
 (`.claude/commands/`) is the kit's other half, the one that grades a
 model's findings; it is never a substitute for this measurement.
 
@@ -365,11 +368,15 @@ authored and adapted the way a custom one is**: through
 `/odd-instrument-stack` and the `stack-instrumentation-expert` agent —
 the one that carries the harnessing rules for a stack and knows how to
 build its query surface as scripts, verified live — as a custom stack
-under `.odd/observability-stacks/<name>/` first, then migrated into
-the `observability-cli-guides` reference and its `scripts/`, with the
-tests a built-in stack must carry (fake CLIs replaying captured, masked
-fixtures under `tests/skills/`). Editing a built-in reference or its
-scripts by hand, without that agent, skips the harnessing it enforces.
+under `.odd/observability-stacks/<working name>/` first, under a
+working name that is not the `STACKS` value (the checker refuses a
+built-in's name), then migrated by hand into the
+`observability-cli-guides` reference and its `scripts/`, with the tests
+a built-in stack must carry (fake CLIs replaying captured, masked
+fixtures under `tests/skills/`). What the agent owns is authoring and
+live-verifying the query surface, never the built-in file; a built-in
+reference or script written by hand from scratch, without that pass,
+skips the harnessing the agent enforces.
 **Non-negotiable**: every such change
 must be verified live, through the backend's own CLI, against a real
 account carrying real data — not from documentation, memory, or a

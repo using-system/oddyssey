@@ -132,9 +132,10 @@ the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
    records the run's own id at launch — opencode's from its log, the
    session id it generated for claude and copilot — stops at the
    phase's marker, and exits non-zero rather than return a fast wrong
-   number when the phase never closed. The record names the CLI, the
-   model as passed, the id, the directory and the stdout file the
-   analysis needs.
+   number when the phase never closed — a run that exits non-zero, or
+   prints an error, is never a measured phase. The record names the
+   CLI, the model as passed, the id, the directory, the stdout stream
+   and copilot's usage file, which the analysis reads.
 
 5. **Analyse before concluding**, with `scripts/analyze_run.py`:
 
@@ -176,18 +177,26 @@ as the runs that follow — never the published row alone, never a number
 taken on another day. State it on four axes at once: turns, tokens
 (input with the cached share, output), cost and wall clock — per phase,
 since the report phase is a tenth of a run and a change there vanishes
-in the investigation's spread. The tokens and the cost come from the
-CLI's own session store, read the way `launch-llms-benchmark` step 7
-reads them. When a number looks like variance, replay rather than
-argue: two samples of the same configuration settle what one cannot.
+in the investigation's spread. The analysis prints the tokens and the
+cost the CLI states for a stopped run — opencode's store carries both
+for the session tree; claude's transcripts carry the tokens per request
+and the cost only in the result the run prints at exit; copilot writes
+its usage file at exit and bills no dollars — so a phase stopped at its
+marker states what it can, `null` and why otherwise, and a run left to
+finish (`--keep-running`, a `whole` phase) is read the way
+`launch-llms-benchmark` step 7 reads it. When a number looks like
+variance, replay rather than argue: two samples of the same
+configuration settle what one cannot.
 
-**A change goes to review only with a substantial gain on those axes
-against that baseline** — not a conformant output alone, not a
-behaviour count alone. A change that moved the target phase and left
-the totals level, or worse, is reworked, not argued: find where the
-turns and the context went (per-phase accounting, the reads of every
-file the change touched, the calls the new invocation caused), fix the
-cause, and measure again.
+**A harnessing change goes to review only with a substantial gain on
+those axes against that baseline** — not a conformant output alone,
+not a behaviour count alone. A change that moved the target phase and
+left the totals level, or worse, is reworked, not argued: find where
+the turns and the context went (per-phase accounting, the reads of
+every file the change touched, the calls the new invocation caused),
+fix the cause, and measure again. A change on the path made for
+another reason (a fix, a feature) owes no degradation on those axes,
+not a gain — `AGENTS.md` states the split.
 
 **Under review, measure once, at the end.** The fix waves a reviewer
 asks for are not measured one by one: apply them, run the suites, and

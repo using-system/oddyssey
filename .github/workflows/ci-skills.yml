@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".apm/skills/**/scripts/**"
+      - ".claude/skills/**/scripts/**"
       - "tests/skills/**"
       - ".github/workflows/ci-skills.yml"
 
@@ -27,9 +28,9 @@ jobs:
         with:
           cache-suffix: ci-skills-lint
       - name: Ruff lint
-        run: uvx ruff@"$RUFF_VERSION" check .apm/skills/*/scripts tests/skills
+        run: uvx ruff@"$RUFF_VERSION" check .apm/skills/*/scripts .claude/skills/*/scripts tests/skills
       - name: Ruff format check
-        run: uvx ruff@"$RUFF_VERSION" format --check .apm/skills/*/scripts tests/skills
+        run: uvx ruff@"$RUFF_VERSION" format --check .apm/skills/*/scripts .claude/skills/*/scripts tests/skills
 
   unit-tests:
     # A skill script runs on whatever python3 the user has: test the
