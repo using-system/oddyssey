@@ -68,11 +68,14 @@ class Repo:
         if remote:
             self.git("remote", "add", "origin", remote)
 
-    def git(self, *args: str) -> str:
+    def git(self, *args: str, date: str | None = None) -> str:
+        env = {**os.environ, **GIT_ENV}
+        if date:
+            env["GIT_AUTHOR_DATE"] = env["GIT_COMMITTER_DATE"] = date
         return subprocess.run(
             ["git", "-c", "commit.gpgsign=false", *args],
             cwd=self.root,
-            env={**os.environ, **GIT_ENV},
+            env=env,
             check=True,
             capture_output=True,
             text=True,
@@ -87,9 +90,9 @@ class Repo:
     def read(self, rel: str) -> str:
         return (self.root / rel).read_text(encoding="utf-8")
 
-    def commit(self, message: str) -> str:
+    def commit(self, message: str, date: str | None = None) -> str:
         self.git("add", "-A")
-        self.git("commit", "-q", "-m", message)
+        self.git("commit", "-q", "-m", message, date=date)
         return self.git("rev-parse", "--short", "HEAD")
 
 
@@ -1506,3 +1509,485 @@ def test_check_refuses_a_summary_without_the_implementation_order_line(repo):
     proc = run(repo, "check", str(path))
     assert proc.returncode == 2
     assert "no `Implementation order:` line" in proc.stderr
+
+
+# --- a replay's preflight: baseline and boundary ----------------------------------
+
+
+def anchor_of(repo: Repo) -> str:
+    entries = []
+    for line in repo.git("ls-tree", "HEAD").splitlines():
+        meta, name = line.split("\t", 1)
+        entries.append(f'{name}: "{meta.split()[2]}"')
+    return "{" + ", ".join(entries) + "}"
+
+
+def stored(repo: Repo, name: str, text: str = BASELINE, **fields: str) -> str:
+    """A stored observation report, its frontmatter fields overridden."""
+    for key, value in fields.items():
+        marker = f"\n{key}: "
+        if marker in text:
+            head, _, rest = text.partition(marker)
+            text = head + marker + value + "\n" + rest.split("\n", 1)[1]
+        else:
+            text = text.replace("\n---\n\n# ", f"\n{key}: {value}\n---\n\n# ", 1)
+    repo.write(f"{OBS}/{name}", text)
+    repo.commit(f"docs(odd): observation report {name}")
+    return name
+
+
+def lines_of(proc: subprocess.CompletedProcess) -> dict[str, str]:
+    return dict(
+        line.split(": ", 1) for line in proc.stdout.splitlines() if ": " in line
+    )
+
+
+def test_baseline_resolves_the_newest_report_and_asks_when_the_kinds_span(repo):
+    stored(repo, "2026-08-08-1000-checkout-sweep.md")
+    proc = run(repo, "baseline", "--repo", str(repo.root))
+    assert proc.returncode == 0, proc.stderr
+    got = lines_of(proc)
+    assert got["report"] == f"{OBS}/2026-08-08-1000-checkout-sweep.md"
+    assert got["baseline"].startswith(
+        f"{OBS}/2026-08-08-1000-checkout-sweep.md (observation, the resolved report"
+    )
+    assert got["verifies"] == "2026-08-08-1000-checkout-sweep.md"
+    assert got["services"] == "checkout" and got["stack"] == "local"
+    assert got["mode"] == "drive (the baseline's frontmatter)"
+    assert got["depth"] == "full (the baseline's depth field)"
+    assert got["drive confirmation"] == "not needed (local stack, no recorded target)"
+    # an instrumentation report lands: the newest reports span both kinds
+    repo.write(
+        f"{INS}/2026-08-09-1000-app-python.md",
+        "---\nproject: myrepo/src\nstack: local\nrun_name: app-python\n"
+        "date: 2026-08-09\n---\n\n# Instrumentation report\n\n## 2. Summary table\n\n"
+        "| Service | Approach |\n|---|---|\n| orders | zero-code |\n",
+    )
+    repo.commit("docs(odd): instrumentation investigation app-python")
+    proc = run(repo, "baseline", "--repo", str(repo.root))
+    assert proc.returncode == 3
+    assert proc.stdout.startswith("ask: which report is being verified")
+    assert "app-python.md (instrumentation, orders)" in proc.stdout
+    # a service constraint settles it
+    proc = run(repo, "baseline", "--repo", str(repo.root), "--service", "checkout")
+    assert proc.returncode == 0 and "checkout-sweep.md" in lines_of(proc)["report"]
+    proc = run(repo, "baseline", "--repo", str(repo.root), "--service", "orders")
+    got = lines_of(proc)
+    assert proc.returncode == 0, proc.stderr
+    assert got["verifies"] == f"{INS}/2026-08-09-1000-app-python.md"
+    assert got["mode"] == "drive (an instrumentation baseline)"
+    assert got["depth"].startswith("full (an instrumentation baseline")
+    assert got["environment"].startswith("none (an instrumentation report carries no")
+
+
+def test_baseline_takes_a_path_or_enough_of_a_run_name(repo):
+    stored(repo, "2026-08-08-1000-checkout-sweep.md")
+    stored(
+        repo,
+        "2026-08-09-1000-orders-sweep.md",
+        services="[orders]",
+        run_name="orders-sweep",
+    )
+    proc = run(repo, "baseline", "--repo", str(repo.root), "checkout")
+    assert proc.returncode == 0 and "checkout-sweep" in lines_of(proc)["report"]
+    proc = run(
+        repo,
+        "baseline",
+        "--repo",
+        str(repo.root),
+        f"{OBS}/2026-08-08-1000-checkout-sweep.md",
+    )
+    assert proc.returncode == 0 and "checkout-sweep" in lines_of(proc)["report"]
+    proc = run(repo, "baseline", "--repo", str(repo.root), "sweep")
+    assert (
+        proc.returncode == 3
+        and "matches several runs: checkout-sweep, orders-sweep" in proc.stdout
+    )
+    proc = run(repo, "baseline", "--repo", str(repo.root), "payments")
+    assert (
+        proc.returncode == 2
+        and "no stored report is named or matches payments" in proc.stderr
+    )
+    proc = run(repo, "baseline", "--repo", str(repo.root), "--service", "payments")
+    assert (
+        proc.returncode == 2
+        and "no stored report matches services payments" in proc.stderr
+    )
+
+
+def test_baseline_hops_one_verification_and_walks_the_mode_along_the_chain(repo):
+    stored(repo, "2026-08-08-1000-checkout-sweep.md")
+    stored(
+        repo,
+        "2026-08-09-1000-verify-checkout-sweep.md",
+        mode="verify",
+        verifies="2026-08-08-1000-checkout-sweep.md",
+    )
+    stored(
+        repo,
+        "2026-08-10-1000-verify-checkout-sweep.md",
+        mode="verify",
+        verifies="2026-08-09-1000-verify-checkout-sweep.md",
+    )
+    proc = run(repo, "baseline", "--repo", str(repo.root))
+    assert proc.returncode == 0, proc.stderr
+    got = lines_of(proc)
+    assert got["report"].endswith("2026-08-10-1000-verify-checkout-sweep.md")
+    assert got["baseline"] == (
+        f"{OBS}/2026-08-09-1000-verify-checkout-sweep.md (observation, one hop from "
+        "2026-08-10-1000-verify-checkout-sweep.md (verify))"
+    )
+    assert got["verifies"] == "2026-08-09-1000-verify-checkout-sweep.md"
+    assert got["mode"] == "drive (walked 1 hop to 2026-08-08-1000-checkout-sweep.md)"
+    # the carve-out: the verification's own protocol is the baseline
+    proc = run(repo, "baseline", "--repo", str(repo.root), "--own-protocol")
+    got = lines_of(proc)
+    assert got["baseline"].startswith(
+        f"{OBS}/2026-08-10-1000-verify-checkout-sweep.md (observation, the verify's own"
+    )
+    assert got["verifies"] == "2026-08-10-1000-verify-checkout-sweep.md"
+    assert got["mode"] == "drive (walked 2 hops to 2026-08-08-1000-checkout-sweep.md)"
+
+
+def test_baseline_asks_when_the_chain_cannot_answer(repo):
+    stored(repo, "2026-08-09-1000-verify-checkout-sweep.md", mode="verify")
+    proc = run(repo, "baseline", "--repo", str(repo.root))
+    assert proc.returncode == 3
+    assert "no verifies field (a pre-convention report)" in proc.stdout
+    stored(
+        repo,
+        "2026-08-10-1000-verify-checkout-sweep.md",
+        mode="verify",
+        verifies="2026-08-01-1000-gone.md",
+    )
+    proc = run(repo, "baseline", "--repo", str(repo.root))
+    assert proc.returncode == 3 and "no longer stored" in proc.stdout
+    # the baseline exists but the mode walk ends nowhere
+    stored(
+        repo,
+        "2026-08-11-1000-verify-checkout-sweep.md",
+        mode="verify",
+        verifies="2026-08-09-1000-verify-checkout-sweep.md",
+    )
+    proc = run(repo, "baseline", "--repo", str(repo.root))
+    assert proc.returncode == 3
+    assert (
+        "the verifies chain ends at 2026-08-09-1000-verify-checkout-sweep.md"
+        in proc.stdout
+    )
+    assert "say which mode to replay" in proc.stdout
+    proc = run(repo, "baseline", "--repo", str(repo.root), "--own-protocol", "checkout")
+    assert (
+        proc.returncode == 3
+    )  # the own protocol resolves, the mode still walks nowhere
+
+
+def test_baseline_depth_follows_the_field_then_the_defaults_then_the_argument(repo):
+    text = BASELINE.replace("depth: full\n", "")
+    stored(repo, "2026-08-08-1000-checkout-sweep.md", text)
+    proc = run(repo, "baseline", "--repo", str(repo.root))
+    assert lines_of(proc)["depth"].startswith(
+        "quick (the baseline predates the depth field"
+    )
+    proc = run(repo, "baseline", "--repo", str(repo.root), "--depth", "full")
+    assert lines_of(proc)["depth"] == "full (the argument)"
+
+
+def test_baseline_says_when_a_drive_needs_the_users_confirmation(repo):
+    stored(repo, "2026-08-08-1000-checkout-sweep.md", stack="grafana")
+    got = lines_of(run(repo, "baseline", "--repo", str(repo.root)))
+    assert got["drive confirmation"] == "required: the stack grafana is not local"
+    remote = BASELINE.replace(
+        "Scenario: 30 GET /products.",
+        "Scenario: 30 GET /products.\nBase URL: https://api.example.com",
+    )
+    stored(repo, "2026-08-09-1000-checkout-sweep.md", remote)
+    got = lines_of(run(repo, "baseline", "--repo", str(repo.root)))
+    assert got["target"] == "https://api.example.com"
+    assert got["drive confirmation"] == (
+        "required: the recorded target https://api.example.com is not local"
+    )
+    stored(repo, "2026-08-10-1000-checkout-sweep.md", mode="observe")
+    got = lines_of(run(repo, "baseline", "--repo", str(repo.root)))
+    assert got["drive confirmation"] == "not needed (mode observe)"
+
+
+def test_baseline_with_nothing_stored_says_so(repo):
+    proc = run(repo, "baseline", "--repo", str(repo.root))
+    assert proc.returncode == 2 and "nothing to verify" in proc.stderr
+
+
+def ruled(repo: Repo) -> None:
+    """The repository's ruling that src is runtime - the built-in list never
+    settles a directory a service could live in."""
+    repo.write("docs/guide.md", "# guide\n")
+    repo.write(
+        ".odd/entry-classifications.md",
+        "| Date | Entry | Class | Rationale |\n|---|---|---|---|\n"
+        "| 2026-08-01 | src | runtime | the service |\n",
+    )
+    repo.commit("docs(odd): entry classification src runtime")
+
+
+def anchored(
+    repo: Repo, name: str = "2026-08-08-1000-checkout-sweep.md", **fields
+) -> Path:
+    """A baseline whose tree anchor is HEAD's: nothing changed since it."""
+    revision = repo.git("rev-parse", "--short", "HEAD")
+    stored(repo, name, revision=revision, tree_anchor=anchor_of(repo), **fields)
+    return repo.root / OBS / name
+
+
+def test_boundary_is_a_re_measure_when_only_non_runtime_entries_moved(repo):
+    ruled(repo)
+    path = anchored(repo)
+    proc = run(repo, "boundary", "--repo", str(repo.root), str(path))
+    assert proc.returncode == 0, proc.stderr
+    got = lines_of(proc)
+    assert got["boundary"] == "re-measure"
+    assert got["method"].startswith("tree anchor (4 entries) against HEAD")
+    assert got["working tree"] == "clean" and got["persist"] == "--mode re-measure"
+    repo.write("docs/guide.md", "# guide v2\n")
+    repo.write("README.md", "# readme v2\n")
+    repo.commit("docs: guides")
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "re-measure"
+    assert got["non-runtime entries differing (ignored)"] == "README.md, docs"
+
+
+def test_boundary_is_a_verification_when_a_runtime_entry_or_the_tree_changed(repo):
+    ruled(repo)
+    path = anchored(repo)
+    repo.write("src/app.py", "print('v2')\n")
+    repo.commit("fix: v2")
+    proc = run(repo, "boundary", "--repo", str(repo.root), str(path))
+    got = lines_of(proc)
+    assert proc.returncode == 0 and got["boundary"] == "verification"
+    assert got["runtime entries differing"] == "src (1 path: src/app.py)"
+    assert got["persist"] == "--mode verify"
+    # an uncommitted change to a runtime entry is changed code too
+    path = anchored(repo, "2026-08-09-1000-checkout-sweep.md")
+    repo.write("src/app.py", "print('v3')\n")
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "verification"
+    assert got["working tree"] == "dirty: src (runtime: src/app.py)"
+    repo.write("src/app.py", "print('v2')\n")
+    repo.write("README.md", "# dirty\n")
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "re-measure"
+    assert got["working tree"] == "dirty: README.md (non-runtime: README.md)"
+
+
+def test_boundary_is_undecidable_until_an_entry_is_ruled(repo):
+    ruled(repo)
+    repo.write("lib/util.py", "x = 1\n")
+    repo.commit("feat: lib")
+    path = anchored(repo)
+    repo.write("lib/util.py", "x = 2\n")
+    repo.commit("chore: lib")
+    proc = run(repo, "boundary", "--repo", str(repo.root), str(path))
+    assert proc.returncode == 3
+    got = lines_of(proc)
+    assert got["boundary"] == "undecidable"
+    assert got["unclassified entries differing"] == "lib (1 path: lib/util.py)"
+    assert got["persist"].startswith(
+        "undecided: until the unclassified entries are ruled"
+    )
+    got = lines_of(
+        run(
+            repo,
+            "boundary",
+            "--repo",
+            str(repo.root),
+            str(path),
+            "--non-runtime",
+            "lib",
+        )
+    )
+    assert got["boundary"] == "re-measure"
+    got = lines_of(
+        run(repo, "boundary", "--repo", str(repo.root), str(path), "--runtime", "lib")
+    )
+    assert got["boundary"] == "verification"
+    # the ledger's ruling holds without a flag
+    ledger = repo.root / ".odd/entry-classifications.md"
+    ledger.write_text(
+        ledger.read_text() + "| 2026-08-20 | lib | runtime | served code |\n"
+    )
+    repo.commit("docs(odd): entry classification lib runtime")
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "verification"
+    # an entry added since the anchor stays uncertain whatever its ruling
+    path = anchored(repo, "2026-08-09-1000-checkout-sweep.md")
+    repo.write("tools/x.py", "x = 1\n")
+    repo.commit("feat: tools")
+    proc = run(
+        repo, "boundary", "--repo", str(repo.root), str(path), "--non-runtime", "tools"
+    )
+    assert proc.returncode == 3
+    got = lines_of(proc)
+    assert got["unclassified entries differing"] == "none"
+    assert got["entries present on one side only (uncertain)"] == "tools"
+    assert got["persist"] == (
+        "undecided: no ruling settles an entry present on one side only - ask the "
+        "user which of the two the mission is"
+    )
+
+
+def test_boundary_counts_a_change_to_the_benchmark_the_record_names(repo):
+    ruled(repo)
+    repo.write(".odd/benchmarks/checkout-load/manifest.yaml", "name: checkout-load\n")
+    repo.commit("feat(bench): checkout-load")
+    text = BASELINE.replace(
+        "Scenario: 30 GET /products.",
+        "Scenario: .odd/benchmarks/checkout-load replayed.",
+    )
+    path = anchored(repo, text=text)
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "re-measure"
+    assert (
+        got["benchmark"]
+        == ".odd/benchmarks/checkout-load: unchanged since the baseline"
+    )
+    repo.write(
+        ".odd/benchmarks/checkout-load/manifest.yaml", "name: checkout-load\nvus: 5\n"
+    )
+    repo.commit("feat(bench): more vus")
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "verification"
+    assert (
+        got["benchmark"]
+        == ".odd/benchmarks/checkout-load: changed: 1 commit(s) since the baseline"
+    )
+    # an uncommitted change to the benchmark counts too, and never as a
+    # dirty working tree: the loop's memory is left out of that line
+    path = anchored(repo, "2026-08-09-1000-checkout-sweep.md", text=text)
+    repo.write(".odd/benchmarks/checkout-load/script.js", "// edited\n")
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "verification"
+    assert got["working tree"] == "clean"
+    assert got["benchmark"] == (
+        ".odd/benchmarks/checkout-load: changed: 0 commit(s) since the baseline, "
+        "1 uncommitted path(s)"
+    )
+
+
+def test_boundary_falls_back_to_the_tree_at_the_revision_then_to_the_commit_date(repo):
+    ruled(repo)
+    revision = repo.git("rev-parse", "--short", "HEAD")
+    stored(repo, "2026-08-08-1000-checkout-sweep.md", revision=revision)
+    path = repo.root / OBS / "2026-08-08-1000-checkout-sweep.md"
+    repo.write("docs/guide.md", "# v2\n")
+    repo.commit("docs: v2")
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "re-measure"
+    assert got[
+        "method"
+    ] == f"no tree anchor: the tree at {revision} against HEAD " + repo.git(
+        "rev-parse", "--short", "HEAD"
+    )
+    repo.write("src/app.py", "print('v2')\n")
+    repo.commit("fix: v2")
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "verification"
+    # no revision at all: the commits since the report's own commit date -
+    # a second-granular boundary, so the dates are set apart on purpose
+    repo.git("commit", "--amend", "--no-edit", "-q", date="2026-08-20T10:00:00Z")
+    stored(repo, "2026-08-09-1000-checkout-sweep.md")
+    repo.git("commit", "--amend", "--no-edit", "-q", date="2026-08-21T10:00:00Z")
+    path = repo.root / OBS / "2026-08-09-1000-checkout-sweep.md"
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "re-measure"
+    assert got["method"].startswith(
+        "no tree anchor, revision absent unresolvable: the 0 commit(s)"
+    )
+    repo.write("src/app.py", "print('v3')\n")
+    repo.commit("fix: v3", date="2026-08-22T10:00:00Z")
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "verification"
+    assert got["runtime entries differing"].startswith("src (1 commit: ")
+    # the benchmark the record names is counted from the same boundary
+    text = BASELINE.replace(
+        "Scenario: 30 GET /products.",
+        "Scenario: .odd/benchmarks/checkout-load replayed.",
+    )
+    stored(repo, "2026-08-10-1000-checkout-sweep.md", text)
+    repo.git("commit", "--amend", "--no-edit", "-q", date="2026-08-23T10:00:00Z")
+    path = repo.root / OBS / "2026-08-10-1000-checkout-sweep.md"
+    repo.write(".odd/benchmarks/checkout-load/manifest.yaml", "name: checkout-load\n")
+    repo.commit("feat(bench): checkout-load", date="2026-08-24T10:00:00Z")
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "verification"
+    assert got["benchmark"] == (
+        ".odd/benchmarks/checkout-load: changed: 1 commit(s) since the baseline"
+    )
+
+
+def test_boundary_sees_a_rename_leaving_a_runtime_entry(repo):
+    ruled(repo)
+    path = anchored(repo)
+    repo.git("mv", "src/app.py", "docs/app.py")
+    got = lines_of(run(repo, "boundary", "--repo", str(repo.root), str(path)))
+    assert got["boundary"] == "verification"
+    assert got["working tree"] == (
+        "dirty: src (runtime: src/app.py), docs (non-runtime: docs/app.py)"
+    )
+
+
+def test_boundary_asks_when_nothing_fixes_the_boundary(repo):
+    ruled(repo)
+    repo.write(f"{OBS}/2026-08-08-1000-checkout-sweep.md", BASELINE)  # not committed
+    proc = run(
+        repo,
+        "boundary",
+        "--repo",
+        str(repo.root),
+        f"{OBS}/2026-08-08-1000-checkout-sweep.md",
+    )
+    assert proc.returncode == 3
+    assert proc.stdout.startswith(
+        "ask: 2026-08-08-1000-checkout-sweep.md carries no tree anchor, no revision "
+        "and the file is not committed: nothing fixes the boundary"
+    )
+
+
+def test_baseline_treats_a_verification_by_name_as_one(repo):
+    stored(repo, "2026-08-08-1000-checkout-sweep.md")
+    stored(repo, "2026-08-09-1000-verify-checkout-sweep.md")  # mode drive, no verifies
+    proc = run(repo, "baseline", "--repo", str(repo.root))
+    assert proc.returncode == 3
+    assert "is a verify by name with no verifies field" in proc.stdout
+    proc = run(repo, "baseline", "--repo", str(repo.root), "--own-protocol")
+    assert proc.returncode == 0, proc.stderr
+    assert lines_of(proc)["baseline"].endswith(
+        "(observation, the verify by name's own protocol (the carve-out))"
+    )
+
+
+def test_baseline_asks_on_the_newest_day_only_and_takes_a_dotted_path(repo):
+    stored(
+        repo,
+        "2026-08-01-1000-orders-sweep.md",
+        services="[orders]",
+        run_name="orders-sweep",
+    )
+    stored(repo, "2026-08-08-1000-checkout-sweep.md")
+    # an older lineage does not make the newest day ambiguous
+    proc = run(repo, "baseline", "--repo", str(repo.root))
+    assert proc.returncode == 0 and "checkout-sweep" in lines_of(proc)["report"]
+    stored(
+        repo,
+        "2026-08-08-1100-orders-sweep.md",
+        services="[orders]",
+        run_name="orders-sweep",
+    )
+    proc = run(repo, "baseline", "--repo", str(repo.root))
+    assert proc.returncode == 3 and "cover several services" in proc.stdout
+    proc = run(
+        repo,
+        "baseline",
+        "--repo",
+        str(repo.root),
+        f"./{OBS}/2026-08-08-1000-checkout-sweep.md",
+    )
+    assert proc.returncode == 0 and "checkout-sweep" in lines_of(proc)["report"]

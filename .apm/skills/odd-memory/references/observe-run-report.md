@@ -23,6 +23,11 @@ python3 <this skill's directory>/scripts/odd_report.py read <path> [--sections 1
 python3 <this skill's directory>/scripts/odd_report.py persist <path> --body <draft> [--no-commit]
 python3 <this skill's directory>/scripts/odd_report.py synthesis <path>
 python3 <this skill's directory>/scripts/odd_report.py show <path>
+python3 <this skill's directory>/scripts/odd_report.py baseline [--repo <path>] \
+  [<report path | enough of a run name>] [--service <name>]... [--stack <stack>] \
+  [--env <environment>] [--depth <quick|full>] [--own-protocol]
+python3 <this skill's directory>/scripts/odd_report.py boundary [--repo <observed repo>] \
+  <baseline report path> [--runtime <entry>]... [--non-runtime <entry>]...
 ```
 
 That is the whole surface; `--help` adds nothing and the file has
@@ -65,6 +70,8 @@ instrumentation` is the other kind's, stated in its own reference.
   says `not committed` and why.
 - `synthesis` prints the synthesis block of a stored report; `show`
   renders the closing synthesis from it.
+- `baseline` and `boundary` are a replay's preflight, run by the
+  caller before the dispatch — `## Resolving a replay` below.
 
 ## What the run decides
 
@@ -324,6 +331,49 @@ section 2's `### GenAI` heading:
    — the run itself never edits the stack (the `observability-stack`
    reference's rule). Stated once, here, never spliced into section 1
    or 5: a friction is about the stack, a gap is about the service.
+
+## Resolving a replay
+
+What the inputs fix before a verification is dispatched, one command
+each - the caller runs both before the dispatch, puts an `ask:` line
+to the user verbatim (exit 3) and never guesses past it; the mission
+block carries their lines. Exit 0 settled, 2 refused (`nothing to
+verify`, a report it cannot read, a repository it cannot compare).
+
+- `baseline` resolves the report the arguments name - a path under
+  either store, enough of a run name (several runs matching is an
+  `ask:`), or the newest across both stores under `--service`,
+  `--stack` and `--env` (an `ask:` when the newest day's reports cover
+  several services, or when the stores hold both kinds) - then the
+  baseline: the report itself, or, for a verification or a re-measure
+  (by `mode`, or by the filename's prefix on a pre-convention report),
+  the report its `verifies` names, exactly one hop; `--own-protocol`
+  is the carve-out that makes a verification's own protocol the
+  baseline; a `verifies` absent or naming nothing stored is an `ask:`
+  for the original. The mode is the baseline's execution mode, or the
+  first the `verifies` chain reaches - an instrumentation report at
+  its end is `drive`; a chain reaching none is an `ask:` for the mode.
+  The depth: `--depth`, else the baseline's field, else `quick` for an
+  observation baseline that predates it and `full` for an
+  instrumentation one. A drive needs the user's confirmation when the
+  stack or the record's base URL is not local. Its `verifies` line is
+  what the replay's `new --verifies` takes.
+- `boundary <baseline report>` decides **verification or
+  re-measure**: the baseline's `tree_anchor` against `HEAD` of
+  `--repo`, entry by entry; the tree at `revision` when there is no
+  anchor; the commits since the report's own commit date when the
+  revision does not resolve either (an `ask:` when the file is not
+  committed). An entry is classed by `--runtime` / `--non-runtime`
+  for this run, then the latest row of `.odd/entry-classifications.md`
+  (the `decisions` reference), then the built-in non-runtime list;
+  `.odd` is ignored except the benchmark the record names, whose
+  commits and uncommitted paths since the baseline count as a change.
+  `verification`: a runtime entry, an uncommitted change to one, or
+  the benchmark moved; `re-measure`: nothing did; `undecidable` (exit
+  3): an entry no ruling covers - or one present on one side only,
+  which no ruling settles. Its `persist` line is the `--mode` the
+  replay's `new` takes. It reads git; it writes nothing and never
+  rules an entry itself.
 
 ## Recall: reading the memory
 
