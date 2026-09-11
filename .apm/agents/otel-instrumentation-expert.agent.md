@@ -158,8 +158,9 @@ decisions made per service with the GenAI approach as prose under its
 own heading, the decisions the spec must settle, and the verification
 protocol with one replayable check per planned item — its query, its
 expected outcome, its attribution evidence, never a credential. Write
-the filled body to a draft file of your own with your file tool, then
-`persist <path> --body <draft>`: the script checks the draft against
+the filled body to a draft file of your own with your file tool — never
+open, read or edit the report file itself, never rewrite its
+frontmatter — then `persist <path> --body <draft>`: the script checks the draft against
 that contract (a failing draft names what it lacks; fix the draft and
 persist again), commits the file alone on the report's work branch, and
 prints the return value — the stored path, the commit, the headline —

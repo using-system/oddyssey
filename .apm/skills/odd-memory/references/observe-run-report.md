@@ -28,8 +28,8 @@ python3 <this skill's directory>/scripts/odd_report.py show <path>
 That is the whole surface; `--help` adds nothing and the file has
 nothing to read. `--repo` defaults to the working directory and
 `--sections` to `1,2,3,7`; `--service` is repeated per service, or one
-comma-separated value; `--kind` exists and defaults to `observation`,
-the only kind `new` writes.
+comma-separated value; `--kind` defaults to `observation` - `--kind
+instrumentation` is the other kind's, stated in its own reference.
 
 - `new` prints the report's path. It names the file
   (`YYYY-MM-DD-HHmm-<run_name>.md` from the window's UTC start, the

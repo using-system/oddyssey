@@ -44,18 +44,23 @@ python3 <this skill's directory>/scripts/odd_report.py synthesis <path>
   skeleton: the title, a `<fill>` for the one-line headline, the five
   numbered headings, section 2 opening with the summary table's header
   row and an `Implementation order:` line, section 3 carrying one
-  `### GenAI approach — <service>` heading per `--genai` service (the
-  services step 1 detected as calling a model), section 5 opening with
+  `### GenAI approach — <service>` heading per `--genai` service (one
+  per service the investigation found calling a model), section 5
+  opening with
   the checks' header row. Every `<fill>` is the run's to replace: the
   sections are the judgment — written, filled, to a **draft** file of
   the run's own with its file tool, never by editing the report file.
 - `check` runs the memory contract's checks — what a host's hook
-  enforces after a write, the five sections in order, no placeholder
-  left, and the shapes of `## The body` below: the summary table's
-  columns with one row at least, section 5's checks in the replayable
-  form, no credential in a check, the GenAI approach as prose. One
-  stderr line per problem, exit 2; `persist` refuses a report that
-  fails it.
+  enforces after a write, the title and the one-line headline before
+  section 1, the five sections in order, no placeholder left, and the
+  shapes of `## The body` below: the summary table's columns, `Service`
+  first, with one row at least; section 5's checks in the replayable
+  form; no credential in a check (a key, token, password or
+  connection-string value, a `--query` projecting a credential field —
+  an env var name, a secret reference or a placeholder in that slot is
+  wiring, and passes); the GenAI approach as prose (a section 3 table
+  whose first column names it is refused). One stderr line per
+  problem, exit 2; `persist` refuses a report that fails it.
 - `read` prints the frontmatter and the named sections, nothing else
   (default 1, 2, 4 and 5 on this kind).
 - `persist --body <draft>` writes the draft under the file's
@@ -64,8 +69,7 @@ python3 <this skill's directory>/scripts/odd_report.py synthesis <path>
   names what the draft lacks; nothing committed — leaves the default
   branch for `docs/odd-instrumentation-report-<run_name>`, commits the
   file alone (`docs(odd): instrumentation investigation <run_name>`),
-  and prints the return value: `path`, `commit` (or `not committed`
-  with the reason), `branch`, `subject`, `headline`. `--no-commit`
+  and prints the return value (`## Return value` below). `--no-commit`
   when the caller said not to; outside a repository it says
   `not committed` and why.
 - `synthesis` prints the synthesis block quoted from the stored file;
@@ -99,10 +103,11 @@ agent's contract, stated here once and read at report time:
    from where that service runs, and the OTLP protocol — `grpc` on
    `:4317` or `http/protobuf` on `:4318` — matching the exporter package
    recommended. Every entry carries its rationale; nothing here is an
-   unlabeled default. For a service step 1 detected as calling a model,
-   a **GenAI approach** under its `### GenAI approach — <service>`
+   unlabeled default. For a service the investigation found calling a
+   model, a **GenAI approach** under its `### GenAI approach — <service>`
    heading — prose, never a table, since a table row in section 3 reads
-   as a finding to the status renderer (`check` refuses one): the
+   as a finding to the status renderer (`check` refuses a section 3
+   table whose first column names it): the
    instrumentation library the plan adopts — the row of the
    `otel-guides` skill's generative AI reference it comes from, pinned
    and doc-linked like every package — what it emits (the `gen_ai.*`
@@ -251,20 +256,27 @@ the matching rules are this reference's:
 
 ## Rules
 
-- **No secrets, no real identifiers** (the memory contract) — a live
-  CLI excerpt (a component's `show` output, a resource id) is the
-  likeliest source. The rule reaches the **verification protocol's
-  checks**, and `check` enforces it: a check whose query projects a
-  credential-bearing field (a connection string, a key, a token, an
-  auth-header value) or whose expected outcome is one is a leak
-  deferred, not avoided — `/odd-verify` replays the query verbatim and
-  quotes its result into a committed report. A check proves a secret
-  is wired by naming the wiring (a secret reference, an env var name,
-  a redacted flag, the resource identity it binds to), never the value.
+- **No real identifiers** (the memory contract) — a live CLI excerpt
+  (a component's `show` output, a resource id) is the likeliest source:
+  a subscription, workspace, account or resource-group name, or a value
+  persisted under a remote stack's `stack_config`, regions excepted,
+  goes in as an obviously fake placeholder (the field's name in angle
+  brackets). The credential half of the rule — a check never projects
+  one — is section 5's in `## The body`, and `check` enforces it.
 - **The work branch and the lone commit** (the memory contract) are
   `persist`'s: `docs/odd-instrumentation-report-<run_name>`, the
   report file alone, `docs(odd): instrumentation investigation
   <run_name>`.
+
+## Return value
+
+`persist` prints it: `path:`, `commit:` (or `not committed` with the
+reason), `headline:`, plus `branch:` and `subject:` when it committed.
+The reply carries those lines verbatim — and nothing of the body: the
+synthesis is rendered once, by the caller's `show`, and the next wave
+reads the file at the stored path. `synthesis <path>` prints the inputs
+`show` renders from, quoted from the file, for a reader who wants them
+rather than the rendering.
 
 ## Show
 
@@ -278,8 +290,9 @@ deliverable.
 
 What it renders, in order: the **headline** — one bold line answering
 "what will happen": services covered, dominant approach, pinned
-package count, open decisions (`2 services, zero-code approach, 7
-pinned packages, 3 decisions open`), the GenAI approach when a service
+package count (the summary table's package entries carrying a
+version), open decisions (`2 services, zero-code approach, 7 pinned
+packages, 3 decisions open`), the GenAI approach when a service
 carries one, the baseline when one was recalled; **where it lives** —
 the stored path and the commit that carries it, then `project`,
 `stack`, `revision`, `repository` and the baseline; **the plan at a

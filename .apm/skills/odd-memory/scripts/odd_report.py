@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""The observation report's deterministic steps, as one script.
+"""The observation and instrumentation reports' deterministic steps, as one script.
 
-The observe-run-report reference used to spell out, in prose, what the
+The two report references used to spell out, in prose, what the
 inputs already fix: the file's name (the UTC stamp, the slug, the
 observer suffix, the replay prefixes, the ordinal on a collision), the
 frontmatter fields a repository answers (``date``, ``revision``,
@@ -26,8 +26,11 @@ read by one module.
                       [--verifies FILE] [--workload W] [--instance K=V ...]
                       [--process-restarted true|false|K=V ...]
                       [--repository VALUE] [--at UTC] [--no-revision] [--repo PATH]
+    odd_report.py new --kind instrumentation --project SCOPE --stack S --run-name SLUG
+                      [--genai SERVICE ...] [--repository VALUE] [--at UTC]
+                      [--no-revision] [--repo PATH]
     odd_report.py check PATH
-    odd_report.py read PATH --sections 1,2,3,7 [--record]
+    odd_report.py read PATH [--sections 1,2,3,7] [--record]
     odd_report.py synthesis PATH
     odd_report.py show PATH
     odd_report.py persist PATH [--body DRAFT] [--no-commit]
@@ -131,9 +134,12 @@ ORDER_RE = re.compile(r"implementation order", re.IGNORECASE)
 # that is neither a variable, a placeholder nor a redaction
 CREDENTIAL_RE = re.compile(
     r"(?i)(?:instrumentation[_ -]?key|connection[_ -]?string|api[_ -]?key|secret|"
-    r"password|passwd|token|bearer|authorization)\s*[:=]\s*"
-    r"(?![$<{*`]|\$|redacted|none|\(|from |the )([A-Za-z0-9+/=._-]{12,})"
+    r"password|passwd|token|bearer|authorization)\s*[:=]\s*(?:(?:bearer|basic)\s+)?"
+    r"(?![$<{*`]|redacted|none|\(|from |the )([A-Za-z0-9+/=._-]{12,})"
 )
+# what a credential's slot may hold without being one: an env var name, a
+# secret reference written as hyphenated words, a placeholder
+WIRING_RE = re.compile(r"^(?:[A-Z][A-Z0-9_]{3,}|[a-z]+(?:[-_][a-z]+)+|<[^>]+>)$")
 CREDENTIAL_PROJECTION_RE = re.compile(
     r"(?i)--query\s+\S*(?:instrumentationKey|connectionString|primaryKey|secretKey|"
     r"apiKey|accessKey)"
@@ -767,7 +773,7 @@ def check_report(
 
     kind = report["kind"]
     required = (
-        ("project", "stack", "run_name", "date")
+        INSTRUMENTATION_FIELDS
         if kind == "instrumentation"
         else ("services", "stack", "environment", "mode", "window", "run_name", "date")
     )
@@ -987,7 +993,16 @@ def replayable_checks(current: dict) -> list[list[str]]:
 
 
 def credential_in(text: str) -> str | None:
-    for regex in (CREDENTIAL_RE, CREDENTIAL_PROJECTION_RE, SECRET_LITERAL_RE):
+    """A credential written as a value, or None: a key word followed by a
+    literal that is neither an env var name, a secret reference nor a
+    placeholder; a --query projecting a credential field; a literal key."""
+    for match in CREDENTIAL_RE.finditer(text):
+        literal = match.group(1)
+        if literal.endswith(("=", ";")):
+            continue  # a key=value prefix: the value after it is judged on its own
+        if not WIRING_RE.match(literal):
+            return match.group(0)
+    for regex in (CREDENTIAL_PROJECTION_RE, SECRET_LITERAL_RE):
         match = regex.search(text)
         if match:
             return match.group(0)
@@ -1001,6 +1016,13 @@ def check_instrumentation_body(sections: list[dict]) -> list[str]:
     two = section(sections, 2)
     if two is not None:
         table, missing = table_with(two["tables"], SUMMARY_PATTERNS)
+        if table is not None and (
+            not table["header"] or table["header"][0].strip("*` ").lower() != "service"
+        ):
+            problems.append(
+                "section 2's summary table opens with a column other than `Service`: "
+                "the status renderer counts the services off that first column"
+            )
         if table is None:
             problems.append(
                 "section 2 carries no summary table with the columns "
@@ -1249,7 +1271,11 @@ def new_instrumentation_report(args: argparse.Namespace) -> tuple[Path, str, lis
         ("--mode", args.mode),
         ("--depth", args.depth),
         ("--window", args.window),
+        ("--from/--to", args.start or args.end),
         ("--verifies", args.verifies),
+        ("--workload", args.workload),
+        ("--instance", args.instance),
+        ("--process-restarted", args.process_restarted),
         ("--custom-stack", args.custom_stack),
     ):
         if value:
@@ -1646,10 +1672,12 @@ def instrumentation_data(fm: dict, text: str, sections: list[dict]) -> dict:
     return data
 
 
-def synthesis_data(text: str) -> dict:
+def synthesis_data(text: str, kind: str | None = None) -> dict:
+    """The synthesis inputs; ``kind`` is the store's (``report_kind``), the
+    frontmatter's shape deciding only for a file outside a store."""
     fm, body, _ = split_frontmatter(text)
     sections = raw_sections(body)
-    if kind_of(fm) == "instrumentation":
+    if (kind or kind_of(fm)) == "instrumentation":
         return instrumentation_data(fm, text, sections)
     mode = str(fm.get("mode"))
     replay = mode in REPLAY_MODES
@@ -2286,7 +2314,7 @@ def persist(
                 lines.append(f"subject: {subject}")
     # the headline alone: the caller's show renders the synthesis from the
     # file once, so the block never travels through two more contexts
-    lines.append(f"headline: {render_headline(synthesis_data(text))}")
+    lines.append(f"headline: {render_headline(synthesis_data(text, kind))}")
     return lines, notes
 
 
@@ -2469,7 +2497,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command in ("synthesis", "show"):
             root, rel = locate(path)
             commit = file_commit(root, rel)
-            data = synthesis_data(text)
+            data = synthesis_data(text, report_kind(path))
             if args.command == "synthesis":
                 sys.stdout.write(f"path: {rel}\ncommit: {commit or 'not committed'}\n")
                 sys.stdout.write(synthesis_text(data))

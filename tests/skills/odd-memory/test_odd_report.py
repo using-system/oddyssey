@@ -1427,3 +1427,52 @@ def test_check_refuses_section_8_on_a_report_that_counts_nothing(repo, report):
     proc = run(repo, "persist", str(path), "--body", str(draft))
     assert proc.returncode == 2
     assert "carries no stack_friction" in proc.stderr
+
+
+def test_the_credential_rule_tells_a_value_from_its_wiring(report):
+    wiring = (
+        "token: OTEL_EXPORTER_TOKEN (the env var name, never the value)",
+        "password: POSTGRES_PASSWORD",
+        "Secret: kubernetes-secret-reference",
+        "Authorization: request-scoped header set from the env",
+        "connection string: InstrumentationKey=<instrumentation_key>;IngestionEndpoint=<endpoint>",
+        "OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer ${TOKEN}",
+        "api key: redacted by the backend's show",
+    )
+    for text in wiring:
+        assert report.credential_in(text) is None, text
+    values = (
+        "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.abcdefgh",
+        "token: ghp_16C7e42F292c6912E7710c838347Ae178B4a",
+        "InstrumentationKey=0a1b2c3d-0000-4000-8000-000000000001",
+        "--query instrumentationKey",
+        "api_key=sk-abcdefghijklmnopqrstuvwxyz0123",
+        "password: hunter2hunter2hunter2",
+    )
+    for text in values:
+        assert report.credential_in(text), text
+
+
+def test_check_refuses_a_summary_table_whose_first_column_is_not_service(repo):
+    path, _ = new_instrumentation(repo)
+    renamed = INSTRUMENTATION_BODY.replace(
+        "| Service | Language", "| Service name | Language"
+    )
+    head = path.read_text(encoding="utf-8").split("\n\n", 1)[0]
+    path.write_text(head + "\n\n" + renamed, encoding="utf-8")
+    proc = run(repo, "check", str(path))
+    assert proc.returncode == 2
+    assert "opens with a column other than `Service`" in proc.stderr
+
+
+def test_new_instrumentation_refuses_every_observation_flag(repo):
+    for flags in (
+        ("--workload", "k6 smoke"),
+        ("--instance", "k=v"),
+        ("--process-restarted", "true"),
+        ("--from", "2026-08-09T10:00:00Z", "--to", "2026-08-09T10:05:00Z"),
+    ):
+        proc = run(repo, *INSTRUMENTATION_NEW, "--repo", str(repo.root), *flags)
+        assert proc.returncode == 2 and "observation report's flag" in proc.stderr, (
+            flags
+        )
