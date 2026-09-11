@@ -1,22 +1,30 @@
 #!/usr/bin/env python3
-"""Measure one phase of an oddyssey run, driven headless by opencode.
+"""Measure one phase of an oddyssey run, driven headless by a coding-agent CLI.
 
-Launches the mission, watches for the phase's end marker, stops the run
-there, and writes the record. Everything here is mechanical - and the
-traps it avoids are the ones that silently produce a wrong number:
+Launches the mission under the CLI named (`opencode`, `claude` or
+`copilot` - the three the launch-llms-benchmark command runs, launched
+the way that command states), watches for the phase's end marker, stops
+the run there, and writes the record. Everything here is mechanical -
+and the traps it avoids are the ones that silently produce a wrong
+number:
 
-- the opencode log is shared with the user's own sessions, so this
-  records OUR run id at launch and never reads the log's tail;
+- opencode's log is shared with the user's own sessions, so this records
+  OUR run id at launch and never reads the log's tail; claude and copilot
+  take the session id this script generates, and their transcripts are
+  read under that id alone;
 - a `k6` process is only a drive when it is running a script: `k6
   version` and `k6 inspect` are not, and a k6 left over from a previous
   run is not this run's either - both are purged and excluded;
 - a run that dies looks exactly like a run that thinks, so the watch
   fails loudly instead of returning a fast, wrong time.
 
-    measure_phase.py --model google/gemini-3.7-flash --tag g1 \
+    measure_phase.py --cli opencode --model google/gemini-3.7-flash --tag g1 \
         --phase preflight --prompt-file mission.txt --out /tmp/study
 
-Exit 0 with the record printed, 1 when the phase never completed.
+The model is the canonical `vendor/name` id whatever the CLI; each CLI is
+handed its own form of it (`openrouter/<model>` for opencode, the
+Anthropic id for claude, the bare name for copilot). Exit 0 with the
+record printed, 1 when the phase never completed.
 """
 
 from __future__ import annotations
@@ -29,15 +37,48 @@ import signal
 import subprocess
 import sys
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-LOG = Path.home() / ".local/share/opencode/log/opencode.log"
+CLIS = ("opencode", "claude", "copilot")
+HOME = Path.home()
+OPENCODE_LOG = HOME / ".local/share/opencode/log/opencode.log"
+CLAUDE_PROJECTS = HOME / ".claude/projects"
+COPILOT_SESSIONS = HOME / ".copilot/session-state"
 POLL = 2
+# the variables a Claude Code session exports into its shells: a nested
+# launch that inherits them is treated as part of the parent
+CLAUDE_SESSION_VARS = (
+    "CLAUDECODE",
+    "CLAUDE_CODE_CHILD_SESSION",
+    "CLAUDE_CODE_SESSION_ID",
+    "CLAUDE_CODE_MESSAGING_SOCKET",
+    "CLAUDE_CODE_MESSAGING_TOKEN",
+    "CLAUDE_PID",
+)
 
 
 def utc() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def cli_model(cli: str, model: str) -> str:
+    """The CLI's own form of a canonical ``vendor/name`` model id."""
+    vendor, _, name = model.rpartition("/")
+    if cli == "opencode":
+        return model if model.startswith("openrouter/") else f"openrouter/{model}"
+    if cli == "claude":
+        if vendor and vendor != "anthropic":
+            raise SystemExit(f"claude runs Anthropic models only, not {model}")
+        return name.replace(".", "-")
+    return name  # copilot: the bare name its model picker lists
+
+
+def claude_project_dir(cwd: Path) -> Path:
+    """Where Claude Code keeps a directory's transcripts: the path with
+    every ``/`` turned into ``-``."""
+    return CLAUDE_PROJECTS / str(cwd.resolve()).replace("/", "-")
 
 
 def k6_driving() -> bool:
@@ -61,13 +102,16 @@ def purge_k6() -> None:
         time.sleep(1)
 
 
-def find_run_id(model: str, since: float) -> str | None:
+# --- the run's own lines, per CLI -------------------------------------------
+
+
+def find_opencode_run_id(model: str, since: float) -> str | None:
     """Our run's id, from a log line naming our model after we launched."""
-    if not LOG.is_file():
+    if not OPENCODE_LOG.is_file():
         return None
     pattern = re.compile(r"run=([0-9a-f]+)")
     found = None
-    with LOG.open(errors="replace") as handle:
+    with OPENCODE_LOG.open(errors="replace") as handle:
         for line in handle:
             if model not in line:
                 continue
@@ -90,44 +134,172 @@ def find_run_id(model: str, since: float) -> str | None:
     return found
 
 
-def log_has(run_id: str, needle: str) -> bool:
-    if not LOG.is_file():
-        return False
-    with LOG.open(errors="replace") as handle:
-        return any(f"run={run_id}" in ln and needle in ln for ln in handle)
+def run_lines(cli: str, run_id: str | None, cwd: Path) -> list[str]:
+    """Every line this run has written so far - opencode's log filtered to
+    its id, claude's transcripts (root and subagents), copilot's events."""
+    if not run_id:
+        return []
+    if cli == "opencode":
+        if not OPENCODE_LOG.is_file():
+            return []
+        with OPENCODE_LOG.open(errors="replace") as handle:
+            return [ln for ln in handle if f"run={run_id}" in ln]
+    if cli == "claude":
+        project = claude_project_dir(cwd)
+        files = [project / f"{run_id}.jsonl"] + sorted(
+            (project / run_id / "subagents").glob("agent-*.jsonl")
+        )
+    else:
+        files = [COPILOT_SESSIONS / run_id / "events.jsonl"]
+    lines: list[str] = []
+    for path in files:
+        if path.is_file():
+            with path.open(errors="replace") as handle:
+                lines.extend(handle)
+    return lines
 
 
-def run_errored(run_id: str) -> bool:
-    return log_has(run_id, "level=ERROR")
+def run_errored(cli: str, lines: list[str], stderr: Path) -> bool:
+    if cli == "opencode":
+        return any("level=ERROR" in ln for ln in lines)
+    # claude and copilot print a failed launch or a dead provider on stderr
+    return stderr.is_file() and bool(
+        re.search(r"\b(?:API Error|error:)", stderr.read_text(errors="replace"))
+    )
 
 
 def phase_reached(
-    phase: str, run_id: str | None, started: float, pattern: str | None
+    phase: str, lines: list[str], started: float, pattern: str | None
 ) -> bool:
     """The marker that closes the phase under measurement.
 
     A mission without a k6 drive needs its own marker - the first
-    telemetry query, the one request it was told to send - so a caller
-    can name it as a regular expression over the run's log lines.
+    telemetry query, the dispatch of the agent - so a caller names it as
+    a regular expression over the run's own lines, in that CLI's shape.
     """
     if pattern:
-        if not run_id or not LOG.is_file():
-            return False
         needle = re.compile(pattern)
-        with LOG.open(errors="replace") as handle:
-            return any(f"run={run_id}" in ln and needle.search(ln) for ln in handle)
+        return any(needle.search(ln) for ln in lines)
     if phase == "preflight":
         return k6_driving()
     if phase == "drive":
-        return bool(run_id) and not k6_driving() and time.time() - started > 30
+        return bool(lines) and not k6_driving() and time.time() - started > 30
     if phase in ("observation", "whole"):
         return False  # closed by the process exiting
     raise ValueError(f"unknown phase {phase}")
 
 
+# --- the launch, per CLI -------------------------------------------------------
+
+
+def launch(
+    cli: str,
+    model: str,
+    effort: str,
+    tag: str,
+    mission: str,
+    command: str | None,
+    out: Path,
+    cwd: Path,
+) -> tuple[subprocess.Popen, str | None, str]:
+    """Start the run the way launch-llms-benchmark states for the CLI; the
+    session id when this script chose it, and how the mission was handed
+    over."""
+    stdout = (out / f"{tag}.stdout.json").open("w")
+    stderr = (out / f"{tag}.stderr").open("w")
+    env = dict(os.environ)
+    if cli == "opencode":
+        # a slash command is launched through the host's own expansion:
+        # passed as raw text, the run hunts for the command file first
+        argv = [
+            "opencode",
+            "run",
+            "--model",
+            model,
+            "--variant",
+            effort,
+            "--format",
+            "json",
+            "--auto",
+            "--title",
+            f"harness-study {tag}",
+            *(["--command", command] if command else []),
+            mission,
+        ]
+        session, form = None, ("host --command" if command else "text")
+    elif cli == "claude":
+        session = str(uuid.uuid4())
+        for name in CLAUDE_SESSION_VARS:
+            env.pop(name, None)
+        # lifts print mode's ceiling on background tasks: a root that
+        # dispatches the agent in the background is otherwise killed
+        env["CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS"] = "0"
+        text = f"/{command} {mission}".strip() if command else mission
+        argv = [
+            "claude",
+            "-p",
+            text,
+            "--model",
+            model,
+            "--effort",
+            effort,
+            "--permission-mode",
+            "bypassPermissions",
+            "--output-format",
+            "json",
+            "--session-id",
+            session,
+        ]
+        form = "text, expanded by the host" if command else "text"
+    else:
+        if not (cwd / ".github/mcp.json").is_file():
+            raise SystemExit(
+                "copilot: no .github/mcp.json in the working directory - install "
+                "the package for the copilot target first"
+            )
+        session = str(uuid.uuid4())
+        text = f"/{command} {mission}".strip() if command else mission
+        argv = [
+            "copilot",
+            "-p",
+            text,
+            "--model",
+            model,
+            "--effort",
+            effort,
+            "--allow-all",
+            "--no-ask-user",
+            "--additional-mcp-config",
+            "@.github/mcp.json",
+            "--session-id",
+            session,
+            "--output-format",
+            "json",
+            "--usage-output-file",
+            str(out / f"{tag}.usage.json"),
+        ]
+        form = "text, not expanded (copilot expands no slash command)"
+    proc = subprocess.Popen(
+        ["caffeinate", "-i", *argv],
+        stdin=subprocess.DEVNULL,
+        stdout=stdout,
+        stderr=stderr if cli != "opencode" else subprocess.STDOUT,
+        start_new_session=True,
+        env=env,
+        cwd=str(cwd),
+    )
+    return proc, session, form
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--model", required=True, help="OpenRouter model id")
+    ap.add_argument(
+        "--cli",
+        choices=CLIS,
+        default="opencode",
+        help="the CLI the run is driven by (default opencode)",
+    )
+    ap.add_argument("--model", required=True, help="the canonical vendor/name model id")
     ap.add_argument("--tag", required=True, help="names this measurement's files")
     ap.add_argument(
         "--phase",
@@ -141,10 +313,17 @@ def main() -> int:
     ap.add_argument("--out", required=True, help="directory for this study's records")
     ap.add_argument(
         "--end-pattern",
-        help="a regular expression over this run's log lines that closes the "
-        "phase - for a mission with no k6 drive to mark it",
+        help="a regular expression over this run's own lines (the CLI's log, "
+        "transcript or events) that closes the phase - for a mission with "
+        "no k6 drive to mark it",
     )
-    ap.add_argument("--variant", default="medium")
+    ap.add_argument(
+        "--effort",
+        "--variant",
+        dest="effort",
+        default="medium",
+        help="the effort level, the same on the three CLIs (default medium)",
+    )
     ap.add_argument("--timeout", type=int, default=2700, help="seconds (default 2700)")
     ap.add_argument(
         "--keep-running",
@@ -155,64 +334,40 @@ def main() -> int:
 
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
+    cwd = Path.cwd()
     mission = (
         Path(args.prompt_file).read_text().strip() if args.prompt_file else args.prompt
     )
-
-    # A mission that opens with a slash command is launched through the
-    # host's own expansion (`--command <name>`, the rest as its arguments):
-    # passed as raw text, the run hunts for the command file first - globs,
-    # reads of the command and of the agent it dispatches - a cost no host
-    # pays when the command is typed, and one that pollutes every phase
-    # number. The record says which form was used.
     command = None
     match = re.match(r"^/([A-Za-z0-9_-]+)(?:\s+(.*))?$", mission, re.DOTALL)
     if match:
         command, mission = match.group(1), (match.group(2) or "").strip()
+    model = cli_model(args.cli, args.model)
 
     purge_k6()
     started_at = time.time()
     start_utc = utc()
-
-    proc = subprocess.Popen(
-        [
-            "caffeinate",
-            "-i",
-            "opencode",
-            "run",
-            "--model",
-            f"openrouter/{args.model}",
-            "--variant",
-            args.variant,
-            "--format",
-            "json",
-            "--auto",
-            "--title",
-            f"harness-study {args.tag}",
-            *(["--command", command] if command else []),
-            mission,
-        ],
-        stdin=subprocess.DEVNULL,
-        stdout=(out / f"{args.tag}.stdout.json").open("w"),
-        stderr=subprocess.STDOUT,
-        start_new_session=True,
+    proc, run_id, form = launch(
+        args.cli, model, args.effort, args.tag, mission, command, out, cwd
     )
+    stderr = out / f"{args.tag}.stderr"
 
-    run_id = None
     reached = False
     note = ""
     deadline = started_at + args.timeout
     while time.time() < deadline:
-        if run_id is None:
-            run_id = find_run_id(args.model, started_at)
+        if run_id is None and args.cli == "opencode":
+            # the log names the model in its canonical form (modelID=...)
+            run_id = find_opencode_run_id(args.model, started_at)
+        lines = run_lines(args.cli, run_id, cwd)
         if proc.poll() is not None:
             reached = args.phase in ("observation", "whole")
             note = "the run exited" + ("" if reached else " before the phase closed")
             break
-        if run_id and run_errored(run_id):
+        if run_id and run_errored(args.cli, lines, stderr):
             note = "the run logged an error - the number would be meaningless"
             break
-        if phase_reached(args.phase, run_id, started_at, args.end_pattern):
+        if phase_reached(args.phase, lines, started_at, args.end_pattern):
             reached = True
             break
         time.sleep(POLL)
@@ -227,9 +382,13 @@ def main() -> int:
 
     record = {
         "tag": args.tag,
+        "cli": args.cli,
         "model": args.model,
+        "model_as_passed": model,
+        "effort": args.effort,
         "phase": args.phase,
         "run_id": run_id,
+        "cwd": str(cwd),
         "start_utc": start_utc,
         "end_utc": end_utc,
         "seconds": seconds,
@@ -237,6 +396,8 @@ def main() -> int:
         "note": note,
         "end_pattern": args.end_pattern,
         "command": command,
+        "command_form": form,
+        "stdout": str(out / f"{args.tag}.stdout.json"),
     }
     (out / f"{args.tag}.record.json").write_text(json.dumps(record, indent=2))
     print(json.dumps(record, indent=2))

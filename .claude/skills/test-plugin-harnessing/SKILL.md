@@ -1,6 +1,6 @@
 ---
 name: test-plugin-harnessing
-description: Measure and optimise one phase of an oddyssey run - preflight, drive, observation - against the published benchmark row for that model. Use when a phase is too slow or too expensive, when a harnessing change must be proven rather than asserted, or when a run is suspected of composing work the package should ship. Drives opencode headless, measures the phase, names where the time went, and separates what the package controls from provider latency. Never a substitute for launch-llms-benchmark, which grades findings; this grades the harness.
+description: Measure and optimise one phase of an oddyssey run - preflight, drive, observation, or the whole run - under one of the coding-agent CLIs the package is benchmarked on (opencode, claude, copilot), against main measured just before the work. Use when a phase is too slow or too expensive, when a harnessing change must be proven rather than asserted, when a run is suspected of composing work the package should ship, and before the PR of any change on the path of /odd-observe, /odd-verify or /odd-status. Drives the CLI headless, measures the phase, names where the time went, and separates what the package controls from provider latency. Never a substitute for launch-llms-benchmark, which grades findings; this grades the harness.
 ---
 
 # Testing a phase of the plugin's harness
@@ -8,18 +8,28 @@ description: Measure and optimise one phase of an oddyssey run - preflight, driv
 `launch-llms-benchmark` asks *how good is this model's report*. This asks
 a different question: **how much work does the package still make the
 model compose before it can do anything** — and it answers it for one
-named phase at a time. Do not run the benchmark protocol for this; it
-grades findings, costs a full run, and its row is not what moves when a
-skill stops making the model write a script.
+named phase at a time, under one named CLI. Do not run the benchmark
+protocol for this; it grades findings, costs a full run, and its row is
+not what moves when a skill stops making the model write a script.
 
 The rules a change here must satisfy are `AGENTS.md`'s **Plugin
-harnessing** section. This skill is how you prove one landed.
+harnessing** section. This skill is how you prove one landed — and that
+section says when a measurement is owed: before the PR of any change on
+the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
 
 ## What you need before starting
 
 - **The phase**, named by the caller: `preflight`, `drive`,
   `observation`, or `whole`. Ask if it is not named — measuring the
   wrong phase wastes the run.
+- **The CLI** the runs are driven by: `opencode`, `claude` or
+  `copilot` — the three `launch-llms-benchmark` runs, and the source
+  of everything CLI-specific here: how a run is launched headless, the
+  form of the model id it takes, where its session lives and how it is
+  read. The scripts below implement those per CLI; the command's steps
+  3, 6 and 7 are the reference when one of them looks wrong. Default
+  `opencode` — the fastest instrument on this table so far; measure on
+  the CLI whose behaviour the change is about.
 - **The mission**, the same on every sample, and by preference an
   observation in **drive mode on the local stack**: the run generates
   its own traffic, so every window holds the same requests and the
@@ -29,15 +39,20 @@ harnessing** section. This skill is how you prove one landed.
   finding and 34 to 40 queries against 24 to 30): measure post-hoc only
   when post-hoc is what changes, with one scripted burst per sample and
   the stack's facts re-read per window; a remote stack only when the
-  change is that stack's, never by default.
+  change is that stack's, never by default. A preflight alone
+  (`/odd-verify`, the dispatch as its end marker) is the cheapest
+  mission when the change is the preflight's.
 - **The baseline**, which is the published row in
-  `.llms-benchmark/README.md` for the model you will use: its phase
-  durations, its turn count and its **median turn**. Read it from
+  `.llms-benchmark/README.md` for the model and CLI you will use: its
+  phase durations, its turn count and its **median turn**. Read it from
   `origin/main`, never from the working tree.
-- **A model whose median turn is small.** The published median is the
-  instrument's precision: a model at 3 s per turn measures the harness,
-  one at 20 s measures the provider. Prefer the fastest row in the
-  table, whatever its findings score — this is not a quality test.
+- **A model whose median turn is small**, as the canonical
+  `vendor/name` id (`google/gemini-3.7-flash`,
+  `anthropic/claude-haiku-4.5`, `openai/gpt-5.6-sol`): the scripts hand
+  each CLI its own form. The published median is the instrument's
+  precision: a model at 3 s per turn measures the harness, one at 20 s
+  measures the provider. Prefer the fastest row in the table for that
+  CLI, whatever its findings score — this is not a quality test.
 
 ## The procedure
 
@@ -50,49 +65,76 @@ harnessing** section. This skill is how you prove one landed.
    expensive mistake available here; make it once and every number since
    the change is void.
 
-2. **Deploy to every scope the host reads, and prove they match.**
-   `uvx --from 'apm-cli==0.29.1' apm install --target opencode` for the
-   repository, and copy `.apm/skills/*` and `.apm/agents/*` over
-   `~/.claude/skills` / `~/.claude/agents` when the host also reads a
-   user scope. Back the user scope up first and restore it at the end —
-   it is the user's install, not yours — or, when the user's home must
-   stay untouched, run the host under a fake `HOME` whose `.claude`
-   carries the deploy and whose every other entry is a symlink to the
-   real home (the credentials, the log and the session store stay
-   where the scripts read them). `diff -rq` the two scopes: a run
-   that finds them different spends turns comparing them.
+2. **Deploy to every scope the host reads, and prove they match** —
+   the scopes are the CLI's, as `launch-llms-benchmark` step 3 states
+   them:
+   - `opencode`: `uvx --from 'apm-cli==0.29.1' apm install --target opencode`
+     in the lab clone; opencode also reads `~/.claude/skills/`, so copy
+     `.apm/skills/*` there too;
+   - `claude`: nothing in the clone (the claude target deploys hooks
+     that load into the running session) — the package at **user
+     scope**, `apm install --global --target claude`, which writes
+     `~/.claude/commands/`, `~/.claude/agents/`, `~/.claude/skills/`;
+     the MCP server in `~/.claude.json`;
+   - `copilot`: `apm install --target copilot` in the lab clone
+     (`.github/prompts/`, `.github/agents/`, `.github/hooks/`,
+     `.github/mcp.json`, `.agents/skills/`); `~/.copilot/skills/` and
+     the installed plugins' skills must not carry the package.
+
+   Back the user scope up first and restore it at the end — it is the
+   user's install, not yours — or, when the user's home must stay
+   untouched, run the host under a fake `HOME` whose `.claude` carries
+   the deploy and whose every other entry is a symlink to the real home
+   (the credentials, the CLIs' logs, transcripts and session stores
+   stay where the scripts read them). `diff -rq` the scopes against
+   `.apm/`: a run that finds them different spends turns comparing
+   them, and an older copy measures another version than the row
+   claims.
 
 3. **Clean what the next run must not read.** Any report a previous run
    stored, and any leftover container, process or scratch directory. A
    run that reads the last run's conclusions is not measuring anything.
+   Between two samples, let the previous run's process end and wait a
+   few seconds: a launch that reads the CLI's log while the previous
+   run still writes it can take that run's id.
 
 4. **Measure**, with `scripts/measure_phase.py`:
 
    ```bash
    python3 <this skill's directory>/scripts/measure_phase.py \
-     --model <openrouter id> --tag <short label> --phase <phase> \
-     --prompt-file <mission> --out <study dir>
+     --cli <opencode|claude|copilot> --model <vendor/name> --tag <short label> \
+     --phase <phase> --prompt-file <mission> --out <study dir>
    ```
 
    A mission that opens with a slash command (`/odd-observe ...`) is
-   launched through the host's own expansion (`--command`), the way a
-   typed command is: passed as raw text, the run spends its first turns
-   hunting for the command file - globs, reads of the command and of
-   the agent it dispatches - a cost no host pays, folded into every
-   phase number (measured: 8 to 10 turns of a 75-turn run). The record
-   carries `command` so a number taken the old way is never compared
-   with one taken this way.
+   handed to the host the way a typed command is: opencode through its
+   own expansion (`--command`), claude as text the host expands,
+   copilot as text it does not expand (its runs invoke the package's
+   skills through the `skill` tool all the same). Passed as raw text
+   where the host would have expanded it, a run hunts for the command
+   file first — globs, reads of the command and of the agent it
+   dispatches — a cost no host pays, folded into every phase number
+   (measured: 8 to 10 turns of a 75-turn run). The record carries the
+   form used, so a number taken one way is never compared with one
+   taken another.
 
-   Its whole surface, so `--help` has nothing to add: `--model`,
-   `--tag`, `--phase`, one of `--prompt` / `--prompt-file`, `--out`,
-   plus `--end-pattern` (a regular expression over the run's own log
-   lines, for a mission with no k6 drive to mark the phase - a post-hoc
-   observation, a scenario the mission names), `--variant` (default
-   `medium`), `--timeout` (default 2700 s) and `--keep-running` to let
-   the run continue past the phase. It records
-   the run's own id at launch, stops at the phase's marker, and exits
-   non-zero rather than return a fast wrong number when the phase never
-   closed.
+   Its whole surface, so `--help` has nothing to add: `--cli` (default
+   `opencode`), `--model`, `--tag`, `--phase`, one of `--prompt` /
+   `--prompt-file`, `--out`, plus `--end-pattern` (a regular expression
+   over the run's own lines — opencode's log, claude's transcripts,
+   copilot's events — for a mission with no k6 drive to mark the
+   phase: the first telemetry query, or the agent's dispatch, which
+   reads `permission=task pattern=observe-run` on opencode,
+   `subagent_type":"observe-run` on claude, `subagent.started.*observe-run`
+   on copilot), `--effort` (default `medium`, the same level on the
+   three CLIs; `--variant` is its alias), `--timeout` (default 2700 s)
+   and `--keep-running` to let the run continue past the phase. It
+   records the run's own id at launch — opencode's from its log, the
+   session id it generated for claude and copilot — stops at the
+   phase's marker, and exits non-zero rather than return a fast wrong
+   number when the phase never closed. The record names the CLI, the
+   model as passed, the id, the directory and the stdout file the
+   analysis needs.
 
 5. **Analyse before concluding**, with `scripts/analyze_run.py`:
 
@@ -100,13 +142,15 @@ harnessing** section. This skill is how you prove one landed.
    python3 <this skill's directory>/scripts/analyze_run.py --record <study dir>/<tag>.record.json
    ```
 
-   Surface: `--record`, or `--run-id`; `--gap` (default 60 s) sets the
-   gap it reports; `--json`. It prints the
-   commands, the
-   turns, the generation time and the median turn, then the four
-   behaviours a harnessing change removes — scripts the run authored,
-   stack resets, machine questions already answered upstream, `--help`
-   calls on shipped scripts — and every silent gap.
+   Surface: `--record`, or `--cli` with `--run-id` (and `--cwd` for a
+   claude run, whose transcripts are keyed on the directory); `--gap`
+   (default 60 s) sets the gap it reports; `--json`. It reads the run's
+   own lines under that CLI — opencode's log and session store,
+   claude's root and subagent transcripts, copilot's events — and
+   prints the commands, the turns, the generation time and the median
+   turn, then the four behaviours a harnessing change removes — scripts
+   the run authored, stack resets, machine questions already answered
+   upstream, `--help` calls on shipped scripts — and every silent gap.
 
 6. **Read the gaps before believing the clock.** A gap with no command
    in it is the model generating. One far above the run's median turn is
@@ -119,22 +163,23 @@ harnessing** section. This skill is how you prove one landed.
    attributed, and the run-to-run spread is wide enough to hide a small
    effect either way.
 
-8. **Restore the machine.** The user's skill and agent scopes from the
-   backup, the generated trees to `origin/main` (the release workflow
-   owns them), `.gitignore` and anything else `apm install` edited, the
-   containers down, the stray processes killed.
+8. **Restore the machine.** The user's command, agent and skill scopes
+   from the backup, the generated trees to `origin/main` (the release
+   workflow owns them), `.gitignore` and anything else `apm install`
+   edited, the containers down, the stray processes killed.
 
 ## Judging what you measured
 
 **The baseline is main, measured just before the work starts**, with
-the same mission, the same machine and the same harness as the runs
-that follow — never the published row alone, never a number taken on
-another day. State it on four axes at once: turns, tokens (input with
-the cached share, output), cost and wall clock — per phase, since the
-report phase is a tenth of a run and a change there vanishes in the
-investigation's spread. When a number looks like variance, replay
-rather than argue: two samples of the same configuration settle what
-one cannot.
+the same mission, the same machine, the same CLI and the same harness
+as the runs that follow — never the published row alone, never a number
+taken on another day. State it on four axes at once: turns, tokens
+(input with the cached share, output), cost and wall clock — per phase,
+since the report phase is a tenth of a run and a change there vanishes
+in the investigation's spread. The tokens and the cost come from the
+CLI's own session store, read the way `launch-llms-benchmark` step 7
+reads them. When a number looks like variance, replay rather than
+argue: two samples of the same configuration settle what one cannot.
 
 **A change goes to review only with a substantial gain on those axes
 against that baseline** — not a conformant output alone, not a

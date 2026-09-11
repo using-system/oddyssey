@@ -167,6 +167,14 @@ whole surface. A run that cannot see the parameters spends turns on
 `--help` or reads the file; both are pure loss, and reading the file
 invites it to reimplement what it just read.
 
+**What a check will refuse is said where the draft is written.** A
+script that prints a skeleton for the run to fill prints, after it,
+the shapes its checker enforces — one line — so the run reads neither
+the reference nor the script's source to learn them. Measured on one
+mission (2026-09-11): with the shapes stated in the reference alone,
+both runs opened the script's code by ranges right after the skeleton;
+with the line printed, one of two.
+
 **An answer already obtained travels; it is never re-derived.** What a
 preflight read is handed to whatever runs next, in the handoff, and the
 receiving contract says to read it there. Re-listing a repository, its
@@ -210,9 +218,10 @@ that names a backend's script has fused two files that change at
 different times, and the next backend added would have to edit a file
 that should not know it exists.
 
-**A stack reference is a list, never an essay.** It states each
-shipped invocation with its whole flag surface, one line per fact a
-script cannot absorb (a trap, a verified limit, a fix that is the
+**A reference is a list, never an essay** — a stack's, a report
+kind's, a benchmark's alike. It states each shipped invocation with its
+whole flag surface, one line per fact a script cannot absorb (a trap, a
+verified limit, a rule the output cannot say, a fix that is the
 user's), and nothing that narrates what the script prints — the output
 says that itself, once, at run time. A paragraph explaining a script is
 prose the run reads on every turn and a second contract the script can
@@ -251,6 +260,23 @@ what it owns is the number of commands and the work the model must
 compose. Move those, and state the before and after — a harnessing
 change that cannot name the commands it removed is not evidence of
 anything.
+
+**A change on the path of `/odd-observe`, `/odd-verify` or
+`/odd-status` is measured before its PR** — directly (the prompt, the
+agent it dispatches, a skill or a script the run executes) or
+indirectly (a reference the run reads, a script's output shape, a hook
+on the path). The measurement is the `test-plugin-harnessing` skill's
+(`.claude/skills/test-plugin-harnessing/`: its `SKILL.md` is the
+procedure, its two scripts drive and analyse a run), on the CLI the
+change is about — opencode, claude or copilot, the three the package
+is benchmarked on — against main measured just before the work with
+the same mission, two samples per side; the PR states the numbers on
+the four axes and names the commands it removed. No degradation is the
+bar: a change that cannot show it is reworked, not argued. A host that
+does not load that skill natively reads its `SKILL.md` as a file and
+runs its scripts the same way. `launch-llms-benchmark`
+(`.claude/commands/`) is the kit's other half, the one that grades a
+model's findings; it is never a substitute for this measurement.
 
 ## Marketplace is generated — never edit it by hand
 
@@ -334,8 +360,17 @@ there must list exactly the `STACKS` values (a unit test asserts it).
 This applies to adding a new stack to `STACKS` and to modifying an
 existing one — a new or changed `stack_config` field, a changed
 targeting requirement, a changed CLI command or flag in any section of
-the stack's `observability-cli-guides` reference. **Non-negotiable**:
-every such change
+the stack's `observability-cli-guides` reference. **A built-in stack is
+authored and adapted the way a custom one is**: through
+`/odd-instrument-stack` and the `stack-instrumentation-expert` agent —
+the one that carries the harnessing rules for a stack and knows how to
+build its query surface as scripts, verified live — as a custom stack
+under `.odd/observability-stacks/<name>/` first, then migrated into
+the `observability-cli-guides` reference and its `scripts/`, with the
+tests a built-in stack must carry (fake CLIs replaying captured, masked
+fixtures under `tests/skills/`). Editing a built-in reference or its
+scripts by hand, without that agent, skips the harnessing it enforces.
+**Non-negotiable**: every such change
 must be verified live, through the backend's own CLI, against a real
 account carrying real data — not from documentation, memory, or a
 mocked response. Verification means actually querying every signal
