@@ -537,11 +537,21 @@ def stage_layout(text: str, first_row: str, segment: str) -> dict:
             f"Warmup:    the manifest's {' and '.join(warm)} stage{'s' if len(warm) > 1 else ''}, "
             f"{warm_seconds} s (excluded from the quoted numbers); t0 and the first row are {warm_seconds} s apart"
         )
-    else:
+    elif t0 is None:
         warmup_line = (
-            "Warmup:    none - the manifest declares no warmup stage, t0 is the first request row"
-            if t0 == first_row
-            else "Warmup:    none - the manifest declares no warmup stage"
+            "Warmup:    none - no stage is quoted, nothing precedes a steady state"
+        )
+    elif t0 == first_row:
+        warmup_line = "Warmup:    none - the manifest declares no warmup stage, t0 is the first request row"
+    else:
+        gap = first_quoted_s
+        before = [
+            s["name"] for s in stages if s["to_s"] <= first_quoted_s and not s["quote"]
+        ]
+        warmup_line = (
+            f"Warmup:    none declared - t0 is {gap} s after the first row: "
+            f"{' and '.join(before)} before it ramp{'s' if len(before) == 1 else ''}, "
+            "read in segments (excluded from the quoted numbers), not a warmup"
         )
     return {
         "first_row": first_row,

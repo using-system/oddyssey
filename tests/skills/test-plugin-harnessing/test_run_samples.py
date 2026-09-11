@@ -36,6 +36,16 @@ open(os.path.join(out, tag + ".record.json"), "w").write(json.dumps({"tag": tag,
 open(os.path.join(out, tag + ".seen-branch"), "w").write(open(".git/HEAD").read())
 if os.environ.get("FAKE_MEASURE_FAIL") == tag:
     print("boom", file=sys.stderr); sys.exit(2)
+if os.environ.get("FAKE_MEASURE_LEAVE") == tag:
+    # what a real run leaves behind: a report commit on the lab branch, a
+    # report branch, an untracked report, a rewritten opencode.json
+    import subprocess
+    g = lambda *a: subprocess.run(["git", "-c", "commit.gpgsign=false", *a], check=True, capture_output=True)
+    open(".odd/observe-run-reports/2026-09-11-1000-x.md", "w").write("report\\n")
+    g("add", "-A"); g("commit", "-q", "-m", "docs(odd): observation report x")
+    g("branch", "docs/odd-observe-run-report-x")
+    open(".odd/observe-run-reports/2026-09-11-1100-y.md", "w").write("untracked\\n")
+    open("opencode.json", "w").write('{"rewritten": true}\\n')
 print(tag + ": whole 1m00s")
 """
 
@@ -168,21 +178,27 @@ def test_a_previous_runs_leftovers_are_cleared_before_the_next_sample(
 ):
     """A report branch, a report commit on the lab branch, an untracked
     report and a rewritten opencode.json are what a run leaves behind."""
-    git(lab, "checkout", "-q", "-b", "docs/odd-observe-run-report-x")
-    git(lab, "checkout", "-q", "lab-main")
-    (lab / ".odd/observe-run-reports/2026-09-11-1000-x.md").write_text("report\n")
-    git(lab, "add", "-A")
-    git(lab, "commit", "-q", "-m", "docs(odd): observation report x")
-    (lab / ".odd/observe-run-reports/2026-09-11-1100-y.md").write_text("untracked\n")
-    (lab / "opencode.json").write_text('{"rewritten": true}\n')
     out = tmp_path / "study"
-    p = run_samples(lab, kit, out, f"s1=lab-main:{kit['mission']}")
+    tip = git(lab, "rev-parse", "lab-main")
+    p = run_samples(
+        lab,
+        kit,
+        out,
+        f"s1=lab-main:{kit['mission']}",
+        f"s2=lab-main:{kit['mission']}",
+        env={"FAKE_MEASURE_LEAVE": "s1"},
+    )
     assert p.returncode == 0, p.stderr + p.stdout
-    assert git(lab, "log", "-1", "--format=%s") == "lab: main deploy"
+    assert git(lab, "rev-parse", "HEAD") == tip
     assert "docs/odd-observe-run-report-x" not in git(lab, "branch")
     assert not (lab / ".odd/observe-run-reports/2026-09-11-1100-y.md").exists()
     assert git(lab, "status", "--porcelain") == ""
-    assert "cleared" in (out / "samples.log").read_text()
+    journal = (out / "samples.log").read_text()
+    assert (
+        "cleared before lab-main: a report commit, branch docs/odd-observe-run-report-x"
+        in journal
+    )
+    assert "SAMPLE DONE s2" in journal
 
 
 def test_hooks_run_around_the_launch_with_the_samples_names_in_their_environment(
@@ -247,6 +263,53 @@ def test_a_dirty_lab_or_an_unknown_branch_refuses_before_launching(lab, kit, tmp
     p = run_samples(lab, kit, out, f"s1=lab-main:{kit['mission']}")
     assert p.returncode == 1 and "not clean" in p.stderr
     assert not (out / "s1.record.json").exists()
+    assert "SAMPLE CHAIN ABORTED at s1" in (out / "samples.log").read_text()
+
+
+def test_a_report_commit_at_the_branchs_own_tip_is_not_reset(lab, kit, tmp_path):
+    """The reset is bounded to what a run added after the tip recorded when
+    the chain started: a lab branch legitimately ending in a docs(odd)
+    commit keeps it."""
+    (lab / ".odd/observe-run-reports/2026-09-11-1000-x.md").write_text("report\n")
+    git(lab, "add", "-A")
+    git(lab, "commit", "-q", "-m", "docs(odd): observation report x")
+    tip = git(lab, "rev-parse", "HEAD")
+    out = tmp_path / "study"
+    p = run_samples(lab, kit, out, f"s1=lab-main:{kit['mission']}")
+    assert p.returncode == 0, p.stderr + p.stdout
+    assert git(lab, "rev-parse", "HEAD") == tip
+
+
+def test_a_missing_scope_source_is_refused_and_scratch_is_cleared_only_when_named(
+    lab, kit, tmp_path
+):
+    out = tmp_path / "study"
+    p = run_samples(
+        lab,
+        kit,
+        out,
+        f"s1=lab-main:{kit['mission']}",
+        extra=("--scope", "nope/dir:.claude/x"),
+    )
+    assert p.returncode == 1 and "not deployed" in p.stderr
+    scratch = tmp_path / "scratch"
+    (scratch / "keep").mkdir(parents=True)
+    p = run_samples(lab, kit, out, f"s2=lab-main:{kit['mission']}")
+    assert p.returncode == 0, p.stderr + p.stdout
+    assert (scratch / "keep").is_dir()
+    p = run_samples(
+        lab,
+        kit,
+        out,
+        f"s3=lab-main:{kit['mission']}",
+        extra=("--scratch", str(scratch)),
+    )
+    assert p.returncode == 0, p.stderr + p.stdout
+    assert not scratch.exists()
+    p = run_samples(
+        lab, kit, out, f"s4=lab-main:{kit['mission']}", extra=("--cli", "claude")
+    )
+    assert p.returncode == 1 and "--scope" in p.stderr
 
 
 def test_a_sample_spec_needs_all_three_parts():

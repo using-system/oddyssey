@@ -7,13 +7,16 @@
 
 One sample is `<tag>=<lab branch>:<mission file>`. For each, in order:
 the lab is put on the branch and cleared of
-what the previous run left (a report branch, a report commit, an untracked
-report, a rewritten opencode.json); the fake user scope is synced from the
-branch's deploy and checked identical; `--before` runs; the measurement is
+what the previous run left (a report branch, a report commit after the
+tip recorded at the chain's start, an untracked report, a rewritten
+opencode.json), `--scratch` is cleared when given; the fake user scope is
+synced from the branch's deploy (`--scope` pairs; opencode's are the
+default) and checked identical; `--before` runs; the measurement is
 launched (`--alongside` starts right after it and is waited for); the
 analysis runs; `--after` runs; one `SAMPLE DONE <tag> <wall>` or
 `SAMPLE FAILED <tag> (<why>)` line goes to `<out>/samples.log`, then
-`SAMPLE CHAIN DONE <n> of <m>` - the lines a monitor watches. The hooks
+`SAMPLE CHAIN DONE <n> of <m>` (or `SAMPLE CHAIN ABORTED at <tag>: <why>` when
+a sample is refused before its launch) - the lines a monitor watches. The hooks
 receive SAMPLE_TAG, SAMPLE_BRANCH, SAMPLE_OUT, SAMPLE_MISSION, LAB and
 FAKE_HOME in their environment. Exit 0 when every sample was measured, 1
 otherwise - a refused sample never launches.
@@ -32,20 +35,16 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
-# what each CLI's deploy in the lab writes, and where the fake user scope
-# expects it (the scopes launch-llms-benchmark step 3 states)
-SCOPES = {
+# what the opencode deploy in the lab writes, and where the fake user scope
+# expects it (launch-llms-benchmark step 3 states the scopes per CLI); the
+# other CLIs' scopes are passed as --scope <lab path>:<fake-home path>
+DEFAULT_SCOPES = {
     "opencode": [
         (".agents/skills", ".claude/skills"),
         (".opencode/agents", ".claude/agents"),
     ],
-    "claude": [
-        (".claude/skills", ".claude/skills"),
-        (".claude/agents", ".claude/agents"),
-        (".claude/commands", ".claude/commands"),
-    ],
-    "copilot": [(".agents/skills", ".claude/skills")],
 }
+CLIS = ("opencode", "claude", "copilot")
 
 
 def utc() -> str:
@@ -81,14 +80,15 @@ def journal(out: Path, line: str) -> None:
     print(line, flush=True)
 
 
-def clear_lab(lab: Path, branch: str, out: Path) -> None:
-    """The branch under measurement, with nothing a previous run left."""
+def clear_lab(lab: Path, branch: str, tip: str, out: Path) -> None:
+    """The branch under measurement at the tip recorded when the chain
+    started, with nothing a run left after it."""
     git(lab, "checkout", "-q", "--", "opencode.json", check=False)
-    if branch not in git(lab, "branch", "--format=%(refname:short)").splitlines():
-        raise SystemExit(f"no such lab branch: {branch}")
     git(lab, "checkout", "-q", branch)
     cleared = []
-    while git(lab, "log", "-1", "--format=%s").startswith("docs(odd)"):
+    while git(lab, "rev-parse", "HEAD") != tip and git(
+        lab, "log", "-1", "--format=%s"
+    ).startswith("docs(odd)"):
         git(lab, "reset", "-q", "--hard", "HEAD~1")
         cleared.append("a report commit")
     for name in git(lab, "branch", "--format=%(refname:short)").splitlines():
@@ -107,26 +107,28 @@ def clear_lab(lab: Path, branch: str, out: Path) -> None:
         journal(out, f"cleared before {branch}: {', '.join(cleared)}")
 
 
-def sync_scope(lab: Path, home: Path, cli: str) -> None:
+def sync_scope(lab: Path, home: Path, scopes: list[tuple[str, str]]) -> None:
     """The fake user scope carries the branch's deploy, and nothing else."""
-    for src, dst in SCOPES[cli]:
+    for src, dst in scopes:
         source, target = lab / src, home / dst
+        if not source.is_dir():
+            raise SystemExit(
+                f"{source} is not deployed in the lab: the branch's deploy is "
+                "incomplete, or the scope pair is wrong"
+            )
         if target.exists():
             shutil.rmtree(target)
-        if source.is_dir():
-            shutil.copytree(
-                source, target, ignore=shutil.ignore_patterns("__pycache__")
+        shutil.copytree(source, target, ignore=shutil.ignore_patterns("__pycache__"))
+        diff = subprocess.run(
+            ["diff", "-rq", "-x", "__pycache__", str(source), str(target)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if diff.returncode != 0:
+            raise SystemExit(
+                f"the fake user scope differs from {source}:\n{diff.stdout}"
             )
-            diff = subprocess.run(
-                ["diff", "-rq", "-x", "__pycache__", str(source), str(target)],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if diff.returncode != 0:
-                raise SystemExit(
-                    f"the fake user scope differs from {source}:\n{diff.stdout}"
-                )
 
 
 def run_hook(
@@ -146,7 +148,19 @@ def main() -> int:
     ap.add_argument("--lab", required=True, help="the lab clone the runs launch in")
     ap.add_argument("--fake-home", required=True, help="the HOME the runs see")
     ap.add_argument("--out", required=True, help="the study directory")
-    ap.add_argument("--cli", default="opencode", choices=sorted(SCOPES))
+    ap.add_argument("--cli", default="opencode", choices=CLIS)
+    ap.add_argument(
+        "--scope",
+        action="append",
+        metavar="LAB_PATH:HOME_PATH",
+        help="a deployed directory to sync into the fake home (repeatable; the "
+        "opencode pair is the default, the other CLIs need theirs stated)",
+    )
+    ap.add_argument(
+        "--scratch",
+        metavar="DIR",
+        help="the CLI's scratch directory to clear before each sample (none by default)",
+    )
     ap.add_argument("--model", default="google/gemini-3.7-flash")
     ap.add_argument(
         "--phase",
@@ -183,15 +197,31 @@ def main() -> int:
     for _, _, mission in samples:
         if not mission.is_file():
             raise SystemExit(f"no such mission file: {mission}")
+    scopes = list(DEFAULT_SCOPES.get(args.cli, []))
+    for pair in args.scope or []:
+        if ":" not in pair:
+            raise SystemExit(f"--scope takes <lab path>:<fake-home path>, got {pair!r}")
+        scopes.append(tuple(pair.split(":", 1)))
+    if not scopes:
+        raise SystemExit(f"--cli {args.cli} needs its --scope pairs stated")
+    branches = git(lab, "branch", "--format=%(refname:short)").splitlines()
+    tips: dict[str, str] = {}
+    for _, branch, _ in samples:
+        if branch not in branches:
+            raise SystemExit(f"no such lab branch: {branch}")
+        tips[branch] = git(lab, "rev-parse", branch)
     done = 0
     for index, (tag, branch, mission) in enumerate(samples):
         if index:
             time.sleep(args.pause)
-        clear_lab(lab, branch, out)
-        sync_scope(lab, home, args.cli)
-        tmp_run = Path(os.environ.get("TMPDIR", "/tmp")) / args.cli
-        if tmp_run.is_dir():
-            shutil.rmtree(tmp_run, ignore_errors=True)
+        try:
+            clear_lab(lab, branch, tips[branch], out)
+            sync_scope(lab, home, scopes)
+        except SystemExit as why:
+            journal(out, f"SAMPLE CHAIN ABORTED at {tag}: {why}")
+            raise
+        if args.scratch and Path(args.scratch).is_dir():
+            shutil.rmtree(args.scratch, ignore_errors=True)
         env = {
             **os.environ,
             "SAMPLE_TAG": tag,
@@ -247,7 +277,10 @@ def main() -> int:
         )
         record = out / f"{tag}.record.json"
         if code != 0 or not record.is_file():
-            journal(out, f"SAMPLE FAILED {tag} (measure exit {code})")
+            why = (
+                f"measure exit {code}" if code != 0 else "measure exit 0 but no record"
+            )
+            journal(out, f"SAMPLE FAILED {tag} ({why})")
             after = run_hook(args.after, env, out, tag, "after")
             if after is not None:
                 after.wait()

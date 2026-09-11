@@ -637,6 +637,22 @@ def test_a_steady_stage_has_no_segments_and_a_flow_style_manifest_parses():
     assert "no warmup stage" in out["warmup_line"]
 
 
+def test_a_ramp_before_the_quoted_stage_is_named_on_the_warmup_line_with_the_offset():
+    """The stress ramps five minutes before its hold: no warmup stage, but
+    the record must say how far t0 sits from the first row and why."""
+    p = stages_cli(
+        ROOT / ".odd/benchmarks/mcp-read-stress",
+        "--first-row",
+        "2026-09-06T10:00:00Z",
+        "--json",
+    )
+    assert p.returncode == 0, p.stderr
+    out = json.loads(p.stdout)
+    assert out["t0"] == "2026-09-06T10:05:00Z" and out["warmup"]["stages"] == []
+    assert "t0 is 300 s after the first row" in out["warmup_line"]
+    assert "ramp before it ramps, read in segments" in out["warmup_line"]
+
+
 def test_stages_refuse_a_manifest_without_stages_and_a_bad_instant(tmp_path):
     d = tmp_path / "x"
     d.mkdir()

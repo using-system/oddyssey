@@ -150,25 +150,30 @@ the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
 
    One sample is `<tag>=<lab branch>:<mission file>`, run in the order
    given (alternate the sides). For each: the lab is put on the branch
-   and cleared of what the
-   previous run left (a report branch, a report commit, an untracked
-   report, a rewritten `opencode.json` — a lab dirty in any other way
-   is refused before the launch), the fake user scope is synced from
-   the branch's deploy and checked identical, the measurement above is
-   launched and the analysis below run, and one line goes to
-   `<study dir>/samples.log`: `SAMPLE DONE <tag> <wall> on <branch>`,
-   `SAMPLE FAILED <tag> (<why>)`, then `SAMPLE CHAIN DONE <n> of <m>` —
-   the lines to watch instead of polling. Its whole surface, so
-   `--help` has nothing to add: the flags above, `--end-pattern`,
-   `--effort` (default `medium`), `--timeout` (default 2700 s),
-   `--pause` (default 10 s between samples), `--before <command>` (run
-   before each launch: recreate the demo stack, send a traffic burst),
-   `--alongside <command>` (started right after each launch and waited
-   for: a driver that replays a benchmark from a second shell),
-   `--after <command>`, `--measure-script` and `--analyze-script` (the
-   kit of another revision). The hooks see `SAMPLE_TAG`,
-   `SAMPLE_BRANCH`, `SAMPLE_OUT`, `SAMPLE_MISSION`, `LAB` and
-   `FAKE_HOME`. Exit 0 when every sample was measured, 1 otherwise.
+   and cleared of what a run left after the tip recorded when the chain
+   started (a report branch, a report commit, an untracked report, a
+   rewritten `opencode.json` — a lab dirty in any other way is refused
+   before the launch), the fake user scope is synced from the branch's
+   deploy and checked identical (`--scope <lab path>:<fake-home path>`,
+   repeatable; opencode's two pairs are the default, the other CLIs
+   state theirs), `--scratch <dir>` is cleared when given (the CLI's
+   scratch directory; nothing outside the study is touched otherwise),
+   the measurement above is launched and the analysis below run, and
+   one line goes to `<study dir>/samples.log`: `SAMPLE DONE <tag>
+   <wall> on <branch>`, `SAMPLE FAILED <tag> (<why>)`, then `SAMPLE
+   CHAIN DONE <n> of <m>` — or `SAMPLE CHAIN ABORTED at <tag>: <why>`
+   when a sample is refused before its launch — the lines to watch
+   instead of polling. Its whole surface, so `--help` has nothing to
+   add: the flags above, `--end-pattern`, `--effort` (default
+   `medium`), `--timeout` (default 2700 s), `--pause` (default 10 s
+   between samples), `--before <command>` (run before each launch:
+   recreate the demo stack, send a traffic burst), `--alongside
+   <command>` (started right after each launch and waited for: a driver
+   that replays a benchmark from a second shell), `--after <command>`,
+   `--measure-script` and `--analyze-script` (the kit of another
+   revision). The hooks see `SAMPLE_TAG`, `SAMPLE_BRANCH`,
+   `SAMPLE_OUT`, `SAMPLE_MISSION`, `LAB` and `FAKE_HOME`. Exit 0 when
+   every sample was measured, 1 otherwise.
 
 5. **Analyse before concluding**, with `scripts/analyze_run.py`:
 

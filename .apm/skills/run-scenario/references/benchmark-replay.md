@@ -153,8 +153,8 @@ Listeners: none
 Backend:   no reset — separated by the slug and the window
 Instance:  orders-run-0902 (restarted with the slug)
 Identity:  service.instance.id=orders-run-0902 on the launcher; User-Agent "odd-bench/orders-read-heavy/orders-run-0902" (the manifest's identity block, slug through -e RUN_SLUG); traceparent not sent — its gate is unset on a local drive
-Warmup:    the manifest's ramp-up stage, 60 s (excluded from the quoted numbers); t0 and the first row are 60 s apart
-Stages (UTC): offsets converted from the first request row 10:04:12 — ramp-up 10:04:12–10:05:12 (excluded), steady 10:05:12–10:25:12, ramp-down 10:25:12–10:25:42 (excluded); t0 (first measured request, where the quoted numbers start) 10:05:12
+Warmup:    the manifest's baseline stage, 60 s (excluded from the quoted numbers); t0 and the first row are 60 s apart
+Stages (UTC): offsets converted from the first request row 10:04:12 — baseline 10:04:12–10:05:12 (excluded), steady 10:05:12–10:25:12, ramp-down 10:25:12–10:25:42 (excluded); t0 (first measured request, where the quoted numbers start) 10:05:12; ramp-down 10:25:12–10:25:42 read in 30 s segments, offered rate at each segment's midpoint
 Started (UTC): 2026-09-02T10:04:12Z
 Ended   (UTC): 2026-09-02T10:25:42Z
 Query points: 1 (after Ended)
@@ -178,20 +178,24 @@ discovered, and k6's evidence is the driver's.
   manifest's User-Agent prefix from the moment you are dispatched, with
   the mission's window end as the deadline and a state file in your
   scratch directory; run the same invocation again when a call's budget
-  cuts it — it resumes from its state. It prints the `Started (UTC):`,
-  `Ended (UTC):`, `Identity:` and `Watch:` lines and the queries it ran;
-  the record's `Poller:` line is that invocation, its state file and
-  how many calls it took. Never compose the poll around it. When the
-  backend ships none, the poller is `long-scenarios.md`'s detached
-  shape with the criteria below as its conditions, cited verbatim on
-  the `Poller:` line.
+  cuts it — it resumes from its state. What it found goes on the
+  record's `Started (UTC):`, `Ended (UTC):`, `Identity:` and `Watch:`
+  lines, its queries on the record with the others; the `Poller:` line
+  is that invocation, its state file and how many calls it took. Never
+  compose the poll around it. When the backend ships none, the poller
+  is `long-scenarios.md`'s detached-job shape (its last section, which
+  names this case) with the criteria below as its conditions, cited
+  verbatim on the `Poller:` line.
 - **The identity is discovered, not handed over**: the manifest's
   `identity:` block gives the User-Agent prefix (`odd-bench/<name>`),
   the slug is read off the rows. A `traceparent` the manifest declares
   shortens nothing: the trace-id selector becomes available only once
   the slug is known, for what the User-Agent cannot reach. Several
-  slugs in the window are several runs: watch the one the mission
-  names, otherwise report the ambiguity, each slug with its first row.
+  identity values on the rows are several runs (a shipped watch reads
+  the identity on the first row, on the first row after a gap and on
+  the last row, and says when they differ): watch the one the mission
+  names, otherwise report the ambiguity, each identity with the bin it
+  first appeared in.
 - **The criteria** (the shipped watch applies them; a composed poller
   states them): poll from dispatch — the announced start is a hint;
   before the first row an empty poll means **not started**, and a watch

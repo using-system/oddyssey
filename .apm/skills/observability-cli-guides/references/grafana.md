@@ -271,9 +271,16 @@ Six subcommands, the whole surface above (`--since <duration>` replaces
   deadline past which "no run observed" is the answer), 4 not started
   there — the same invocation again resumes it from `--state`, the last
   closed bin onward, never re-querying what it already counted; a
-  watch a tool call's budget cuts loses nothing. Two identity values on
-  the rows are two runs, and the output says so. Every poll goes to the
-  store; nothing is sent at the service.
+  watch a tool call's budget cuts loses nothing, and a gcx error leaves
+  its bin unread for the next call. At the deadline the last `--settle`
+  is read unsettled rather than skipped, so a run that began inside it
+  is never "not started"; a deadline closer to the last row than
+  `--ended-after` × `--bin` + `--settle` cannot close the run, and the
+  output says how much further `--to` must go. The identity is read off
+  the first row's trace, the first row after a gap and the last row's:
+  two values are two runs, and the output says so. `new` in a bin is
+  what the previous bin did not list; a capped bin under-counts. Every
+  poll goes to the store; nothing is sent at the service.
 - `breakdown` — over the traces rooted at the service in the window
   (`--traceql` narrows the search, the table still keeps the traces
   rooted at `--service` — a service never rooted is said, with the
@@ -311,11 +318,12 @@ and peer first>` (a root's `http.response.status_code`, a child's
 truncated, first, last, roots{<svc> <op>: n}, traces[{traceID,
 rootServiceName, rootTraceName, startTimeUnixNano, durationMs}]`.
 `count` — `traceql, bin, total, capped_bins, bins[{from, to, listed,
-new, capped}], note`. `watch` — `traceql, from, to, bin, every,
-ended_after, settle, status (not started, running, ended), started,
-ended, last_row, span_s, identity[], identity_attr, several_identities,
-empty_since_last_row, walked_back, bins[{from, to, listed, new, capped}], polls,
-polls_this_call, last_poll, state, commands[]` — the text form prints
+new, capped}], note`. `watch` — `traceql, poll_from, from, to, bin,
+every, ended_after, settle, status (not started, running, ended),
+started, ended, last_row, span_s, identity[], identity_attr,
+several_identities, empty_since_last_row, walked_back, deadline_note,
+bins[{from, to, listed, new, capped, unsettled, partial}], capped_bins,
+polls, polls_this_call, last_poll, state, note, commands[]` — the text form prints
 the record's `Started (UTC):`, `Ended (UTC):`, `Identity:` and `Watch:`
 lines as they go on the run record. `breakdown` — `window, traceql, service, listed, rooted,
 rooted_elsewhere{<svc>: n}, truncated, fetched, failed[{trace_id,
