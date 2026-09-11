@@ -44,8 +44,10 @@ watch's state; the next call resumes from the last closed bin), --identity-attr
 attribute read off the first row's trace, the first row after a gap, and
 the last row's - two values are two runs). Rows already in the first bin
 make the watch walk back before --from to the run's first row; at the
-deadline the last --settle is read unsettled, and a deadline closer to the
-last row than ended-after x bin + settle says how much further --to must go.
+deadline the last --settle is read unsettled, a bin the deadline clips is
+kept apart as partial_bin and read again whole next call, and a deadline
+closer to the last row than ended-after x bin + settle says how much
+further --to must go.
 Exit 0 ended, 3 running at the bound, 4 not started at the bound. --json
 everywhere. Every subcommand prints the gcx commands it ran, so the report
 can record them. Reads GCX_CONFIG. Exit 0 on success, 1 when gcx errored -
@@ -748,10 +750,10 @@ def cmd_watch(ns) -> tuple[int, dict]:
             if partial:
                 # the clipped last bin before the deadline: read for the start
                 # and the rows, kept apart and replaced, never a closed bin
-                state["partial"] = entry
+                state["partial_bin"] = entry
             else:
                 state["bins"].append(entry)
-                state.pop("partial", None)
+                state.pop("partial_bin", None)
                 state["last_bin_ids"] = ids[-200:]
                 state["cursor"] = iso(y)
             cursor = y
@@ -855,7 +857,7 @@ def _watch_out(state: dict, ns, now, polls_this_call: int) -> dict:
         "walked_back": state.get("walked_back", 0),
         "deadline_note": state.get("deadline_note"),
         "bins": state["bins"],
-        "partial_bin": state.get("partial"),
+        "partial_bin": state.get("partial_bin"),
         "capped_bins": sum(1 for b in state["bins"] if b.get("capped")),
         "polls": state["polls"],
         "polls_this_call": polls_this_call,
@@ -1204,7 +1206,7 @@ def render(o: dict) -> str:
         if o.get("partial_bin"):
             r = o["partial_bin"]
             out.append(
-                f"  {r['from'][11:19]} .. {r['to'][11:19]}  new={r.get('new')}  partial, up to the deadline: read again next call"
+                f"  {r['from'][11:19]} .. {r['to'][11:19]}  new={r.get('new')}{'  CAPPED' if r.get('capped') else ''}  partial, up to the deadline: read again next call"
             )
         if o.get("deadline_note"):
             out.append(f"  deadline {o['to']}: {o['deadline_note']}")

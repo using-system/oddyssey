@@ -268,7 +268,10 @@ Six subcommands, the whole surface above (`--since <duration>` replaces
   and then ended on `--ended-after` consecutive empty bins:
   `Started (UTC)` and `Ended (UTC)` are the rows', never the watch's
   clock. `--max` bounds one call, between and inside its polls (`0s`
-  is one whole poll). Exit 0 ended, 3 still running at `--max` or `--to` (the
+  is one whole poll). A deadline off the bin grid clips the last bin:
+  read for the start and the rows, kept apart as `partial_bin` and read
+  again whole on the next call, never a closed bin. Exit 0 ended, 3
+  still running at `--max` or `--to` (the
   deadline past which "no run observed" is the answer), 4 not started
   there — the same invocation again resumes it from `--state`, the last
   closed bin onward, never re-querying what it already counted; a
@@ -323,8 +326,9 @@ new, capped}], note`. `watch` — `traceql, poll_from, from, to, bin,
 every, ended_after, settle, status (not started, running, ended),
 started, ended, last_row, span_s, identity[], identity_attr,
 several_identities, empty_since_last_row, walked_back, deadline_note,
-bins[{from, to, listed, new, capped, unsettled, partial}], capped_bins,
-polls, polls_this_call, last_poll, state, note, commands[]` — the text form prints
+bins[{from, to, listed, new, capped, unsettled}], partial_bin{from, to,
+listed, new, capped, partial, unsettled} or null, capped_bins, polls,
+polls_this_call, last_poll, state, note, commands[]` — the text form prints
 the record's `Started (UTC):`, `Ended (UTC):`, `Identity:` and `Watch:`
 lines as they go on the run record. `breakdown` — `window, traceql, service, listed, rooted,
 rooted_elsewhere{<svc>: n}, truncated, fetched, failed[{trace_id,

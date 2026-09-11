@@ -1474,3 +1474,44 @@ def test_watch_keeps_a_clipped_deadline_bin_apart_and_never_duplicates_it(
             "--to", "2026-09-08T16:41:45Z", "--max", "0s", state=tmp_path / "v.json"
         ).stdout
     )
+
+
+def test_the_reference_states_exactly_the_keys_watch_prints(fake_gcx, tmp_path):
+    """The output shape a run reads off the reference is the shipped one:
+    every top-level key and every bin key, stated and present, none more."""
+    text = REFERENCE.read_text(encoding="utf-8")
+    stated = re.search(r"`watch` — `(.*?)` — the text form", text, re.DOTALL).group(1)
+    top = set(
+        re.findall(
+            r"(?<![\w{,])([a-z_]+)(?=[,\[{]|\s|$)",
+            re.sub(r"\([^)]*\)", "", re.sub(r"\{[^}]*\}", "", stated)).replace(
+                "[]", ""
+            ),
+        )
+    )
+    top -= {"or", "null"}
+    keys = lambda inner: set(re.split(r"[,\s]+", inner.strip()))
+    bins_keys = keys(re.search(r"bins\[\{([^}]*)\}\]", stated).group(1))
+    partial_keys = keys(re.search(r"partial_bin\{([^}]*)\}", stated).group(1))
+    o = json.loads(
+        watch(
+            "--to",
+            "2026-09-08T16:41:45Z",
+            "--max",
+            "0s",
+            "--json",
+            state=tmp_path / "w.json",
+        ).stdout
+    )
+    assert set(o) == top, (set(o) - top, top - set(o))
+    assert set().union(*(set(b) for b in o["bins"])) <= bins_keys
+    assert set(o["partial_bin"]) <= partial_keys and o["partial_bin"]["partial"] is True
+    o = json.loads(
+        watch(
+            "--to", "2026-09-08T16:45:00Z", "--json", state=tmp_path / "v.json"
+        ).stdout
+    )
+    assert set(o) == top and o["partial_bin"] is None
+    assert set().union(*(set(b) for b in o["bins"])) <= bins_keys
+    for key in ("unsettled", "capped", "listed", "new", "from", "to"):
+        assert key in bins_keys
