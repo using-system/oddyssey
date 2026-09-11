@@ -137,6 +137,39 @@ the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
    CLI, the model as passed, the id, the directory, the stdout stream
    and copilot's usage file, which the analysis reads.
 
+   **A study's samples are run by `scripts/run_samples.py`, never by a
+   chain you write** — every study before it rewrote the same loop (the
+   branch checkout, the leftovers, the scope sync, the launch, the
+   analysis, a journal to watch) and each copy carried its own bug:
+
+   ```bash
+   python3 <this skill's directory>/scripts/run_samples.py --lab <lab clone> --fake-home <dir> --out <study dir> \
+     --cli <opencode|claude|copilot> --model <vendor/name> --phase <phase> \
+     base1=<lab branch>:<mission file> after1=<lab branch>:<mission file> base2=... after2=...
+   ```
+
+   One sample is `<tag>=<lab branch>:<mission file>`, run in the order
+   given (alternate the sides). For each: the lab is put on the branch
+   and cleared of what the
+   previous run left (a report branch, a report commit, an untracked
+   report, a rewritten `opencode.json` — a lab dirty in any other way
+   is refused before the launch), the fake user scope is synced from
+   the branch's deploy and checked identical, the measurement above is
+   launched and the analysis below run, and one line goes to
+   `<study dir>/samples.log`: `SAMPLE DONE <tag> <wall> on <branch>`,
+   `SAMPLE FAILED <tag> (<why>)`, then `SAMPLE CHAIN DONE <n> of <m>` —
+   the lines to watch instead of polling. Its whole surface, so
+   `--help` has nothing to add: the flags above, `--end-pattern`,
+   `--effort` (default `medium`), `--timeout` (default 2700 s),
+   `--pause` (default 10 s between samples), `--before <command>` (run
+   before each launch: recreate the demo stack, send a traffic burst),
+   `--alongside <command>` (started right after each launch and waited
+   for: a driver that replays a benchmark from a second shell),
+   `--after <command>`, `--measure-script` and `--analyze-script` (the
+   kit of another revision). The hooks see `SAMPLE_TAG`,
+   `SAMPLE_BRANCH`, `SAMPLE_OUT`, `SAMPLE_MISSION`, `LAB` and
+   `FAKE_HOME`. Exit 0 when every sample was measured, 1 otherwise.
+
 5. **Analyse before concluding**, with `scripts/analyze_run.py`:
 
    ```bash
