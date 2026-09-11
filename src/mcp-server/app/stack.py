@@ -82,22 +82,20 @@ def _proxy(uid: str, path: str, ports: dict | None = None) -> str:
 STARTUP_TIMEOUT_S = 120
 POLL_INTERVAL_S = 2
 DOCKER_CALL_TIMEOUT_S = 5.0
-DOCKER_RUN_TIMEOUT_S = 60.0
+# The creation path carries the whole first-boot cost: `docker run` pulls
+# the multi-GB otel-lgtm image before it returns the container ID, so its
+# bound must cover an honest slow pull, not just a live daemon. A dead
+# daemon still refuses fast (the CLI's connect error fires immediately);
+# only a daemon that hangs mid-pull waits out this ceiling. The same heavy
+# budget covers `docker rm --force --volumes`, which stops and destroys a
+# busy container (review #536).
+DOCKER_RUN_TIMEOUT_S = 900.0
 
 DAEMON_REMEDY = "the Docker daemon does not answer - restart Docker Desktop and retry"
 
 
 class DaemonUnreachable(RuntimeError):
     """The Docker daemon does not answer - the call was bounded, not hung."""
-
-
-def _daemon_connect_error(stderr: str) -> bool:
-    lowered = (stderr or "").lower()
-    return (
-        "cannot connect to the docker daemon" in lowered
-        or "error during connect" in lowered
-        or "is the docker daemon running" in lowered
-    )
 
 
 # Widest lookback each backend accepts for the pre-wipe service listing:
@@ -217,11 +215,14 @@ def _run_bounded(
 ) -> subprocess.CompletedProcess:
     """Run one docker argv with a bound; a hung daemon is a refusal, not a hang.
 
-    A timeout means the daemon hung; a nonzero exit carrying the CLI's own
-    daemon-connection error means the socket is dead. Both raise
-    DaemonUnreachable with the one-line remedy. Every other nonzero exit
-    (e.g. "No such object" on an absent container) returns normally so
-    callers keep their absent/None degradations.
+    A timeout means the daemon hung; a nonzero exit means the daemon is
+    classified by probing it: the CLI's error TEXT drifts across versions
+    (Docker 29 dropped the classic connect wording), so a bounded
+    `docker version` is the robust oracle - a probe that fails (nonzero or
+    timeout) means the daemon did not answer, a probe that answers means a
+    CLI-level error (e.g. "No such object") the caller keeps as its
+    absent/None degradation. Both refusal shapes raise DaemonUnreachable
+    with the one-line remedy; every other nonzero exit returns normally.
     """
     try:
         result = subprocess.run(
@@ -233,8 +234,19 @@ def _run_bounded(
         )
     except subprocess.TimeoutExpired:
         raise DaemonUnreachable(DAEMON_REMEDY) from None
-    if result.returncode != 0 and _daemon_connect_error(result.stderr):
-        raise DaemonUnreachable(DAEMON_REMEDY) from None
+    if result.returncode != 0:
+        try:
+            probe = subprocess.run(
+                ["docker", "version"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=timeout_s,
+            )
+        except subprocess.TimeoutExpired:
+            raise DaemonUnreachable(DAEMON_REMEDY) from None
+        if probe.returncode != 0:
+            raise DaemonUnreachable(DAEMON_REMEDY) from None
     span.set_attribute("oddyssey.docker.exit_code", result.returncode)
     return result
 
@@ -449,10 +461,6 @@ def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
         user_env = container_user_env()
     except DaemonUnreachable as exc:
         remedy = str(exc)
-    except subprocess.TimeoutExpired:
-        # A bounded docker call that surfaces its timeout directly (e.g.
-        # a stubbed _docker in tests) is the same hung daemon.
-        remedy = DAEMON_REMEDY
     else:
         env = (
             {k: (None if _sensitive_env(k) else v) for k, v in user_env.items()}
@@ -538,8 +546,26 @@ def stack_up(
     elif state == "absent":
         reapplied = persisted_env()
         user_env = {**reapplied, **(env or {})}
-        with telemetry.docker_span("run", container=CONTAINER_NAME) as span:
-            result = _run_bounded(run_args(user_env), DOCKER_RUN_TIMEOUT_S, span)
+        try:
+            with telemetry.docker_span("run", container=CONTAINER_NAME) as span:
+                result = _run_bounded(run_args(user_env), DOCKER_RUN_TIMEOUT_S, span)
+        except DaemonUnreachable:
+            # A run cut off mid-pull can leave a half-created container
+            # behind (the CLI was killed after the daemon booked the name):
+            # unbind it so the next up/reset can proceed instead of dying on
+            # a name conflict. Best-effort - a dead daemon refuses the rm
+            # too, which is the same remedy.
+            try:
+                _docker(
+                    "rm",
+                    "--force",
+                    "--volumes",
+                    CONTAINER_NAME,
+                    timeout_s=DOCKER_RUN_TIMEOUT_S,
+                )
+            except DaemonUnreachable:
+                pass
+            raise
         if result.returncode != 0:
             raise RuntimeError(f"docker run failed: {result.stderr.strip()}")
         created = True
@@ -674,7 +700,16 @@ def stack_down(flush: bool = True) -> dict:
     """
     if flush:
         telemetry.force_flush()
-    result = _docker("rm", "--force", "--volumes", CONTAINER_NAME)
+    # --force stops and destroys a busy container: the 5s inspect budget is
+    # too tight for that work, so rm takes the heavy creation budget (the
+    # connect-error path still refuses a dead daemon immediately).
+    result = _docker(
+        "rm",
+        "--force",
+        "--volumes",
+        CONTAINER_NAME,
+        timeout_s=DOCKER_RUN_TIMEOUT_S,
+    )
     if result.returncode != 0 and "no such container" not in result.stderr.lower():
         raise RuntimeError(f"docker rm failed: {result.stderr.strip()}")
     return {"running": False}

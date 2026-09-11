@@ -23,6 +23,29 @@ mcp_call() {
     "$SERVER_BIN" --method tools/call --tool-name "$tool" "${args[@]+"${args[@]}"}"
 }
 
+# mcp_call_env <tool-name> <KEY=VALUE>... [--] [key=json-value]... ->
+# JSON of tools/call on stdout, with the given env overrides forced on the
+# server. The inspector inherits only a sudo-like env allowlist
+# (HOME/PATH/SHELL/TERM/USER/...) when spawning the server subprocess, so a
+# plain `export KEY=VALUE` around mcp_call never reaches it - the
+# inspector's own `-e` flag is the only env route into the transport's
+# explicit env. Everything before the literal `--` is an env override,
+# everything after it a tool argument.
+mcp_call_env() {
+  local tool="$1"; shift
+  local env_args=()
+  while [ "$#" -gt 0 ] && [ "$1" != "--" ]; do
+    env_args+=(-e "$1")
+    shift
+  done
+  [ "$#" -gt 0 ] && shift
+  local args=()
+  for arg in "$@"; do args+=(--tool-arg "$arg"); done
+  npx -y @modelcontextprotocol/inspector@"$INSPECTOR_VERSION" --cli \
+    "$SERVER_BIN" --method tools/call --tool-name "$tool" \
+    "${env_args[@]+"${env_args[@]}"}" "${args[@]+"${args[@]}"}"
+}
+
 # assert_result_contains <json-file> <substring> - checks the tool result text
 assert_result_contains() {
   jq -e --arg needle "$2" '.content[0].text | contains($needle)' "$1" > /dev/null \

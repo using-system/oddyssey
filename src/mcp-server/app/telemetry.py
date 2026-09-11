@@ -235,9 +235,11 @@ def traced_tool(fn: Callable[..., dict]) -> Callable[..., dict]:
 
     Applied UNDER ``@mcp.tool()`` with ``functools.wraps`` so the name,
     docstring, and signature reach MCP registration unchanged. Exceptions
-    are recorded and re-raised, except a ``ValueError`` - oddyssey's
-    validation-failure contract - which is re-raised as a ``ToolError`` so
-    its message reaches the client (see the ``except`` clause below).
+    are recorded and re-raised, except two deliberate client-visible
+    contracts: a ``ValueError`` - oddyssey's validation-failure contract -
+    and a ``stack.DaemonUnreachable`` - the daemon-refusal remedy of
+    issue #521 - which are re-raised as a ``ToolError`` so their messages
+    reach the client (see the ``except`` clauses below).
     """
     tool_name = fn.__name__
     metric_attributes = {
@@ -267,13 +269,20 @@ def traced_tool(fn: Callable[..., dict]) -> Callable[..., dict]:
                 # tool bodies raise ValueError for validation failures the
                 # caller must see (bad stack name, bad port, ...); translate
                 # it here so every tool keeps that contract without each call
-                # site importing mcp's exception type itself (issue #187).
+                # site importing mcp's exception type.
                 span.record_exception(exc)
                 span.set_status(Status(StatusCode.ERROR, str(exc)))
                 raise ToolError(str(exc)) from exc
             except Exception as exc:
                 span.record_exception(exc)
                 span.set_status(Status(StatusCode.ERROR, str(exc)))
+                # stack.DaemonUnreachable is the daemon-refusal contract of
+                # issue #521 - the caller must see its one-line remedy, which
+                # a bare RuntimeError would lose to the same withholding.
+                # Checked by class name: stack imports this module, so
+                # importing it here would be a cycle.
+                if type(exc).__name__ == "DaemonUnreachable":
+                    raise ToolError(str(exc)) from exc
                 raise
             finally:
                 if _duration_histogram is not None:

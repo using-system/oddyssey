@@ -1004,6 +1004,13 @@ class _Proc:
         self.stderr = stderr
 
 
+class _FakeSpan:
+    """Minimal span stand-in for _run_bounded's set_attribute call."""
+
+    def set_attribute(self, name, value):
+        pass
+
+
 def _fake_env_inspects(
     monkeypatch, container, image, container_image="sha256:cafe", seen=None
 ):
@@ -1161,7 +1168,9 @@ def test_stack_down_flushes_queued_telemetry_before_the_rm(monkeypatch):
     # container - a shared order sink pins the sequence, not just the call.
     order: list[str] = []
     monkeypatch.setattr(stack.telemetry, "force_flush", lambda: order.append("flush"))
-    monkeypatch.setattr(stack, "_docker", lambda *args: order.append("rm") or _Proc())
+    monkeypatch.setattr(
+        stack, "_docker", lambda *args, **kwargs: order.append("rm") or _Proc()
+    )
 
     stack.stack_down()
 
@@ -1197,7 +1206,7 @@ def test_stack_reset_defers_the_flush_to_the_recreated_store(monkeypatch):
     monkeypatch.setattr(stack.telemetry, "force_flush", lambda: flushes.append(1))
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
     monkeypatch.setattr(stack, "stored_services", list)
-    monkeypatch.setattr(stack, "_docker", lambda *args: _Proc())
+    monkeypatch.setattr(stack, "_docker", lambda *args, **kwargs: _Proc())
     monkeypatch.setattr(stack, "stack_up", lambda env=None, **kwargs: {"running": True})
 
     stack.stack_reset()
@@ -1298,24 +1307,28 @@ def test_stack_reset_refuses_when_daemon_unreachable(monkeypatch):
 
 def test_container_state_absent_survives_non_connect_errors(monkeypatch):
     # The critical line: "No such object" still means an absent
-    # container, never a daemon refusal - only the CLI's own
-    # connection errors raise.
-    monkeypatch.setattr(
-        stack.subprocess,
-        "run",
-        lambda argv, **kwargs: subprocess.CompletedProcess(
+    # container, never a daemon refusal - only when the daemon itself
+    # does not answer does the call refuse. The classifier is the bounded
+    # `docker version` probe, not the CLI's error text (which drifts
+    # across versions - Docker 29 dropped the classic connect wording):
+    # a probe that answers keeps the absent/None degradation, a probe
+    # that fails is the same dead daemon.
+    def daemon_up_run(argv, **kwargs):
+        if argv == ["docker", "version"]:
+            return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(
             argv, 1, stdout="", stderr="Error: No such object: oddyssey-lgtm"
-        ),
-    )
+        )
+
+    monkeypatch.setattr(stack.subprocess, "run", daemon_up_run)
     assert stack._container_state() == "absent"
 
-    monkeypatch.setattr(
-        stack.subprocess,
-        "run",
-        lambda argv, **kwargs: subprocess.CompletedProcess(
+    def dead_daemon_run(argv, **kwargs):
+        return subprocess.CompletedProcess(
             argv, 1, stdout="", stderr=CONNECT_ERROR_STDERR
-        ),
-    )
+        )
+
+    monkeypatch.setattr(stack.subprocess, "run", dead_daemon_run)
     with pytest.raises(stack.DaemonUnreachable):
         stack._container_state()
 
@@ -1345,3 +1358,98 @@ def test_docker_call_honors_its_timeout(monkeypatch):
     with pytest.raises(stack.DaemonUnreachable):
         stack._docker("inspect", "--format", "{{.State.Running}}", CONTAINER_NAME)
     assert seen["run_timeout"] == stack.DOCKER_CALL_TIMEOUT_S
+
+
+def test_failed_call_is_classified_by_the_daemon_probe_not_error_text(
+    monkeypatch,
+):
+    # Docker CLI error text drifts across versions (Docker 29 dropped the
+    # classic connect wording), so a nonzero exit is classified by a
+    # bounded `docker version` probe: an answering daemon keeps the
+    # caller's absent/None degradation, a probe that fails (nonzero or
+    # timeout) is the same dead daemon.
+    def probe_answers(argv, **kwargs):
+        if argv == ["docker", "version"]:
+            return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(
+            argv, 1, stdout="", stderr="some brand-new CLI wording"
+        )
+
+    monkeypatch.setattr(stack.subprocess, "run", probe_answers)
+    result = stack._run_bounded(["docker", "inspect", CONTAINER_NAME], 5.0, _FakeSpan())
+    assert result.returncode == 1
+
+    def probe_refuses(argv, **kwargs):
+        return subprocess.CompletedProcess(argv, 1, stdout="", stderr="")
+
+    monkeypatch.setattr(stack.subprocess, "run", probe_refuses)
+    with pytest.raises(stack.DaemonUnreachable):
+        stack._run_bounded(["docker", "inspect", CONTAINER_NAME], 5.0, _FakeSpan())
+
+
+def test_stack_up_unbinds_a_half_created_container_after_a_run_timeout(
+    monkeypatch,
+):
+    # A run cut off mid-pull (the 3.4 GB first image) can leave a
+    # half-created container booked under the stack name: the creation
+    # path must unbind it so the next up/reset can proceed, then still
+    # refuse with the remedy.
+    rm_calls: list[tuple] = []
+
+    def hung_run(argv, **kwargs):
+        raise subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
+
+    def fake_docker(*args, **kwargs):
+        if args[0] == "rm":
+            rm_calls.append((args, kwargs))
+            return _Proc()
+        raise AssertionError(f"unexpected docker call: {args}")
+
+    monkeypatch.setattr(stack, "_container_state", lambda: "absent")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
+    monkeypatch.setattr(stack.subprocess, "run", hung_run)
+    monkeypatch.setattr(stack, "_docker", fake_docker)
+
+    with pytest.raises(stack.DaemonUnreachable):
+        stack.stack_up({})
+
+    assert len(rm_calls) == 1
+    (args, kwargs) = rm_calls[0]
+    assert args == ("rm", "--force", "--volumes", CONTAINER_NAME)
+    assert kwargs["timeout_s"] == stack.DOCKER_RUN_TIMEOUT_S
+
+
+def test_stack_up_unbind_cleanup_is_best_effort(monkeypatch):
+    # The half-created-container cleanup must not mask the original
+    # refusal: if the rm itself cannot reach the daemon (same dead
+    # daemon), the run's DaemonUnreachable is what the caller sees.
+    def hung_run(argv, **kwargs):
+        raise subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
+
+    def dead_rm(*args, **kwargs):
+        raise stack.DaemonUnreachable(stack.DAEMON_REMEDY)
+
+    monkeypatch.setattr(stack, "_container_state", lambda: "absent")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
+    monkeypatch.setattr(stack.subprocess, "run", hung_run)
+    monkeypatch.setattr(stack, "_docker", dead_rm)
+
+    with pytest.raises(stack.DaemonUnreachable):
+        stack.stack_up({})
+
+
+def test_stack_down_gives_rm_the_heavy_budget(monkeypatch):
+    # --force stops and destroys a busy container: that work must not
+    # share the 5s inspect budget (review #536).
+    seen: dict = {}
+    monkeypatch.setattr(stack.telemetry, "force_flush", lambda: None)
+
+    def fake_docker(*args, **kwargs):
+        seen["kwargs"] = kwargs
+        return _Proc()
+
+    monkeypatch.setattr(stack, "_docker", fake_docker)
+
+    stack.stack_down()
+
+    assert seen["kwargs"]["timeout_s"] == stack.DOCKER_RUN_TIMEOUT_S

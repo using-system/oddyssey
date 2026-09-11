@@ -1,6 +1,8 @@
 import asyncio
 from importlib import metadata as importlib_metadata
 
+import pytest
+from mcp.server.mcpserver.exceptions import ToolError
 from oddyssey_mcp import config as config_module
 from oddyssey_mcp import server, stack
 
@@ -88,6 +90,44 @@ def test_config_set_resets_the_stack_only_on_port_change_with_container(
     result = server.odd_config_set({"local": {"grafana_port": 3400}})
     assert "stack_reset" not in result
     assert resets == [1]
+
+
+def test_config_set_survives_a_dead_daemon_for_config_only_changes(
+    monkeypatch, tmp_path
+):
+    # Issue #521 review: with the daemon unreachable, a configuration-only
+    # change (switching backend, persisting stack_config, ...) must still
+    # work - it is exactly what the user does when the daemon is hung. The
+    # container state read degrades to "unknown" instead of refusing; only
+    # a port change (whose reset genuinely needs Docker) keeps refusing.
+    def dead_daemon():
+        raise stack.DaemonUnreachable(stack.DAEMON_REMEDY)
+
+    monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / "config.json")
+    monkeypatch.setattr(stack, "_container_state", dead_daemon)
+    # Reading the doomed container's env needs the daemon too: with it
+    # down, the port-change path refuses at the same point a real user
+    # would hit.
+    monkeypatch.setattr(stack, "container_user_env", dead_daemon)
+
+    # Backend switch alone: survives, no reset attempted.
+    result = server.odd_config_set({"stack": "datadog"})
+    assert result["config"]["stack"] == "datadog"
+    assert "stack_reset" not in result
+
+    # stack_config persistence alone: survives too.
+    result = server.odd_config_set(
+        {"stack_config": {"azure-monitor": {"workspace": "<guid>"}}}
+    )
+    assert result["config"]["stack_config"]["azure-monitor"]["workspace"] == "<guid>"
+
+    # A port change still refuses: the auto-reset genuinely needs Docker
+    # and must not silently diverge from the running container. The
+    # refusal reaches the client as a ToolError carrying the one-line
+    # remedy (telemetry.traced_tool translates DaemonUnreachable, #521
+    # review) rather than a bare RuntimeError the SDK would mask.
+    with pytest.raises(ToolError, match="the Docker daemon does not answer"):
+        server.odd_config_set({"local": {"grafana_port": 3300}})
 
 
 def test_config_set_boots_a_stopped_container_before_writing_ports(

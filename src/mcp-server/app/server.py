@@ -162,7 +162,17 @@ def odd_config_set(config: dict) -> dict:
     container either.
     """
     ports_before = config_ops.load()["local"]
-    state_before = stack_ops._container_state()
+    # The container state only matters for the auto-reset paths; a
+    # configuration-only change (switching backend, persisting
+    # stack_config, ...) needs no Docker at all and must survive a dead
+    # daemon - which is exactly what the user does when the daemon is hung
+    # (#521 review). An unreadable state (DaemonUnreachable) is treated as
+    # unknown: port changes still refuse loudly (their reset genuinely
+    # needs Docker), everything else proceeds.
+    try:
+        state_before = stack_ops._container_state()
+    except stack_ops.DaemonUnreachable:
+        state_before = None
     # Read on the RAW partial, before save validates it: a malformed one
     # is left to save's ValueError contract (isinstance, so this read never
     # raises first), at worst after a wasted boot - booting is idempotent.
