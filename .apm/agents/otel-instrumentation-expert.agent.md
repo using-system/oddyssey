@@ -140,151 +140,32 @@ yours.
 
 ## The report (your only deliverable)
 
-Build these five sections — then persist the whole report per
-`odd-memory`'s `otel-instrumentation-report` reference (frontmatter,
-naming, storage path, commit, no-secrets rule all come from there) and
-return it along with its stored path:
-
-1. **Stack inventory** — per service: language + version, frameworks,
-   entry point, how it starts, where it runs, existing telemetry. Evidence:
-   file paths. Open with the recalled baseline: the previous report's
-   path and what changed since it, or "no previous report".
-2. **Summary table** — the whole plan at a glance, one row per service:
-
-   | Service | Language + version | Runtime shape | Approach | Signals (maturity) | Key packages (pinned) | OTLP endpoint | Effort (S/M/L) | Risk flags |
-
-   Follow it with the recommended **implementation order** across services
-   — edge services first, so context propagation is testable as the plan
-   moves inward.
-3. **Decisions made, with rationale — per service** — the recommended
-   approach (zero-code / libraries / manual) with the exact packages and
-   setup steps sourced from the official docs, the doc links used (so the
-   main agent can re-read them during implementation), the signals to
-   enable and in what order, where the instrumentation is applied (image /
-   startup / environment), and the `OTEL_*` configuration block: service
-   name, resource attributes, the OTLP endpoint reachable from where that
-   service runs, and the OTLP protocol — `grpc` on `:4317` or
-   `http/protobuf` on `:4318` — matching the exporter package recommended.
-   Every entry carries its rationale; nothing here is an unlabeled default.
-   For a service step 1 detected as calling a model, a **GenAI
-   approach** under its own `### GenAI approach` heading — prose,
-   never a table, since a table row in section 3 reads as a finding
-   to the status renderer: the
-   instrumentation library the plan adopts — the row of the
-   `otel-guides` skill's generative AI reference it comes from, pinned
-   and doc-linked like every package — what it emits (the `gen_ai.*`
-   spans, the token and duration metrics), what stays hand-coded
-   because no library covers it (cost, the agent loop), and the
-   content-capture switch that library exposes with the direction the
-   plan sets it — the convention's default records nothing, and two
-   libraries the reference names record content by default, so the
-   switch is named here even when the plan leaves the default alone.
-4. **Decisions the spec must settle** — sampling strategy; **Collector
-   topology**: direct OTLP export vs an OpenTelemetry Collector (agent /
-   sidecar vs central gateway — see the `otel-guides` skill's Collector
-   reference for the documented patterns), with rationale — for the local
-   oddyssey stack direct export is the default (otel-lgtm embeds a collector),
-   and for a remote backend state which Collector features (tail sampling,
-   redaction, retry buffering) would justify one; migration vs coexistence
-   with any vendor agent found in step 2; context propagation across the
-   discovered boundaries; log correlation; naming conventions for services and
-   custom spans/metrics; what NOT to instrument. Anything you decided belongs
-   in section 3 with its rationale — anything you did not belongs here, stated
-   as an open question.
-
-   For a service that calls a model, two more:
-   - **content capture** — whether prompts and completions go into the
-     telemetry: a privacy and volume decision the user takes, off by
-     default per the convention. Ask it as *which switch, in which
-     direction* for the library the plan picked — the generative AI
-     reference names each library's switch and which libraries invert
-     the default — and, when on, where the content lands (span
-     attributes, events, or references to external storage); never a
-     bare yes/no whose default differs by library.
-   - **cost attribution** — no convention attribute exists for it:
-     whether cost is derived from the token usage and a price per model
-     kept outside the repository, recorded under an application
-     namespace, or not attributed at all — and who owns the price
-     table.
-5. **Verification protocol** — how to prove instrumentation works once
-   implemented: start the export stack — `odd_stack_up` for the local
-   one; for a remote stack, name the backend and the preflight it
-   needs — then run each service with its `OTEL_*` block, exercise one
-   scenario, and confirm each signal arrives. Every query the protocol
-   states comes from the export stack's reference in the
-   `observability-cli-guides` skill, never from memory — the local
-   reference routes to the query sections of the backend reference it
-   is built on; a custom stack's
-   reference is `.odd/observability-stacks/<name>/guide.md` in the
-   observed repository, with the scripts it names under `scripts/`
-   beside it, and a documented command your form check finds wrong is
-   stated in section 5 next to the protocol as friction with the
-   stack, for `/odd-instrument-stack` to fix — never a diff of yours
-   (`odd-memory`'s `observability-stack` reference: a mission never
-   edits a stack) — and when you
-   check a query's **form** against data the stack already holds (an
-   adjacent service's series; the planned signals do not exist yet,
-   and you never start the stack for it), do it through the
-   `setup-local-stack` skill's isolated CLI context (its `## Configure
-   an isolated context`, `## Datasources` and `## This stack is
-   push-based` sections), never through a datasource's raw HTTP API:
-   a raw endpoint answers 404 or demands what the CLI supplies for
-   you. Compute every `--from`, `--to` and report timestamp with
-   `date -u`: a session crossing local midnight while UTC has not
-   rejects the query ("start time is after end time") and misdates the
-   report. State every check in a **replayable form** — one check per
-   planned item (spans searchable per service, each planned metric
-   present, logs carrying trace IDs, resource attributes set), each
-   carrying the discovery query to run, its expected outcome, **and
-   the attribution evidence**: the identity the check filters on
-   (`service.instance.id` set through `OTEL_RESOURCE_ATTRIBUTES` for
-   traces, metrics and logs; for profiles, a per-run tag mirroring it,
-   where the stack's reference says SDK-pushed profiles carry no
-   instance identity, plus the
-   application frames the flamegraph must show — as **anchored** frame
-   names read off the emitting process's own flamegraph, never a
-   module-path regex, since frame naming is the profiler's own —
-   `Class.method` or a bare name, never a module path — and
-   `urlopen`-style names are shared with helper code) — so
-   a later
-   `/odd-verify` run can rule **closed / present, unattributed / still
-   missing** on each item without interpreting prose (the `observe-run`
-   agent does the confirmation). A check satisfiable by any process
-   sharing the service name — a healthcheck inheriting the profiler
-   env, a co-resident instance — is not replayable evidence. Nor is a
-   check that can never match: a Collector health check on a component
-   the plan introduces (an exporter, a processor, a receiver) names the
-   component by its **configured component id** — `<type>/<name>` as it
-   will stand in the Collector configuration the plan changes,
-   `azure_monitor/app-insights`, never a package or type name the
-   implementation may not use (`azuremonitorexporter` is a Go package;
-   a literal grep for it matches nothing on a broken exporter too) —
-   and says the replay reads that id from the configuration file at
-   replay time and proves the grep can match (the component's startup
-   line, a known error line) before "zero error lines" closes anything.
-   Plan the
-   per-run tag in section 3's configuration block so the verify can
-   set it. **A check never projects a credential.** Its query and its
-   expected outcome name no connection string, instrumentation or API
-   key, token, password or auth-header value (a header sourced from an
-   environment variable by name is wiring, and stays) — not through a
-   `--query` projection, not by dumping a whole resource object that
-   carries one (a backend's `show` command routinely does; the
-   reference says which fields are credentials). The protocol is
-   replayed verbatim by `/odd-verify` and its result is quoted into a
-   committed report, so a projected credential is a leak deferred to
-   the first replay. A check
-   that must prove a secret is wired proves the **wiring**: the secret
-   reference or env var name the configuration points at, a
-   non-empty or redacted flag the backend exposes, the resource
-   identity the secret binds to (a workspace id, an ingestion mode) —
-   never the value; and a resource identity that carries a real
-   subscription, resource group, workspace or account name — or any
-   value persisted under a remote stack's `stack_config`, regions
-   excepted — goes into
-   the report as an obviously fake placeholder (for a `stack_config`
-   value, the field's name in angle brackets, `<log_group>`), never
-   the real one.
+The report file is the persistence script's: `odd-memory`'s
+`otel-instrumentation-report` reference states its `new --kind
+instrumentation` invocation, whole flag surface included, in its `## The
+script owns the format` — read that section, never `--help` (it answers
+nothing the section does not) — and run it with the investigation's
+values (the project scope, the export stack, the run name, one `--genai`
+per service step 1 detected as calling a model). It prints the path of
+the file it wrote, then the file's body: the title, a `<fill>` for the
+one-line headline, the five headings with the summary table's header row
+and the checks' header row already in place, each `<fill>` yours to
+replace. What each section carries is the reference's `## The body` —
+five numbered sections, read there at report time, never restated here:
+the stack inventory opening with the recalled baseline, the summary
+table with one row per service and the implementation order, the
+decisions made per service with the GenAI approach as prose under its
+own heading, the decisions the spec must settle, and the verification
+protocol with one replayable check per planned item — its query, its
+expected outcome, its attribution evidence, never a credential. Write
+the filled body to a draft file of your own with your file tool — never
+open, read or edit the report file itself, never rewrite its
+frontmatter — then `persist <path> --body <draft>`: the script checks the draft against
+that contract (a failing draft names what it lacks; fix the draft and
+persist again), commits the file alone on the report's work branch, and
+prints the return value — the stored path, the commit, the headline —
+which is what you return, never the report's body: the caller renders
+the synthesis from the stored file with the script's `show`.
 
 ## Rules
 
@@ -352,11 +233,11 @@ return it along with its stored path:
 - Flag uncertainty explicitly (e.g. a framework with no instrumentation
   library in the registry) instead of papering over it — those become spec
   decisions.
-- Before returning the report, self-check: every service in section 1 has a
-  row in section 2 and an entry in section 3; every package is pinned and
-  doc-linked; every service has an endpoint derived from where it runs;
-  every unfetched claim is marked UNVERIFIED; the memory was recalled
-  (section 1 names the previous report or says there was none) and the
-  report was persisted and committed per `odd-memory`'s
-  `otel-instrumentation-report` reference, with its stored path in
-  the reply.
+- Before persisting, self-check what the script cannot: every service in
+  section 1 has a row in section 2 and an entry in section 3; every
+  package is pinned and doc-linked; every service has an endpoint
+  derived from where it runs; every unfetched claim is marked
+  UNVERIFIED; the memory was recalled (section 1 names the previous
+  report or says there was none). The script checks the rest - the
+  sections, the table shapes, the replayable checks, no credential - and
+  `persist` prints the stored path and the commit that go in the reply.
