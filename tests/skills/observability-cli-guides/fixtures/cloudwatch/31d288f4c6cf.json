@@ -1,0 +1,17 @@
+{
+ "args": [
+  "logs",
+  "get-query-results",
+  "--query-id",
+  "00000001-0000-0000-0000-000000000000",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n    \"queryLanguage\": \"CWLI\",\n    \"results\": [\n        [\n            {\n                \"field\": \"scope.name\",\n                \"value\": \"uvicorn.access\"\n            },\n            {\n                \"field\": \"severity_text\",\n                \"value\": \"INFO\"\n            },\n            {\n                \"field\": \"n\",\n                \"value\": \"1139\"\n            }\n        ],\n        [\n            {\n                \"field\": \"scope.name\",\n                \"value\": \"app.orders\"\n            },\n            {\n                \"field\": \"severity_text\",\n                \"value\": \"WARN\"\n            },\n            {\n                \"field\": \"n\",\n                \"value\": \"5\"\n            }\n        ]\n    ],\n    \"statistics\": {\n        \"recordsMatched\": 1144.0,\n        \"recordsScanned\": 1245.0,\n        \"estimatedRecordsSkipped\": 0.0,\n        \"bytesScanned\": 930131.0,\n        \"estimatedBytesSkipped\": 0.0,\n        \"logGroupsScanned\": 1.0,\n        \"resultCount\": 2.0\n    },\n    \"status\": \"Complete\"\n}\n",
+ "stderr": ""
+}

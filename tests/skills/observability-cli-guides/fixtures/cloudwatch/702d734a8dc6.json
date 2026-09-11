@@ -1,0 +1,17 @@
+{
+ "args": [
+  "logs",
+  "get-query-results",
+  "--query-id",
+  "00000001-0000-0000-0000-000000000000",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n    \"queryLanguage\": \"CWLI\",\n    \"results\": [\n        [\n            {\n                \"field\": \"resource.service.name\",\n                \"value\": \"orders-api\"\n            },\n            {\n                \"field\": \"severity_number\",\n                \"value\": \"9\"\n            },\n            {\n                \"field\": \"n\",\n                \"value\": \"1136\"\n            },\n            {\n                \"field\": \"last\",\n                \"value\": \"2026-09-11 13:21:34.051\"\n            }\n        ],\n        [\n            {\n                \"field\": \"resource.service.name\",\n                \"value\": \"orders-api\"\n            },\n            {\n                \"field\": \"severity_number\",\n                \"value\": \"13\"\n            },\n            {\n                \"field\": \"n\",\n                \"value\": \"5\"\n            },\n            {\n                \"field\": \"last\",\n                \"value\": \"2026-09-11 13:20:24.785\"\n            }\n        ]\n    ],\n    \"statistics\": {\n        \"recordsMatched\": 1141.0,\n        \"recordsScanned\": 1239.0,\n        \"estimatedRecordsSkipped\": 0.0,\n        \"bytesScanned\": 923861.0,\n        \"estimatedBytesSkipped\": 0.0,\n        \"logGroupsScanned\": 1.0,\n        \"resultCount\": 2.0\n    },\n    \"status\": \"Complete\"\n}\n",
+ "stderr": ""
+}

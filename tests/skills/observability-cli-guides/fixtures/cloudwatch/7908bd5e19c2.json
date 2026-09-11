@@ -1,0 +1,16 @@
+{
+ "args": [
+  "codeguruprofiler",
+  "list-profiling-groups",
+  "--include-description",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n    \"profilingGroups\": []\n}\n",
+ "stderr": ""
+}

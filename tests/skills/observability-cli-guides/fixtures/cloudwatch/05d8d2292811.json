@@ -1,0 +1,17 @@
+{
+ "args": [
+  "logs",
+  "describe-log-groups",
+  "--log-group-name-prefix",
+  "/no/such/group",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n    \"logGroups\": []\n}\n",
+ "stderr": ""
+}

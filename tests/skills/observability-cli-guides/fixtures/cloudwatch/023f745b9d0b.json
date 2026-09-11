@@ -1,0 +1,26 @@
+{
+ "args": [
+  "logs",
+  "filter-log-events",
+  "--log-group-name",
+  "/contoso/logs",
+  "--start-time",
+  "1789132294000",
+  "--end-time",
+  "1789132894000",
+  "--limit",
+  "3",
+  "--no-paginate",
+  "--filter-pattern",
+  "{ $.severity_number >= 13 }",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n    \"events\": [\n        {\n            \"logStreamName\": \"otel-collector\",\n            \"timestamp\": 1789132319197,\n            \"message\": \"{\\\"body\\\":\\\"storage flake, delete failed for order 5709\\\",\\\"severity_number\\\":13,\\\"severity_text\\\":\\\"WARN\\\",\\\"flags\\\":3,\\\"trace_id\\\":\\\"e7fb6fe907a0bd84ac137c7fdc60e9ba\\\",\\\"span_id\\\":\\\"3f2dcfc9c19eac0f\\\",\\\"attributes\\\":{\\\"otelServiceName\\\":\\\"orders-api\\\",\\\"otelSpanID\\\":\\\"3f2dcfc9c19eac0f\\\",\\\"otelTraceID\\\":\\\"e7fb6fe907a0bd84ac137c7fdc60e9ba\\\",\\\"otelTraceSampled\\\":true},\\\"scope\\\":{\\\"name\\\":\\\"app.orders\\\"},\\\"resource\\\":{\\\"deployment.environment.name\\\":\\\"dev\\\",\\\"service.instance.id\\\":\\\"00000001-0000-0000-0000-000000000000\\\",\\\"service.name\\\":\\\"orders-api\\\",\\\"service.version\\\":\\\"0.1.0\\\",\\\"telemetry.auto.version\\\":\\\"0.65b0\\\",\\\"telemetry.sdk.language\\\":\\\"python\\\",\\\"telemetry.sdk.name\\\":\\\"opentelemetry\\\",\\\"telemetry.sdk.version\\\":\\\"1.44.0\\\"}}\",\n            \"ingestionTime\": 1789132320084,\n            \"eventId\": \"39898983976868455980004325869813580745347355542140485634\"\n        },\n        {\n            \"logStreamName\": \"otel-collector\",\n            \"timestamp\": 1789132490753,\n            \"message\": \"{\\\"body\\\":\\\"payment upstream unavailable, checkout failed for order 5797\\\",\\\"severity_number\\\":13,\\\"severity_text\\\":\\\"WARN\\\",\\\"flags\\\":3,\\\"trace_id\\\":\\\"69959a4f349d23b97996b946bcfc2431\\\",\\\"span_id\\\":\\\"43425fadc3595bd5\\\",\\\"attributes\\\":{\\\"otelServiceName\\\":\\\"orders-api\\\",\\\"otelSpanID\\\":\\\"43425fadc3595bd5\\\",\\\"otelTraceID\\\":\\\"69959a4f349d23b97996b946bcfc2431\\\",\\\"otelTraceSampled\\\":true},\\\"scope\\\":{\\\"name\\\":\\\"app.orders\\\"},\\\"resource\\\":{\\\"deployment.environment.name\\\":\\\"dev\\\",\\\"service.instance.id\\\":\\\"00000001-0000-0000-0000-000000000000\\\",\\\"service.name\\\":\\\"orders-api\\\",\\\"service.version\\\":\\\"0.1.0\\\",\\\"telemetry.auto.version\\\":\\\"0.65b0\\\",\\\"telemetry.sdk.language\\\":\\\"python\\\",\\\"telemetry.sdk.name\\\":\\\"opentelemetry\\\",\\\"telemetry.sdk.version\\\":\\\"1.44.0\\\"}}\",\n            \"ingestionTime\": 1789132491656,\n            \"eventId\": \"39898987802695099259123909746532765015848746488024268800\"\n        }\n    ],\n    \"searchedLogStreams\": [],\n    \"nextToken\": \"TRUNCATED\"\n}\n",
+ "stderr": ""
+}

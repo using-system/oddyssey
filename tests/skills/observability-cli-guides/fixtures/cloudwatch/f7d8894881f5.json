@@ -1,0 +1,23 @@
+{
+ "args": [
+  "logs",
+  "start-query",
+  "--log-group-name",
+  "/contoso/logs",
+  "--start-time",
+  "1789132600",
+  "--end-time",
+  "1789132964",
+  "--query-string",
+  "stats max(@timestamp) as newest, count() as n",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\"queryId\": \"f7d88948-81f5-0000-0000-000000000000\"}\n",
+ "stderr": ""
+}

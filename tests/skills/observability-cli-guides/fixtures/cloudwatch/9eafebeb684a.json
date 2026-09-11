@@ -1,0 +1,23 @@
+{
+ "args": [
+  "logs",
+  "start-query",
+  "--log-group-name",
+  "/contoso/logs",
+  "--start-time",
+  "1789132294",
+  "--end-time",
+  "1789132894",
+  "--query-string",
+  "stats count() as n by bin(5m) | sort bin(5m)",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 254,
+ "stdout": "",
+ "stderr": "\naws: [ERROR]: An error occurred (MalformedQueryException) when calling the StartQuery operation: unexpected symbol found ( at line 1 and position 115 (Service: AWSLogs; Status Code: 400; Error Code: MalformedQueryException; Request ID: 00000001-0000-0000-0000-000000000000; Proxy: null)\n"
+}

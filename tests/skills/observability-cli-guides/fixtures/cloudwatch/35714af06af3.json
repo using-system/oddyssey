@@ -1,0 +1,23 @@
+{
+ "args": [
+  "logs",
+  "start-query",
+  "--log-group-name",
+  "/contoso/logs",
+  "--start-time",
+  "1789132294",
+  "--end-time",
+  "1789132894",
+  "--query-string",
+  "fields @timestamp, `resource.service.name`, severity_number, severity_text, body, trace_id, span_id, `scope.name` | filter severity_number >= 13 | sort @timestamp desc | limit 5",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\"queryId\": \"35714af0-6af3-0000-0000-000000000000\"}\n",
+ "stderr": ""
+}

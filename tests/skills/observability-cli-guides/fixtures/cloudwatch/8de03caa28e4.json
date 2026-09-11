@@ -1,0 +1,15 @@
+{
+ "args": [
+  "sts",
+  "get-caller-identity",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n    \"UserId\": \"AROAEXAMPLE:example-user\",\n    \"Account\": \"123456789012\",\n    \"Arn\": \"arn:aws:sts::123456789012:assumed-role/contoso-role/example-user\"\n}\n",
+ "stderr": ""
+}

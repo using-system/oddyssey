@@ -1,0 +1,23 @@
+{
+ "args": [
+  "logs",
+  "start-query",
+  "--log-group-name",
+  "/contoso/logs",
+  "--start-time",
+  "1789132294",
+  "--end-time",
+  "1789132894",
+  "--query-string",
+  "stats count() as n by `scope.name`, severity_text",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\"queryId\": \"29e5e7c0-ef56-0000-0000-000000000000\"}\n",
+ "stderr": ""
+}

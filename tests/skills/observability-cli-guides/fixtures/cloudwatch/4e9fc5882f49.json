@@ -1,0 +1,26 @@
+{
+ "args": [
+  "logs",
+  "filter-log-events",
+  "--log-group-name",
+  "/contoso/metrics",
+  "--start-time",
+  "1789132294000",
+  "--end-time",
+  "1789132894000",
+  "--limit",
+  "1",
+  "--no-paginate",
+  "--filter-pattern",
+  "{ $._aws.CloudWatchMetrics[0].Namespace = \"*\" }",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n    \"events\": [\n        {\n            \"logStreamName\": \"otel-stream-00000001-0000-0000-0000-000000000000\",\n            \"timestamp\": 1789132316442,\n            \"message\": \"{\\\"OTelLib\\\":\\\"opentelemetry.instrumentation.fastapi\\\",\\\"Version\\\":\\\"1\\\",\\\"_aws\\\":{\\\"CloudWatchMetrics\\\":[{\\\"Namespace\\\":\\\"ContosoApp\\\",\\\"Dimensions\\\":[[\\\"http.request.method\\\",\\\"http.route\\\",\\\"http.response.status_code\\\",\\\"OTelLib\\\",\\\"url.scheme\\\",\\\"network.protocol.version\\\"],[\\\"OTelLib\\\"],[\\\"OTelLib\\\",\\\"http.route\\\"],[\\\"OTelLib\\\",\\\"http.response.status_code\\\"],[\\\"OTelLib\\\",\\\"url.scheme\\\"],[\\\"OTelLib\\\",\\\"network.protocol.version\\\"],[\\\"OTelLib\\\",\\\"http.request.method\\\"]],\\\"Metrics\\\":[{\\\"Name\\\":\\\"http.server.request.duration\\\",\\\"Unit\\\":\\\"Seconds\\\",\\\"StorageResolution\\\":60},{\\\"Name\\\":\\\"http.server.response.body.size\\\",\\\"Unit\\\":\\\"Bytes\\\",\\\"StorageResolution\\\":60},{\\\"Name\\\":\\\"http.server.request.body.size\\\",\\\"Unit\\\":\\\"Bytes\\\",\\\"StorageResolution\\\":60}]}],\\\"Timestamp\\\":1789132316442},\\\"http.request.method\\\":\\\"POST\\\",\\\"http.response.status_code\\\":\\\"201\\\",\\\"http.route\\\":\\\"/orders\\\",\\\"http.server.request.body.size\\\":{\\\"Max\\\":30,\\\"Min\\\":29,\\\"Count\\\":5707,\\\"Sum\\\":166113},\\\"http.server.request.duration\\\":{\\\"Max\\\":0.004990143999748398,\\\"Min\\\":0.0010175080005865311,\\\"Count\\\":5707,\\\"Sum\\\":7.904812894916915},\\\"http.server.response.body.size\\\":{\\\"Max\\\":78,\\\"Min\\\":74,\\\"Count\\\":5707,\\\"Sum\\\":441243},\\\"network.protocol.version\\\":\\\"1.1\\\",\\\"url.scheme\\\":\\\"http\\\"}\",\n            \"ingestionTime\": 1789132316660,\n            \"eventId\": \"39898983915429902958052459110742939064492559269691260928\"\n        }\n    ],\n    \"searchedLogStreams\": [],\n    \"nextToken\": \"TRUNCATED\"\n}\n",
+ "stderr": ""
+}

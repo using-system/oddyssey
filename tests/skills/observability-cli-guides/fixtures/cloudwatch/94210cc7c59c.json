@@ -1,0 +1,24 @@
+{
+ "args": [
+  "logs",
+  "start-query",
+  "--log-group-name",
+  "/contoso/metrics",
+  "--start-time",
+  "1789130400",
+  "--end-time",
+  "1789131000",
+  "--query-string",
+  "filter ispresent(`synthetic.restart`) | stats min(`synthetic.restart`) as mn, max(`synthetic.restart`) as mx, earliest(`synthetic.restart`) as first, latest(`synthetic.restart`) as last, sum(`synthetic.restart`) as total, count() as n by `product.id`",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\"queryId\": \"94210cc7-c59c-0000-0000-000000000000\"}\n",
+ "stderr": "",
+ "synthetic": "a restarted cumulative series and a delta series, crafted"
+}

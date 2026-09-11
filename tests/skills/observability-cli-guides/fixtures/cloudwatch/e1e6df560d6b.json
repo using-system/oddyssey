@@ -1,0 +1,23 @@
+{
+ "args": [
+  "logs",
+  "start-query",
+  "--log-group-name",
+  "/contoso/logs",
+  "--start-time",
+  "1789132309",
+  "--end-time",
+  "1789132909",
+  "--query-string",
+  "filter `resource.service.name` in [\"orders-api\"] | stats count() as n, max(@timestamp) as last by `resource.service.name`, `resource.deployment.environment.name`, `resource.deployment.environment`, `resource.service.version`, `resource.service.instance.id`",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\"queryId\": \"e1e6df56-0d6b-0000-0000-000000000000\"}\n",
+ "stderr": ""
+}
