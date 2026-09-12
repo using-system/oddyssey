@@ -147,6 +147,33 @@ INSTRUMENTATION_RULES = (
     "prose under its heading, never a table row."
 )
 GENAI_HEADING_RE = re.compile(r"^#{3,}\s+GenAI approach\b", re.IGNORECASE)
+# printed after the skeleton by new --kind observation: the reference's
+# `## The body` - what each section carries - read from the reference file
+# itself so it is stated once, and never written to the report. Every
+# measured run opened that section by ranges, three reads, right after new.
+OBSERVATION_REFERENCE = (
+    Path(__file__).resolve().parent.parent / "references" / "observe-run-report.md"
+)
+BODY_CONTRACT_MARK = (
+    "--- what each section carries (the observe-run-report reference's "
+    "`## The body`, printed here - read it here, never from that file):"
+)
+
+
+def body_contract() -> str:
+    """The reference's `## The body` section, heading included; empty when
+    the install dropped the reference (the caller says so)."""
+    try:
+        text = OBSERVATION_REFERENCE.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    _, sep, rest = text.partition("\n## The body\n")
+    if not sep:
+        return ""
+    section = rest.split("\n## ", 1)[0]
+    return "## The body\n" + section.rstrip()
+
+
 GENAI_CELL_RE = re.compile(r"gen\s?ai", re.IGNORECASE)
 ORDER_RE = re.compile(r"implementation order", re.IGNORECASE)
 # a credential written as a value: a key word, a separator, then a literal
@@ -497,6 +524,29 @@ def cap(text: str, limit: int | None) -> tuple[str, bool]:
     if limit is None or len(text) <= limit:
         return text, False
     return text[:limit] + ELLIPSIS, True
+
+
+def cap_outside_code(text: str, limit: int) -> str:
+    """Cap a line before a code span opens, never inside one: a query cut
+    in half (an unclosed brace, an ellipsis mid-token) reads as a corrupted
+    tool result to a run, which then re-captures the rendering by other
+    means."""
+    if len(text) <= limit:
+        return text
+    head = text[:limit]
+    if head.count("`") % 2 and head.rfind("`"):
+        head = head[: head.rfind("`")]
+    return head.rstrip(" ,;:—-") + ELLIPSIS
+
+
+def gap_line(gap: str) -> str:
+    """A structured bullet (`<gap> — <fate> — <query>`) renders its gap and
+    fate, the query stays in the file; anything else is capped outside
+    code spans."""
+    parts = gap.split(GAP_SPLIT)
+    if len(parts) >= 3 and parts[2].lstrip().startswith("`"):
+        return cap_outside_code(GAP_SPLIT.join(parts[:2]), MAX_LINE)
+    return cap_outside_code(gap, MAX_LINE)
 
 
 def raw_sections(body: str) -> list[dict]:
@@ -1835,6 +1885,14 @@ def new_report(args: argparse.Namespace) -> tuple[Path, str, list[str]]:
     store.mkdir(parents=True, exist_ok=True)
     body = skeleton(fields, baseline_sections, replay)
     path.write_text(format_frontmatter(fields) + "\n" + body, encoding="utf-8")
+    contract = body_contract()
+    if contract:
+        body = body.rstrip() + "\n\n" + BODY_CONTRACT_MARK + "\n" + contract
+    else:
+        notes.append(
+            f"reference not found beside the script ({OBSERVATION_REFERENCE}): "
+            "read its `## The body` for what each section carries"
+        )
     return path, body, notes
 
 
@@ -3084,7 +3142,7 @@ def render_show(data: dict, rel: str, commit: str | None) -> str:
     if data["gaps"]:
         out.append("Telemetry gaps:")
         for gap in data["gaps"][:MAX_ROWS]:
-            out.append(f"- {cap(gap, MAX_LINE)[0]}")
+            out.append(f"- {gap_line(gap)}")
         if len(data["gaps"]) > MAX_ROWS:
             out.append(f"+{len(data['gaps']) - MAX_ROWS} more in the report")
     if data["not_queried"] or data["gaps"]:
@@ -3440,10 +3498,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "new":
             path, body, notes = new_report(args)
-            # the path first, then the body as written (plus, for the
-            # instrumentation kind, the rules footer that never reaches the
-            # file): the run replaces every <fill> from this text and never
-            # reads the file back
+            # the path first, then the body as written (plus what never
+            # reaches the file: the observation kind's section contract, the
+            # instrumentation kind's rules footer): the run replaces every
+            # <fill> from this text and never reads the file back
             print(path)
             print(
                 "--- the file below its frontmatter: write it filled (every <fill> "

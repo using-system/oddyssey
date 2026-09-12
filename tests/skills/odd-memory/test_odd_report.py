@@ -179,10 +179,35 @@ def test_new_prints_the_skeleton_after_the_path(repo):
     assert lines[0].endswith("2026-08-10-1004-a.md")
     assert lines[1].startswith("--- the file below its frontmatter")
     assert "persist --body" in lines[1]
-    body = "\n".join(lines[2:])
+    footer = next(i for i, ln in enumerate(lines) if ln.startswith(BODY_CONTRACT_MARK))
+    body = "\n".join(lines[2:footer]).rstrip()
     written = Path(lines[0]).read_text(encoding="utf-8")
     assert body == written.split("---\n\n", 1)[1].rstrip()
     assert body.count("<fill>") == 8
+
+
+BODY_CONTRACT_MARK = "--- what each section carries"
+
+
+def test_new_prints_the_body_contract_after_the_skeleton_and_never_writes_it(repo):
+    """Every measured run opened the reference's `## The body` by ranges,
+    three reads at report time, right after `new`: the section travels
+    with the skeleton instead, read once from the reference file itself
+    so nothing is duplicated, and never lands in the report."""
+    proc = run(repo, *NEW, "--repo", str(repo.root), "--run-name", "a")
+    assert proc.returncode == 0, proc.stderr
+    out = proc.stdout
+    _, _, printed = out.partition(BODY_CONTRACT_MARK)
+    assert printed, out
+    reference = (SKILLS / "odd-memory/references/observe-run-report.md").read_text(
+        encoding="utf-8"
+    )
+    section = reference.split("\n## The body\n", 1)[1].split("\n## ", 1)[0]
+    assert printed.split("\n", 1)[1].strip() == ("## The body\n" + section).strip()
+    assert "1. **Mission and run record**" in printed
+    written = Path(out.splitlines()[0]).read_text(encoding="utf-8")
+    assert BODY_CONTRACT_MARK not in written
+    assert "**Mission and run record**" not in written
 
 
 def test_new_takes_the_window_as_a_query_script_printed_it(repo, report):
@@ -1285,6 +1310,45 @@ def test_show_renders_a_quick_report_as_quick(store):
     first = next(ln for ln in proc.stdout.splitlines() if ln.strip())
     assert first.startswith("**quick")
     assert "not queried" in first
+
+
+LONG_QUERY = (
+    "`python3 .agents/skills/observability-cli-guides/scripts/grafana-metrics.py "
+    'names --match \'{service_name="llmbench-agent", __name__=~"gen_ai_client_operation_duration.*"}\' '
+    "--from 2026-08-10T10:04:12Z --to 2026-08-10T10:05:03Z --json`"
+)
+
+
+def test_show_never_cuts_a_gap_s_query_in_half(repo):
+    """A gap line capped inside its query - an unclosed brace, an ellipsis
+    mid-token - read as a corrupted tool result to a run, which then
+    re-captured `show` through a subprocess, a file, repr and base64
+    (measured twice on 22 runs). The structured bullet renders its gap and
+    fate, the query stays in the file; a prose bullet is cut before a code
+    span opens, never inside one."""
+    path = new(repo)
+    fill(path)
+    text = path.read_text(encoding="utf-8")
+    section = (
+        "## 5. Telemetry gaps\n\n"
+        "- not queried (quick): logs, profiles\n"
+        f"- `gen_ai.client.operation.duration` histogram not emitted by the agent — new — {LONG_QUERY}\n"
+        "- **Profiles: none for `llmbench-mcp`.** the labels list names two other services; "
+        f"the query {LONG_QUERY} answers `0`; the same on `llmbench-api` answers 460 000 000.\n\n"
+        "## 6."
+    )
+    text = text.replace("## 5. Telemetry gaps\n\nfilled\n\n## 6.", section)
+    path.write_text(text, encoding="utf-8")
+    proc = run(repo, "show", str(path))
+    assert proc.returncode == 0, proc.stderr
+    gaps = proc.stdout.split("Telemetry gaps:\n", 1)[1].split("\n\n", 1)[0].splitlines()
+    assert gaps[0] == (
+        "- `gen_ai.client.operation.duration` histogram not emitted by the agent — new"
+    )
+    assert gaps[1].startswith("- **Profiles: none for `llmbench-mcp`.**")
+    assert gaps[1].endswith("…")
+    assert gaps[1].count("`") % 2 == 0  # no code span left open by the cut
+    assert "grafana-metrics.py" not in gaps[1]
 
 
 def test_show_of_a_file_never_committed_says_so(repo):

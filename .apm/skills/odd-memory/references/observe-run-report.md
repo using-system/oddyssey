@@ -47,7 +47,9 @@ instrumentation` is the other kind's, stated in its own reference.
   `stack_friction: 0` and the skeleton the `## 8. Stack friction`
   heading — and on a replay pre-fills section 3's ruling table and
   section 5's gaps from the baseline, and prints that body after the
-  path. Every `<fill>` it leaves is yours to replace: the sections are
+  path — then `## The body` below, verbatim, so what each section
+  carries is read there, never from this file. Every `<fill>` it
+  leaves is yours to replace: the sections are
   the judgment — written, filled, to a **draft** file of your own with
   your file tool, never by editing the report file.
 - `check` runs the memory contract's checks — what a host's hook
