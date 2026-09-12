@@ -2,7 +2,7 @@
 """Render the oddyssey presentation video - Pillow draws every frame, ffmpeg encodes.
 
     python3 make_video.py                 # full 1080p render -> out/oddyssey.mp4
-    python3 make_video.py --scale 0.6667 --crf 30 --out oddyssey-trailer.mp4   # the committed 720p trailer
+    python3 make_video.py --scale 0.6667 --crf 30 --out out/oddyssey-trailer.mp4   # the README's 720p trailer, to upload
     python3 make_video.py --preview       # quick 15 fps / half-size draft
     python3 make_video.py --frames 12     # dump a contact sheet of stills to out/stills/
     python3 make_video.py --music track.mp3   # use your own soundtrack instead of the synthesized one
@@ -1409,10 +1409,20 @@ def scene_memory(t: float) -> Image.Image:
         anchor="mm",
         alpha=window(t, 0.8, 0.8),
     )
+    # one card, wide enough for the longest report name, the tree on top and
+    # the three lessons below it - both measured against the card, never the frame
     x0, y0 = 300, 220
+    x1 = W - x0 + 40
+    tree_bottom = y0 + 20 + (len(TREE) - 1) * 42
+    lines = [
+        ("Shared with the whole crew.", 5.0),
+        ("Recalled as the baseline of the next run.", 5.8),
+        ("Append-only: the loop accumulates knowledge instead of starting blind.", 6.6),
+    ]
+    lines_top = tree_bottom + 90
     card(
         d,
-        (x0 - 40, y0 - 20, x0 + 1000, y0 + 420),
+        (x0 - 40, y0 - 20, x1, lines_top + (len(lines) - 1) * 52 + 50),
         alpha=window(t, 0.6, 0.6),
         border=GREY,
         fill=(6, 10, 20),
@@ -1432,15 +1442,15 @@ def scene_memory(t: float) -> Image.Image:
             alpha=a,
             shadow=False,
         )
-    lines = [
-        ("Shared with the whole crew.", 5.0),
-        ("Recalled as the baseline of the next run.", 5.8),
-        ("Append-only: the loop accumulates knowledge instead of starting blind.", 6.6),
-    ]
+    d.line(
+        (x0, tree_bottom + 45, x1 - 40, tree_bottom + 45),
+        fill=rgba(GREY, 0.5 * window(t, 4.6, 0.6)),
+        width=2,
+    )
     for i, (line, start) in enumerate(lines):
         text(
             d,
-            (1350, 300 + i * 70),
+            (x0, lines_top + i * 52),
             line,
             font("serif", 32),
             CREAM,
@@ -1587,10 +1597,12 @@ def render_frame(gt: float) -> Image.Image:
         if gt < end or i == len(SCENES) - 1:
             t = min(gt - start, dur)
             img = fn(t)
-            # crossfade into the next scene during the last XFADE seconds
+            # crossfade into the next scene during the last XFADE seconds; the next
+            # scene is rendered on its own clock (negative local time, its reveals
+            # still hidden), so nothing shown during the fade vanishes at the boundary
             if i + 1 < len(SCENES) and gt > end - XFADE:
                 k = (gt - (end - XFADE)) / XFADE
-                nxt = SCENES[i + 1][2](gt - (end - XFADE))
+                nxt = SCENES[i + 1][2](gt - end)
                 img = Image.blend(img, nxt, ease_in_out(k))
             break
         start = end
