@@ -401,8 +401,9 @@ def test_a_detached_run_records_k6s_real_exit_status(benchmark, tmp_path):
     assert "exit 99" in human.stdout
 
 
-def test_both_forms_of_the_record_carry_the_same_shapes(benchmark, tmp_path):
-    """An agent reading --json must not get a string here and a list there."""
+def test_the_detached_record_carries_the_stated_shapes(benchmark, tmp_path):
+    """An agent reading --json gets the same shapes every time: k6 a list of
+    lines, stderr a string, exit_code an int, the window two instants."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     stub = bin_dir / "k6"
@@ -412,16 +413,6 @@ def test_both_forms_of_the_record_carry_the_same_shapes(benchmark, tmp_path):
     stub.chmod(0o755)
     e = dict(os.environ)
     e["PATH"] = str(bin_dir) + os.pathsep + e["PATH"]
-
-    fg = json.loads(
-        subprocess.run(
-            [sys.executable, str(SCRIPT), str(benchmark), "--run-slug", "f", "--json"],
-            capture_output=True,
-            text=True,
-            env=e,
-            check=False,
-        ).stdout
-    )
     out = tmp_path / "d"
     subprocess.run(
         [
@@ -451,9 +442,10 @@ def test_both_forms_of_the_record_carry_the_same_shapes(benchmark, tmp_path):
             check=False,
         ).stdout
     )
-    for key in ("k6", "stderr", "exit_code", "start_utc", "end_utc"):
-        assert type(fg[key]) is type(bg[key]), key
-    assert fg["k6"] and fg["k6"] == bg["k6"]
+    assert isinstance(bg["k6"], list) and bg["k6"] == ["checks_succeeded...: 100.00%"]
+    assert isinstance(bg["stderr"], str) and bg["stderr"] == "oops"
+    assert isinstance(bg["exit_code"], int) and bg["exit_code"] == 0
+    assert isinstance(bg["start_utc"], str) and isinstance(bg["end_utc"], str)
 
 
 def test_a_reused_directory_does_not_report_the_previous_runs_outcome(
@@ -668,3 +660,15 @@ def test_stages_refuse_a_manifest_without_stages_and_a_bad_instant(tmp_path):
         check=False,
     )
     assert p.returncode != 0 and "--first-row" in (p.stderr + p.stdout)
+
+
+def test_a_replay_without_detach_is_refused_with_the_detached_invocation(benchmark):
+    """The replay is always detached: a foreground run outlasts a tool
+    call, gets cut, and gets relaunched (measured 2026-09-12 - one drive
+    ran twice). The script refuses it and prints the two commands to run."""
+    p = run_cli(benchmark, "--run-slug", "s1")
+    assert p.returncode == 2
+    assert "--detach" in p.stderr and "--status" in p.stderr and "--wait" in p.stderr
+    assert "s1" in p.stderr  # the invocation carries the slug given
+    p = run_cli(benchmark, "--run-slug", "s1", "--dry-run")
+    assert p.returncode == 0, p.stderr

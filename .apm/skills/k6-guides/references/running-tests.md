@@ -6,38 +6,28 @@ https://grafana.com/docs/k6/latest/results-output/
 ## Running
 
 **A stored benchmark is replayed by this skill's own script, never by a
-hand-built command:**
+hand-built command, and always detached:**
 
 ```bash
-python3 <this skill's directory>/scripts/replay_benchmark.py <benchmark dir> --run-slug <slug>
+python3 <this skill's directory>/scripts/replay_benchmark.py <benchmark dir> --run-slug <slug> --detach <dir>
+python3 <this skill's directory>/scripts/replay_benchmark.py --status <dir> --wait <the benchmark's length plus a margin, e.g. 5m>
 ```
 
-It reads the benchmark's manifest, resolves every base URL the manifest
-declares a default for, passes the run slug through the variable the
-manifest names, runs the script **unmodified**, and prints the record:
-the benchmark and its own git revision, whether its directory is clean,
-the command verbatim, the UTC window, the exit status, and where the
-summary landed. `--json` for the same as one object, `--dry-run` to see
-the command without sending anything.
-
-**A benchmark that outlasts a tool call is `--detach`, not a wrapper.**
-Most are: a two-minute scenario does not fit in one call, and wrapping
-the command in a shell script of your own puts the flags back in your
-hands — which is what this script exists to prevent.
-
-```bash
-python3 <...>/replay_benchmark.py <benchmark dir> --run-slug <slug> --detach <dir>
-python3 <...>/replay_benchmark.py --status <dir> --wait <the benchmark's length plus a margin, e.g. 5m>
-```
-
-`--detach` starts k6 in its own session and returns at once, writing
-`replay-record.json`, `k6-stdout.log` and `k6-stderr.log` into `<dir>`;
-`--status` answers "still running" or the finished record with its UTC
-window and exit status — the same record the foreground form prints —
-and `--status --wait <duration>` blocks until the run finishes (exit 0)
-or the bound passes (exit 3, the status printed, run it again): the
-wait is shipped, never authored. The
-whole flag surface is those three plus `--run-slug`, `-e KEY=value`,
+The first reads the benchmark's manifest, resolves every base URL the
+manifest declares a default for, passes the run slug through the
+variable the manifest names, starts k6 in its own session running the
+script **unmodified**, and returns at once, writing `replay-record.json`,
+`k6-stdout.log` and `k6-stderr.log` into `<dir>`. The second answers
+"still running" or prints the finished record: the benchmark and its
+own git revision, whether its directory is clean, the command verbatim,
+the UTC window, the exit status, and where the summary landed;
+`--wait <duration>` blocks until the run finishes (exit 0) or the bound
+passes (exit 3, the status printed, run it again): the wait is shipped,
+never authored. A run without `--detach` is refused (exit 2, the two
+commands printed): a benchmark outlasts a tool call, and a call cut at
+its budget is a run launched twice. `--json` for the record as one
+object, `--dry-run` to see the command without sending anything. The
+whole flag surface is `--detach`, `--status`, `--wait`, `--run-slug`, `-e KEY=value`,
 `--summary`, `--send-traceparent`, `--otel` (which sets the exporter
 environment the local stack needs, not only `-o opentelemetry`),
 `--dry-run`, `--json`, and the `--stages` form below:

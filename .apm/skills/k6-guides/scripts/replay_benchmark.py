@@ -7,12 +7,11 @@ unmodified, and record what happened. This does that, so no agent has to
 rebuild it from prose - and so two replays of the same benchmark are the
 same command.
 
-    python3 replay_benchmark.py .odd/benchmarks/<name> --run-slug <slug>
-    python3 replay_benchmark.py <dir> --run-slug s -e BASE_URL=http://host:8080
-    python3 replay_benchmark.py <dir> --run-slug s --send-traceparent   # remote drive
-    python3 replay_benchmark.py <dir> --run-slug s --dry-run            # print, run nothing
-    python3 replay_benchmark.py <dir> --run-slug s --detach <out>       # start, return at once
-    python3 replay_benchmark.py --status <out> --wait 20m               # block until finished
+    python3 replay_benchmark.py .odd/benchmarks/<name> --run-slug <slug> --detach <out>   # start, return at once
+    python3 replay_benchmark.py --status <out> --wait 20m                                 # block until finished
+    python3 replay_benchmark.py <dir> --run-slug s --detach <out> -e BASE_URL=http://host:8080
+    python3 replay_benchmark.py <dir> --run-slug s --detach <out> --send-traceparent   # remote drive
+    python3 replay_benchmark.py <dir> --run-slug s --dry-run                           # print, run nothing
     python3 replay_benchmark.py --stages <dir> --first-row <UTC>        # the record's stage lines
 
 What it refuses, because they are edits by another name: --vus,
@@ -20,10 +19,12 @@ What it refuses, because they are edits by another name: --vus,
 --no-thresholds, --no-setup, --no-teardown. A benchmark that needs one of
 those is a reported failure and a /odd-instrument-bench diff.
 
-Output is the record block: benchmark name and its own git revision,
-whether its directory is clean, the command verbatim, the UTC window,
-k6's exit status, and where the summary landed. With --json, the same as
-one object.
+A replay always runs detached: without --detach the script refuses (exit
+2, the two commands printed) - a benchmark outlasts a tool call, and a
+call cut at its budget is a run launched twice. --status prints the record
+block: benchmark name and its own git revision, whether its directory is
+clean, the command verbatim, the UTC window, k6's exit status, and where
+the summary landed. With --json, the same as one object.
 
 --stages lays the manifest's stage offsets out in UTC from the run's first
 request row - the arithmetic every record redoes - and prints the record's
@@ -110,9 +111,8 @@ def otel_env() -> dict:
 def summarise(stdout: str, stderr: str) -> dict:
     """The evidence lines a record carries, whichever form produced it.
 
-    The foreground and detached paths must yield the same shapes for the
-    same keys, or an agent reading --json gets a string here and a list
-    there for `stderr`.
+    One shape for every key, or an agent reading --json gets a string here
+    and a list there for `stderr`.
     """
     lines = [
         ln.strip()
@@ -767,36 +767,20 @@ def main() -> int:
     if args.detach:
         return detach(cmd, repo, Path(args.detach), record, args.json, child_env)
 
-    record["start_utc"] = utc()
-    proc = subprocess.run(
-        cmd,
-        cwd=repo,
-        env={**os.environ, **child_env} if child_env else None,
-        capture_output=True,
-        text=True,
-        check=False,
+    # the replay is always detached: run in the foreground it outlasts a
+    # tool call, gets cut at the budget and gets launched again (one drive
+    # ran twice, 2026-09-12) - the script refuses what the reference forbids
+    out = f"<scratch>/{args.run_slug}"
+    print(
+        "a replay runs detached, never in the foreground - a benchmark outlasts "
+        "a tool call and a cut call is a run launched twice. Run:\n"
+        f"  {sys.argv[0]} {bench} --run-slug {args.run_slug} --detach {out}"
+        + (" --otel" if getattr(args, "otel", False) else "")
+        + "\n"
+        f"  {sys.argv[0]} --status {out} --wait <the benchmark's length plus a margin, e.g. 5m>",
+        file=sys.stderr,
     )
-    record["end_utc"] = utc()
-    record["exit_code"] = proc.returncode
-
-    record.update(summarise(proc.stdout, proc.stderr))
-
-    if args.json:
-        print(json.dumps(record, indent=2))
-    else:
-        print(
-            f"Benchmark:  {record['benchmark']} @ {record['revision']}"
-            f"{'' if record['clean'] else '  (DIRTY - no revision to replay at)'}"
-        )
-        print(f"Command:    {record['command']}")
-        print(f"Window:     {record['start_utc']} / {record['end_utc']}")
-        print(f"Exit:       {record['exit_code']}")
-        for ln in record["k6"]:
-            print(f"            {ln}")
-        print(f"Summary:    {record['summary_export']}")
-        if record["stderr"]:
-            print(f"Stderr:     {record['stderr'].splitlines()[0][:160]}")
-    return 0 if proc.returncode == 0 else 2
+    return 2
 
 
 if __name__ == "__main__":
