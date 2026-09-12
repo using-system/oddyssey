@@ -266,10 +266,11 @@ whole, 19 K by section). List a file's headings first (one `grep -n
   when it ships none;
 - `odd-memory`'s `observe-run-report` reference: `## Recall: reading
   the memory` at step 5, and nothing else then; at report time,
-  `## The script owns the format`, `## What the run decides`,
-  `## The body` and `## Rules` — never `## Recall: reading the memory`
-  again, never `## Show` (the caller's). The report file is that
-  script's: its `new` writes it and its `persist` commits it, and
+  `## The script owns the format`, `## What the run decides` and
+  `## Rules` — `## The body` is what `new` prints after the skeleton,
+  read there, never opened in the file — never `## Recall: reading the
+  memory` again, never `## Show` (the caller's). The report file is
+  that script's: its `new` writes it and its `persist` commits it, and
   neither step is composed by hand;
 - `odd-memory`'s `SKILL.md`, the contract that reference points at:
   `## Recall: reading the memory` at step 5; at report time
@@ -880,8 +881,9 @@ report: the caller renders the closing synthesis from the stored file,
 once.
 
 What each of the sections carries is stated once, in that
-reference's `## The body` — read it at report time, with the
-invocation, never earlier: the Investigation above is what fills them,
+reference's `## The body` — `new` prints it after the skeleton, so it
+is read there, at report time, never earlier and never from the file:
+the Investigation above is what fills them,
 the Depth section is what collapses sections 3 to 6 at `quick` depth,
 and the section above is what fills section 8 on a custom stack.
 

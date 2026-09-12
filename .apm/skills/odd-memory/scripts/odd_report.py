@@ -147,6 +147,33 @@ INSTRUMENTATION_RULES = (
     "prose under its heading, never a table row."
 )
 GENAI_HEADING_RE = re.compile(r"^#{3,}\s+GenAI approach\b", re.IGNORECASE)
+# printed after the skeleton by new --kind observation: the reference's
+# `## The body` - what each section carries - read from the reference file
+# itself so it is stated once, and never written to the report. Every
+# measured run opened that section by ranges, three reads, right after new.
+OBSERVATION_REFERENCE = (
+    Path(__file__).resolve().parent.parent / "references" / "observe-run-report.md"
+)
+BODY_CONTRACT_MARK = (
+    "--- what each section carries (the observe-run-report reference's "
+    "`## The body`, printed here so the file is opened for nothing at report time):"
+)
+
+
+def body_contract() -> str:
+    """The reference's `## The body` section, heading included; empty when
+    the install dropped the reference (the caller says so)."""
+    try:
+        text = OBSERVATION_REFERENCE.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    _, sep, rest = text.partition("\n## The body\n")
+    if not sep:
+        return ""
+    section = rest.split("\n## ", 1)[0]
+    return "## The body\n" + section.rstrip()
+
+
 GENAI_CELL_RE = re.compile(r"gen\s?ai", re.IGNORECASE)
 ORDER_RE = re.compile(r"implementation order", re.IGNORECASE)
 # a credential written as a value: a key word, a separator, then a literal
@@ -1858,6 +1885,14 @@ def new_report(args: argparse.Namespace) -> tuple[Path, str, list[str]]:
     store.mkdir(parents=True, exist_ok=True)
     body = skeleton(fields, baseline_sections, replay)
     path.write_text(format_frontmatter(fields) + "\n" + body, encoding="utf-8")
+    contract = body_contract()
+    if contract:
+        body = body.rstrip() + "\n\n" + BODY_CONTRACT_MARK + "\n" + contract
+    else:
+        notes.append(
+            f"reference not found beside the script ({OBSERVATION_REFERENCE}): "
+            "read its `## The body` for what each section carries"
+        )
     return path, body, notes
 
 
@@ -3463,10 +3498,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "new":
             path, body, notes = new_report(args)
-            # the path first, then the body as written (plus, for the
-            # instrumentation kind, the rules footer that never reaches the
-            # file): the run replaces every <fill> from this text and never
-            # reads the file back
+            # the path first, then the body as written (plus what never
+            # reaches the file: the observation kind's section contract, the
+            # instrumentation kind's rules footer): the run replaces every
+            # <fill> from this text and never reads the file back
             print(path)
             print(
                 "--- the file below its frontmatter: write it filled (every <fill> "

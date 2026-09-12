@@ -179,10 +179,35 @@ def test_new_prints_the_skeleton_after_the_path(repo):
     assert lines[0].endswith("2026-08-10-1004-a.md")
     assert lines[1].startswith("--- the file below its frontmatter")
     assert "persist --body" in lines[1]
-    body = "\n".join(lines[2:])
+    footer = next(i for i, ln in enumerate(lines) if ln.startswith(BODY_CONTRACT_MARK))
+    body = "\n".join(lines[2:footer]).rstrip()
     written = Path(lines[0]).read_text(encoding="utf-8")
     assert body == written.split("---\n\n", 1)[1].rstrip()
     assert body.count("<fill>") == 8
+
+
+BODY_CONTRACT_MARK = "--- what each section carries"
+
+
+def test_new_prints_the_body_contract_after_the_skeleton_and_never_writes_it(repo):
+    """Every measured run opened the reference's `## The body` by ranges,
+    three reads at report time, right after `new`: the section travels
+    with the skeleton instead, read once from the reference file itself
+    so nothing is duplicated, and never lands in the report."""
+    proc = run(repo, *NEW, "--repo", str(repo.root), "--run-name", "a")
+    assert proc.returncode == 0, proc.stderr
+    out = proc.stdout
+    _, _, printed = out.partition(BODY_CONTRACT_MARK)
+    assert printed, out
+    reference = (SKILLS / "odd-memory/references/observe-run-report.md").read_text(
+        encoding="utf-8"
+    )
+    section = reference.split("\n## The body\n", 1)[1].split("\n## ", 1)[0]
+    assert printed.split("\n", 1)[1].strip() == ("## The body\n" + section).strip()
+    assert "1. **Mission and run record**" in printed
+    written = Path(out.splitlines()[0]).read_text(encoding="utf-8")
+    assert BODY_CONTRACT_MARK not in written
+    assert "**Mission and run record**" not in written
 
 
 def test_new_takes_the_window_as_a_query_script_printed_it(repo, report):
