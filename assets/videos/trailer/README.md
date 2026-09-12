@@ -1,7 +1,9 @@
 # The oddyssey trailer
 
-The README's trailer (`oddyssey-trailer.mp4`, 94.5 s, 1280x720) and the code that
-generates it. The video presents oddyssey
+The README's trailer (94.5 s, 1280x720) and the code that generates it. The
+rendered file is not committed: it is uploaded as a GitHub attachment on the
+pull request or issue of the change that re-rendered it, and the README embeds
+that URL (the only form GitHub turns into a player). The video presents oddyssey
 told as Homer's Odyssey: Odysseus (your coding agent) sails the telemetry
 sea, meets the monsters (bugs, bad behaviors, bad performance, blind spots)
 and beats them with the signs the gods send - Loki (logs), Tempo (traces),
@@ -23,7 +25,7 @@ banner (`assets/images/banner.png`) for the closing scene.
 ## Render
 
 ```bash
-python3 make_video.py --scale 0.6667 --crf 30 --out oddyssey-trailer.mp4   # regenerate the committed trailer (720p, ~9 MB)
+python3 make_video.py --scale 0.6667 --crf 30 --out out/oddyssey-trailer.mp4   # the README's trailer (720p, ~9 MB), to upload
 python3 make_video.py                 # 1920x1080, 30 fps -> out/oddyssey.mp4 (~30 MB)
 python3 make_video.py --preview       # 960x540, 15 fps draft -> out/oddyssey-preview.mp4
 python3 make_video.py --frames 16     # 16 stills to out/stills/ for a quick visual check
@@ -47,8 +49,31 @@ frame drum beating faster during the battle, and a bell shimmer on
 at 128 kbps AAC.
 
 The full render takes a few minutes (each frame is drawn in pure Python).
-`out/` is git-ignored; only the regenerated `oddyssey-trailer.mp4` is meant to be
-committed, in the same change as the edit that made it necessary.
+`out/` is git-ignored and nothing rendered is committed: upload the regenerated
+trailer as a GitHub attachment and point the README's URL at it, in the same
+change as the edit that made it necessary.
+
+## Upload
+
+GitHub renders a player in a README only for a `user-attachments` URL, the
+kind its web editor produces on a drag-and-drop. The same upload works from the
+terminal through an undocumented endpoint that takes the `gh` token (kept
+under 10 MB, the editor's limit):
+
+```bash
+RID=$(gh api repos/using-system/oddyssey --jq .id)
+curl -s "https://uploads.github.com/user-attachments/assets?name=oddyssey-trailer.mp4&content_type=video/mp4&repository_id=$RID" \
+  -X POST -H "Authorization: Bearer $(gh auth token)" -H "Accept: application/json" \
+  --data-binary "@out/oddyssey-trailer.mp4"
+```
+
+It answers `201` with `{"url": "https://github.com/user-attachments/assets/<uuid>"}`.
+The asset is private until it appears in a comment: post the URL as a comment
+on the change's pull request (`gh pr comment <n> --body "$URL"`), wait until an
+anonymous `curl -sL -r 0-1000 -o /dev/null -w '%{http_code}' "$URL"` answers
+`206`, then put the URL on its own line at the top of the repository README.
+The endpoint is unofficial: if it ever stops answering, drag the file into a
+comment on the pull request in the web UI and copy the URL it inserts.
 
 ## Storyboard
 
