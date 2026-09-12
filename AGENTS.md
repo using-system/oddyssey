@@ -261,6 +261,21 @@ compose. Move those, and state the before and after — a harnessing
 change that cannot name the commands it removed is not evidence of
 anything.
 
+**A review of a change on that path is bound by the same rule.** The
+instructions given to a reviewer of a branch touching the path of
+`/odd-observe`, `/odd-verify` or `/odd-status` state it in so many
+words: the branch's harnessing gain was measured and is the thing
+under protection; a finding is raised only when it is genuinely
+blocking (a wrong result, a crash, a lost or corrupted record, a
+security defect), never for a robustness or completeness improvement
+that adds a rule, a flag, a branch or a sentence to what a run reads
+or runs; and every fix a reviewer does propose on that path names its
+cost in commands or contract lines and is re-measured before it is
+kept. A review that comes back with a list of "could also" items on a
+measured branch has not read this file: two rounds of such fixes
+(2026-09-12) put a branch's drive side back at main's level and its
+observe side above it, and were reverted whole.
+
 **A change on the path of `/odd-observe`, `/odd-verify` or
 `/odd-status` is measured before its PR** — directly (the prompt, the
 agent it dispatches, a skill or a script the run executes) or
