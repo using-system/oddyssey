@@ -13,7 +13,9 @@ opencode.json), `--scratch` is cleared when given; the fake user scope is
 synced from the branch's deploy (`--scope` pairs; opencode's are the
 default) and checked identical; `--before` runs; the measurement is
 launched (`--alongside` starts right after it and is waited for); the
-analysis runs; `--after` runs; one `SAMPLE DONE <tag> <wall>` or
+analysis runs; `--after` runs; a run that exits non-zero within 30 s is
+launched once more (`SAMPLE RELAUNCHED <tag> (...)`, a launch that died is
+not a sample); one `SAMPLE DONE <tag> <wall>` or
 `SAMPLE FAILED <tag> (<why>)` line goes to `<out>/samples.log`, then
 `SAMPLE CHAIN DONE <n> of <m>` (or `SAMPLE CHAIN ABORTED at <tag>: <why>` when
 a sample is refused before its launch) - the lines a monitor watches. The hooks
@@ -34,6 +36,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+RELAUNCH_WITHIN = 30  # seconds: a run gone before this measured nothing
 
 # what the opencode deploy in the lab writes, and where the fake user scope
 # expects it (launch-llms-benchmark step 3 states the scopes per CLI); the
@@ -266,18 +269,31 @@ def main() -> int:
         ]
         if args.end_pattern:
             measure_cmd += ["--end-pattern", args.end_pattern]
-        with (out / f"{tag}.measure.log").open("w", encoding="utf-8") as log:
-            measure = subprocess.Popen(
-                measure_cmd,
-                cwd=lab,
-                env={**env, "HOME": str(home)},
-                stdout=log,
-                stderr=subprocess.STDOUT,
+        code, alongside = -1, None
+        for attempt in (1, 2):
+            with (out / f"{tag}.measure.log").open("a", encoding="utf-8") as log:
+                measure = subprocess.Popen(
+                    measure_cmd,
+                    cwd=lab,
+                    env={**env, "HOME": str(home)},
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                )
+                if alongside is None:
+                    alongside = run_hook(args.alongside, env, out, tag, "alongside")
+                code = measure.wait()
+            quick = time.monotonic() - started < RELAUNCH_WITHIN
+            if code == 0 or not quick or attempt == 2:
+                break
+            # a run that dies at once never measured anything: launch it once
+            # more before calling the sample failed
+            journal(
+                out,
+                f"SAMPLE RELAUNCHED {tag} (measure exit {code} within {RELAUNCH_WITHIN} s)",
             )
-            alongside = run_hook(args.alongside, env, out, tag, "alongside")
-            code = measure.wait()
-            if alongside is not None:
-                alongside.wait()
+            started = time.monotonic()
+        if alongside is not None:
+            alongside.wait()
         wall = int(time.monotonic() - started)
         (out / f"{tag}.branch.txt").write_text(
             f"{git(lab, 'branch', '--show-current')}\n{git(lab, 'log', '-1', '--oneline')}\n"

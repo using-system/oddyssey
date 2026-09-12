@@ -249,9 +249,14 @@ def test_a_failed_measurement_is_journaled_and_the_chain_goes_on(lab, kit, tmp_p
     )
     assert p.returncode == 1, p.stderr + p.stdout
     journal = (out / "samples.log").read_text()
+    # a run that dies at once is launched once more before it counts as failed
+    assert journal.count("SAMPLE RELAUNCHED s1 (measure exit 2 within 30 s)") == 1
     assert "SAMPLE FAILED s1 (measure exit 2)" in journal
     assert "SAMPLE DONE s2" in journal
     assert "SAMPLE CHAIN DONE 1 of 2" in journal
+    assert (out / "s1.measure.log").read_text().count(
+        "boom"
+    ) == 2  # both launches logged
 
 
 def test_a_dirty_lab_or_an_unknown_branch_refuses_before_launching(lab, kit, tmp_path):

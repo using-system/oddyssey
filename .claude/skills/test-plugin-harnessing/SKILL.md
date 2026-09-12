@@ -158,7 +158,9 @@ the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
    repeatable; opencode's two pairs are the default, the other CLIs
    state theirs), `--scratch <dir>` is cleared when given (the CLI's
    scratch directory; nothing outside the study is touched otherwise),
-   the measurement above is launched and the analysis below run, and
+   the measurement above is launched (once more when it exits non-zero
+   within 30 s — a launch that died measured nothing; `SAMPLE
+   RELAUNCHED <tag> (...)` says so) and the analysis below run, and
    one line goes to `<study dir>/samples.log`: `SAMPLE DONE <tag>
    <wall> on <branch>`, `SAMPLE FAILED <tag> (<why>)`, then `SAMPLE
    CHAIN DONE <n> of <m>` — or `SAMPLE CHAIN ABORTED at <tag>: <why>`
