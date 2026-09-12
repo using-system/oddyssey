@@ -771,11 +771,15 @@ def main() -> int:
     # tool call, gets cut at the budget and gets launched again (one drive
     # ran twice, 2026-09-12) - the script refuses what the reference forbids
     out = f"<scratch>/{args.run_slug}"
+    given = [f"-e {v}" for v in (args.env or [])]
+    given += ["--send-traceparent"] if args.send_traceparent else []
+    given += ["--otel"] if getattr(args, "otel", False) else []
+    given += [f"--summary {args.summary}"] if args.summary else []
     print(
         "a replay runs detached, never in the foreground - a benchmark outlasts "
         "a tool call and a cut call is a run launched twice. Run:\n"
         f"  {sys.argv[0]} {bench} --run-slug {args.run_slug} --detach {out}"
-        + (" --otel" if getattr(args, "otel", False) else "")
+        + "".join(f" {g}" for g in given)
         + "\n"
         f"  {sys.argv[0]} --status {out} --wait <the benchmark's length plus a margin, e.g. 5m>",
         file=sys.stderr,

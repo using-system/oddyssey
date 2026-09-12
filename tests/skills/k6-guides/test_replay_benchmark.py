@@ -670,5 +670,19 @@ def test_a_replay_without_detach_is_refused_with_the_detached_invocation(benchma
     assert p.returncode == 2
     assert "--detach" in p.stderr and "--status" in p.stderr and "--wait" in p.stderr
     assert "s1" in p.stderr  # the invocation carries the slug given
+    p = run_cli(
+        benchmark,
+        "--run-slug",
+        "s1",
+        "-e",
+        "BASE_URL=http://target.example:9",
+        "--send-traceparent",
+        "--otel",
+    )
+    assert p.returncode == 2
+    line = next(ln for ln in p.stderr.splitlines() if "--detach" in ln)
+    # every flag the caller gave survives on the printed invocation
+    assert "-e BASE_URL=http://target.example:9" in line
+    assert "--send-traceparent" in line and "--otel" in line
     p = run_cli(benchmark, "--run-slug", "s1", "--dry-run")
     assert p.returncode == 0, p.stderr
