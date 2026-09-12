@@ -212,6 +212,11 @@ def launch(
     stdout = (out / f"{tag}.stdout.json").open("w")
     stderr = (out / f"{tag}.stderr").open("w")
     env = dict(os.environ)
+    # a shell updates PWD on cd, a Python parent does not: launched by the
+    # sample chain with PWD still on another repository, opencode resolves
+    # `--command` there and dies at once with "Unexpected server error"
+    # (verified 2026-09-12: the same launch runs with PWD on the lab)
+    env["PWD"] = str(cwd)
     if cli == "opencode":
         # a slash command is launched through the host's own expansion:
         # passed as raw text, the run hunts for the command file first
