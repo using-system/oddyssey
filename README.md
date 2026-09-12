@@ -1,6 +1,6 @@
 # oddyssey
 
-https://github.com/user-attachments/assets/776b98b0-862d-4865-b8f1-568e6710c228
+https://github.com/user-attachments/assets/a8dbc6e1-115e-4f33-83d1-b488bb1d9c51
 
 **A CLI toolbox for Observability-Driven Development (ODD).**
 

@@ -50,8 +50,30 @@ at 128 kbps AAC.
 
 The full render takes a few minutes (each frame is drawn in pure Python).
 `out/` is git-ignored and nothing rendered is committed: upload the regenerated
-trailer as an attachment on the change's pull request or issue and point the
-README's URL at it, in the same change as the edit that made it necessary.
+trailer as a GitHub attachment and point the README's URL at it, in the same
+change as the edit that made it necessary.
+
+## Upload
+
+GitHub renders a player in a README only for a `user-attachments` URL, the
+kind its web editor produces on a drag-and-drop. The same upload works from the
+terminal through an undocumented endpoint that takes the `gh` token (kept
+under 10 MB, the editor's limit):
+
+```bash
+RID=$(gh api repos/using-system/oddyssey --jq .id)
+curl -s "https://uploads.github.com/user-attachments/assets?name=oddyssey-trailer.mp4&content_type=video/mp4&repository_id=$RID" \
+  -X POST -H "Authorization: Bearer $(gh auth token)" -H "Accept: application/json" \
+  --data-binary "@out/oddyssey-trailer.mp4"
+```
+
+It answers `201` with `{"url": "https://github.com/user-attachments/assets/<uuid>"}`.
+The asset is private until it appears in a comment: post the URL as a comment
+on the change's pull request (`gh pr comment <n> --body "$URL"`), wait until an
+anonymous `curl -sL -r 0-1000 -o /dev/null -w '%{http_code}' "$URL"` answers
+`206`, then put the URL on its own line at the top of the repository README.
+The endpoint is unofficial: if it ever stops answering, drag the file into a
+comment on the pull request in the web UI and copy the URL it inserts.
 
 ## Storyboard
 
