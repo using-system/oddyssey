@@ -77,7 +77,9 @@ manifest,
 `--containers <name>` filters the container listing to matching names,
 `--root <path>` points at a repository other than the working directory,
 `--json` prints the same report parseable. Nothing else, and nothing
-required.
+required. The block's last line is the handoff's `Machine:` line
+(step 5), printed to be copied: one call, its output read as printed —
+never a second run for another shape of the same answer.
 
 It resolves neither the stack nor the backend's configuration: those
 need the MCP tools and the backend's own reference, and they are what
@@ -177,13 +179,14 @@ Reference: <repo-relative path of the reference file - for a linked guide, the l
 CLI: <binary> <version>[, at <path> when not on PATH]; context: <the isolated context's path, the named context, or "none" when the CLI carries no context>
 Target: <the Display's values on one line - URLs, ports, tenant/workspace/site names; never a credential>
 Proof: <the probe command> -> <the real signal it returned>, at <UTC>
-Machine: <step 0's one-line summary - the CLIs and versions, what is running, the repo's branch and cleanliness, the benchmark's target service and base URLs>
+Machine: <the last line step 0 printed, copied as printed - the CLIs and versions, what is running, the repo's branch and cleanliness, the benchmark's target service and base URLs>
 ```
 
 The `Machine:` line carries step 0's answers so the agent does not pay
 for them twice: with it in hand, listing the repository, the containers,
 the listening ports or the benchmark's directory again is re-deriving
 what the block already states — a measured cost, not a hypothetical one.
+The script prints the line; the caller copies it, never composes it.
 
 The `Target:` line carries what the Display showed — the real
 targeting values the agent's queries need — and nothing more: never a

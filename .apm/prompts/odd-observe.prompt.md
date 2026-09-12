@@ -9,17 +9,20 @@ contract - this prompt only hands it a well-formed mission.
 Preflight first - in the main conversation, before any dispatch (the
 steps needing the user cannot happen inside a subagent).
 
-**Start with the `backend-configuration` skill's `scripts/preflight.py`**
-(add `--benchmark <dir>` when the arguments name a stored benchmark,
-`--containers <name>` when the observed services run in containers). One
-call answers every mechanical question below - which CLIs are installed
-and at which version, what is running, the repository's branch and
-cleanliness, what each `.odd/` store already holds, and the named
-benchmark's target service and base URLs. Read its output; never ask the
-same questions one shell command at a time. What it does **not** answer
-is the part that takes judgment, and that is what the numbered steps
-below are for: resolving the stack, and reading the backend's own
-configuration.
+**Start with the `backend-configuration` skill's `## Check` step 0** -
+one call of its `scripts/preflight.py`, the invocation and its whole
+surface stated there: `--benchmark <dir>` when the arguments name a
+stored benchmark, `--containers <name>` when the observed services run
+in containers. That one output answers every mechanical question below
+- which CLIs are installed and at which version, what is running, the
+repository's branch and cleanliness, what each `.odd/` store already
+holds, and the named benchmark's target service and base URLs - and its
+last line is the handoff's `Machine:` line, copied as printed. Read the
+output; never ask the same questions one shell command at a time, never
+run the script again for another shape of the same answer. What it does
+**not** answer is the part that takes judgment, and that is what the
+numbered steps below are for: resolving the stack, and reading the
+backend's own configuration.
 
 1. Resolve the target stack: the configured one (`odd_config_get`), or
    the one the arguments name - a stack is one of the values the
@@ -83,8 +86,9 @@ configuration.
    ask carries both questions, never two in a row. A service-less
    discovery question (below) has no depth.
 
-Build the mission block from the arguments below, applying the agent's own
-defaults for every field not specified:
+Build the mission block from the arguments below; a field the arguments
+do not carry is left out - the agent applies its own default, and its
+file is not read here:
 
 - `Skills: <directory>` - the `skills` line of the `package-layout`
   skill's `scripts/layout.py` - reachable because the preflight above

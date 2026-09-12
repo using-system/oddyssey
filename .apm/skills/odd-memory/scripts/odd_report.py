@@ -499,6 +499,29 @@ def cap(text: str, limit: int | None) -> tuple[str, bool]:
     return text[:limit] + ELLIPSIS, True
 
 
+def cap_outside_code(text: str, limit: int) -> str:
+    """Cap a line before a code span opens, never inside one: a query cut
+    in half (an unclosed brace, an ellipsis mid-token) reads as a corrupted
+    tool result to a run, which then re-captures the rendering by other
+    means."""
+    if len(text) <= limit:
+        return text
+    head = text[:limit]
+    if head.count("`") % 2 and head.rfind("`"):
+        head = head[: head.rfind("`")]
+    return head.rstrip(" ,;:—-") + ELLIPSIS
+
+
+def gap_line(gap: str) -> str:
+    """A structured bullet (`<gap> — <fate> — <query>`) renders its gap and
+    fate, the query stays in the file; anything else is capped outside
+    code spans."""
+    parts = gap.split(GAP_SPLIT)
+    if len(parts) >= 3 and parts[2].lstrip().startswith("`"):
+        return cap_outside_code(GAP_SPLIT.join(parts[:2]), MAX_LINE)
+    return cap_outside_code(gap, MAX_LINE)
+
+
 def raw_sections(body: str) -> list[dict]:
     """The numbered ``## N.`` sections, uncapped: tables and prose lines."""
     sections: list[dict] = []
@@ -3084,7 +3107,7 @@ def render_show(data: dict, rel: str, commit: str | None) -> str:
     if data["gaps"]:
         out.append("Telemetry gaps:")
         for gap in data["gaps"][:MAX_ROWS]:
-            out.append(f"- {cap(gap, MAX_LINE)[0]}")
+            out.append(f"- {gap_line(gap)}")
         if len(data["gaps"]) > MAX_ROWS:
             out.append(f"+{len(data['gaps']) - MAX_ROWS} more in the report")
     if data["not_queried"] or data["gaps"]:
