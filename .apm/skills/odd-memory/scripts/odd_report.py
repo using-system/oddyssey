@@ -156,7 +156,7 @@ OBSERVATION_REFERENCE = (
 )
 BODY_CONTRACT_MARK = (
     "--- what each section carries (the observe-run-report reference's "
-    "`## The body`, printed here so the file is opened for nothing at report time):"
+    "`## The body`, printed here - read it here, never from that file):"
 )
 
 

@@ -272,7 +272,7 @@ def test_the_machine_line_names_what_is_absent(preflight):
 def test_render_ends_with_the_machine_line_and_json_carries_it(preflight):
     out = preflight.render(FULL_REPORT)
     assert out.splitlines()[-1] == preflight.machine_line(FULL_REPORT)
-    assert "{" not in out  # no raw object in the block, whatever a CLI prints
+    assert "{" not in out  # the block itself adds no brace around a version
     assert preflight.report_json(FULL_REPORT)["machine"] == preflight.machine_line(
         FULL_REPORT
     )
