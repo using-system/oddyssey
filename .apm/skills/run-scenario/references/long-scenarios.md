@@ -53,13 +53,16 @@ a **detached job with a polled record**: start the job so it survives
 the tool call that spawned it, have it write its progress and its
 outcome to a file, and let later tool calls read that file.
 
-**A stored benchmark needs none of this written**: its replay script
-already ships that shape (`--detach` starts it, `--status --wait` blocks
-until it finishes),
-and authoring a poller for it is writing a command the package
-supplies. What follows is for an **ad-hoc** scenario, which has no such
-script. Start the job, then launch a small script with `nohup` that
-polls it and appends timestamped progress to a file. The scenario
+**A stored benchmark's replay needs none of this written**: its replay
+script already ships that shape (`--detach` starts it, `--status
+--wait` blocks until it finishes), and authoring a poller for it is
+writing a command the package supplies. Nor does the watch of a run
+someone else drives, on a backend whose reference ships one
+(`benchmark-replay.md`'s watching section routes there). What follows
+is for an **ad-hoc** scenario, and for that watch on a backend that
+ships no script — the criteria then come from `benchmark-replay.md`.
+Start the job, then launch a small script with `nohup` that polls it
+and appends timestamped progress to a file. The scenario
 record cites the poller script and its output file verbatim — they are
 part of the protocol, and a replay re-runs the same poller, not a
 hand-watched approximation.

@@ -211,10 +211,12 @@ python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py get <trace i
 python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py count '<TraceQL>' --from <start> --to <end> [--bin 30s] [--json]
 python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py search '<TraceQL>' --from <start> --to <end> [--limit 1000] [--json]
 python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py breakdown --service <svc> [--traceql '<TraceQL>'] --from <start> --to <end> [--limit 1000] [--sample 200] [--json]
+python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py watch '<TraceQL>' --from <dispatch instant> --state <scratch>/<slug>-watch.json [--to <deadline>] [--bin 30s] [--ended-after 4] [--settle 60s] [--every 30s] [--max 8m] [--identity-attr <span attribute>]... [--json]
 ```
 
-Five subcommands, the whole surface above (`--since <duration>` replaces
-`--from/--to` everywhere). Behind them: [`traces query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_query.md),
+Six subcommands, the whole surface above (`--since <duration>` replaces
+`--from/--to` on the first five; `watch` takes `--from` and an optional
+`--to`). Behind them: [`traces query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_query.md),
 [`traces get`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_traces_get.md) and, for the span metrics,
 [`metrics query`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_metrics_query.md).
 
@@ -251,6 +253,38 @@ Five subcommands, the whole surface above (`--since <duration>` replaces
   operations with their counts. One pair of braces:
   `{ resource.service.name = "svc" && span.http.status_code >= 500 }` —
   two brace groups joined by `&&` is a parse error.
+- `watch` — a run someone else drives, polled on its identity (a
+  TraceQL selector on the User-Agent — `span.http.user_agent` on a
+  service under the old HTTP semconv, `span.user_agent.original` under
+  the new; the identity value is read off the first row's trace on
+  whichever the spans carry, `--identity-attr` overrides) from the
+  instant polling starts — the dispatch, never the announced start —
+  one `count`-shaped query per closed `--bin` (a bin closes once its end
+  is `--settle` old, so a lagging store never ends a live run), until
+  the run has started (its first row, exact to the row's own
+  timestamp — rows already in the first polled bin make the watch walk
+  back before `--from`, bin by bin to an empty one, so a watch
+  dispatched after the run began still dates it from its first row)
+  and then ended on `--ended-after` consecutive empty bins:
+  `Started (UTC)` and `Ended (UTC)` are the rows', never the watch's
+  clock. `--max` bounds one call, between and inside its polls (`0s`
+  is one whole poll). A deadline off the bin grid clips the last bin:
+  read for the start and the rows, kept apart as `partial_bin` and read
+  again whole on the next call, never a closed bin. Exit 0 ended, 3
+  still running at `--max` or `--to` (the
+  deadline past which "no run observed" is the answer), 4 not started
+  there — the same invocation again resumes it from `--state`, the last
+  closed bin onward, never re-querying what it already counted; a
+  watch a tool call's budget cuts loses nothing, and a gcx error leaves
+  its bin unread for the next call. At the deadline the last `--settle`
+  is read unsettled rather than skipped, so a run that began inside it
+  is never "not started"; a deadline closer to the last row than
+  `--ended-after` × `--bin` + `--settle` cannot close the run, and the
+  output says how much further `--to` must go. The identity is read off
+  the first row's trace, the first row after a gap and the last row's:
+  two values are two runs, and the output says so. `new` in a bin is
+  what the previous bin did not list; a capped bin under-counts. Every
+  poll goes to the store; nothing is sent at the service.
 - `breakdown` — over the traces rooted at the service in the window
   (`--traceql` narrows the search, the table still keeps the traces
   rooted at `--service` — a service never rooted is said, with the
@@ -288,7 +322,15 @@ and peer first>` (a root's `http.response.status_code`, a child's
 truncated, first, last, roots{<svc> <op>: n}, traces[{traceID,
 rootServiceName, rootTraceName, startTimeUnixNano, durationMs}]`.
 `count` — `traceql, bin, total, capped_bins, bins[{from, to, listed,
-new, capped}], note`. `breakdown` — `window, traceql, service, listed, rooted,
+new, capped}], note`. `watch` — `traceql, poll_from, from, to, bin,
+every, ended_after, settle, status (not started, running, ended),
+started, ended, last_row, span_s, identity[], identity_attr,
+several_identities, empty_since_last_row, walked_back, deadline_note,
+bins[{from, to, listed, new, capped, unsettled}], partial_bin{from, to,
+listed, new, capped, partial, unsettled} or null, capped_bins, polls,
+polls_this_call, last_poll, state, note, commands[]` — the text form prints
+the record's `Started (UTC):`, `Ended (UTC):`, `Identity:` and `Watch:`
+lines as they go on the run record. `breakdown` — `window, traceql, service, listed, rooted,
 rooted_elsewhere{<svc>: n}, truncated, fetched, failed[{trace_id,
 error}], breakdown{<svc> <op>: traces, root_status{<UNSET or OK or
 ERROR>: n}, http_status{<code or absent>: n}, root_p50_ms, root_p95_ms,

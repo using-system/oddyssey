@@ -6,6 +6,7 @@
     grafana-traces.py search '{ status = error }' --from ... --to ... [--limit 1000]
     grafana-traces.py count '{ resource.service.name = "svc" }' --from ... --to ... [--bin 30s]
     grafana-traces.py breakdown --service svc --from ... --to ... [--sample 200]
+    grafana-traces.py watch '{ span.http.user_agent =~ "odd-bench/x/.*" }' --from ... --state FILE [--to ...]
 
 Whole surface - ops: --service (repeatable), a window (--from/--to or
 --since), --limit (default 1000, the search ceiling), --name (repeatable,
@@ -29,7 +30,25 @@ table still keeps the traces rooted at --service), a window, --limit
 (default 1000), --sample (default 200: the newest traces fetched, at least
 1) - a get that fails among many is listed under failed and costs nothing
 else, the table is built from the rest; each operation names its exemplar
-traces (p50, worst, the slowest per status code). --json
+traces (p50, worst, the slowest per status code). watch: TRACEQL (the
+run's identity), --from (poll from here: the dispatch, never the announced
+start), --to (the deadline; default none - the wall clock), --bin (default
+30s), --ended-after (default 4: the run has ended, once started, on that
+many consecutive empty closed bins), --settle (default 60s: a bin closes
+once its end is that old, so a lagging store never ends a live run),
+--every (default 30s between polls), --max (default 8m: the bound one call
+holds the watch for, between and inside its polls; 0 is one poll, whole),
+--state FILE (the
+watch's state; the next call resumes from the last closed bin), --identity-attr
+(repeatable; default user_agent.original then http.user_agent: the span
+attribute read off the first row's trace, the first row after a gap, and
+the last row's - two values are two runs). Rows already in the first bin
+make the watch walk back before --from to the run's first row; at the
+deadline the last --settle is read unsettled, a bin the deadline clips is
+kept apart as partial_bin and read again whole next call, and a deadline
+closer to the last row than ended-after x bin + settle says how much
+further --to must go.
+Exit 0 ended, 3 running at the bound, 4 not started at the bound. --json
 everywhere. Every subcommand prints the gcx commands it ran, so the report
 can record them. Reads GCX_CONFIG. Exit 0 on success, 1 when gcx errored -
 and then nothing but the error is printed.
@@ -524,6 +543,331 @@ def cmd_count(ns) -> tuple[int, dict]:
     }
 
 
+IDENTITY_ATTRS = ("user_agent.original", "http.user_agent")
+
+
+def _identity(
+    trace_id: str, attrs: tuple[str, ...]
+) -> tuple[list[str], str | None, list]:
+    """The identity values one trace carries on the first of ``attrs`` any
+    of its spans has - the User-Agent a driven run is selected by."""
+    r = run_gcx(["traces", "get", trace_id])
+    if not r.ok:
+        return [], None, [r]
+    spans = flatten_trace(r.data)
+    for attr in attrs:
+        values = sorted({str(sp["attrs"][attr]) for sp in spans if attr in sp["attrs"]})
+        if values:
+            return values, attr, [r]
+    return [], None, [r]
+
+
+def _load_watch_state(path: str | None, traceql: str, frm: str, bin_: str) -> dict:
+    fresh = {
+        "traceql": traceql,
+        "poll_from": frm,  # the invocation's --from: what identifies the watch
+        "from": frm,  # where the bins start: moved back by a walk-back
+        "bin": bin_,
+        "cursor": frm,
+        "bins": [],
+        "last_bin_ids": [],
+        "started": None,
+        "started_id": None,
+        "last_row": None,
+        "last_id": None,
+        "empty_since": 0,
+        "identity": [],
+        "identity_attr": None,
+        "identity_ids": [],
+        "walked_back": 0,
+        "polls": 0,
+        "status": "not started",
+        "commands": [],
+    }
+    if not path or not os.path.isfile(path):
+        return fresh
+    try:
+        with open(path, encoding="utf-8") as fh:
+            saved = json.load(fh)
+    except (OSError, ValueError):
+        return fresh
+    if saved.get("traceql") != traceql or saved.get("poll_from") != frm:
+        raise SystemExit(
+            f"{path} holds another watch ({saved.get('traceql')!r} from "
+            f"{saved.get('poll_from')}): name a state file of this watch's own"
+        )
+    fresh.update(saved)
+    return fresh
+
+
+def _save_watch_state(path: str | None, state: dict) -> None:
+    if not path:
+        return
+    tmp = f"{path}.tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(state, fh, indent=1)
+    os.replace(tmp, path)
+
+
+def _query_bin(ns, x, y):
+    return run_gcx(
+        [
+            "traces",
+            "query",
+            ns.traceql,
+            "--from",
+            iso(x),
+            "--to",
+            iso(y),
+            "--limit",
+            str(TRACE_LIMIT),
+        ]
+    )
+
+
+def _starts(rows: list) -> list[tuple[int, str]]:
+    return sorted(
+        (int(t["startTimeUnixNano"]), hex_trace_id(t.get("traceID", "")))
+        for t in rows
+        if str(t.get("startTimeUnixNano", "")).isdigit()
+    )
+
+
+def _walk_back(ns, first_bin_start, step, limit: int = 20):
+    """The bins before the first polled one, back to an empty bin (or
+    ``limit`` bins): earliest first, with the earliest row found."""
+    got: list = []
+    bins: list[dict] = []
+    earliest: tuple[int, str] | None = None
+    y = first_bin_start
+    for _ in range(limit):
+        x = y - step
+        r = _query_bin(ns, x, y)
+        got.append(r)
+        rows = traces_list(r.data) if r.ok else []
+        bins.insert(
+            0,
+            {
+                "from": iso(x),
+                "to": iso(y),
+                "listed": len(rows),
+                "new": len(rows),
+                "capped": len(rows) >= TRACE_LIMIT,
+            },
+        )
+        starts = _starts(rows)
+        if starts:
+            earliest = starts[0]
+        if not rows:
+            break
+        y = x
+    if earliest is None:
+        return None, got
+    return {"bins": bins, "first": earliest}, got
+
+
+def _note_identity(state: dict, trace_id: str, attrs, results: list) -> None:
+    """Read the identity off one trace, once per trace, and fold it in."""
+    if trace_id in state["identity_ids"]:
+        return
+    values, attr, got = _identity(trace_id, attrs)
+    results.extend(got)
+    state["identity_ids"].append(trace_id)
+    if not values:
+        return
+    if state["identity_attr"] in (None, attr):
+        state["identity_attr"] = attr
+        state["identity"] = sorted(set(state["identity"]) | set(values))
+
+
+def cmd_watch(ns) -> tuple[int, dict]:
+    """Poll a driven run's identity, bin by bin, until it has started and
+    then ended - the end criterion the watch section of the scenario skill
+    states, shipped: once started, ``--ended-after`` consecutive empty
+    closed bins; before the first row an empty bin means not started."""
+    import time
+
+    if not ns.frm:
+        raise SystemExit("watch needs --from <the instant polling starts, RFC3339 UTC>")
+    frm = parse_ts(ns.frm)
+    deadline = parse_ts(ns.to) if ns.to else None
+    if deadline and deadline <= frm:
+        raise SystemExit("--to must be after --from")
+    step = timedelta(seconds=parse_duration(ns.bin))
+    if step.total_seconds() <= 0:
+        raise SystemExit("--bin must be a positive duration")
+    settle = timedelta(seconds=parse_duration(ns.settle))
+    every = parse_duration(ns.every)
+    bound = parse_duration(ns.max)
+    attrs = tuple(ns.identity_attr) if ns.identity_attr else IDENTITY_ATTRS
+    state = _load_watch_state(ns.state, ns.traceql, iso(frm), ns.bin)
+    results: list = []
+    recorded = 0
+    recorded_bins = 0  # bins queried by this call: --max never cuts the first
+    began = time.monotonic()
+    polls_this_call = 0
+    while True:
+        state["polls"] += 1
+        polls_this_call += 1
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        at_deadline = deadline is not None and now >= deadline
+        if at_deadline:
+            now = deadline
+        # a bin closes once its end is --settle old; at the deadline the
+        # last --settle is read all the same, flagged unsettled, so a run
+        # that began inside it is never reported "not started"
+        horizon = now if at_deadline else now - settle
+        cursor = parse_ts(state["cursor"])
+        error = None
+        while cursor < horizon and state["status"] != "ended":
+            if bound and recorded_bins and time.monotonic() - began >= bound:
+                break  # --max binds the call, inside a poll as between two
+            recorded_bins += 1
+            x, y = cursor, min(cursor + step, horizon)
+            partial = y < cursor + step
+            r = _query_bin(ns, x, y)
+            results.append(r)
+            if not r.ok:
+                error = r.error  # the bin stays unread: the next call queries it again
+                break
+            rows = traces_list(r.data)
+            ids = [hex_trace_id(t.get("traceID", "")) for t in rows]
+            previous = set(state["last_bin_ids"])
+            new = [i for i in ids if i not in previous]
+            starts = _starts(rows)
+            entry = {
+                "from": iso(x),
+                "to": iso(y),
+                "listed": len(ids),
+                "new": len(new),
+                "capped": len(ids) >= TRACE_LIMIT,
+            }
+            if y > now - settle:
+                entry["unsettled"] = True
+            if partial:
+                entry["partial"] = True
+            previous_empty = not state["bins"] or not state["bins"][-1].get("new")
+            if partial:
+                # the clipped last bin before the deadline: read for the start
+                # and the rows, kept apart and replaced, never a closed bin
+                state["partial_bin"] = entry
+            else:
+                state["bins"].append(entry)
+                state.pop("partial_bin", None)
+                state["last_bin_ids"] = ids[-200:]
+                state["cursor"] = iso(y)
+            cursor = y
+            if new and starts:
+                first_ns, first_id = starts[0]
+                last_ns, last_id = starts[-1]
+                if (
+                    state["started"] is None
+                    and iso(x) == state["from"]
+                    and not state["walked_back"]
+                ):
+                    # rows in the very first bin: the run may have begun
+                    # before --from - walk back, bin by bin, to its first row
+                    earlier, got = _walk_back(ns, x, step)
+                    results.extend(got)
+                    if earlier:
+                        state["bins"] = earlier["bins"] + state["bins"]
+                        state["from"] = earlier["bins"][0]["from"]
+                        state["walked_back"] = len(earlier["bins"])
+                        first_ns, first_id = earlier["first"]
+                if state["started"] is None:
+                    state["started"] = _ns_iso(first_ns)
+                    state["started_id"] = first_id
+                    state["status"] = "running"
+                    _note_identity(state, first_id, attrs, results)
+                elif previous_empty:
+                    # rows after a gap: another run, or the same one again -
+                    # its identity says which
+                    _note_identity(state, first_id, attrs, results)
+                if state["last_row"] is None or _ns_iso(last_ns) >= state["last_row"]:
+                    state["last_row"] = _ns_iso(last_ns)
+                    state["last_id"] = last_id
+                state["empty_since"] = 0
+            elif state["started"] is not None and not partial:
+                state["empty_since"] += 1
+                if state["empty_since"] >= ns.ended_after:
+                    state["status"] = "ended"
+                    state["ended"] = state["last_row"]
+                    if state["last_id"]:
+                        _note_identity(state, state["last_id"], attrs, results)
+            if partial:
+                break
+        state["commands"].extend(commands(results[recorded:]))
+        recorded = len(results)
+        state.pop("deadline_note", None)
+        if error:
+            _save_watch_state(ns.state, state)
+            return 1, {**_watch_out(state, ns, now, polls_this_call), "error": error}
+        if state["status"] == "ended":
+            _save_watch_state(ns.state, state)
+            return 0, _watch_out(state, ns, now, polls_this_call)
+        if at_deadline:
+            need = ns.ended_after - state["empty_since"]
+            if state["started"] and state["empty_since"]:
+                state["deadline_note"] = (
+                    f"the deadline closes {state['empty_since']} of the {ns.ended_after} "
+                    f"empty {ns.bin} bins the end needs: extend --to past the last row by "
+                    f"{ns.ended_after} x {ns.bin} + {ns.settle} ({need * int(step.total_seconds())} s more)"
+                )
+            elif state["started"]:
+                state["deadline_note"] = (
+                    "the run was still producing rows at the deadline: extend --to past "
+                    f"its end by {ns.ended_after} x {ns.bin} + {ns.settle}"
+                )
+            else:
+                state["deadline_note"] = (
+                    f"no row on the identity up to the deadline (the last {ns.settle} read "
+                    "unsettled): no run observed in the window"
+                )
+        _save_watch_state(ns.state, state)
+        if at_deadline or time.monotonic() - began >= bound:
+            return (3 if state["started"] else 4), _watch_out(
+                state, ns, now, polls_this_call
+            )
+        time.sleep(every)
+
+
+def _watch_out(state: dict, ns, now, polls_this_call: int) -> dict:
+    started, ended = state.get("started"), state.get("ended")
+    span = None
+    if started and ended:
+        span = int((parse_ts(ended) - parse_ts(started)).total_seconds())
+    return {
+        "traceql": ns.traceql,
+        "poll_from": state["poll_from"],
+        "from": state["from"],
+        "to": ns.to,
+        "bin": ns.bin,
+        "every": ns.every,
+        "ended_after": ns.ended_after,
+        "settle": ns.settle,
+        "status": state["status"],
+        "started": started,
+        "ended": ended,
+        "last_row": state.get("last_row"),
+        "span_s": span,
+        "identity": state.get("identity") or [],
+        "identity_attr": state.get("identity_attr"),
+        "several_identities": len(state.get("identity") or []) > 1,
+        "empty_since_last_row": state.get("empty_since", 0),
+        "walked_back": state.get("walked_back", 0),
+        "deadline_note": state.get("deadline_note"),
+        "bins": state["bins"],
+        "partial_bin": state.get("partial_bin"),
+        "capped_bins": sum(1 for b in state["bins"] if b.get("capped")),
+        "polls": state["polls"],
+        "polls_this_call": polls_this_call,
+        "last_poll": iso(now),
+        "state": ns.state,
+        "note": "new is what the previous bin did not list; a capped bin under-counts - narrow --bin or the selector",
+        "commands": list(state["commands"]),
+    }
+
+
 def cmd_breakdown(ns) -> tuple[int, dict]:
     """Per root operation over the window's traces: outcome, root latency,
     each child span's count per trace, latency and attribute keys."""
@@ -807,6 +1151,73 @@ def render(o: dict) -> str:
                     + (f" status={st}" if st != "UNSET" else "")
                     + f" parent={sp['parent_id'] or '-'}  {attrs_line(sp['attrs'])}"
                 )
+    elif "status" in o and "bins" in o:
+        out.append(f"watch: {o['status']} — {o['traceql']} from {o['from']}")
+        if o["started"]:
+            out.append(
+                f"Started (UTC): {o['started']}   # the run's first request row on the identity"
+                + (
+                    f" - {o['walked_back']} bin(s) before --from, the run had begun before the watch"
+                    if o.get("walked_back")
+                    else ""
+                )
+            )
+        if o["ended"]:
+            out.append(
+                f"Ended   (UTC): {o['ended']}   # last request row; {o['ended_after']} empty {o['bin']} bin(s) after it"
+            )
+        elif o["started"]:
+            out.append(
+                f"last row {o['last_row']}, {o['empty_since_last_row']} empty {o['bin']} bin(s) since (ends at {o['ended_after']})"
+            )
+        if o["identity"]:
+            out.append(
+                f"Identity:  {o['identity_attr']} {', '.join(o['identity'])}"
+                + (
+                    " (SEVERAL identities on the rows - several runs, not one)"
+                    if o["several_identities"]
+                    else " (one identity on the rows)"
+                )
+            )
+        if o["span_s"] is not None:
+            out.append(f"Span:      {o['span_s']} s")
+        out.append(
+            f"Watch:     polled from {o['from']}, {o['polls']} poll(s) ({o['polls_this_call']} this call), last poll {o['last_poll']}"
+            + (f"; deadline {o['to']}" if o.get("to") else "")
+            + (
+                f"; state {o['state']}"
+                if o.get("state")
+                else "; no --state: this call holds the whole watch"
+            )
+        )
+        with_rows = [b for b in o["bins"] if b.get("new")]
+        out.append(
+            f"bins: {len(o['bins'])} closed, {len(with_rows)} with rows"
+            + (
+                f" ({with_rows[0]['from'][11:19]} .. {with_rows[-1]['to'][11:19]})"
+                if with_rows
+                else ""
+            )
+        )
+        for r in o["bins"][-12:]:
+            out.append(
+                f"  {r['from'][11:19]} .. {r['to'][11:19]}  new={r.get('new')}{'  CAPPED' if r.get('capped') else ''}{'  ' + r['error'] if r.get('error') else ''}"
+            )
+        if o.get("partial_bin"):
+            r = o["partial_bin"]
+            out.append(
+                f"  {r['from'][11:19]} .. {r['to'][11:19]}  new={r.get('new')}{'  CAPPED' if r.get('capped') else ''}  partial, up to the deadline: read again next call"
+            )
+        if o.get("deadline_note"):
+            out.append(f"  deadline {o['to']}: {o['deadline_note']}")
+        elif o["status"] != "ended":
+            out.append(
+                "  still "
+                + ("running" if o["started"] else "not started")
+                + ": run the same invocation again (the state file resumes it)"
+            )
+        if o.get("capped_bins"):
+            out.append(f"  {o['capped_bins']} capped bin(s): {o['note']}")
     elif "bins" in o:
         out.append(
             f"{o['total']} traces (deduplicated) in {len(o['bins'])} bins of {o['bin']}; capped bins: {o['capped_bins']}"
@@ -863,6 +1274,18 @@ def main() -> int:
         help="traces fetched, newest first (default 200)",
     )
     add_window(e)
+    w = sub.add_parser("watch")
+    w.add_argument("traceql")
+    w.add_argument("--from", dest="frm", help="poll from this instant, RFC3339 UTC")
+    w.add_argument("--to", help="the deadline, RFC3339 UTC (default: none)")
+    w.add_argument("--bin", default="30s")
+    w.add_argument("--ended-after", type=int, default=4)
+    w.add_argument("--settle", default="60s")
+    w.add_argument("--every", default="30s")
+    w.add_argument("--max", default="8m")
+    w.add_argument("--state", help="the watch's state file; a later call resumes it")
+    w.add_argument("--identity-attr", action="append")
+    w.add_argument("--json", action="store_true")
     ns = ap.parse_args()
     code, out = {
         "ops": cmd_ops,
@@ -870,6 +1293,7 @@ def main() -> int:
         "search": cmd_search,
         "count": cmd_count,
         "breakdown": cmd_breakdown,
+        "watch": cmd_watch,
     }[ns.cmd](ns)
     emit(out, ns.json, render)
     return code

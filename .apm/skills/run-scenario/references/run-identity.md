@@ -95,11 +95,15 @@ and never in only one of them:
   `odd-observe/<slug>`; `-warmup` appended on warmup requests — the
   suffix that dates the run, "The run starts after the warmup" below).
   The server's HTTP instrumentation records the header as
-  `user_agent.original`, selectable on the request rows of every backend
-  (`customDimensions['user_agent.original']` in KQL,
-  `span.user_agent.original` in TraceQL) — this is the identity a
-  latency question reads, and it survives a service that ignores
-  `traceparent`. One store reads it on **whichever span roots the
+  `user_agent.original` under the stable HTTP semantic conventions and
+  as `http.user_agent` under the old ones (verified 2026-09-11: a
+  FastAPI service instrumented without the semconv opt-in carried
+  `http.user_agent` and nothing under `user_agent.original`) — select
+  on whichever the rows carry (`customDimensions['user_agent.original']`
+  in KQL, `span.user_agent.original` or `span.http.user_agent` in
+  TraceQL; a backend's reference says which its scripts read) — this is
+  the identity a latency question reads, and it survives a service that
+  ignores `traceparent`. One store reads it on **whichever span roots the
   trace**. An X-Ray trace summary carries no user agent when the root
   is a client's own instrumented span (an instrumented load generator
   — `Http.UserAgent` `null` on every summary, verified 2026-09-05; the

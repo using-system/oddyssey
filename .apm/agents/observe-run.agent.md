@@ -101,11 +101,10 @@ the report.
     VU-driven one the manifest's `pacing.expected_rate` band and the
     run's continuity, where **no threshold is voided on the arrival
     count alone**), the window is the run's
-    own span and never the minutes you spent watching, the announced
-    start is a hint while the identity is the fact (poll from
-    dispatch), the run has ended — once it has started — on four empty
-    30-second bins, and the watch's poller is resumable across tool
-    calls;
+    own span and never the minutes you spent watching, and the watch
+    itself — when it starts, how the run's start and end are read, how
+    it survives a tool call — is that section's, the backend's script
+    where its reference ships one;
   - **post-hoc** takes no benchmark: you were not there and cannot
     attest that the plan produced the window, so refuse the field and
     say why — a report claiming a benchmark it cannot prove looks
@@ -261,9 +260,10 @@ whole, 19 K by section). List a file's headings first (one `grep -n
   `## Bucketing a ramp for the degradation curve`, `## k6's own summary
   and exit status are evidence, never the verdict` (the void
   precondition the watching section applies), `## Reading a breakpoint
-  run` when the manifest names that type, and
-  `long-scenarios.md`'s `## Scenarios longer than a tool call` for the
-  watch's own poller;
+  run` when the manifest names that type — the watch itself is the
+  backend's script when its reference ships one, and
+  `long-scenarios.md`'s `## Scenarios longer than a tool call` only
+  when it ships none;
 - `odd-memory`'s `observe-run-report` reference: `## Recall: reading
   the memory` at step 5, and nothing else then; at report time,
   `## The script owns the format`, `## What the run decides`,
@@ -541,20 +541,13 @@ has landed with a bounded query — not the local stack's ~10 s / ~60 s.
 
 In **observe** mode with a benchmark the traffic is someone else's and
 the same discipline holds, turned around: read `benchmark-replay.md`'s
-watching section before the watch starts, then poll from the moment you
-are dispatched rather than from the announced start, on the identity
-the **manifest** gives you — its User-Agent prefix — reading the run's
-slug off the first rows that match rather than expecting the mission
-block to name it. Keep every poll on the backend — never a request at
-the service, whose traffic is the driver's alone — and wait inside your
-turn as a drive does: the poller detaches, the wait never does, and a
-poller re-invoked when a tool call's budget expires re-derives where
-the run stands from its own appended output and the backend, never from
-the call that died. An empty poll before the first row means the run
-has **not started**, never that it ended. The record's `Watch:` line
-carries the announced start, the first row you actually saw and the
-last poll; `Started`/`Ended` carry the run's own, and they are what the
-`window` frontmatter holds.
+watching section before the watch starts and run the watch it routes
+to — the backend's script when its reference ships one, its state and
+its resume the script's own — inside your turn, on the identity the
+**manifest** gives you, never a request at the service, whose traffic
+is the driver's alone. The record's `Watch:` line carries the announced
+start, the first row actually seen and the last poll; `Started`/`Ended`
+carry the run's own, and they are what the `window` frontmatter holds.
 
 Every service emits its **own** metrics, spans, and logs — **discover
 first, then query what you found; never assume names**. When the
