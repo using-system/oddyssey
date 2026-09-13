@@ -629,18 +629,24 @@ PROBE_MINUTES = 10
 
 
 def _query_bin(ns, x, y, traceql: str | None = None):
-    """One search over [x - 1 s, y] on the run's selector: a range whose
-    start is exactly the store's backend split (now - 30 s on the local
-    Tempo) is refused, and the overlap second costs nothing - the caller
-    deduplicates on trace id against the previous range. The probe (its
-    own selector) is queried as given."""
+    """One search over [x - 1 s, y] on the run's selector - one more second
+    earlier when that start is exactly the watch's floored clock minus
+    30 s, the store's backend split the local Tempo refuses a start on;
+    the overlap costs nothing, the caller deduplicates on trace id against
+    the previous range's whole listing. The probe (its own selector) is
+    queried as given."""
+    start = x
+    if not traceql:
+        start = x - timedelta(seconds=1)
+        if start == _clock() - timedelta(seconds=30):
+            start = x - timedelta(seconds=2)
     return run_gcx(
         [
             "traces",
             "query",
             traceql or ns.traceql,
             "--from",
-            iso(x if traceql else x - timedelta(seconds=1)),
+            iso(start),
             "--to",
             iso(y),
             "--limit",

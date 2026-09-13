@@ -1850,6 +1850,47 @@ def test_watch_never_queries_from_the_second_the_store_refuses(
         ("16:42:00", 0),
     ]
     assert "--from 2026-09-08T16:41:59Z --to 2026-09-08T16:42:30Z" in o["commands"][-1]
+    # a deadline 29 s past a bin boundary: the shifted start would be the
+    # refused second itself - the query starts one more second earlier
+    monkeypatch.setenv("ODD_WATCH_CLOCK", "2026-09-08T16:42:29Z")
+    p = watch(
+        "--to",
+        "2026-09-08T16:42:29Z",
+        "--max",
+        "0s",
+        "--json",
+        state=tmp_path / "u.json",
+    )
+    assert p.returncode == 3, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert "error" not in o and o["partial_bin"]["from"] == "2026-09-08T16:42:00Z"
+    assert "--from 2026-09-08T16:41:58Z --to 2026-09-08T16:42:29Z" in o["commands"][-1]
+    # a call resumed off the grid, 29 s past its cursor: the tail's start
+    state = tmp_path / "x.json"
+    for clock, expect_from in (
+        ("16:41:30", None),
+        ("16:41:29", "--from 2026-09-08T16:40:58Z --to 2026-09-08T16:41:29Z"),
+        ("16:43:00", None),
+    ):
+        monkeypatch.setenv("ODD_WATCH_CLOCK", f"2026-09-08T{clock}Z")
+        p = watch(
+            "--settle",
+            "30s",
+            "--expect",
+            "5",
+            "--max",
+            "0s",
+            "--to",
+            "2026-09-08T17:00:00Z",
+            "--json",
+            state=state,
+        )
+        assert p.returncode in (0, 3, 4), p.stderr + p.stdout
+        o = json.loads(p.stdout)
+        assert "error" not in o, o["error"]
+        if expect_from:
+            assert o["poll_from"] and any(expect_from in c for c in o["commands"])
+    assert o["status"] == "ended" and o["rows"] == 5
 
 
 def test_watch_counts_a_trace_in_the_overlap_second_once(fake_gcx, tmp_path):
