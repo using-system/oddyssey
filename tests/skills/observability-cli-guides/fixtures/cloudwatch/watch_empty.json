@@ -1,0 +1,22 @@
+{
+ "note": "a bin with no trace of the identity",
+ "args": [
+  "xray",
+  "get-trace-summaries",
+  "--start-time",
+  "1789288296",
+  "--end-time",
+  "1789288326",
+  "--filter-expression",
+  "http.useragent BEGINSWITH \"odd-bench/orders-api-watch-load/run-a\"",
+  "--profile",
+  "contoso",
+  "--region",
+  "eu-central-1",
+  "--output",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n    \"TraceSummaries\": [],\n    \"TracesProcessedCount\": 54,\n    \"ApproximateTime\": \"2026-09-13T10:31:36+02:00\"\n}\n",
+ "stderr": ""
+}

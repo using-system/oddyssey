@@ -16,7 +16,7 @@ the agents the rest. Official docs:
 `docs.aws.amazon.com` page is HTML-only - no raw-markdown query
 parameter, no source mirror; fetch and convert, never guess at raw links.
 
-Verified live 2026-09-11, aws-cli 2.36.37 (Python 3.14.7, macOS), against an account carrying real data - one service (orders-api, an OTel resource driven continuously by an instrumented load generator that roots every trace, about 1 100 traces per 10 minutes with 404s, 500s and 502s), an OpenTelemetry Collector writing the log records as JSON bodies to the application group and EMF records (namespace with histogram statistic sets, delta counters, a gauge) to the metrics group, X-Ray segments with two remote subsegments, no CodeGuru profiling group; every script invocation below run from the repository root over 10-to-15-minute windows between 12:12 and 12:40 UTC; unverified where a bullet says so (a User-Agent-rooted identity, an X-Ray group other than Default, an expired SSO token, a Transaction Search account, EMF records carrying resource fields).
+Verified live 2026-09-11 (`traces watch` 2026-09-13, its bullet stating the pass), aws-cli 2.36.37 (Python 3.14.7, macOS), against an account carrying real data - one service (orders-api, an OTel resource driven continuously by an instrumented load generator that roots every trace, about 1 100 traces per 10 minutes with 404s, 500s and 502s), an OpenTelemetry Collector writing the log records as JSON bodies to the application group and EMF records (namespace with histogram statistic sets, delta counters, a gauge) to the metrics group, X-Ray segments with two remote subsegments, no CodeGuru profiling group; every script invocation below run from the repository root over 10-to-15-minute windows between 12:12 and 12:40 UTC; unverified where a bullet says so (an X-Ray group other than Default, an expired SSO token, a Transaction Search account, EMF records carrying resource fields).
 
 ## CLI binary
 
@@ -182,10 +182,22 @@ python3 <Skills>/observability-cli-guides/scripts/cloudwatch-traces.py operation
 python3 <Skills>/observability-cli-guides/scripts/cloudwatch-traces.py operations --profile <profile> --region <region> --user-agent odd-observe/<slug> --slow 3 --failed 3 --from <start> --to <end>
 python3 <Skills>/observability-cli-guides/scripts/cloudwatch-traces.py trace <trace_id> [<trace_id> ...] --profile <profile> --region <region>
 python3 <Skills>/observability-cli-guides/scripts/cloudwatch-traces.py graph --profile <profile> --region <region> --service <svc> --since 30m
+python3 <Skills>/observability-cli-guides/scripts/cloudwatch-traces.py watch --profile <profile> --region <region> --user-agent <the run's User-Agent prefix> --from <dispatch instant> --state <scratch>/<slug>-watch.json --length <the manifest's scheduled length> --expect <its scheduled request count> [--to <deadline>] [--bin 30s] [--ended-after 4] [--settle auto] [--every 5s] [--max 8m] [--service <svc>]... [--json]
 ```
 
 Whole surface: every subcommand takes `--profile`, `--region`, `--json`;
-`operations` and `graph` take a window under 24 h. `operations`:
+`operations` and `graph` take a window under 24 h; `watch` takes
+`--from` and an optional `--to` (the deadline), `--user-agent` (the
+prefix, `http.useragent BEGINSWITH` in the filter expression),
+`--state` (its state file), `--length` (the manifest's scheduled
+length, a duration) and `--expect` (its scheduled request count) -
+both when the manifest fixes them -, `--bin` (default 30s),
+`--ended-after` (empty closed bins that end a started run with no
+schedule to read, default 4), `--settle` (a bin closes once its end is
+this old; default `auto`, the measured lag - below), `--every` (the
+floor between two polls, default 5s), `--max` (one call's bound,
+default 8m; `0s` is one whole poll), `--service` (repeatable, the
+summaries whose `ServiceIds` carry the name, client-side). `operations`:
 `--service` (the summaries whose `ServiceIds` carry the name),
 `--user-agent` (the run's identity as read on `Http.UserAgent`; its
 `-warmup` variant folded into the identity table and excluded from the
@@ -230,14 +242,84 @@ hop). Verified 2026-09-11: `operations` over 15 minutes - 1 684
 summaries in 0.6 s, five operations, 4 partial, every `Http.UserAgent`
 null (the account's load generator roots the traces: the identity table
 shows one null identity, and the `--user-agent` path was exercised on
-it - 0 traces of the identity - **but a User-Agent-rooted account, where
-the run's `odd-observe/<slug>` lands on every summary, is unverified
-2026-09-11**); `trace` on six ids in two calls, the faulted traces
+it - 0 traces of the identity; a stock k6 drive's User-Agent lands on
+every summary of its run, verified 2026-09-13 under `watch` below);
+`trace` on six ids in two calls, the faulted traces
 rendering `payment-upstream` / `storage-upstream` under the server
 segment with their `error.type` and exception; `graph` with
 `--xray-group Default` (the only group the account has - another group
 name is unverified 2026-09-11); a 25 h range refused at exit 2 before
 any call.
+
+- `watch` - a run someone else drives, polled on its identity (the
+  manifest's User-Agent prefix on `Http.UserAgent` - verified 2026-09-13:
+  a stock k6 drive, no client span, roots the trace on the server
+  segment and every summary of the run carries it, while the account's
+  instrumented load generator keeps rooting its own traces with a null
+  one) from the instant polling starts - the dispatch, never the
+  announced start - **one `get-trace-summaries` per poll** over the
+  unread range, the cursor to now, filtered on the identity and split
+  into `--bin` bins client-side (X-Ray's range is inclusive at both ends,
+  at the second: the call starts a second early and the split is exact;
+  a trace falls in one bin, `new` equals `listed`, no bin is capped), a
+  bin closing once its end is the settle old; until the run has started
+  (its first trace, exact to the summary's `StartTime` - traces already
+  in the first polled bin make the watch walk back before `--from`, bin
+  by bin to an empty one in one more call, so a watch dispatched after
+  the run began still dates it from its first trace) and then ended -
+  **`--expect` reached: at its newest trace the moment the count is
+  there - every trace has landed, so the settle is not waited for either
+  (the tail's bins go on the record unsettled); `--length` elapsed since the first trace: on one
+  empty closed bin; neither given, or the run short of both (an abort):
+  on `--ended-after` consecutive empty bins** - `Started (UTC)` and
+  `Ended (UTC)` are the traces', never the watch's clock, and the
+  `Ended` line says which rule closed it. `--settle auto` is measured,
+  never a constant: X-Ray stamps no ingestion time, so the lag is how
+  far behind the store's newest trace is - one probe of the service's
+  traces over the 10 minutes before the dispatch (the newest's
+  `StartTime` against `--from`), then the run's own traces of the last
+  bin at every poll (the newest against the poll's clock; a run at 2
+  req/s reads it within a second) - plus one `--bin`, recomputed at
+  every poll (a probe with no trace settles on one bin until the run's
+  traces say more); a duration fixes it instead. The watch wakes when
+  the next bin can close (its end plus the settle), never on a fixed
+  clock: `--every` is the floor between two polls. `--max` bounds one
+  call, between and inside its polls (`0s` is one whole poll). A
+  deadline off the bin grid clips the last bin: read for the start and
+  the traces, kept apart as `partial_bin` and read again whole on the
+  next call, never a closed bin. Exit 0 ended, 3 still running at
+  `--max` or `--to` (the deadline past which "no run observed" is the
+  answer), 4 not started there, 1 on an `aws` error (the range stays
+  unread - inside a walk-back, the first bin and the walk, done again
+  whole) - the same invocation again resumes it from `--state`, the last
+  closed bin onward, never re-reading what it already counted. At the
+  deadline the last settle is read unsettled rather than skipped, so a
+  run that began inside it is never "not started"; a deadline closer to
+  the last trace than the rule in force needs (`--ended-after` x `--bin`
+  + the settle at most) cannot close the run, and the output says how
+  much further `--to` must go. The identity values are every value the
+  summaries carried: two values are two runs, and the output says so.
+  Every poll goes to X-Ray; nothing is sent at the service. Verified
+  2026-09-13 live on two driven runs of one benchmark (2 req/s, 2 min
+  each, one quiet minute between, the same runs the account's collector
+  also exported to Azure Monitor): `Started`/`Ended` exact to the
+  driver's record, 241 traces per run, the newest of the service's
+  1 153 traces of the 10 minutes before the dispatch 0 s behind it
+  (measured 4 to 7 s behind the clock on the live traffic), the two
+  identities read off the prefix watch. The text form prints the
+  record's `Started (UTC):`, `Ended (UTC):`, `Identity:` and `Watch:`
+  lines as they go on the run record, and the polls' calls folded into
+  one line (the range as placeholders, the count said).
+
+Output of `watch`: `identity_prefix, services[], poll_from, from, to,
+bin, every, ended_after, settle, settle_s, lag_max_s, lag_probe{window,
+n, newest, lag_s} or null, length, expect, rows, ended_by (count,
+schedule, quiet), status (not started, running, ended), started, ended,
+last_row, span_s, identity[], identity_attr, several_identities,
+empty_since_last_row, walked_back, deadline_note, bins[{from, to,
+listed, new, capped, unsettled}], partial_bin{..., partial, unsettled}
+or null, capped_bins, polls, polls_this_call, last_poll, state, note,
+failed[], commands[]` - the text form above.
 
 ### Metrics
 
