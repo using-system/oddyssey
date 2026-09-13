@@ -230,7 +230,8 @@ non-empty one wins; default `user_agent.original` then
   observed" is the answer), 4 not started there, 1 on an `az` error (the
   bin stays unread) - the same invocation again resumes it from
   `--state`, the last closed bin onward, never re-querying what it
-  already counted. At the deadline the last `--settle` is read unsettled
+  already counted (an error inside a walk-back leaves the first bin and
+  the walk unread, to be done again whole). At the deadline the last `--settle` is read unsettled
   rather than skipped, so a run that began inside it is never "not
   started"; a deadline closer to the last row than `--ended-after` x
   `--bin` + `--settle` cannot close the run, and the output says how much
@@ -251,7 +252,8 @@ Output: `watch` - `identity_prefix, poll_from, from, to, bin, every,
 ended_after, settle, status (not started, running, ended), started,
 ended, last_row, span_s, identity[], identity_attr, several_identities,
 empty_since_last_row, walked_back, deadline_note, bins[{from, to,
-listed, new, capped, unsettled, partial}], partial_bin{...} or null,
+listed, new, capped, unsettled}], partial_bin{..., partial, unsettled}
+or null,
 capped_bins, polls, polls_this_call, last_poll, state, note, failed[],
 commands[]` - the text form above; `capped` is never true and `new`
 equals `listed` (a count, never a listing - a request row falls in one

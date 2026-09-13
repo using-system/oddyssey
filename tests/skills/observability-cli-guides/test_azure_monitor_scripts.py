@@ -1227,6 +1227,41 @@ def test_watch_stops_on_an_az_error_and_the_next_call_requeries_that_bin(
     assert len(froms) == len(set(froms)) == 10 and o["failed"] == []
 
 
+def test_watch_an_az_error_inside_the_walk_back_leaves_the_first_bin_unread(
+    fake, tmp_path, monkeypatch
+):
+    """A walk-back cut by an az error must not date the run from the bins it
+    reached: nothing is recorded, exit 1, and the next call re-reads the
+    first bin and walks back whole."""
+    state = tmp_path / "w.json"
+    monkeypatch.setenv("FAKE_WATCH_ERR", "2026-09-13T08:32:06Z")
+    code, o = watch_json(
+        fake,
+        "--from",
+        "2026-09-13T08:33:06Z",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=state,
+    )
+    assert code == 1 and o["failed"] and o["failed"][0]["kind"] == "kql"
+    assert o["status"] == "not started" and o["started"] is None
+    assert o["bins"] == [] and o["walked_back"] == 0
+    monkeypatch.delenv("FAKE_WATCH_ERR")
+    code, o = watch_json(
+        fake,
+        "--from",
+        "2026-09-13T08:33:06Z",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=state,
+    )
+    assert code == 0 and o["failed"] == []
+    assert o["started"] == "2026-09-13T08:32:07Z" and o["walked_back"] == 3
+    froms = [b["from"] for b in o["bins"]]
+    assert len(froms) == len(set(froms)) and froms[0] == "2026-09-13T08:31:36Z"
+    assert sum(b["new"] for b in o["bins"]) == 241
+
+
 def test_watch_keeps_a_clipped_deadline_bin_apart_and_never_duplicates_it(
     fake, tmp_path
 ):

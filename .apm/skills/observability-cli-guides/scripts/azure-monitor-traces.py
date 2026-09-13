@@ -540,7 +540,9 @@ def _note_identity(state: dict, got: dict) -> None:
 
 def _walk_back(ns, kql: str, first_bin_start, step, limit: int = 20):
     """The bins before the first polled one, back to an empty bin (or
-    ``limit`` bins): earliest first, with the earliest row found."""
+    ``limit`` bins): earliest first, with the earliest row found; the
+    failed result third when az failed midway - the walk then counts for
+    nothing, and the next call does it again whole."""
     results: list = []
     bins: list[dict] = []
     earliest = None
@@ -551,7 +553,7 @@ def _walk_back(ns, kql: str, first_bin_start, step, limit: int = 20):
         r = run_az(ai_call(ns.app, kql, iso(x), iso(y)))
         results.append(r)
         if not r.ok:
-            break  # the walk stops here: what it found so far still dates the run
+            return None, results, r
         got = _read_bin(r.data)
         bins.insert(
             0,
@@ -570,8 +572,8 @@ def _walk_back(ns, kql: str, first_bin_start, step, limit: int = 20):
             break
         y = x
     if earliest is None:
-        return None, results
-    return {"bins": bins, "first": earliest, "identities": identities}, results
+        return None, results, None
+    return {"bins": bins, "first": earliest, "identities": identities}, results, None
 
 
 def cmd_watch(ns) -> tuple[int, dict]:
@@ -637,6 +639,21 @@ def cmd_watch(ns) -> tuple[int, dict]:
                 entry["unsettled"] = True
             if partial:
                 entry["partial"] = True
+            earlier = None
+            if (
+                got["n"]
+                and state["started"] is None
+                and iso(x) == state["from"]
+                and not state["walked_back"]
+            ):
+                # rows in the very first bin: the run may have begun before
+                # --from - walk back, bin by bin, to its first row, before
+                # this bin is recorded: an az error midway leaves both unread
+                earlier, walked, walk_error = _walk_back(ns, kql, x, step)
+                results.extend(walked)
+                if walk_error is not None:
+                    error = walk_error
+                    break
             if partial:
                 # the clipped last bin before the deadline: read for the start
                 # and the rows, kept apart and replaced, never a closed bin
@@ -648,22 +665,13 @@ def cmd_watch(ns) -> tuple[int, dict]:
             cursor = y
             if got["n"]:
                 first = got["first"]
-                if (
-                    state["started"] is None
-                    and iso(x) == state["from"]
-                    and not state["walked_back"]
-                ):
-                    # rows in the very first bin: the run may have begun
-                    # before --from - walk back, bin by bin, to its first row
-                    earlier, walked = _walk_back(ns, kql, x, step)
-                    results.extend(walked)
-                    if earlier:
-                        state["bins"] = earlier["bins"] + state["bins"]
-                        state["from"] = earlier["bins"][0]["from"]
-                        state["walked_back"] = len(earlier["bins"])
-                        first = earlier["first"]
-                        for g in earlier["identities"]:
-                            _note_identity(state, g)
+                if earlier:
+                    state["bins"] = earlier["bins"] + state["bins"]
+                    state["from"] = earlier["bins"][0]["from"]
+                    state["walked_back"] = len(earlier["bins"])
+                    first = earlier["first"]
+                    for g in earlier["identities"]:
+                        _note_identity(state, g)
                 if state["started"] is None:
                     state["started"] = first
                     state["status"] = "running"
