@@ -73,8 +73,26 @@ NOT_REPRODUCIBLE_PLACEHOLDER = (
 )
 
 
+STAMP = "%Y-%m-%dT%H:%M:%SZ"
+
+
 def utc() -> str:
-    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.datetime.now(datetime.timezone.utc).strftime(STAMP)
+
+
+def utc_ceil(started: str) -> str:
+    """The window's end: the current instant rounded **up** to the whole
+    second, and past the floored start - a floored end leaves the last
+    partial second's spans outside every query's window, and on a fast
+    local service reads Ended = Started."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    end = now.replace(microsecond=0)
+    if now.microsecond:
+        end += datetime.timedelta(seconds=1)
+    floor_start = datetime.datetime.strptime(started, STAMP).replace(
+        tzinfo=datetime.timezone.utc
+    )
+    return max(end, floor_start + datetime.timedelta(seconds=1)).strftime(STAMP)
 
 
 def wait_seconds(signal: str) -> int:
@@ -308,7 +326,12 @@ def invocation(args, ops: list[dict]) -> str:
 
 def render(record: dict) -> str:
     warm = record["warmup"]
-    n = record["count"]
+    counts = {op["count"] for op in record["operations"]}
+    n = (
+        f"{counts.pop()} requests per operation"
+        if len(counts) == 1
+        else "as listed per operation"
+    )
     lines = [
         f"Scenario: {record['scenario']}",
         f"Base URL: {record['base_url']}",
@@ -334,10 +357,7 @@ def render(record: dict) -> str:
         else f"concurrency {record['concurrency']}"
     )
     ls = record.get("load_seq")
-    lines.append(
-        f"Load:     {n} requests per operation, {load}"
-        + (f" (seq {ls[0]}-{ls[1]})" if ls else "")
-    )
+    lines.append(f"Load:     {n}, {load}" + (f" (seq {ls[0]}-{ls[1]})" if ls else ""))
     lines.append(f"Started (UTC): {record.get('start_utc') or '<not run>'}")
     lines.append(f"Ended   (UTC): {record.get('end_utc') or '<not run>'}")
     if record["wait_seconds"]:
@@ -594,9 +614,14 @@ def main() -> int:
             parser.error(f"--{name} takes a positive number")
 
     url = urlsplit(args.base_url)
-    if url.scheme not in ("http", "https") or not url.hostname:
+    try:
+        port = url.port
+    except ValueError:
+        port = -1
+    if url.scheme not in ("http", "https") or not url.hostname or port == -1:
         print(
-            f"the base URL is http[s]://host:port[/prefix], got {args.base_url!r}",
+            f"the base URL is http[s]://host:port[/prefix] with a port of 1-65535, "
+            f"got {args.base_url!r}",
             file=sys.stderr,
         )
         return 1
@@ -611,7 +636,7 @@ def main() -> int:
     target = {
         "scheme": url.scheme,
         "host": url.hostname,
-        "port": url.port or (443 if url.scheme == "https" else 80),
+        "port": port or (443 if url.scheme == "https" else 80),
         "path_prefix": url.path.rstrip("/"),
     }
 
@@ -622,6 +647,23 @@ def main() -> int:
                 if line.strip() and not line.lstrip().startswith("#"):
                     ops.append(parse_op(line, args.count))
         args.header = [parse_header(h) for h in args.header]
+        for what, text in [
+            ("--run-slug", args.run_slug),
+            ("--prompt", args.prompt),
+            *((f"-H {n}", f"{n}: {v}") for n, v in args.header),
+        ]:
+            try:
+                text.encode("latin-1")
+            except UnicodeEncodeError:
+                raise ValueError(
+                    f"{what} goes out as an HTTP header, which carries latin-1 "
+                    f"only: got {text!r}"
+                ) from None
+        for op in ops:
+            if not op["path"].isascii():
+                raise ValueError(
+                    f"a request path is ASCII (percent-encode it): got {op['path']!r}"
+                )
     except (ValueError, OSError) as bad:
         print(str(bad), file=sys.stderr)
         return 1
@@ -710,7 +752,7 @@ def main() -> int:
             args.timeout,
             sink,
         )
-        record["end_utc"] = utc()
+        record["end_utc"] = utc_ceil(record["start_utc"])
         record["load_seq"] = [first_load, counter.value]
     for s, op in zip(summaries, ops):
         s["body"] = op["body"]

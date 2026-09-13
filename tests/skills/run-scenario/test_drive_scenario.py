@@ -9,6 +9,7 @@ verbatim, and a detached mode for a scenario longer than a tool call.
 
 from __future__ import annotations
 
+import datetime
 import hashlib
 import importlib.util
 import json
@@ -58,6 +59,7 @@ class Recorder(BaseHTTPRequestHandler):
                     "path": self.path,
                     "headers": {k.lower(): v for k, v in self.headers.items()},
                     "body": body.decode(),
+                    "at": time.time(),
                 }
             )
 
@@ -264,9 +266,7 @@ def test_the_record_block_is_printed_verbatim(server, tmp_path):
     assert 'User-Agent "odd-observe/run-0913" (+ "-warmup" on the warmup)' in text
     started = re.search(r"Started \(UTC\): (\S+)", text).group(1)
     ended = re.search(r"Ended   \(UTC\): (\S+)", text).group(1)
-    assert (
-        re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", started) and started <= ended
-    )
+    assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", started) and started < ended
     assert f"  GET {base}/ok x2 (seq 3-4) -> 200:2\n" in text
     assert f'  POST {base}/orders {{"a": 1}} x2 (seq 5-6) -> 201:2\n' in text
     # the three lines the caller fills are placeholders, never guesses
@@ -287,6 +287,79 @@ def test_the_record_block_is_printed_verbatim(server, tmp_path):
     assert [r["seq"] for r in rows] == [1, 2, 3, 4, 5, 6]
     assert rows[0]["phase"] == "warmup" and rows[-1]["phase"] == "load"
     assert all(r["status"] in (200, 201) and r["ms"] >= 0 for r in rows)
+
+
+def to_epoch(stamp: str) -> float:
+    return (
+        datetime.datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ")
+        .replace(tzinfo=datetime.timezone.utc)
+        .timestamp()
+    )
+
+
+def test_the_window_is_never_empty_and_holds_the_last_request(server, tmp_path):
+    """Ended is ceiled to the whole second: floored, a fast drive read
+    Ended = Started and every drive left its last partial second outside
+    the window the queries use."""
+    base, _ = server
+    p = run_cli(*base_args(base, tmp_path / "run", "GET /ok", count="30", warmup="0"))
+    assert p.returncode == 0, p.stderr
+    started = re.search(r"Started \(UTC\): (\S+)", p.stdout).group(1)
+    ended = re.search(r"Ended   \(UTC\): (\S+)", p.stdout).group(1)
+    assert to_epoch(ended) > to_epoch(started)
+    first = min(r["at"] for r in Recorder.seen)
+    last = max(r["at"] for r in Recorder.seen)
+    assert to_epoch(started) <= first
+    assert to_epoch(ended) >= last
+    assert to_epoch(ended) - last < 2
+
+
+def test_the_load_line_states_the_operations_counts(server, tmp_path):
+    base, _ = server
+    p = run_cli(
+        *base_args(
+            base, tmp_path / "run", "GET /ok 4", "GET /ok?x=1", count="6", warmup="0"
+        )
+    )
+    assert p.returncode == 0, p.stderr
+    assert "Load:     as listed per operation, sequential (seq 1-10)\n" in p.stdout
+    assert f"  GET {base}/ok x4 (seq 1-4) -> 200:4\n" in p.stdout
+    p = run_cli(
+        *base_args(
+            base, tmp_path / "run", "GET /ok 6", "GET /ok?x=1", count="6", warmup="0"
+        )
+    )
+    assert "Load:     6 requests per operation, sequential (seq 1-12)\n" in p.stdout
+
+
+@pytest.mark.parametrize("url", ["http://127.0.0.1:abc", "http://127.0.0.1:70000"])
+def test_a_malformed_port_exits_with_a_message(url, tmp_path):
+    p = run_cli(*base_args(url, tmp_path / "run", "GET /ok"), "--dry-run")
+    assert p.returncode == 1
+    assert "Traceback" not in p.stderr and "port of 1-65535" in p.stderr
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ["--run-slug", "run-\u2192"],
+        ["-H", "X-Note: \U0001f680"],
+        ["--op", "GET /caf\u00e9"],
+    ],
+)
+def test_a_value_no_header_can_carry_is_refused_before_the_drive(
+    server, tmp_path, extra
+):
+    base, _ = server
+    args = base_args(base, tmp_path / "run", "GET /ok", count="1", warmup="0")
+    if extra[0] == "--run-slug":
+        args[args.index("--run-slug") + 1] = extra[1]
+        extra = []
+    p = run_cli(*args, *extra)
+    assert p.returncode == 1, p.stdout
+    assert "Traceback" not in p.stderr and "got" in p.stderr
+    assert Recorder.seen == []
+    assert not (tmp_path / "run" / "requests.jsonl").exists()
 
 
 def test_the_listeners_line_carries_the_probes_fields_without_the_user(
