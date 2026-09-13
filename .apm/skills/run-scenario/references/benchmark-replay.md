@@ -199,8 +199,8 @@ discovered, and k6's evidence is the driver's.
   the last row, and says when they differ): watch the one the mission
   names, otherwise report the ambiguity, each identity with the bin it
   first appeared in.
-- **The criteria** (the shipped watch applies them; a composed poller
-  states them): poll from dispatch — the announced start is a hint;
+- **The criteria** (a shipped watch applies those it takes; a composed
+  poller states them): poll from dispatch — the announced start is a hint;
   before the first row an empty poll means **not started**, and a watch
   reaching its deadline with no row is a stop-and-report ("no run
   observed in the window"); after the first row the run has ended
@@ -210,7 +210,8 @@ discovered, and k6's evidence is the driver's.
   read or short of it, on **four consecutive empty 30-second bins** of
   such data, widened to the profile's own spacing where it schedules
   sparser requests; "old enough to have landed" is the backend's
-  ingestion lag as measured, never assumed; `Ended (UTC)` is the last request row, never the
+  ingestion lag as its watch measures it where it does, never assumed;
+  `Ended (UTC)` is the last request row, never the
   last empty poll; quiet before the manifest's scheduled total is an
   early end (an aborting threshold, or a generator that died) — say
   which the telemetry supports, never present a truncated window as

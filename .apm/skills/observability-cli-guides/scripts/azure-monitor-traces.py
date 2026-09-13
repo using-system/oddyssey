@@ -600,7 +600,6 @@ def _walk_back(ns, kql: str, first_bin_start, step, limit: int = 20):
         if got["n"]:
             earliest = got["first"]
             identities.append(got)
-            bins[0]["rows"] = got["n"]
         else:
             break
         y = x
