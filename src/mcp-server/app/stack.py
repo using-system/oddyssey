@@ -369,10 +369,13 @@ def container_user_env() -> dict[str, str] | None:
     )
 
 
-# Grafana's own answer through the datasource proxy while it (re)registers
-# its datasource plugins: the backend behind it is not down, the proxy is
-# not wired yet. Measured 1.6 s on a laptop, up to ~10 s on a CI runner,
-# and it can open AFTER the four probes first answered ready (issue #574).
+# Grafana's own answer through the datasource proxy while its background
+# plugin installer removes and re-downloads an externalized datasource
+# plugin (Grafana 13 ships loki that way; a newer catalog build than the
+# image bundles triggers it, for any of the four): the backend behind it
+# is not down, the proxy is not wired. A 1.5 s hole on a laptop, opening
+# seconds AFTER the four probes first answered ready; the bound covers a
+# plugin download plus extraction on a CI runner (issue #574).
 WIRING_MESSAGE = "Unable to find datasource plugin"
 WIRING_WAIT_S = 15.0
 WIRING_POLL_S = 0.5
