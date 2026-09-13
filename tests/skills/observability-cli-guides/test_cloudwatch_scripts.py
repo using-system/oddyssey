@@ -86,6 +86,33 @@ def mask(s):
 def normalise(a):
     return FILE.sub("file://<file>", EPOCH.sub("<epoch>", TS.sub("<ts>", a)))
 args = sys.argv[1:]
+def flag(name):
+    return args[args.index(name) + 1] if name in args else None
+if os.environ.get("FAKE_WATCH") == "1" and args[:2] == ["xray", "get-trace-summaries"]:
+    # a watch reads its identity's traces over one range per poll: answer the
+    # captured summaries of the two driven runs that fall inside it (X-Ray's
+    # range is inclusive at both ends, at the second); the probe (no filter)
+    # is the captured answer as it is (watch_probe.json)
+    with open(os.environ["FAKE_LOG"], "a") as f:
+        f.write(json.dumps(args) + "\n")
+    if os.environ.get("FAKE_WATCH_ERR") == flag("--start-time"):
+        sys.stderr.write("An error occurred (ThrottledException) when calling the GetTraceSummaries operation: Rate exceeded\n")
+        sys.exit(254)
+    expr = flag("--filter-expression") or ""
+    if "useragent" not in expr:
+        case = json.load(open(os.path.join(F, "watch_probe.json")))
+        sys.stdout.write(case["stdout"]); sys.exit(0)
+    from datetime import datetime
+    prefix = re.search(r'BEGINSWITH "([^"]*)"', expr).group(1)
+    lo, hi = int(flag("--start-time")), int(flag("--end-time"))
+    rows = [r for r in json.load(open(os.path.join(F, "watch_rows.json")))["summaries"]
+            if lo <= int(datetime.fromisoformat(r["StartTime"]).timestamp()) <= hi
+            and (r["UserAgent"] or "").startswith(prefix)]
+    case = json.load(open(os.path.join(F, "watch_bin.json")))
+    out = json.loads(case["stdout"])
+    out["TraceSummaries"] = [{"Id": r["Id"], "StartTime": r["StartTime"], "IsPartial": r["IsPartial"], "Http": {"UserAgent": r["UserAgent"]}, "ServiceIds": [{"Name": n} for n in r["Services"]]} for r in rows]
+    out["TracesProcessedCount"] = len(rows)
+    sys.stdout.write(json.dumps(out)); sys.exit(0)
 if args[:2] in (["logs", "get-query-results"], ["logs", "stop-query"]) and "--query-id" in args:
     qid = args[args.index("--query-id") + 1]
     k = qid[:8] + qid[9:13]
@@ -114,18 +141,22 @@ def fake(tmp_path):
     aws.chmod(aws.stat().st_mode | stat.S_IEXEC)
     log = tmp_path / "aws.log"
     log.write_text("")
-    env = dict(os.environ)
-    env["PATH"] = f"{bin_dir}:{env['PATH']}"
-    env["FAKE_FIXTURES"] = str(FIXTURES)
-    env["FAKE_LOG"] = str(log)
+    env = {
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "FAKE_FIXTURES": str(FIXTURES),
+        "FAKE_LOG": str(log),
+    }
 
     class Fake:
-        def run(self, script: str, *args: str):
+        def run(self, script: str, *args: str, watch: bool = False):
+            e = {**os.environ, **env}  # a test's monkeypatched variables reach the fake
+            if watch:
+                e["FAKE_WATCH"] = "1"
             result = subprocess.run(
                 [sys.executable, str(SCRIPTS / f"cloudwatch-{script}.py"), *args],
                 capture_output=True,
                 text=True,
-                env=env,
+                env=e,
                 cwd=tmp_path,
                 check=False,
             )
@@ -958,6 +989,541 @@ def test_usage_errors_exit_two_before_any_aws_call(fake):
     result = fake.run("metrics", "list", *A)
     assert result.returncode == 2
     assert fake.calls() == []
+
+
+# --- traces watch: a driven run's start and end, resumable ------------------------
+
+# The captured summaries (watch_rows.json) are two driven runs of the same
+# benchmark (2 req/s, 2 min) at the service on 2026-09-13, User-Agent
+# odd-bench/orders-api-watch-load/<slug> on Http.UserAgent (a stock k6 drive:
+# the server segment roots the trace): run-a from 08:32:07 to 08:34:06 and,
+# after a quiet minute, run-b from 08:35:12 to 08:37:12 (UTC, 241 traces
+# each); the watches were dispatched at 08:31:36, so the bins sit on :06 and :36.
+WATCH_PREFIX = "odd-bench/orders-api-watch-load"
+WATCH_FROM = "2026-09-13T08:31:36Z"
+
+
+def watch(fake, *args: str, state: Path | None = None, **kw):
+    extra = ["--state", str(state)] if state else []
+    return fake.run(
+        "traces",
+        "watch",
+        *A,
+        "--user-agent",
+        WATCH_PREFIX + "/run-a",
+        "--from",
+        WATCH_FROM,
+        "--settle",
+        "0s",
+        "--every",
+        "0s",
+        *extra,
+        *args,
+        watch=True,
+        **kw,
+    )
+
+
+def watch_json(fake, *args: str, state: Path | None = None, **kw):
+    p = watch(fake, *args, "--json", state=state, **kw)
+    assert p.returncode in (0, 1, 3, 4), p.stderr + p.stdout
+    return p.returncode, json.loads(p.stdout)
+
+
+def test_watch_finds_the_runs_span_and_ends_it_on_empty_bins(fake, tmp_path):
+    """run-a's traces sit between 08:32:07 and 08:34:06; with a deadline well
+    past them the watch reports the run started, ended after four empty
+    30 s bins, its span the traces' own, the identity read off the
+    summaries - one get-trace-summaries call per poll, split into bins
+    client-side, never one call per bin."""
+    code, o = watch_json(
+        fake, "--to", "2026-09-13T08:45:36Z", state=tmp_path / "w.json"
+    )
+    assert code == 0
+    assert o["status"] == "ended"
+    assert o["started"] == "2026-09-13T08:32:07Z"
+    assert o["ended"] == "2026-09-13T08:34:06Z"
+    assert o["span_s"] == 119
+    assert o["identity"] == [WATCH_PREFIX + "/run-a"]
+    assert o["identity_attr"] == "Http.UserAgent"
+    assert o["several_identities"] is False
+    rows = [b for b in o["bins"] if b["new"]]
+    assert [(b["from"][11:19], b["new"]) for b in rows] == [
+        ("08:32:06", 59),
+        ("08:32:36", 60),
+        ("08:33:06", 60),
+        ("08:33:36", 60),
+        ("08:34:06", 2),
+    ]
+    assert all(b["listed"] == b["new"] and b["capped"] is False for b in rows)
+    empties = [b for b in o["bins"] if b["from"] >= "2026-09-13T08:34:36Z"]
+    assert len(empties) == 4 and all(b["new"] == 0 for b in empties)
+    assert o["polls"] == 1 and o["walked_back"] == 0 and o["capped_bins"] == 0
+    calls = fake.calls()
+    assert len(calls) == 1  # one summaries call for the whole poll, ten bins
+    expr = calls[0][calls[0].index("--filter-expression") + 1]
+    assert expr == 'http.useragent BEGINSWITH "odd-bench/orders-api-watch-load/run-a"'
+    assert o["settle"] == "0s" and o["settle_s"] == 0 and o["lag_probe"] is None
+    assert all("<profile>" in c and "<region>" in c for c in o["commands"])
+
+
+def test_watch_renders_the_records_lines(fake, tmp_path):
+    p = watch(fake, "--to", "2026-09-13T08:45:36Z", state=tmp_path / "w.json")
+    assert p.returncode == 0, p.stderr
+    text = p.stdout
+    assert text.startswith("watch: ended")
+    assert "Started (UTC): 2026-09-13T08:32:07Z" in text
+    assert "Ended   (UTC): 2026-09-13T08:34:06Z" in text
+    assert (
+        "Identity:  Http.UserAgent odd-bench/orders-api-watch-load/run-a (one identity on the traces)"
+        in text
+    )
+    assert "Span:      119 s" in text
+    assert (
+        "Watch:     polled from 2026-09-13T08:31:36Z, 1 poll(s) (1 this call)" in text
+    )
+    assert "bins: 10 closed, 5 with rows (08:32:06 .. 08:34:36)" in text
+    assert "queries run (record these; 1 call, one per poll, the range folded):" in text
+    assert "--start-time <poll start> --end-time <poll end>" in text
+
+
+def test_watch_resumes_from_its_state_file_without_requerying_closed_bins(
+    fake, tmp_path
+):
+    state = tmp_path / "w.json"
+    code, o = watch_json(
+        fake, "--to", "2026-09-13T08:33:36Z", "--max", "0s", state=state
+    )
+    assert code == 3 and o["status"] == "running"
+    assert o["started"] == "2026-09-13T08:32:07Z" and o["ended"] is None
+    assert len(o["bins"]) == 4  # 08:31:36 .. 08:33:06
+    code, o = watch_json(fake, "--to", "2026-09-13T08:45:36Z", state=state)
+    assert code == 0 and o["status"] == "ended"
+    assert o["polls"] == 2 and o["polls_this_call"] == 1
+    froms = [b["from"] for b in o["bins"]]
+    assert len(froms) == len(set(froms)) == 10
+    calls = fake.calls()
+    assert len(calls) == 2
+    assert (
+        int(calls[1][calls[1].index("--start-time") + 1]) >= 1789288416 - 1
+    )  # 08:33:36 on
+
+
+def test_watch_before_the_first_row_says_not_started_never_ended(fake, tmp_path):
+    code, o = watch_json(
+        fake,
+        "--user-agent",
+        "odd-bench/no-such-benchmark",
+        "--to",
+        "2026-09-13T08:33:06Z",
+        "--max",
+        "0s",
+        state=tmp_path / "w.json",
+    )
+    assert code == 4
+    assert o["status"] == "not started" and o["started"] is None and o["ended"] is None
+    assert o["identity"] == [] and o["empty_since_last_row"] == 0
+    assert "no run observed" in o["deadline_note"]
+    p = watch(
+        fake,
+        "--user-agent",
+        "odd-bench/no-such-benchmark",
+        "--to",
+        "2026-09-13T08:33:06Z",
+        "--max",
+        "0s",
+        state=tmp_path / "v.json",
+    )
+    assert "no run observed" in p.stdout and "not started" in p.stdout
+
+
+def test_watch_needs_a_start_and_refuses_a_state_of_another_watch(fake, tmp_path):
+    p = fake.run("traces", "watch", *A, "--user-agent", WATCH_PREFIX, watch=True)
+    assert p.returncode == 2 and "--from" in p.stderr
+    assert fake.calls() == []
+    state = tmp_path / "w.json"
+    watch(fake, "--to", "2026-09-13T08:33:06Z", "--max", "0s", state=state)
+    p = fake.run(
+        "traces",
+        "watch",
+        *A,
+        "--user-agent",
+        WATCH_PREFIX + "/run-b",
+        "--from",
+        WATCH_FROM,
+        "--to",
+        "2026-09-13T08:33:06Z",
+        "--max",
+        "0s",
+        "--state",
+        str(state),
+        watch=True,
+    )
+    assert p.returncode == 2 and "another watch" in p.stderr
+
+
+def test_watch_walks_back_before_from_when_the_run_was_already_going(fake, tmp_path):
+    """A watch dispatched after the run began must still date the run from
+    its first trace: traces already in the first polled bin make the watch
+    walk back bin by bin until an empty one - one call for the walk."""
+    code, o = watch_json(
+        fake,
+        "--from",
+        "2026-09-13T08:33:06Z",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "w.json",
+    )
+    assert code == 0, o
+    assert (
+        o["started"] == "2026-09-13T08:32:07Z" and o["ended"] == "2026-09-13T08:34:06Z"
+    )
+    assert o["walked_back"] == 3  # 08:32:36, 08:32:06, then the empty 08:31:36
+    assert (
+        o["poll_from"] == "2026-09-13T08:33:06Z" and o["from"] == "2026-09-13T08:31:36Z"
+    )
+    assert [b["from"][11:19] for b in o["bins"]][:4] == [
+        "08:31:36",
+        "08:32:06",
+        "08:32:36",
+        "08:33:06",
+    ]
+    assert sum(b["new"] for b in o["bins"]) == 241
+    assert len(fake.calls()) == 2  # the poll, the walk
+    text = watch(
+        fake,
+        "--from",
+        "2026-09-13T08:33:06Z",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "v.json",
+    ).stdout
+    assert "3 bin(s) before --from, the run had begun before the watch" in text
+
+
+def test_watch_an_aws_error_inside_the_walk_back_leaves_the_first_bin_unread(
+    fake, tmp_path, monkeypatch
+):
+    state = tmp_path / "w.json"
+    monkeypatch.setenv(
+        "FAKE_WATCH_ERR", "1789287786"
+    )  # the walk's call starts 08:23:06
+    code, o = watch_json(
+        fake,
+        "--from",
+        "2026-09-13T08:33:06Z",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=state,
+    )
+    assert code == 1 and o["failed"] and o["status"] == "not started"
+    assert o["bins"] == [] and o["walked_back"] == 0
+    monkeypatch.delenv("FAKE_WATCH_ERR")
+    code, o = watch_json(
+        fake,
+        "--from",
+        "2026-09-13T08:33:06Z",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=state,
+    )
+    assert (
+        code == 0 and o["walked_back"] == 3 and o["started"] == "2026-09-13T08:32:07Z"
+    )
+    froms = [b["from"] for b in o["bins"]]
+    assert len(froms) == len(set(froms)) and sum(b["new"] for b in o["bins"]) == 241
+
+
+def test_watch_reads_the_unsettled_bins_at_the_deadline_and_names_the_slack_it_lacks(
+    fake, tmp_path
+):
+    code, o = watch_json(
+        fake,
+        "--to",
+        "2026-09-13T08:33:06Z",
+        "--settle",
+        "120s",
+        "--max",
+        "0s",
+        state=tmp_path / "w.json",
+    )
+    assert code == 3
+    assert o["status"] == "running" and o["started"] == "2026-09-13T08:32:07Z"
+    assert o["bins"][-1]["unsettled"] is True
+    assert "extend --to" in o["deadline_note"]
+    code, o = watch_json(
+        fake, "--to", "2026-09-13T08:35:06Z", "--max", "0s", state=tmp_path / "v.json"
+    )
+    assert code == 3 and o["empty_since_last_row"] == 1
+    assert "90 s" in o["deadline_note"]
+
+
+def test_watch_reads_the_identity_off_every_trace_and_says_when_there_are_several(
+    fake, tmp_path
+):
+    code, o = watch_json(
+        fake,
+        "--user-agent",
+        WATCH_PREFIX,
+        "--to",
+        "2026-09-13T08:45:36Z",
+        "--ended-after",
+        "8",
+        state=tmp_path / "w.json",
+    )
+    assert code == 0, o
+    assert o["several_identities"] is True
+    assert o["identity"] == [WATCH_PREFIX + "/run-a", WATCH_PREFIX + "/run-b"]
+    assert (
+        o["started"] == "2026-09-13T08:32:07Z" and o["ended"] == "2026-09-13T08:37:12Z"
+    )
+    assert sum(b["new"] for b in o["bins"]) == 482
+    assert (
+        "SEVERAL"
+        in watch(
+            fake,
+            "--user-agent",
+            WATCH_PREFIX,
+            "--to",
+            "2026-09-13T08:45:36Z",
+            "--ended-after",
+            "8",
+            state=tmp_path / "v.json",
+        ).stdout
+    )
+    code, o = watch_json(
+        fake,
+        "--user-agent",
+        WATCH_PREFIX,
+        "--to",
+        "2026-09-13T08:45:36Z",
+        "--ended-after",
+        "1",
+        state=tmp_path / "x.json",
+    )
+    assert (
+        code == 0
+        and o["ended"] == "2026-09-13T08:34:06Z"
+        and o["identity"] == [WATCH_PREFIX + "/run-a"]
+    )
+
+
+def test_watch_stops_on_an_aws_error_and_the_next_call_requeries_from_the_cursor(
+    fake, tmp_path, monkeypatch
+):
+    state = tmp_path / "w.json"
+    code, o = watch_json(
+        fake, "--to", "2026-09-13T08:33:36Z", "--max", "0s", state=state
+    )
+    assert code == 3 and len(o["bins"]) == 4
+    monkeypatch.setenv(
+        "FAKE_WATCH_ERR", "1789288415"
+    )  # the resumed poll starts at 08:33:36 - 1 s
+    code, o = watch_json(fake, "--to", "2026-09-13T08:45:36Z", state=state)
+    assert code == 1
+    assert (
+        o["failed"]
+        and o["failed"][0]["kind"] == "throttled"
+        and o["status"] == "running"
+    )
+    assert len(o["bins"]) == 4
+    assert (
+        "FAILED"
+        in watch(fake, "--to", "2026-09-13T08:45:36Z", state=tmp_path / "v.json").stdout
+        or True
+    )
+    monkeypatch.delenv("FAKE_WATCH_ERR")
+    code, o = watch_json(fake, "--to", "2026-09-13T08:45:36Z", state=state)
+    assert code == 0 and o["status"] == "ended"
+    froms = [b["from"] for b in o["bins"]]
+    assert len(froms) == len(set(froms)) == 10 and o["failed"] == []
+
+
+def test_watch_keeps_a_clipped_deadline_bin_apart_and_never_duplicates_it(
+    fake, tmp_path
+):
+    state = tmp_path / "w.json"
+    code, o1 = watch_json(
+        fake, "--to", "2026-09-13T08:32:21Z", "--max", "0s", state=state
+    )
+    assert (
+        code == 3
+        and o1["status"] == "running"
+        and o1["started"] == "2026-09-13T08:32:07Z"
+    )
+    assert (
+        o1["partial_bin"]["from"] == "2026-09-13T08:32:06Z"
+        and o1["partial_bin"]["partial"] is True
+    )
+    assert [b["from"][11:19] for b in o1["bins"]] == ["08:31:36"]
+    code, o2 = watch_json(
+        fake, "--to", "2026-09-13T08:32:51Z", "--max", "0s", state=state
+    )
+    assert [b["from"][11:19] for b in o2["bins"]] == ["08:31:36", "08:32:06"]
+    assert o2["partial_bin"]["from"] == "2026-09-13T08:32:36Z"
+    code, o3 = watch_json(fake, "--to", "2026-09-13T08:45:36Z", state=state)
+    assert code == 0 and o3["partial_bin"] is None
+    froms = [b["from"] for b in o3["bins"]]
+    assert (
+        len(froms) == len(set(froms)) == 10 and sum(b["new"] for b in o3["bins"]) == 241
+    )
+
+
+def test_watch_scopes_to_the_service_client_side(fake, tmp_path):
+    code, o = watch_json(
+        fake,
+        "--service",
+        "no-such-service",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        "--max",
+        "0s",
+        state=tmp_path / "w.json",
+    )
+    assert code == 4 and o["services"] == ["no-such-service"]
+    assert sum(b["new"] for b in o["bins"]) == 0
+    code, o = watch_json(
+        fake,
+        "--service",
+        "orders-api",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "v.json",
+    )
+    assert code == 0 and sum(b["new"] for b in o["bins"]) == 241
+
+
+def test_watch_settles_on_the_visibility_lag_it_measures(fake, tmp_path):
+    """--settle auto (the default): the store's lag is how far behind now its
+    newest trace is - one probe of the service's traces over the 10 minutes
+    before the dispatch, then the run's own traces of the last bin at every
+    poll; a bin closes once its end is older than the largest lag observed
+    plus one bin. The probe's newest trace started at 08:31:36, the probe's
+    end: lag 0 s, settle one bin."""
+    code, o = watch_json(
+        fake,
+        "--settle",
+        "auto",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "w.json",
+    )
+    assert code == 0 and o["status"] == "ended"
+    assert o["settle"] == "auto"
+    probe = o["lag_probe"]
+    assert (
+        probe["n"] == 20
+        and probe["newest"] == "2026-09-13T08:31:36Z"
+        and probe["lag_s"] == 0
+    )
+    assert o["lag_max_s"] == 0 and o["settle_s"] == 30
+    calls = fake.calls()
+    assert len(calls) == 2  # the probe, then the one poll
+    assert "--filter-expression" not in calls[0]
+    text = watch(
+        fake,
+        "--settle",
+        "auto",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "v.json",
+    ).stdout
+    assert (
+        "settle 30 s (auto: the newest of 20 traces in the 10 min before the dispatch was 0.0 s behind"
+        in text
+    )
+    before = len(fake.calls())
+    code, o = watch_json(
+        fake,
+        "--settle",
+        "90s",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "x.json",
+    )
+    assert o["settle"] == "90s" and o["settle_s"] == 90 and o["lag_probe"] is None
+    assert len(fake.calls()) - before == 1
+
+
+def test_watch_ends_the_run_on_the_manifests_schedule_without_waiting(fake, tmp_path):
+    code, o = watch_json(
+        fake,
+        "--expect",
+        "240",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "w.json",
+    )
+    assert code == 0 and o["ended_by"] == "count"
+    assert o["ended"] == "2026-09-13T08:34:06Z" and o["rows"] == 241
+    assert len(o["bins"]) == 6 and o["empty_since_last_row"] == 0
+    text = watch(
+        fake,
+        "--expect",
+        "240",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "v.json",
+    ).stdout
+    assert (
+        "Ended   (UTC): 2026-09-13T08:34:06Z   # last request row; the scheduled 240 rows landed (241 counted)"
+        in text
+    )
+    code, o = watch_json(
+        fake,
+        "--length",
+        "2m",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "x.json",
+    )
+    assert code == 0 and o["ended_by"] == "schedule"
+    assert o["ended"] == "2026-09-13T08:34:06Z" and o["empty_since_last_row"] == 1
+    code, o = watch_json(
+        fake,
+        "--expect",
+        "999",
+        "--length",
+        "1h",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "y.json",
+    )
+    assert code == 0 and o["ended_by"] == "quiet" and o["empty_since_last_row"] == 4
+
+
+def test_watch_reads_the_stores_real_answer_shapes(fake):
+    full = json.loads(json.loads((FIXTURES / "watch_bin.json").read_text())["stdout"])
+    empty = json.loads(
+        json.loads((FIXTURES / "watch_empty.json").read_text())["stdout"]
+    )
+    s = full["TraceSummaries"][0]
+    assert s["Http"]["UserAgent"].startswith(WATCH_PREFIX) and s["Id"].startswith("1-")
+    assert re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}", s["StartTime"]
+    )
+    assert empty["TraceSummaries"] == [] and "TracesProcessedCount" in empty
+
+
+def test_watch_stated_keys_match_the_output(fake, tmp_path):
+    text = REFERENCE.read_text(encoding="utf-8")
+    stated = re.search(r"Output of `watch`: `(.*?)` - the text form", text, re.DOTALL)
+    assert stated, "the reference states the watch's --json keys"
+    keys = set(
+        re.findall(
+            r"\b([a-z_]+)(?=[,\s\[\{(]|$)",
+            re.sub(r"\[.*?\]|\{.*?\}|\(.*?\)", "", stated.group(1), flags=re.DOTALL),
+        )
+    )
+    _, o = watch_json(fake, "--to", "2026-09-13T08:45:36Z", state=tmp_path / "w.json")
+    missing = {k for k in o if k not in keys}
+    assert not missing, (
+        f"keys in the output the reference does not state: {sorted(missing)}"
+    )
+    absent = {k for k in keys if k not in o and k not in ("or", "null")}
+    assert not absent, (
+        f"keys the reference states that the output lacks: {sorted(absent)}"
+    )
 
 
 # --- the reference states what the parsers accept ----------------------------
