@@ -84,6 +84,36 @@ args = sys.argv[1:]
 key = hashlib.sha1(json.dumps([TS.sub("<ts>", mask(a)) for a in args]).encode()).hexdigest()[:12]
 with open(os.environ["FAKE_LOG"], "a") as f:
     f.write(json.dumps(args) + "\n")
+def flag(name):
+    return args[args.index(name) + 1] if name in args else None
+kql = flag("--analytics-query") or ""
+if os.environ.get("FAKE_WATCH") == "1" and "startswith" in kql and "summarize" in kql:
+    # a watch polls one bin at a time: answer the captured rows of the two
+    # driven runs that fall inside it, summarized the way the component does
+    # (the empty and the full bin shapes are the captured ones, watch_empty.json
+    # and watch_bin.json; the rows are watch_rows.json)
+    if os.environ.get("FAKE_WATCH_ERR") == flag("--start-time"):
+        sys.stderr.write("ERROR: BadArgumentError: The request had some invalid properties\n")
+        sys.exit(1)
+    prefix = re.search(r"startswith '([^']*)'", kql).group(1)
+    lo, hi = flag("--start-time"), flag("--end-time")
+    rows = [r for r in json.load(open(os.path.join(F, "watch_rows.json")))["rows"]
+            if lo <= r[0][:19] + "Z" < hi and r[1].startswith(prefix)]
+    if rows:
+        case = json.load(open(os.path.join(F, "watch_bin.json")))
+        ids = sorted({r[1] for r in rows}); dims = sorted({r[2] for r in rows})
+        row = [len(rows), rows[0][0], rows[-1][0], json.dumps(ids), json.dumps(dims), max(r[3] for r in rows)]
+    else:
+        case = json.load(open(os.path.join(F, "watch_empty.json")))
+        row = None
+    out = json.loads(case["stdout"])
+    if row is not None:
+        out["tables"][0]["rows"] = [row]
+    sys.stdout.write(json.dumps(out)); sys.exit(0)
+if os.environ.get("FAKE_WATCH") == "1" and "lag_p99" in kql:
+    # the lag probe at the first poll: the captured answer as it is
+    case = json.load(open(os.path.join(F, "watch_probe.json")))
+    sys.stdout.write(case["stdout"]); sys.exit(0)
 path = os.path.join(F, key + ".json")
 if not os.path.exists(path):
     sys.stderr.write("ERROR: no fixture " + key + " for " + json.dumps(args) + "\n")
@@ -107,17 +137,20 @@ def fake(tmp_path):
     az.chmod(az.stat().st_mode | stat.S_IEXEC)
     log = tmp_path / "az.log"
     log.write_text("")
-    env = dict(os.environ)
-    env["PATH"] = f"{bin_dir}:{env['PATH']}"
-    env["FAKE_FIXTURES"] = str(FIXTURES)
-    env["FAKE_LOG"] = str(log)
-    env.pop("FAKE_WARN", None)
+    env = {
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "FAKE_FIXTURES": str(FIXTURES),
+        "FAKE_LOG": str(log),
+    }
 
     class Fake:
-        def run(self, script: str, *args: str, warn: bool = False):
-            e = dict(env)
+        def run(self, script: str, *args: str, warn: bool = False, watch: bool = False):
+            e = {**os.environ, **env}  # a test's monkeypatched variables reach the fake
+            e.pop("FAKE_WARN", None)
             if warn:
                 e["FAKE_WARN"] = "1"
+            if watch:
+                e["FAKE_WATCH"] = "1"
             result = subprocess.run(
                 [sys.executable, str(SCRIPTS / f"azure-monitor-{script}.py"), *args],
                 capture_output=True,
@@ -839,6 +872,663 @@ def test_context_landing_polls_the_identity_count_and_is_bounded(fake):
     assert "NOT landed within the cap: 0 of 1" in result.stdout
     assert "exact repeats folded" in result.stdout
     assert result.stdout.count("az monitor app-insights query") == 1
+
+
+# --- traces watch: a driven run's start and end, resumable ------------------------
+
+# The captured rows (watch_rows.json) are two driven runs of the same benchmark
+# (2 req/s, 2 min) against the live component on 2026-09-13, User-Agent
+# odd-bench/orders-api-watch-load/<slug>: run-a from 08:32:07 to 08:34:06 and,
+# after a quiet minute, run-b from 08:35:12 to 08:37:12 (UTC, 241 rows each);
+# the watches were dispatched at 08:31:36, so the bins sit on :06 and :36.
+WATCH_PREFIX = "odd-bench/orders-api-watch-load"
+WATCH_FROM = "2026-09-13T08:31:36Z"
+
+
+def watch(fake, *args: str, state: Path | None = None, **kw):
+    extra = ["--state", str(state)] if state else []
+    return fake.run(
+        "traces",
+        "watch",
+        "--app",
+        APP,
+        "--identity",
+        WATCH_PREFIX + "/run-a",
+        "--from",
+        WATCH_FROM,
+        "--settle",
+        "0s",
+        "--every",
+        "0s",
+        *extra,
+        *args,
+        watch=True,
+        **kw,
+    )
+
+
+def watch_json(fake, *args: str, state: Path | None = None, **kw):
+    p = watch(fake, *args, "--json", state=state, **kw)
+    assert p.returncode in (0, 1, 3, 4), p.stderr + p.stdout
+    return p.returncode, json.loads(p.stdout)
+
+
+def test_watch_finds_the_runs_span_and_ends_it_on_empty_bins(fake, tmp_path):
+    """run-a's rows sit between 08:32:07 and 08:34:06; with a deadline well
+    past them the watch reports the run started, ended after four empty
+    30 s bins, its span the rows' own, the identity read off the rows in
+    the same query - never the watch's own clock, never a second call."""
+    code, o = watch_json(
+        fake, "--to", "2026-09-13T08:45:36Z", state=tmp_path / "w.json"
+    )
+    assert code == 0
+    assert o["status"] == "ended"
+    assert o["started"] == "2026-09-13T08:32:07Z"
+    assert o["ended"] == "2026-09-13T08:34:06Z"
+    assert o["span_s"] == 119
+    assert o["identity"] == [WATCH_PREFIX + "/run-a"]
+    assert o["identity_attr"] == "user_agent.original"
+    assert o["several_identities"] is False
+    rows = [b for b in o["bins"] if b["new"]]
+    assert [(b["from"][11:19], b["new"]) for b in rows] == [
+        ("08:32:06", 59),
+        ("08:32:36", 60),
+        ("08:33:06", 60),
+        ("08:33:36", 60),
+        ("08:34:06", 2),
+    ]
+    assert all(b["listed"] == b["new"] and b["capped"] is False for b in rows)
+    empties = [b for b in o["bins"] if b["from"] >= "2026-09-13T08:34:36Z"]
+    assert len(empties) == 4 and all(b["new"] == 0 for b in empties)
+    assert o["polls"] == 1 and o["walked_back"] == 0 and o["capped_bins"] == 0
+    calls = fake.calls()
+    assert len(calls) == 10  # 08:31:36 .. 08:36:06, one query per bin, nothing else
+    assert all("startswith" in c[c.index("--analytics-query") + 1] for c in calls)
+    assert o["settle"] == "0s" and o["settle_s"] == 0 and o["lag_probe"] is None
+    assert all("<app_insights_app>" in c for c in o["commands"])
+
+
+def test_watch_renders_the_records_lines(fake, tmp_path):
+    p = watch(fake, "--to", "2026-09-13T08:45:36Z", state=tmp_path / "w.json")
+    assert p.returncode == 0, p.stderr
+    text = p.stdout
+    assert text.startswith("watch: ended")
+    assert "Started (UTC): 2026-09-13T08:32:07Z" in text
+    assert "Ended   (UTC): 2026-09-13T08:34:06Z" in text
+    assert (
+        "Identity:  user_agent.original odd-bench/orders-api-watch-load/run-a (one identity on the rows)"
+        in text
+    )
+    assert "Span:      119 s" in text
+    assert (
+        "Watch:     polled from 2026-09-13T08:31:36Z, 1 poll(s) (1 this call)" in text
+    )
+    assert "bins: 10 closed, 5 with rows (08:32:06 .. 08:34:36)" in text
+    assert (
+        "queries run (record these; 10 calls, one per bin, the window folded):" in text
+    )
+    assert text.count("az monitor app-insights query") == 1
+    assert "--start-time <bin start> --end-time <bin end>" in text
+
+
+def test_watch_resumes_from_its_state_file_without_requerying_closed_bins(
+    fake, tmp_path
+):
+    state = tmp_path / "w.json"
+    code, o = watch_json(
+        fake, "--to", "2026-09-13T08:33:36Z", "--max", "0s", state=state
+    )
+    assert code == 3 and o["status"] == "running"
+    assert o["started"] == "2026-09-13T08:32:07Z" and o["ended"] is None
+    first = len(fake.calls())
+    assert first == 4  # 08:31:36 .. 08:33:06
+    code, o = watch_json(fake, "--to", "2026-09-13T08:45:36Z", state=state)
+    assert code == 0 and o["status"] == "ended"
+    assert o["polls"] == 2 and o["polls_this_call"] == 1
+    froms = [b["from"] for b in o["bins"]]
+    assert len(froms) == len(set(froms)) == 10
+    assert len(fake.calls()) - first == 6  # 08:33:36 onward only
+
+
+def test_watch_before_the_first_row_says_not_started_never_ended(fake, tmp_path):
+    code, o = watch_json(
+        fake,
+        "--identity",
+        "odd-bench/no-such-benchmark",
+        "--to",
+        "2026-09-13T08:33:06Z",
+        "--max",
+        "0s",
+        state=tmp_path / "w.json",
+    )
+    assert code == 4
+    assert o["status"] == "not started" and o["started"] is None and o["ended"] is None
+    assert o["identity"] == [] and o["empty_since_last_row"] == 0
+    assert "no run observed" in o["deadline_note"]
+    p = watch(
+        fake,
+        "--identity",
+        "odd-bench/no-such-benchmark",
+        "--to",
+        "2026-09-13T08:33:06Z",
+        "--max",
+        "0s",
+        state=tmp_path / "v.json",
+    )
+    assert "no run observed" in p.stdout and "not started" in p.stdout
+
+
+def test_watch_needs_a_start_and_refuses_a_state_of_another_watch(fake, tmp_path):
+    p = fake.run(
+        "traces", "watch", "--app", APP, "--identity", WATCH_PREFIX, watch=True
+    )
+    assert p.returncode == 2 and "--from" in p.stderr
+    assert fake.calls() == []
+    state = tmp_path / "w.json"
+    watch(fake, "--to", "2026-09-13T08:33:06Z", "--max", "0s", state=state)
+    p = fake.run(
+        "traces",
+        "watch",
+        "--app",
+        APP,
+        "--identity",
+        WATCH_PREFIX + "/run-b",
+        "--from",
+        WATCH_FROM,
+        "--to",
+        "2026-09-13T08:33:06Z",
+        "--max",
+        "0s",
+        "--state",
+        str(state),
+        watch=True,
+    )
+    assert p.returncode == 2 and "another watch" in p.stderr
+
+
+def test_watch_walks_back_before_from_when_the_run_was_already_going(fake, tmp_path):
+    """A watch dispatched after the run began must still date the run from
+    its first row: rows already in the first polled bin make the watch
+    walk back bin by bin until an empty one."""
+    code, o = watch_json(
+        fake,
+        "--from",
+        "2026-09-13T08:33:06Z",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "w.json",
+    )
+    assert code == 0, o
+    assert (
+        o["started"] == "2026-09-13T08:32:07Z" and o["ended"] == "2026-09-13T08:34:06Z"
+    )
+    assert o["walked_back"] == 3  # 08:32:36, 08:32:06, then the empty 08:31:36
+    assert (
+        o["poll_from"] == "2026-09-13T08:33:06Z" and o["from"] == "2026-09-13T08:31:36Z"
+    )
+    assert [b["from"][11:19] for b in o["bins"]][:4] == [
+        "08:31:36",
+        "08:32:06",
+        "08:32:36",
+        "08:33:06",
+    ]
+    assert sum(b["new"] for b in o["bins"]) == 241
+    text = watch(
+        fake,
+        "--from",
+        "2026-09-13T08:33:06Z",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "v.json",
+    ).stdout
+    assert "3 bin(s) before --from, the run had begun before the watch" in text
+
+
+def test_watch_resumes_after_a_walk_back_with_the_same_invocation(fake, tmp_path):
+    state = tmp_path / "w.json"
+    code, o = watch_json(
+        fake,
+        "--from",
+        "2026-09-13T08:33:06Z",
+        "--to",
+        "2026-09-13T08:34:36Z",
+        "--max",
+        "0s",
+        state=state,
+    )
+    assert (
+        code == 3 and o["walked_back"] == 3 and o["started"] == "2026-09-13T08:32:07Z"
+    )
+    n = len(fake.calls())
+    code, o = watch_json(
+        fake,
+        "--from",
+        "2026-09-13T08:33:06Z",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=state,
+    )
+    assert code == 0 and o["walked_back"] == 3 and o["ended"] == "2026-09-13T08:34:06Z"
+    froms = [b["from"] for b in o["bins"]]
+    assert len(froms) == len(set(froms)) and froms[0] == "2026-09-13T08:31:36Z"
+    assert len(fake.calls()) - n == 4  # 08:34:36 .. 08:36:06 only, no walk-back again
+
+
+def test_watch_reads_the_unsettled_bins_at_the_deadline_and_names_the_slack_it_lacks(
+    fake, tmp_path
+):
+    """At the deadline the last --settle is read unsettled rather than
+    skipped: a run that started inside it is reported started, never "not
+    started"; and a deadline too close to the last row says how far it is
+    from closing the run."""
+    code, o = watch_json(
+        fake,
+        "--to",
+        "2026-09-13T08:33:06Z",
+        "--settle",
+        "120s",
+        "--max",
+        "0s",
+        state=tmp_path / "w.json",
+    )
+    assert code == 3
+    assert o["status"] == "running" and o["started"] == "2026-09-13T08:32:07Z"
+    assert o["bins"][-1]["unsettled"] is True
+    assert "extend --to" in o["deadline_note"]
+    code, o = watch_json(
+        fake, "--to", "2026-09-13T08:35:06Z", "--max", "0s", state=tmp_path / "v.json"
+    )
+    assert code == 3 and o["empty_since_last_row"] == 1
+    assert "90 s" in o["deadline_note"]  # three more empty bins of 30 s
+    assert (
+        "deadline"
+        in watch(
+            fake,
+            "--to",
+            "2026-09-13T08:35:06Z",
+            "--max",
+            "0s",
+            state=tmp_path / "u.json",
+        ).stdout
+    )
+
+
+def test_watch_reads_the_identity_off_every_row_and_says_when_there_are_several(
+    fake, tmp_path
+):
+    """The prefix alone matches both runs: run-a, one quiet minute, run-b -
+    two identity values are two runs, and the output says so."""
+    code, o = watch_json(
+        fake,
+        "--identity",
+        WATCH_PREFIX,
+        "--to",
+        "2026-09-13T08:45:36Z",
+        "--ended-after",
+        "8",
+        state=tmp_path / "w.json",
+    )
+    assert code == 0, o
+    assert o["several_identities"] is True
+    assert o["identity"] == [WATCH_PREFIX + "/run-a", WATCH_PREFIX + "/run-b"]
+    assert (
+        o["started"] == "2026-09-13T08:32:07Z" and o["ended"] == "2026-09-13T08:37:12Z"
+    )
+    assert sum(b["new"] for b in o["bins"]) == 482
+    assert (
+        "SEVERAL"
+        in watch(
+            fake,
+            "--identity",
+            WATCH_PREFIX,
+            "--to",
+            "2026-09-13T08:45:36Z",
+            "--ended-after",
+            "8",
+            state=tmp_path / "v.json",
+        ).stdout
+    )
+    # the quiet minute between the runs is one empty bin: under the default
+    # criterion the two are one run, under --ended-after 1 run-a ends alone
+    code, o = watch_json(
+        fake,
+        "--identity",
+        WATCH_PREFIX,
+        "--to",
+        "2026-09-13T08:45:36Z",
+        "--ended-after",
+        "1",
+        state=tmp_path / "x.json",
+    )
+    assert (
+        code == 0
+        and o["ended"] == "2026-09-13T08:34:06Z"
+        and o["identity"] == [WATCH_PREFIX + "/run-a"]
+    )
+
+
+def test_watch_stops_on_an_az_error_and_the_next_call_requeries_that_bin(
+    fake, tmp_path, monkeypatch
+):
+    state = tmp_path / "w.json"
+    monkeypatch.setenv("FAKE_WATCH_ERR", "2026-09-13T08:33:36Z")
+    code, o = watch_json(fake, "--to", "2026-09-13T08:45:36Z", state=state)
+    assert code == 1
+    assert o["failed"] and o["failed"][0]["kind"] == "kql" and o["status"] == "running"
+    assert [b["from"][11:19] for b in o["bins"]] == [
+        "08:31:36",
+        "08:32:06",
+        "08:32:36",
+        "08:33:06",
+    ]
+    assert (
+        "FAILED"
+        in watch(fake, "--to", "2026-09-13T08:45:36Z", state=tmp_path / "v.json").stdout
+    )
+    monkeypatch.delenv("FAKE_WATCH_ERR")
+    code, o = watch_json(fake, "--to", "2026-09-13T08:45:36Z", state=state)
+    assert code == 0 and o["status"] == "ended"
+    froms = [b["from"] for b in o["bins"]]
+    assert len(froms) == len(set(froms)) == 10 and o["failed"] == []
+
+
+def test_watch_an_az_error_inside_the_walk_back_leaves_the_first_bin_unread(
+    fake, tmp_path, monkeypatch
+):
+    """A walk-back cut by an az error must not date the run from the bins it
+    reached: nothing is recorded, exit 1, and the next call re-reads the
+    first bin and walks back whole."""
+    state = tmp_path / "w.json"
+    monkeypatch.setenv("FAKE_WATCH_ERR", "2026-09-13T08:32:06Z")
+    code, o = watch_json(
+        fake,
+        "--from",
+        "2026-09-13T08:33:06Z",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=state,
+    )
+    assert code == 1 and o["failed"] and o["failed"][0]["kind"] == "kql"
+    assert o["status"] == "not started" and o["started"] is None
+    assert o["bins"] == [] and o["walked_back"] == 0
+    monkeypatch.delenv("FAKE_WATCH_ERR")
+    code, o = watch_json(
+        fake,
+        "--from",
+        "2026-09-13T08:33:06Z",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=state,
+    )
+    assert code == 0 and o["failed"] == []
+    assert o["started"] == "2026-09-13T08:32:07Z" and o["walked_back"] == 3
+    froms = [b["from"] for b in o["bins"]]
+    assert len(froms) == len(set(froms)) and froms[0] == "2026-09-13T08:31:36Z"
+    assert sum(b["new"] for b in o["bins"]) == 241
+
+
+def test_watch_settles_on_the_ingestion_lag_it_measures(fake, tmp_path):
+    """--settle auto (the default): one probe of the component's lag at the
+    first poll, then the run's own rows' lag bin by bin; a bin closes once
+    its end is older than the largest lag observed plus one bin, recomputed
+    at every poll - never a constant."""
+    code, o = watch_json(
+        fake,
+        "--settle",
+        "auto",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "w.json",
+    )
+    assert code == 0 and o["status"] == "ended"
+    assert o["settle"] == "auto"
+    probe = o["lag_probe"]
+    assert probe["n"] == 1152 and probe["max_s"] == 17.23 and probe["p99_s"] == 14.23
+    assert o["lag_max_s"] == 17.23  # the run's rows (11.1 s at most) never lagged more
+    assert o["settle_s"] == 48  # ceil(17.23) + one 30 s bin
+    assert (
+        o["ended"] == "2026-09-13T08:34:06Z" and sum(b["new"] for b in o["bins"]) == 241
+    )
+    calls = fake.calls()
+    assert len(calls) == 11  # the probe, then one query per bin
+    first = calls[0][calls[0].index("--analytics-query") + 1]
+    assert "lag_p99" in first and "startswith" not in first
+    assert all("lag_max" in c[c.index("--analytics-query") + 1] for c in calls[1:])
+    text = watch(
+        fake,
+        "--settle",
+        "auto",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "v.json",
+    ).stdout
+    assert "settle 48 s (auto: ingestion lag max 17.23 s on 1152 rows" in text
+    # a fixed duration probes nothing and stays what it was given
+    before = len(fake.calls())
+    code, o = watch_json(
+        fake,
+        "--settle",
+        "90s",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "x.json",
+    )
+    assert o["settle"] == "90s" and o["settle_s"] == 90 and o["lag_probe"] is None
+    assert not any(
+        "lag_p99" in c[c.index("--analytics-query") + 1] for c in fake.calls()[before:]
+    )
+
+
+def test_watch_ends_the_run_on_the_manifests_schedule_without_waiting(fake, tmp_path):
+    """--expect: the scheduled count landed, the run ended at its last row
+    as soon as that bin closed - no empty bin. --length: past the scheduled
+    length from the first row, one empty closed bin ends it. Without
+    either, the four empty bins of a run with no schedule."""
+    code, o = watch_json(
+        fake,
+        "--expect",
+        "240",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "w.json",
+    )
+    assert code == 0 and o["ended_by"] == "count"
+    assert o["ended"] == "2026-09-13T08:34:06Z" and o["rows"] == 241
+    assert [b["from"][11:19] for b in o["bins"]][
+        -1
+    ] == "08:34:06"  # the bin of the 240th row
+    assert len(o["bins"]) == 6 and o["empty_since_last_row"] == 0
+    text = watch(
+        fake,
+        "--expect",
+        "240",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "v.json",
+    ).stdout
+    assert (
+        "Ended   (UTC): 2026-09-13T08:34:06Z   # last request row; the scheduled 240 rows landed (241 counted)"
+        in text
+    )
+    code, o = watch_json(
+        fake,
+        "--length",
+        "2m",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "x.json",
+    )
+    assert code == 0 and o["ended_by"] == "schedule"
+    assert o["ended"] == "2026-09-13T08:34:06Z" and o["empty_since_last_row"] == 1
+    assert [b["from"][11:19] for b in o["bins"]][
+        -1
+    ] == "08:34:36"  # the one empty bin past 08:34:07
+    # short of the count and the length (an aborted run), the quiet criterion still ends it
+    code, o = watch_json(
+        fake,
+        "--expect",
+        "999",
+        "--length",
+        "1h",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "y.json",
+    )
+    assert code == 0 and o["ended_by"] == "quiet" and o["empty_since_last_row"] == 4
+
+
+def test_watch_keeps_a_clipped_deadline_bin_apart_and_never_duplicates_it(
+    fake, tmp_path
+):
+    """Deadlines off the bin grid: the clipped last bin is read for the start
+    and the rows but never enters the closed bins, so resumed calls neither
+    duplicate nor double-count."""
+    state = tmp_path / "w.json"
+    code, o1 = watch_json(
+        fake, "--to", "2026-09-13T08:32:21Z", "--max", "0s", state=state
+    )
+    assert (
+        code == 3
+        and o1["status"] == "running"
+        and o1["started"] == "2026-09-13T08:32:07Z"
+    )
+    assert (
+        o1["partial_bin"]["from"] == "2026-09-13T08:32:06Z"
+        and o1["partial_bin"]["partial"] is True
+    )
+    assert [b["from"][11:19] for b in o1["bins"]] == ["08:31:36"]
+    code, o2 = watch_json(
+        fake, "--to", "2026-09-13T08:32:51Z", "--max", "0s", state=state
+    )
+    assert [b["from"][11:19] for b in o2["bins"]] == ["08:31:36", "08:32:06"]
+    assert o2["partial_bin"]["from"] == "2026-09-13T08:32:36Z"
+    code, o3 = watch_json(fake, "--to", "2026-09-13T08:45:36Z", state=state)
+    assert code == 0 and o3["partial_bin"] is None
+    froms = [b["from"] for b in o3["bins"]]
+    assert (
+        len(froms) == len(set(froms)) == 10 and sum(b["new"] for b in o3["bins"]) == 241
+    )
+
+
+def test_watch_scopes_to_the_service_and_the_dimensions_given(fake, tmp_path):
+    watch(
+        fake,
+        "--service",
+        "orders-api",
+        "--dimension",
+        "http.user_agent",
+        "--to",
+        "2026-09-13T08:33:06Z",
+        "--max",
+        "0s",
+        state=tmp_path / "w.json",
+    )
+    kql = fake.calls()[0][fake.calls()[0].index("--analytics-query") + 1]
+    assert "cloud_RoleName in ('orders-api')" in kql
+    assert "http.user_agent" in kql and "user_agent.original" not in kql
+
+
+def test_watch_ends_on_the_count_with_a_partial_bin_parked_at_the_horizon(
+    fake, tmp_path, monkeypatch
+):
+    """A settle off the bin grid parks a partial bin at the horizon; the
+    tail still counts from the state's cursor - the parked bin's rows
+    included - and the run ends on the count in that very poll."""
+    monkeypatch.setenv("ODD_WATCH_CLOCK", "2026-09-13T08:34:20Z")
+    code, o = watch_json(
+        fake,
+        "--expect",
+        "240",
+        "--settle",
+        "48s",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "w.json",
+    )
+    assert code == 0 and o["ended_by"] == "count" and o["polls"] == 1
+    assert o["ended"] == "2026-09-13T08:34:06Z" and o["rows"] == 241
+    assert o["partial_bin"] is None
+    froms = [b["from"] for b in o["bins"]]
+    assert (
+        len(froms) == len(set(froms)) and sum(b["new"] or 0 for b in o["bins"]) == 241
+    )
+
+
+def test_watch_ends_on_the_count_before_the_bins_settle(fake, tmp_path, monkeypatch):
+    """--expect reached inside the unsettled tail: every row has landed, the
+    run ended at the newest right away - one query over the tail, its bins
+    on the record unsettled (the count on the last), nothing waited for."""
+    monkeypatch.setenv("ODD_WATCH_CLOCK", "2026-09-13T08:34:20Z")  # inside the last bin
+    code, o = watch_json(
+        fake,
+        "--expect",
+        "240",
+        "--settle",
+        "10m",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "w.json",
+    )
+    assert code == 0 and o["ended_by"] == "count" and o["settle_s"] == 600
+    assert (
+        o["started"] == "2026-09-13T08:32:07Z" and o["ended"] == "2026-09-13T08:34:06Z"
+    )
+    assert o["rows"] == 241 and o["polls"] == 1
+    assert all(b.get("unsettled") for b in o["bins"]) and o["bins"][-1]["new"] == 241
+    assert len(fake.calls()) == 1  # the tail alone: no bin had closed
+
+
+def test_watch_reads_the_components_real_bin_shapes(fake):
+    """The two captured answers the fake replays are the component's own: a
+    bin with rows carries the datetimes at 100 ns and the sets as JSON
+    strings; an empty bin is one row of zero and nulls, never no row."""
+    full = json.loads(json.loads((FIXTURES / "watch_bin.json").read_text())["stdout"])
+    empty = json.loads(
+        json.loads((FIXTURES / "watch_empty.json").read_text())["stdout"]
+    )
+    names = [c["name"] for c in full["tables"][0]["columns"]]
+    assert names == [
+        "n",
+        "first_row",
+        "last_row",
+        "identities",
+        "dimensions",
+        "lag_max",
+    ]
+    row = full["tables"][0]["rows"][0]
+    assert isinstance(row[3], str) and json.loads(row[3])[0].startswith(WATCH_PREFIX)
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", row[1])
+    assert isinstance(row[5], float) and 0 < row[5] < 120
+    assert empty["tables"][0]["rows"] == [[0, None, None, "[]", "[]", None]]
+    probe = json.loads(
+        json.loads((FIXTURES / "watch_probe.json").read_text())["stdout"]
+    )
+    assert [c["name"] for c in probe["tables"][0]["columns"]] == [
+        "n",
+        "lag_p99",
+        "lag_max",
+    ]
+
+
+def test_watch_stated_keys_match_the_output(fake, tmp_path):
+    text = REFERENCE.read_text(encoding="utf-8")
+    stated = re.search(r"`watch` - `(.*?)` - the text form", text, re.DOTALL)
+    assert stated, "the reference states the watch's --json keys"
+    keys = set(
+        re.findall(
+            r"\b([a-z_]+)(?=[,\s\[\{(]|$)",
+            re.sub(r"\[.*?\]|\{.*?\}|\(.*?\)", "", stated.group(1), flags=re.DOTALL),
+        )
+    )
+    _, o = watch_json(fake, "--to", "2026-09-13T08:45:36Z", state=tmp_path / "w.json")
+    missing = {k for k in o if k not in keys}
+    assert not missing, (
+        f"keys in the output the reference does not state: {sorted(missing)}"
+    )
+    absent = {k for k in keys if k not in o and k not in ("or", "null")}
+    assert not absent, (
+        f"keys the reference states that the output lacks: {sorted(absent)}"
+    )
 
 
 # --- the reference states what the parsers accept ----------------------------
