@@ -41,6 +41,9 @@ assert_result_contains "$workdir/reset.json" '"env_applied": true'
 docker inspect oddyssey-lgtm --format '{{json .Config.Env}}' | grep -q '"GF_LOG_LEVEL=debug"'
 docker inspect oddyssey-lgtm --format '{{json .Config.Env}}' \
   | grep -q '"PROMETHEUS_EXTRA_ARGS=--enable-feature=otlp-deltatocumulative"'
+# the second embedded default (issue #574): the image's plugins stay its own
+docker inspect oddyssey-lgtm --format '{{json .Config.Env}}' \
+  | grep -q '"GF_PLUGINS_PREINSTALL_AUTO_UPDATE=false"'
 
 step "odd_stack_status surfaces the applied env (issue #118)"
 # The tool-side counterpart of the two docker inspects above: what the caller
