@@ -28,7 +28,20 @@ CONTAINER_NAME = "oddyssey-lgtm"
 # silently rejects (HTTP 200, datapoints dropped) unless started with
 # this feature flag. Experimental on Prometheus's side, but the image is
 # pinned, so the behavior cannot drift until a deliberate bump.
-DEFAULT_ENV = ("PROMETHEUS_EXTRA_ARGS=--enable-feature=otlp-deltatocumulative",)
+#
+# GF_PLUGINS_PREINSTALL_AUTO_UPDATE=false (issue #574): Grafana's background
+# installer otherwise checks grafana.com at every boot and, when the
+# catalog carries a newer build of an externalized datasource plugin than
+# the image bundles, removes it and re-downloads it - a window, seconds
+# after the four probes first answered ready, in which the datasource
+# proxy answers "Unable to find datasource plugin" for that backend. A
+# pinned image boots the same way every time only if its plugins stay the
+# ones it ships; the readiness probes wait such a window out as a safety
+# net (a user entry can turn the updates back on).
+DEFAULT_ENV = (
+    "PROMETHEUS_EXTRA_ARGS=--enable-feature=otlp-deltatocumulative",
+    "GF_PLUGINS_PREINSTALL_AUTO_UPDATE=false",
+)
 
 # When a DEFAULT_ENV entry changes, move the OLD exact entry here: a
 # surviving container still carries it, and container_user_env must not

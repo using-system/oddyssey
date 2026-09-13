@@ -68,6 +68,19 @@ def test_run_args_adds_user_env_after_the_defaults():
     assert "GF_LOG_LEVEL=debug" in entries
 
 
+def test_run_args_pins_the_images_plugins_by_default():
+    """Issue #574: Grafana's background installer updates an externalized
+    datasource plugin from grafana.com at boot when the catalog carries a
+    newer build, and the datasource proxy answers 404 for that backend
+    while it does - a boot that depends on the catalog and the network. The
+    embedded default keeps the image's plugins; a user entry can lift it."""
+    entries = _env_entries(run_args())
+    assert "GF_PLUGINS_PREINSTALL_AUTO_UPDATE=false" in entries
+    entries = _env_entries(run_args({"GF_PLUGINS_PREINSTALL_AUTO_UPDATE": "true"}))
+    assert entries.count("GF_PLUGINS_PREINSTALL_AUTO_UPDATE=true") == 1
+    assert "GF_PLUGINS_PREINSTALL_AUTO_UPDATE=false" not in entries
+
+
 def test_run_args_lets_user_env_override_the_defaults():
     entries = _env_entries(run_args({"PROMETHEUS_EXTRA_ARGS": "--custom"}))
 
