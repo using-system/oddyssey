@@ -40,9 +40,10 @@ reached, the run ended at its last row, no empty bin needed), --bin
 started run with no schedule to read), --settle (a bin closes once its end
 is this old; default auto: the store's visibility lag - how far behind the
 dispatch the newest of the service's traces of the 10 minutes before it
-was, one probe, then how far behind each poll the run's own newest trace
-of the last bin is - plus one bin, recomputed at every poll), --every (the
-floor between two polls, default 5s: the watch wakes when the next bin can
+was, one probe, then at each poll how far behind the clock the run's own
+newest trace is at first sight, whatever its age - plus one bin, two bins
+until a trace has spoken, recomputed at every poll), --every (the floor
+between two polls, default 5s: the watch wakes when the next bin can
 close), --max (default 8m: the bound one call holds the watch for, between
 and inside its polls; 0 is one poll, whole), --state FILE (the watch's
 state; the next call resumes from the last closed bin), --service
@@ -54,8 +55,8 @@ make the watch walk back before --from to the run's first row; at the
 deadline the last settle is read unsettled, a bin the deadline clips is
 kept apart as partial_bin and read again whole next call, and a deadline
 closer to the last row than the rule in force needs says how much further
---to must go. One query per closed bin, then one over the unsettled tail
-(the lag, and the count that ends the run there).
+--to must go. Each poll: one query over the unread tail first (the lag,
+and the count that ends the run there), then one per bin it closes.
 Exit 0 ended, 3 running at the bound, 4 not started at the bound. --json
 everywhere. Every subcommand prints the gcx commands it ran, so the report
 can record them. Reads GCX_CONFIG. Exit 0 on success, 1 when gcx errored -
@@ -594,6 +595,7 @@ def _load_watch_state(path: str | None, traceql: str, frm: str, bin_: str) -> di
         "rows": 0,
         "lag_max_s": None,
         "lag_probe": None,
+        "tail_newest_ns": None,
         "status": "not started",
         "commands": [],
     }
@@ -665,10 +667,12 @@ def _lag_s(now: datetime, start_ns: int) -> float:
 
 def _settle_seconds(ns, state: dict, step: timedelta) -> int:
     """The settle in force: the flag's duration, or the largest visibility
-    lag observed so far plus one bin (one bin alone before any trace)."""
+    lag observed so far plus one bin (two bins until a trace has spoken)."""
     if ns.settle != "auto":
         return parse_duration(ns.settle)
-    return math.ceil(state.get("lag_max_s") or 0.0) + int(step.total_seconds())
+    if state.get("lag_max_s") is None:
+        return 2 * int(step.total_seconds())
+    return math.ceil(state["lag_max_s"]) + int(step.total_seconds())
 
 
 def _probe_traceql(ns) -> str:
@@ -807,6 +811,77 @@ def cmd_watch(ns) -> tuple[int, dict]:
                 }
                 if lag is not None:
                     state["lag_max_s"] = max(state.get("lag_max_s") or 0.0, lag)
+        tail_from = parse_ts(state["cursor"])
+        if (
+            error is None
+            and not at_deadline
+            and (ns.settle == "auto" or ns.expect)
+            and state["status"] != "ended"
+            and tail_from < now
+        ):
+            # one query over the unread range, the cursor to now, before the
+            # bins close on it: the newest trace's age at first sight - its
+            # start advanced since the previous poll - is the store's
+            # visibility lag whatever that age (a trace measures once, so a
+            # run that stopped sending ages its last trace without raising
+            # the settle); and the scheduled count reached here ends the
+            # run at its newest trace - every trace has landed, nothing
+            # waits for the tail's bins, recorded by the traces' start
+            r = _query_bin(ns, tail_from, now)
+            results.append(r)
+            if not r.ok:
+                error = r.error
+            else:
+                rows = traces_list(r.data)
+                previous = set(state["last_bin_ids"])
+                fresh = [
+                    t
+                    for t in rows
+                    if hex_trace_id(t.get("traceID", "")) not in previous
+                ]
+                starts = _starts(fresh)
+                if starts and ns.settle == "auto":
+                    newest = starts[-1][0]
+                    if newest > (state.get("tail_newest_ns") or 0):
+                        state["tail_newest_ns"] = newest
+                        state["lag_max_s"] = max(
+                            state.get("lag_max_s") or 0.0, _lag_s(now, newest)
+                        )
+                settle = timedelta(seconds=_settle_seconds(ns, state, step))
+                if starts and ns.expect and state["rows"] + len(starts) >= ns.expect:
+                    t = tail_from
+                    while t < now:
+                        y = min(t + step, now)
+                        inside = [
+                            s
+                            for s in starts
+                            if t.timestamp() * 1e9 <= s[0] < y.timestamp() * 1e9
+                        ]
+                        entry = {
+                            "from": iso(t),
+                            "to": iso(y),
+                            "listed": len(inside),
+                            "new": len(inside),
+                            "capped": len(rows) >= TRACE_LIMIT,
+                        }
+                        if y > now - settle:
+                            entry["unsettled"] = True
+                        if y < t + step:
+                            entry["partial"] = True
+                        state["bins"].append(entry)
+                        t = y
+                    if state["started"] is None:
+                        state["started"] = _ns_iso(starts[0][0])
+                        state["started_id"] = starts[0][1]
+                        state["status"] = "running"
+                        _note_identity(state, starts[0][1], attrs, results)
+                    state["rows"] += len(starts)
+                    state["last_row"] = _ns_iso(starts[-1][0])
+                    state["last_id"] = starts[-1][1]
+                    state["cursor"] = iso(now)
+                    state.pop("partial_bin", None)
+                    state["empty_since"] = 0
+                    end("count")
         settle = timedelta(seconds=_settle_seconds(ns, state, step))
         # a bin closes once its end is the settle old; at the deadline the
         # last settle is read all the same, flagged unsettled, so a run
@@ -904,73 +979,6 @@ def cmd_watch(ns) -> tuple[int, dict]:
                     end("quiet")
             if partial:
                 break
-        tail_from = parse_ts(state["cursor"])
-        if (
-            error is None
-            and (ns.settle == "auto" or ns.expect)
-            and state["status"] != "ended"
-            and tail_from < now
-        ):
-            # one query over the unsettled tail, the cursor to now (a parked
-            # partial bin included: the cursor never moved past it): the
-            # traces younger than a bin say how far behind the store is
-            # now, and the scheduled count reached here ends the run at its
-            # newest trace - every trace has landed, nothing waits for the
-            # tail's bins, recorded unsettled by the traces' start
-            r = _query_bin(ns, tail_from, now)
-            results.append(r)
-            if not r.ok:
-                error = r.error
-            else:
-                rows = traces_list(r.data)
-                previous = set(state["last_bin_ids"])
-                fresh = [
-                    t
-                    for t in rows
-                    if hex_trace_id(t.get("traceID", "")) not in previous
-                ]
-                starts = _starts(fresh)
-                recent = [
-                    (t, i) for t, i in starts if t > (now - step).timestamp() * 1e9
-                ]
-                if recent and ns.settle == "auto":
-                    state["lag_max_s"] = max(
-                        state.get("lag_max_s") or 0.0, _lag_s(now, recent[-1][0])
-                    )
-                    settle = timedelta(seconds=_settle_seconds(ns, state, step))
-                if starts and ns.expect and state["rows"] + len(starts) >= ns.expect:
-                    t = tail_from
-                    while t < now:
-                        y = min(t + step, now)
-                        inside = [
-                            s
-                            for s in starts
-                            if t.timestamp() * 1e9 <= s[0] < y.timestamp() * 1e9
-                        ]
-                        entry = {
-                            "from": iso(t),
-                            "to": iso(y),
-                            "listed": len(inside),
-                            "new": len(inside),
-                            "capped": len(rows) >= TRACE_LIMIT,
-                            "unsettled": True,
-                        }
-                        if y < t + step:
-                            entry["partial"] = True
-                        state["bins"].append(entry)
-                        t = y
-                    if state["started"] is None:
-                        state["started"] = _ns_iso(starts[0][0])
-                        state["started_id"] = starts[0][1]
-                        state["status"] = "running"
-                        _note_identity(state, starts[0][1], attrs, results)
-                    state["rows"] += len(starts)
-                    state["last_row"] = _ns_iso(starts[-1][0])
-                    state["last_id"] = starts[-1][1]
-                    state["cursor"] = iso(now)
-                    state.pop("partial_bin", None)
-                    state["empty_since"] = 0
-                    end("count")
         state["commands"].extend(commands(results[recorded:]))
         recorded = len(results)
         state.pop("deadline_note", None)
@@ -1395,22 +1403,24 @@ def render(o: dict) -> str:
             )
         )
         probe = o.get("lag_probe")
-        out.append(
-            f"settle {o['settle_s']} s "
-            + (
-                f"(auto: the newest of {probe['n']} traces in the 10 min before the dispatch was {probe['lag_s']} s behind"
-                + (
-                    f", the run's own {o['lag_max_s']} s at most"
-                    if o.get("lag_max_s") is not None
-                    and probe.get("lag_s") is not None
-                    and o["lag_max_s"] > probe["lag_s"]
-                    else ""
-                )
-                + f", plus one {o['bin']} bin)"
-                if o["settle"] == "auto" and probe
-                else f"({o['settle']})"
+        if o["settle"] == "auto" and probe:
+            # where the number came from: the probe, the run's own traces,
+            # or the two-bin floor while neither has measured anything
+            why = (
+                f"the newest of {probe['n']} traces in the 10 min before the dispatch was {probe['lag_s']} s behind"
+                if probe.get("lag_s") is not None
+                else "no trace in the 10 min before the dispatch"
             )
-        )
+            lag = o.get("lag_max_s")
+            if lag is None:
+                why += f"; two {o['bin']} bins until a trace says more"
+            else:
+                if probe.get("lag_s") is None or lag > probe["lag_s"]:
+                    why += f", the run's own {lag} s at most"
+                why += f", plus one {o['bin']} bin"
+            out.append(f"settle {o['settle_s']} s (auto: {why})")
+        else:
+            out.append(f"settle {o['settle_s']} s ({o['settle']})")
         with_rows = [b for b in o["bins"] if b.get("new")]
         out.append(
             f"bins: {len(o['bins'])} closed, {len(with_rows)} with rows"

@@ -273,8 +273,8 @@ Six subcommands, the whole surface above (`--since <duration>` replaces
   stamps no ingestion time, so the lag is how far behind the clock the
   store's newest trace is — one probe of `--service`'s traces (none:
   every trace) over the 10 min before the dispatch, then the run's own
-  traces of the last bin at every poll — plus one `--bin`,
-  recomputed at every poll; a duration fixes it instead. The watch
+  newest trace at every poll — plus one `--bin`, recomputed at every
+  poll; a duration fixes it instead. The watch
   wakes when the next bin can close (its end plus the settle), never on
   a fixed clock: `--every` the floor. `--max` bounds one call (`0s`:
   one whole poll). Exit 0 ended, 3 still running at `--max` or `--to`,

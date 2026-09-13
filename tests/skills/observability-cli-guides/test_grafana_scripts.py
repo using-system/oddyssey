@@ -89,6 +89,10 @@ if a[:2] == ["traces", "query"]:
         from datetime import datetime
         if os.environ.get("FAKE_T_WATCH_ERR") == flag("--from"): err()
         rows = list(q["traces"])
+        if os.environ.get("FAKE_T_RUN"):
+            # a driven run of N traces at 2 req/s from the fixture's first row
+            base = min(int(t["startTimeUnixNano"]) for t in rows)
+            rows = [{**rows[0], "traceID": "%032x" % (0xabc000 + i), "startTimeUnixNano": str(base + i * 500_000_000)} for i in range(int(os.environ["FAKE_T_RUN"]))]
         if "user_agent" not in a[2]:
             # the settle probe (the store's traces before the dispatch, no
             # identity in the selector): the run's rows 100 s earlier
@@ -98,6 +102,10 @@ if a[:2] == ["traces", "query"]:
             rows += [{**t, "traceID": t["traceID"][:-1] + "f", "startTimeUnixNano": str(int(t["startTimeUnixNano"]) + 300 * 10**9)} for t in q["traces"]]
         lo = datetime.fromisoformat(flag("--from").replace("Z", "+00:00")).timestamp() * 1e9
         hi = datetime.fromisoformat(flag("--to").replace("Z", "+00:00")).timestamp() * 1e9
+        if os.environ.get("FAKE_T_LAG"):
+            # the store's visibility lag: a trace is listed once it is that old on the watch's clock
+            seen = datetime.fromisoformat(os.environ["ODD_WATCH_CLOCK"].replace("Z", "+00:00")).timestamp() * 1e9 - float(os.environ["FAKE_T_LAG"]) * 1e9
+            rows = [t for t in rows if int(t["startTimeUnixNano"]) <= seen]
         out({"traces": [t for t in rows if lo <= int(t["startTimeUnixNano"]) < hi]})
     if os.environ.get("FAKE_T_QUERY_REVERSE") == "1": q["traces"].reverse()
     if os.environ.get("FAKE_BAD_ID") == "1":
@@ -160,6 +168,8 @@ def fake_gcx(tmp_path, monkeypatch):
         "FAKE_T_WATCH_SECOND",
         "FAKE_UA_BY_ID",
         "ODD_WATCH_CLOCK",
+        "FAKE_T_RUN",
+        "FAKE_T_LAG",
     ):
         monkeypatch.delenv(var, raising=False)
     return log
@@ -1607,9 +1617,11 @@ def test_watch_measures_the_lag_on_the_runs_own_traces_at_every_poll(
     assert [b["from"][11:19] for b in o["bins"]] == ["16:40:00", "16:40:30"]
     assert o["partial_bin"]["from"] == "2026-09-08T16:41:00Z"
     calls = [c for c in fake_gcx.read_text().splitlines() if "traces query" in c]
-    # the probe, two closed bins, the bin the horizon clips, the tail
+    # the probe, the tail, then two closed bins and the bin the horizon clips:
+    # the bins close on the settle this poll's own newest trace set
     assert len(calls) == 5
-    assert "--from 2026-09-08T16:41:00Z --to 2026-09-08T16:41:45Z" in calls[-1]
+    assert "--from 2026-09-08T16:40:00Z --to 2026-09-08T16:41:45Z" in calls[1]
+    assert "--to 2026-09-08T16:41:03Z" in calls[-1]
     assert (
         "the run's own 11.4 s at most"
         in watch(
@@ -1620,6 +1632,151 @@ def test_watch_measures_the_lag_on_the_runs_own_traces_at_every_poll(
             "--to",
             "2026-09-08T16:45:00Z",
             state=tmp_path / "v.json",
+        ).stdout
+    )
+
+
+def test_watch_settles_on_two_bins_until_a_trace_has_spoken(fake_gcx, tmp_path):
+    """A probe that found no trace (a stack just reset) measures nothing:
+    the settle is two bins - never under the constant it replaces - until
+    the run's own traces say more, and the text form says so."""
+    p = watch(
+        "--from",
+        "2026-09-08T16:50:00Z",
+        "--settle",
+        "auto",
+        "--max",
+        "0s",
+        "--to",
+        "2026-09-08T16:52:00Z",
+        "--json",
+        state=tmp_path / "w.json",
+    )
+    assert p.returncode == 4, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert o["lag_probe"]["n"] == 0 and o["lag_probe"]["lag_s"] is None
+    assert o["lag_max_s"] is None and o["settle_s"] == 60
+    text = watch(
+        "--from",
+        "2026-09-08T16:50:00Z",
+        "--settle",
+        "auto",
+        "--max",
+        "0s",
+        "--to",
+        "2026-09-08T16:52:00Z",
+        state=tmp_path / "v.json",
+    ).stdout
+    assert (
+        "settle 60 s (auto: no trace in the 10 min before the dispatch; two 30s bins until a trace says more)"
+        in text
+    )
+
+
+def drive(
+    fake_gcx, tmp_path, monkeypatch, lag: float, *args: str, step: int = 10
+) -> dict:
+    """A fake Tempo whose traces surface `lag` seconds after they start,
+    watched poll by poll (one call per poll, the state file carrying the
+    watch) on a clock advancing `step` seconds, until the run ends."""
+    monkeypatch.setenv("FAKE_T_RUN", "120")  # 2 req/s from 16:41:21, one minute
+    monkeypatch.setenv("FAKE_T_LAG", str(lag))
+    state = tmp_path / f"lag-{lag}-{len(args)}.json"
+    clock = 16 * 3600 + 40 * 60
+    while clock <= 16 * 3600 + 50 * 60:
+        monkeypatch.setenv(
+            "ODD_WATCH_CLOCK",
+            f"2026-09-08T16:{clock // 60 % 60:02d}:{clock % 60:02d}Z",
+        )
+        p = watch(
+            "--settle",
+            "auto",
+            "--max",
+            "0s",
+            "--to",
+            "2026-09-08T17:00:00Z",
+            *args,
+            "--json",
+            state=state,
+        )
+        assert p.returncode in (0, 3, 4), p.stderr + p.stdout
+        o = json.loads(p.stdout)
+        if o["status"] == "ended":
+            return o
+        clock += step
+    raise AssertionError("the watch never ended: " + p.stdout)
+
+
+@pytest.mark.parametrize("lag", [29.5, 30.5, 31.0])
+def test_watch_reads_every_trace_whatever_the_stores_lag(
+    fake_gcx, tmp_path, monkeypatch, lag
+):
+    """A lag at or over one bin is measured all the same - on the tail's
+    newest trace at first sight, whatever its age, before the poll's bins
+    close - so no closed bin is read short: 120 of 120 on the count and on
+    the schedule, the bins summing to the run."""
+    o = drive(fake_gcx, tmp_path, monkeypatch, lag, "--expect", "120", "--length", "1m")
+    assert o["ended_by"] == "count" and o["rows"] == 120
+    assert o["lag_probe"]["n"] == 0  # nothing visible yet at the dispatch
+    assert o["lag_max_s"] >= lag and o["settle_s"] == int(o["lag_max_s"] + 0.99) + 30
+    assert (
+        o["started"] == "2026-09-08T16:41:21Z" and o["ended"] == "2026-09-08T16:42:20Z"
+    )
+    assert sum(b["new"] for b in o["bins"]) == 120
+    o = drive(fake_gcx, tmp_path, monkeypatch, lag, "--length", "1m")
+    assert o["ended_by"] == "schedule" and o["rows"] == 120
+    assert sum(b["new"] for b in o["bins"]) == 120
+    assert not any(b.get("unsettled") for b in o["bins"])
+
+
+def test_watch_measures_a_trace_once_so_a_stopped_run_never_inflates_the_settle(
+    fake_gcx, tmp_path, monkeypatch
+):
+    """The lag is the tail's newest trace's age at first sight - the newest
+    start advanced since the previous poll; a run that stopped sending
+    keeps the same newest trace, which ages but measures nothing more."""
+    monkeypatch.setenv("FAKE_T_LAG", "5")
+    state = tmp_path / "w.json"
+    monkeypatch.setenv("ODD_WATCH_CLOCK", "2026-09-08T16:41:45Z")
+    o = json.loads(
+        watch(
+            "--settle",
+            "auto",
+            "--max",
+            "0s",
+            "--to",
+            "2026-09-08T17:00:00Z",
+            "--json",
+            state=state,
+        ).stdout
+    )
+    assert o["lag_max_s"] == 11.4 and o["settle_s"] == 42  # 16:41:33.6 seen at :45
+    monkeypatch.setenv("ODD_WATCH_CLOCK", "2026-09-08T16:42:30Z")
+    o = json.loads(
+        watch(
+            "--settle",
+            "auto",
+            "--max",
+            "0s",
+            "--to",
+            "2026-09-08T17:00:00Z",
+            "--json",
+            state=state,
+        ).stdout
+    )
+    assert (
+        o["lag_max_s"] == 11.4 and o["settle_s"] == 42
+    )  # the same trace, 56 s old now
+    assert (
+        "the run's own 11.4 s at most"
+        in watch(
+            "--settle",
+            "auto",
+            "--max",
+            "0s",
+            "--to",
+            "2026-09-08T17:00:00Z",
+            state=state,
         ).stdout
     )
 
