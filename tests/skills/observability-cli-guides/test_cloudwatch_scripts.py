@@ -1492,6 +1492,32 @@ def test_watch_ends_the_run_on_the_manifests_schedule_without_waiting(fake, tmp_
     assert code == 0 and o["ended_by"] == "quiet" and o["empty_since_last_row"] == 4
 
 
+def test_watch_ends_on_the_count_with_a_partial_bin_parked_at_the_horizon(
+    fake, tmp_path, monkeypatch
+):
+    """A settle off the bin grid parks a partial bin at the horizon; the
+    tail still counts from the state's cursor - the parked bin's rows
+    included - and the run ends on the count in that very poll."""
+    monkeypatch.setenv("ODD_WATCH_CLOCK", "2026-09-13T08:34:20Z")
+    code, o = watch_json(
+        fake,
+        "--expect",
+        "240",
+        "--settle",
+        "48s",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "w.json",
+    )
+    assert code == 0 and o["ended_by"] == "count" and o["polls"] == 1
+    assert o["ended"] == "2026-09-13T08:34:06Z" and o["rows"] == 241
+    assert o["partial_bin"] is None
+    froms = [b["from"] for b in o["bins"]]
+    assert (
+        len(froms) == len(set(froms)) and sum(b["new"] or 0 for b in o["bins"]) == 241
+    )
+
+
 def test_watch_ends_on_the_count_before_the_bins_settle(fake, tmp_path, monkeypatch):
     """--expect reached inside the unsettled tail: every trace has landed,
     the run ended at the newest right away - the tail's bins recorded

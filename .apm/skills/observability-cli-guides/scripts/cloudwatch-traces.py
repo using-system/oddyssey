@@ -984,18 +984,15 @@ def cmd_watch(ns) -> tuple[int, dict]:
                     state["ended_by"] = "quiet"
             if partial:
                 break
-        if (
-            error is None
-            and ns.expect
-            and state["status"] != "ended"
-            and state.get("partial_bin") is None
-        ):
+        if error is None and ns.expect and state["status"] != "ended":
             # the scheduled count reached inside the unsettled tail: every
             # row has landed, the run ended at the newest - the tail's bins
-            # go on the record unsettled, nothing waits for them to close
-            tail = [x for x in poll_rows if x["start"] >= cursor]
+            # (a parked partial bin included: the state's cursor never moved
+            # past it) go on the record unsettled, nothing waits for them
+            tail_from = parse_ts(state["cursor"])
+            tail = [x for x in poll_rows if x["start"] >= tail_from]
             if tail and state["rows"] + len(tail) >= ns.expect:
-                t = cursor
+                t = tail_from
                 while t < now:
                     x, y = t, min(t + step, now)
                     got = _bin_of(tail, x, y)
@@ -1019,6 +1016,7 @@ def cmd_watch(ns) -> tuple[int, dict]:
                     t = y
                 state["rows"] += len(tail)
                 state["cursor"] = iso(now)
+                state.pop("partial_bin", None)
                 state["empty_since"] = 0
                 state["status"] = "ended"
                 state["ended"] = state["last_row"]
