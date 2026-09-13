@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  APM_CLI_VERSION: "0.29.1"
+  APM_CLI_VERSION: "0.30.0"
 
 jobs:
   reference-contract:

@@ -15,7 +15,7 @@ https://github.com/user-attachments/assets/a8dbc6e1-115e-4f33-83d1-b488bb1d9c51
 With [APM](https://microsoft.github.io/apm/), for Claude Code:
 
 ```bash
-uvx --from 'apm-cli==0.29.1' apm install --global --target claude using-system/oddyssey
+uvx --from 'apm-cli==0.30.0' apm install --global --target claude using-system/oddyssey
 ```
 
 Same command for every other supported CLI agent — swap the target:
@@ -26,11 +26,11 @@ only.
 To update an existing install to the latest version:
 
 ```bash
-uvx --from 'apm-cli==0.29.1' apm update --global --target claude using-system/oddyssey
+uvx --from 'apm-cli==0.30.0' apm update --global --target claude using-system/oddyssey
 ```
 
 It shows the update plan and asks for confirmation (`--yes` to skip,
-`--dry-run` to only look); `uvx --from 'apm-cli==0.29.1' apm outdated`
+`--dry-run` to only look); `uvx --from 'apm-cli==0.30.0' apm outdated`
 tells you whether an update is worth running.
 
 ### From the native marketplaces (no APM)

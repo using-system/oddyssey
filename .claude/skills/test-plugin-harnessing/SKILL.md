@@ -68,7 +68,7 @@ the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
 2. **Deploy to every scope the host reads, and prove they match** —
    the scopes are the CLI's, as `launch-llms-benchmark` step 3 states
    them:
-   - `opencode`: `uvx --from 'apm-cli==0.29.1' apm install --target opencode`
+   - `opencode`: `uvx --from 'apm-cli==0.30.0' apm install --target opencode`
      in the lab clone; opencode also reads `~/.claude/skills/`, so copy
      `.apm/skills/*` there too;
    - `claude`: nothing in the clone (the claude target deploys hooks
