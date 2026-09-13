@@ -508,6 +508,14 @@ def _read_bin(data) -> dict:
     }
 
 
+def _clock() -> datetime:
+    """The watch's clock at the second; ODD_WATCH_CLOCK pins it (the tests)."""
+    pinned = os.environ.get("ODD_WATCH_CLOCK")
+    if pinned:
+        return parse_ts(pinned)
+    return datetime.now(timezone.utc).replace(microsecond=0)
+
+
 def _load_watch_state(path: str | None, identity: str, frm: str, bin_: str) -> dict:
     fresh = {
         "identity_prefix": identity,
@@ -642,7 +650,7 @@ def cmd_watch(ns) -> tuple[int, dict]:
     while True:
         state["polls"] += 1
         polls_this_call += 1
-        now = datetime.now(timezone.utc).replace(microsecond=0)
+        now = _clock()
         at_deadline = deadline is not None and now >= deadline
         if at_deadline:
             now = deadline
@@ -766,6 +774,51 @@ def cmd_watch(ns) -> tuple[int, dict]:
                     state["ended_by"] = "quiet"
             if partial:
                 break
+        if (
+            error is None
+            and ns.expect
+            and state["status"] != "ended"
+            and state.get("partial_bin") is None
+            and parse_ts(state["cursor"]) < now
+        ):
+            # the scheduled count reached inside the unsettled tail: every
+            # row has landed, the run ended at the newest - one query over
+            # the tail, its bins on the record unsettled, nothing waited for
+            x = parse_ts(state["cursor"])
+            r = run_az(ai_call(ns.app, kql, iso(x), iso(now)))
+            results.append(r)
+            if not r.ok:
+                error = r
+            else:
+                got = _read_bin(r.data)
+                if got["n"] and state["rows"] + got["n"] >= ns.expect:
+                    t = x
+                    while t < now:
+                        y = min(t + step, now)
+                        entry = {
+                            "from": iso(t),
+                            "to": iso(y),
+                            "listed": None,
+                            "new": None,
+                            "capped": False,
+                            "unsettled": True,
+                        }
+                        if y < t + step:
+                            entry["partial"] = True
+                        state["bins"].append(entry)
+                        t = y
+                    state["bins"][-1]["listed"] = state["bins"][-1]["new"] = got["n"]
+                    _note_identity(state, got)
+                    if state["started"] is None:
+                        state["started"] = got["first"]
+                        state["status"] = "running"
+                    state["rows"] += got["n"]
+                    state["last_row"] = got["last"]
+                    state["cursor"] = iso(now)
+                    state["empty_since"] = 0
+                    state["status"] = "ended"
+                    state["ended"] = got["last"]
+                    state["ended_by"] = "count"
         state["commands"].extend(commands(results[recorded:]))
         recorded = len(results)
         state.pop("deadline_note", None)

@@ -1428,6 +1428,30 @@ def test_watch_scopes_to_the_service_and_the_dimensions_given(fake, tmp_path):
     assert "http.user_agent" in kql and "user_agent.original" not in kql
 
 
+def test_watch_ends_on_the_count_before_the_bins_settle(fake, tmp_path, monkeypatch):
+    """--expect reached inside the unsettled tail: every row has landed, the
+    run ended at the newest right away - one query over the tail, its bins
+    on the record unsettled (the count on the last), nothing waited for."""
+    monkeypatch.setenv("ODD_WATCH_CLOCK", "2026-09-13T08:34:20Z")  # inside the last bin
+    code, o = watch_json(
+        fake,
+        "--expect",
+        "240",
+        "--settle",
+        "10m",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "w.json",
+    )
+    assert code == 0 and o["ended_by"] == "count" and o["settle_s"] == 600
+    assert (
+        o["started"] == "2026-09-13T08:32:07Z" and o["ended"] == "2026-09-13T08:34:06Z"
+    )
+    assert o["rows"] == 241 and o["polls"] == 1
+    assert all(b.get("unsettled") for b in o["bins"]) and o["bins"][-1]["new"] == 241
+    assert len(fake.calls()) == 1  # the tail alone: no bin had closed
+
+
 def test_watch_reads_the_components_real_bin_shapes(fake):
     """The two captured answers the fake replays are the component's own: a
     bin with rows carries the datetimes at 100 ns and the sets as JSON

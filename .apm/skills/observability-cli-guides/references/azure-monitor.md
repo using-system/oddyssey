@@ -220,8 +220,10 @@ non-empty one wins; default `user_agent.original` then
   already in the first polled bin make the watch walk back before
   `--from`, bin by bin to an empty one, so a watch dispatched after the
   run began still dates it from its first row) and then ended -
-  **`--expect` reached: at its last row, the bin holding it closed, no
-  empty bin waited for; `--length` elapsed since the first row: on one
+  **`--expect` reached: at its last row the moment the count is there -
+  one query over the unsettled tail at every poll, every row has landed,
+  so the settle is not waited for either (the tail goes on the record as
+  unsettled bins, the count on the last); `--length` elapsed since the first row: on one
   empty closed bin; neither given, or the run short of both (an abort):
   on `--ended-after` consecutive empty bins** - `Started (UTC)` and
   `Ended (UTC)` are the rows', never the watch's clock, and the `Ended`
