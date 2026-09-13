@@ -3,15 +3,22 @@
 
     python3 run_samples.py --lab <clone> --fake-home <dir> --out <study dir> \\
       --cli opencode --model google/gemini-3.7-flash --phase whole \\
-      base1=lab-main:mission.txt after1=lab-after:mission.txt base2=lab-main:mission.txt
+      base1=lab-main:mission.txt after1=lab-after:mission.txt \\
+      after2=lab-after:mission.txt base2=lab-main:mission.txt
 
-One sample is `<tag>=<lab branch>:<mission file>`. For each, in order:
-the lab is put on the branch and cleared of
+One sample is `<tag>=<lab branch>:<mission file>`, run in the order given:
+the sides alternate and so does the position (ABBA) - a chain where one
+side opens every pair, or a pair holding one side twice, is refused before
+anything launches. For each, in order: the lab is put on the branch and
+cleared of
 what the previous run left (a report branch, a report commit after the
 tip recorded at the chain's start, an untracked report, a rewritten
 opencode.json), `--scratch` is cleared when given; the fake user scope is
 synced from the branch's deploy (`--scope` pairs; opencode's are the
-default) and checked identical; `--before` runs; the measurement is
+default) and checked identical; `--reset-local-stack` wipes the local
+stack's data (the MCP server's own reset, run through this repository's
+project - the second run of a pair otherwise finds the first's driven run
+in its window); `--before` runs; the measurement is
 launched (`--alongside` starts right after it and is waited for); the
 analysis runs; `--after` runs; a run that exits non-zero within 30 s is
 launched once more (`SAMPLE RELAUNCHED <tag> (...)`, a launch that died is
@@ -27,6 +34,7 @@ otherwise - a refused sample never launches.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -75,6 +83,64 @@ def parse_sample(spec: str) -> tuple[str, str, Path]:
     if not tag or not branch or not mission:
         raise SystemExit(f"a sample is tag=branch:mission - got {spec!r}")
     return tag, branch, Path(mission)
+
+
+def check_pair_order(samples: list[tuple[str, str, Path]]) -> None:
+    """The sides alternate and so does the position: base1, after1, after2,
+    base2. Measured 2026-09-13 over five pairs: run second in its pair, the
+    side with no measurable change came out heavier four times out of four -
+    a cause tied to the position cannot be told from the branch unless the
+    position alternates too."""
+    if len({branch for _, branch, _ in samples}) < 2:
+        return
+    pairs = [samples[i : i + 2] for i in range(0, len(samples) - 1, 2)]
+    for first, second in pairs:
+        if first[1] == second[1]:
+            raise SystemExit(
+                f"the pair {first[0]}, {second[0]} holds one side twice ({first[1]}): "
+                "alternate the sides and the position - base1, after1, after2, base2"
+            )
+    if len(pairs) > 1 and len({first[1] for first, _ in pairs}) == 1:
+        raise SystemExit(
+            f"{pairs[0][0][1]} opens every pair: alternate the position too - "
+            "base1, after1, after2, base2 - or a cause tied to the position "
+            "reads as the branch"
+        )
+
+
+def reset_local_stack(out: Path, tag: str) -> tuple[int, list[str]]:
+    """Wipe the local stack's data the way the MCP server does (its own
+    reset, through the repository's project), so a sample never finds the
+    previous one's driven run in its window. Returns the exit code and the
+    services wiped."""
+    project = HERE.parents[3] / "src" / "mcp-server"
+    with (out / f"{tag}.reset.log").open("a", encoding="utf-8") as log:
+        proc = subprocess.run(
+            [
+                "uv",
+                "run",
+                "python",
+                "-c",
+                (
+                    "import json; from app.stack import stack_reset; "
+                    "print(json.dumps(stack_reset()))"
+                ),
+            ],
+            cwd=project,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        log.write(proc.stderr + proc.stdout)
+    wiped: list[str] = []
+    if proc.returncode == 0:
+        try:
+            wiped = list(
+                json.loads(proc.stdout.strip().splitlines()[-1])["services_wiped"]
+            )
+        except (ValueError, KeyError, IndexError, TypeError):
+            wiped = []
+    return proc.returncode, wiped
 
 
 def journal(out: Path, line: str) -> None:
@@ -177,6 +243,12 @@ def main() -> int:
     ap.add_argument("--effort", default="medium")
     ap.add_argument("--timeout", type=int, default=2700)
     ap.add_argument(
+        "--reset-local-stack",
+        action="store_true",
+        help="wipe the local stack's data before each sample (the MCP server's "
+        "own reset), so no run finds the previous sample's traffic in its window",
+    )
+    ap.add_argument(
         "--before",
         help="a command run before each launch (the demo stack, a traffic burst)",
     )
@@ -200,6 +272,7 @@ def main() -> int:
     for _, _, mission in samples:
         if not mission.is_file():
             raise SystemExit(f"no such mission file: {mission}")
+    check_pair_order(samples)
     scopes = list(DEFAULT_SCOPES.get(args.cli, []))
     for pair in args.scope or []:
         if ":" not in pair:
@@ -241,6 +314,15 @@ def main() -> int:
             "LAB": str(lab),
             "FAKE_HOME": str(home),
         }
+        if args.reset_local_stack:
+            code, wiped = reset_local_stack(out, tag)
+            if code != 0:
+                journal(out, f"SAMPLE FAILED {tag} (local stack reset exit {code})")
+                continue
+            journal(
+                out,
+                f"reset the local stack before {tag}: wiped {', '.join(wiped) or 'nothing'}",
+            )
         before = run_hook(args.before, env, out, tag, "before")
         if before is not None and before.wait() != 0:
             journal(out, f"SAMPLE FAILED {tag} (before hook exit {before.returncode})")
