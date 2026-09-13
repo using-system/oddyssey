@@ -267,8 +267,9 @@ any call.
   in the first polled bin make the watch walk back before `--from`, bin
   by bin to an empty one in one more call, so a watch dispatched after
   the run began still dates it from its first trace) and then ended -
-  **`--expect` reached: at its last trace, the bin holding it closed, no
-  empty bin waited for; `--length` elapsed since the first trace: on one
+  **`--expect` reached: at its newest trace the moment the count is
+  there - every trace has landed, so the settle is not waited for either
+  (the tail's bins go on the record unsettled); `--length` elapsed since the first trace: on one
   empty closed bin; neither given, or the run short of both (an abort):
   on `--ended-after` consecutive empty bins** - `Started (UTC)` and
   `Ended (UTC)` are the traces', never the watch's clock, and the

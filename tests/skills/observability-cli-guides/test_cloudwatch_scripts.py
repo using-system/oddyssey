@@ -1492,6 +1492,30 @@ def test_watch_ends_the_run_on_the_manifests_schedule_without_waiting(fake, tmp_
     assert code == 0 and o["ended_by"] == "quiet" and o["empty_since_last_row"] == 4
 
 
+def test_watch_ends_on_the_count_before_the_bins_settle(fake, tmp_path, monkeypatch):
+    """--expect reached inside the unsettled tail: every trace has landed,
+    the run ended at the newest right away - the tail's bins recorded
+    unsettled, nothing waits for them to close."""
+    monkeypatch.setenv("ODD_WATCH_CLOCK", "2026-09-13T08:34:20Z")  # inside the last bin
+    code, o = watch_json(
+        fake,
+        "--expect",
+        "240",
+        "--settle",
+        "10m",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "w.json",
+    )
+    assert code == 0 and o["ended_by"] == "count" and o["settle_s"] == 600
+    assert (
+        o["started"] == "2026-09-13T08:32:07Z" and o["ended"] == "2026-09-13T08:34:06Z"
+    )
+    assert o["rows"] == 241 and o["polls"] == 1
+    assert all(b.get("unsettled") for b in o["bins"] if b["new"])
+    assert len(fake.calls()) == 1
+
+
 def test_watch_reads_the_stores_real_answer_shapes(fake):
     full = json.loads(json.loads((FIXTURES / "watch_bin.json").read_text())["stdout"])
     empty = json.loads(
