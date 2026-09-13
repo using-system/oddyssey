@@ -16,7 +16,7 @@ CLI reference pages (`/cli/azure/...`) return raw markdown when
 `?view=azure-cli-latest&accept=text/markdown` is appended to the URL;
 the conceptual pages do not.
 
-Verified live 2026-09-11, azure-cli 2.89.1 with the application-insights 1.2.3 and log-analytics 1.0.0b1 extensions, against a live subscription carrying real data - an Application Insights component fed by an OpenTelemetry Collector (a service on Azure Container Apps driven continuously, about 1 700 requests per 15 minutes with failures, with requests, dependencies, traces and customMetrics; exceptions present as an empty table only) and its Log Analytics workspace (ContainerAppConsoleLogs_CL, ContainerAppSystemLogs_CL) and the container apps' platform metrics; every script invocation below run over 15-minute windows between 10:35 and 11:10 UTC (24-hour windows where the bullet says so); the connection proof's wrong-value shapes (an unknown appId, a resource name) exercised, its identity-failure and rights-failure shapes not (marked below); the first-use extension install not re-observed (both extensions present).
+Verified live 2026-09-11, azure-cli 2.89.1 with the application-insights 1.2.3 and log-analytics 1.0.0b1 extensions, against a live subscription carrying real data - an Application Insights component fed by an OpenTelemetry Collector (a service on Azure Container Apps driven continuously, about 1 700 requests per 15 minutes with failures, with requests, dependencies, traces and customMetrics; exceptions present as an empty table only) and its Log Analytics workspace (ContainerAppConsoleLogs_CL, ContainerAppSystemLogs_CL) and the container apps' platform metrics; every script invocation below run over 15-minute windows between 10:35 and 11:10 UTC (24-hour windows where the bullet says so); the connection proof's wrong-value shapes (an unknown appId, a resource name) exercised, its identity-failure and rights-failure shapes not (marked below); the first-use extension install not re-observed (both extensions present). `traces watch` verified live 2026-09-13 on the same component and CLI, its bullet stating the pass.
 
 ## CLI binary
 
@@ -153,16 +153,26 @@ python3 <Skills>/observability-cli-guides/scripts/azure-monitor-traces.py operat
 python3 <Skills>/observability-cli-guides/scripts/azure-monitor-traces.py dependencies --app <app_insights_app> --service <svc> --since 30m
 python3 <Skills>/observability-cli-guides/scripts/azure-monitor-traces.py exemplars --app <app_insights_app> --service <svc> --slow 3 --failed 3 --since 30m
 python3 <Skills>/observability-cli-guides/scripts/azure-monitor-traces.py trace <operation_Id> --app <app_insights_app> --from <start> --to <end>
+python3 <Skills>/observability-cli-guides/scripts/azure-monitor-traces.py watch --app <app_insights_app> --identity <the run's User-Agent prefix> --from <dispatch instant> --state <scratch>/<slug>-watch.json [--to <deadline>] [--bin 30s] [--ended-after 4] [--settle 120s] [--every 30s] [--max 8m] [--service <svc>]... [--dimension <customDimensions key>]... [--json]
 ```
 
 Whole surface: every subcommand takes `--app`, a window (`trace` defaults
-to the last 24h when none is given), `--json`; `operations`,
-`dependencies` and `exemplars` take `--service`; `operations` adds `--top`
+to the last 24h when none is given; `watch` takes `--from` and an
+optional `--to`, the deadline), `--json`; `operations`,
+`dependencies`, `exemplars` and `watch` take `--service`; `operations` adds `--top`
 (rows, default 20) and `--bin <duration>` (adds the request count,
 failures and p95 per time bucket); `exemplars` adds `--operation <request
 name>` (repeatable), `--slow N` (the slowest requests, default 3),
 `--failed N` (the newest failed requests, default 3); `trace` takes the
-`operation_Id`.
+`operation_Id`; `watch` takes `--identity` (the prefix, matched with
+`startswith`), `--state` (its state file), `--bin` (default 30s),
+`--ended-after` (empty closed bins that end a started run, default 4),
+`--settle` (a bin closes once its end is this old, default 120s),
+`--every` (between polls, default 30s), `--max` (one call's bound,
+default 8m; `0s` is one whole poll), `--dimension` (the
+`customDimensions` key the identity is read from, repeatable, the first
+non-empty one wins; default `user_agent.original` then
+`http.user_agent`).
 
 - `operations` - Output: one row per service and request `name` - `n`,
   `failed` (`success == false`), `failed_codes` (`resultCode` counts of
@@ -194,6 +204,58 @@ name>` (repeatable), `--slow N` (the slowest requests, default 3),
   without a parent in the set - the caller's client span when the caller
   is instrumented too. Verified 2026-09-11 (a three-span, two-log trace
   across two services); an unknown id prints `(no rows ...)` with exit 0.
+- `watch` - a run someone else drives, polled on its identity (the
+  manifest's User-Agent prefix, `startswith` on
+  `customDimensions['user_agent.original']`, `http.user_agent` where the
+  service exports the old HTTP semconv - both read in the same query,
+  `--dimension` overrides) from the instant polling starts - the
+  dispatch, never the announced start - one `summarize` per closed
+  `--bin` (a bin closes once its end is `--settle` old: the count, the
+  first and last row, the identity values and the dimension they were
+  read from, in that one call - never a second query per row), until the
+  run has started (its first row, exact to the row's own timestamp -
+  rows already in the first polled bin make the watch walk back before
+  `--from`, bin by bin to an empty one, so a watch dispatched after the
+  run began still dates it from its first row) and then ended on
+  `--ended-after` consecutive empty bins: `Started (UTC)` and `Ended
+  (UTC)` are the rows', never the watch's clock. `--settle 120s` is the
+  ingestion lag measured 2026-09-13 over 24 h of the component's rows
+  (161 k: p50 6 s, p99 18 s, max 112 s - `ingestion_time() - timestamp`);
+  the end therefore comes `--ended-after` x `--bin` + `--settle` after
+  the last row. `--max` bounds one call, between and inside its polls
+  (`0s` is one whole poll). A deadline off the bin grid clips the last
+  bin: read for the start and the rows, kept apart as `partial_bin` and
+  read again whole on the next call, never a closed bin. Exit 0 ended, 3
+  still running at `--max` or `--to` (the deadline past which "no run
+  observed" is the answer), 4 not started there, 1 on an `az` error (the
+  bin stays unread) - the same invocation again resumes it from
+  `--state`, the last closed bin onward, never re-querying what it
+  already counted. At the deadline the last `--settle` is read unsettled
+  rather than skipped, so a run that began inside it is never "not
+  started"; a deadline closer to the last row than `--ended-after` x
+  `--bin` + `--settle` cannot close the run, and the output says how much
+  further `--to` must go. The identity values are every value the rows
+  carried: two values are two runs, and the output says so. Every poll
+  goes to the component; nothing is sent at the service. Verified
+  2026-09-13 live on two driven runs of one benchmark (2 req/s, 2 min
+  each, one quiet minute between): `Started`/`Ended` exact to the
+  driver's record on a watch dispatched before the run and on one
+  dispatched a minute into it (three bins walked back), the two
+  identities read off the prefix watch, 240 rows counted per run. The
+  text form prints the record's `Started (UTC):`, `Ended (UTC):`,
+  `Identity:` and `Watch:` lines as they go on the run record, and the
+  bins' queries folded into one line (the window as placeholders, the
+  count said).
+
+Output: `watch` - `identity_prefix, poll_from, from, to, bin, every,
+ended_after, settle, status (not started, running, ended), started,
+ended, last_row, span_s, identity[], identity_attr, several_identities,
+empty_since_last_row, walked_back, deadline_note, bins[{from, to,
+listed, new, capped, unsettled, partial}], partial_bin{...} or null,
+capped_bins, polls, polls_this_call, last_poll, state, note, failed[],
+commands[]` - the text form above; `capped` is never true and `new`
+equals `listed` (a count, never a listing - a request row falls in one
+bin).
 
 ### Metrics
 
