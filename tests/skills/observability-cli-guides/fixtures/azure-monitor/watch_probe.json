@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "requests | extend odd_lag = (ingestion_time() - timestamp) / 1s | summarize n=count(), lag_p99=percentile(odd_lag, 99), lag_max=max(odd_lag)",
+  "--start-time",
+  "2026-09-13T08:21:36Z",
+  "--end-time",
+  "2026-09-13T08:31:36Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"n\",\n          \"type\": \"long\"\n        },\n        {\n          \"name\": \"lag_p99\",\n          \"type\": \"real\"\n        },\n        {\n          \"name\": \"lag_max\",\n          \"type\": \"real\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          1152,\n          14.2261152,\n          17.2321066\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stderr": ""
+}

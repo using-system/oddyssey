@@ -102,7 +102,7 @@ if os.environ.get("FAKE_WATCH") == "1" and "startswith" in kql and "summarize" i
     if rows:
         case = json.load(open(os.path.join(F, "watch_bin.json")))
         ids = sorted({r[1] for r in rows}); dims = sorted({r[2] for r in rows})
-        row = [len(rows), rows[0][0], rows[-1][0], json.dumps(ids), json.dumps(dims)]
+        row = [len(rows), rows[0][0], rows[-1][0], json.dumps(ids), json.dumps(dims), max(r[3] for r in rows)]
     else:
         case = json.load(open(os.path.join(F, "watch_empty.json")))
         row = None
@@ -110,6 +110,10 @@ if os.environ.get("FAKE_WATCH") == "1" and "startswith" in kql and "summarize" i
     if row is not None:
         out["tables"][0]["rows"] = [row]
     sys.stdout.write(json.dumps(out)); sys.exit(0)
+if os.environ.get("FAKE_WATCH") == "1" and "lag_p99" in kql:
+    # the lag probe at the first poll: the captured answer as it is
+    case = json.load(open(os.path.join(F, "watch_probe.json")))
+    sys.stdout.write(case["stdout"]); sys.exit(0)
 path = os.path.join(F, key + ".json")
 if not os.path.exists(path):
     sys.stderr.write("ERROR: no fixture " + key + " for " + json.dumps(args) + "\n")
@@ -940,6 +944,7 @@ def test_watch_finds_the_runs_span_and_ends_it_on_empty_bins(fake, tmp_path):
     calls = fake.calls()
     assert len(calls) == 10  # 08:31:36 .. 08:36:06, one query per bin, nothing else
     assert all("startswith" in c[c.index("--analytics-query") + 1] for c in calls)
+    assert o["settle"] == "0s" and o["settle_s"] == 0 and o["lag_probe"] is None
     assert all("<app_insights_app>" in c for c in o["commands"])
 
 
@@ -1262,6 +1267,116 @@ def test_watch_an_az_error_inside_the_walk_back_leaves_the_first_bin_unread(
     assert sum(b["new"] for b in o["bins"]) == 241
 
 
+def test_watch_settles_on_the_ingestion_lag_it_measures(fake, tmp_path):
+    """--settle auto (the default): one probe of the component's lag at the
+    first poll, then the run's own rows' lag bin by bin; a bin closes once
+    its end is older than the largest lag observed plus one bin, recomputed
+    at every poll - never a constant."""
+    code, o = watch_json(
+        fake,
+        "--settle",
+        "auto",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "w.json",
+    )
+    assert code == 0 and o["status"] == "ended"
+    assert o["settle"] == "auto"
+    probe = o["lag_probe"]
+    assert probe["n"] == 1152 and probe["max_s"] == 17.23 and probe["p99_s"] == 14.23
+    assert o["lag_max_s"] == 17.23  # the run's rows (11.1 s at most) never lagged more
+    assert o["settle_s"] == 48  # ceil(17.23) + one 30 s bin
+    assert (
+        o["ended"] == "2026-09-13T08:34:06Z" and sum(b["new"] for b in o["bins"]) == 241
+    )
+    calls = fake.calls()
+    assert len(calls) == 11  # the probe, then one query per bin
+    first = calls[0][calls[0].index("--analytics-query") + 1]
+    assert "lag_p99" in first and "startswith" not in first
+    assert all("lag_max" in c[c.index("--analytics-query") + 1] for c in calls[1:])
+    text = watch(
+        fake,
+        "--settle",
+        "auto",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "v.json",
+    ).stdout
+    assert "settle 48 s (auto: ingestion lag max 17.23 s on 1152 rows" in text
+    # a fixed duration probes nothing and stays what it was given
+    before = len(fake.calls())
+    code, o = watch_json(
+        fake,
+        "--settle",
+        "90s",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "x.json",
+    )
+    assert o["settle"] == "90s" and o["settle_s"] == 90 and o["lag_probe"] is None
+    assert not any(
+        "lag_p99" in c[c.index("--analytics-query") + 1] for c in fake.calls()[before:]
+    )
+
+
+def test_watch_ends_the_run_on_the_manifests_schedule_without_waiting(fake, tmp_path):
+    """--expect: the scheduled count landed, the run ended at its last row
+    as soon as that bin closed - no empty bin. --length: past the scheduled
+    length from the first row, one empty closed bin ends it. Without
+    either, the four empty bins of a run with no schedule."""
+    code, o = watch_json(
+        fake,
+        "--expect",
+        "240",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "w.json",
+    )
+    assert code == 0 and o["ended_by"] == "count"
+    assert o["ended"] == "2026-09-13T08:34:06Z" and o["rows"] == 241
+    assert [b["from"][11:19] for b in o["bins"]][
+        -1
+    ] == "08:34:06"  # the bin of the 240th row
+    assert len(o["bins"]) == 6 and o["empty_since_last_row"] == 0
+    text = watch(
+        fake,
+        "--expect",
+        "240",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "v.json",
+    ).stdout
+    assert (
+        "Ended   (UTC): 2026-09-13T08:34:06Z   # last request row; the scheduled 240 rows landed (241 counted)"
+        in text
+    )
+    code, o = watch_json(
+        fake,
+        "--length",
+        "2m",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "x.json",
+    )
+    assert code == 0 and o["ended_by"] == "schedule"
+    assert o["ended"] == "2026-09-13T08:34:06Z" and o["empty_since_last_row"] == 1
+    assert [b["from"][11:19] for b in o["bins"]][
+        -1
+    ] == "08:34:36"  # the one empty bin past 08:34:07
+    # short of the count and the length (an aborted run), the quiet criterion still ends it
+    code, o = watch_json(
+        fake,
+        "--expect",
+        "999",
+        "--length",
+        "1h",
+        "--to",
+        "2026-09-13T08:45:36Z",
+        state=tmp_path / "y.json",
+    )
+    assert code == 0 and o["ended_by"] == "quiet" and o["empty_since_last_row"] == 4
+
+
 def test_watch_keeps_a_clipped_deadline_bin_apart_and_never_duplicates_it(
     fake, tmp_path
 ):
@@ -1322,11 +1437,27 @@ def test_watch_reads_the_components_real_bin_shapes(fake):
         json.loads((FIXTURES / "watch_empty.json").read_text())["stdout"]
     )
     names = [c["name"] for c in full["tables"][0]["columns"]]
-    assert names == ["n", "first_row", "last_row", "identities", "dimensions"]
+    assert names == [
+        "n",
+        "first_row",
+        "last_row",
+        "identities",
+        "dimensions",
+        "lag_max",
+    ]
     row = full["tables"][0]["rows"][0]
     assert isinstance(row[3], str) and json.loads(row[3])[0].startswith(WATCH_PREFIX)
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", row[1])
-    assert empty["tables"][0]["rows"] == [[0, None, None, "[]", "[]"]]
+    assert isinstance(row[5], float) and 0 < row[5] < 120
+    assert empty["tables"][0]["rows"] == [[0, None, None, "[]", "[]", None]]
+    probe = json.loads(
+        json.loads((FIXTURES / "watch_probe.json").read_text())["stdout"]
+    )
+    assert [c["name"] for c in probe["tables"][0]["columns"]] == [
+        "n",
+        "lag_p99",
+        "lag_max",
+    ]
 
 
 def test_watch_stated_keys_match_the_output(fake, tmp_path):

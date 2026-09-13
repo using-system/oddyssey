@@ -18,13 +18,20 @@ time bucket). exemplars adds --operation (the request name, repeatable),
 requests, default 3). trace takes the operation_Id. watch takes --identity
 (the run's User-Agent prefix, matched with startswith), --state (its state
 file; the same invocation again resumes it), --bin (default 30s),
---ended-after (empty closed bins that end a started run, default 4),
---settle (a bin closes once its end is this old, default 120s - the
-ingestion lag measured on 2026-09-13 over 24 h of rows: p99 18 s, max
-112 s), --every (between polls, default 30s), --max (one call's bound,
-default 8m; 0s is one whole poll), --dimension (the customDimensions key
-the identity is read from, repeatable, the first non-empty one wins;
-default user_agent.original then http.user_agent). Exit 0 (watch: ended),
+--ended-after (empty closed bins that end a started run with no schedule
+to read, default 4), --settle (a bin closes once its end is this old;
+default auto: the largest ingestion lag observed - one probe of the
+component's rows over the 10 minutes before the dispatch, then the run's
+own rows bin by bin - plus one bin, recomputed at every poll), --length
+(the manifest's scheduled length: once it has elapsed since the first
+row, one empty closed bin ends the run), --expect (the manifest's
+scheduled request count: reached, the run ended at its last row, no empty
+bin needed), --every (the floor between two polls, default 5s - the watch
+wakes when the next bin can close, never on a fixed clock), --max (one
+call's bound, default 8m; 0s is one whole poll), --dimension (the
+customDimensions key the identity is read from, repeatable, the first
+non-empty one wins; default user_agent.original then http.user_agent).
+Exit 0 (watch: ended),
 1 when a query failed (the failure is in the output; a watch leaves that
 bin unread for the next call), watch 3 still running at --max or --to, 4
 not started there.
@@ -42,6 +49,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import time
@@ -453,7 +461,17 @@ def _watch_kql(ns, dimensions: tuple[str, ...]) -> str:
         f"{_identity_expr(dimensions)}"
         f"| where odd_identity startswith {kql_str(ns.identity)} "
         "| summarize n=count(), first_row=min(timestamp), last_row=max(timestamp), "
-        "identities=make_set(odd_identity), dimensions=make_set(odd_dimension)"
+        "identities=make_set(odd_identity), dimensions=make_set(odd_dimension), "
+        "lag_max=max((ingestion_time() - timestamp) / 1s)"
+    )
+
+
+def _probe_kql(ns) -> str:
+    """The component's ingestion lag right now, on every row of the service."""
+    return (
+        f"requests {kql_in('cloud_RoleName', ns.service or [])}"
+        "| extend odd_lag = (ingestion_time() - timestamp) / 1s "
+        "| summarize n=count(), lag_p99=percentile(odd_lag, 99), lag_max=max(odd_lag)"
     )
 
 
@@ -486,6 +504,7 @@ def _read_bin(data) -> dict:
         "last": _row_ts(r.get("last_row")),
         "identities": sorted(_set(r.get("identities"))),
         "dimensions": sorted(_set(r.get("dimensions"))),
+        "lag": float(r["lag_max"]) if r.get("lag_max") is not None else None,
     }
 
 
@@ -504,6 +523,9 @@ def _load_watch_state(path: str | None, identity: str, frm: str, bin_: str) -> d
         "identity_attr": None,
         "walked_back": 0,
         "polls": 0,
+        "rows": 0,
+        "lag_max_s": None,
+        "lag_probe": None,
         "status": "not started",
         "commands": [],
     }
@@ -536,6 +558,16 @@ def _note_identity(state: dict, got: dict) -> None:
     state["identity"] = sorted(set(state["identity"]) | set(got["identities"]))
     if got["dimensions"] and state["identity_attr"] is None:
         state["identity_attr"] = got["dimensions"][0]
+    if got.get("lag") is not None:
+        state["lag_max_s"] = max(state.get("lag_max_s") or 0.0, got["lag"])
+
+
+def _settle_seconds(ns, state: dict, step: timedelta) -> int:
+    """The settle in force: the flag's duration, or the largest ingestion
+    lag observed so far plus one bin (one bin alone before any row)."""
+    if ns.settle != "auto":
+        return parse_duration(ns.settle)
+    return math.ceil(state.get("lag_max_s") or 0.0) + int(step.total_seconds())
 
 
 def _walk_back(ns, kql: str, first_bin_start, step, limit: int = 20):
@@ -568,6 +600,7 @@ def _walk_back(ns, kql: str, first_bin_start, step, limit: int = 20):
         if got["n"]:
             earliest = got["first"]
             identities.append(got)
+            bins[0]["rows"] = got["n"]
         else:
             break
         y = x
@@ -592,9 +625,13 @@ def cmd_watch(ns) -> tuple[int, dict]:
     step = timedelta(seconds=parse_duration(ns.bin))
     if step.total_seconds() <= 0:
         usage("--bin must be a positive duration")
-    settle = timedelta(seconds=parse_duration(ns.settle))
+    if ns.settle != "auto":
+        parse_duration(ns.settle)
     every = parse_duration(ns.every)
     bound = parse_duration(ns.max)
+    length = timedelta(seconds=parse_duration(ns.length)) if ns.length else None
+    if ns.expect is not None and ns.expect <= 0:
+        usage("--expect must be a positive count")
     dimensions = tuple(ns.dimension) if ns.dimension else IDENTITY_DIMENSIONS
     kql = _watch_kql(ns, dimensions)
     state = _load_watch_state(ns.state, ns.identity, iso(frm), ns.bin)
@@ -610,13 +647,41 @@ def cmd_watch(ns) -> tuple[int, dict]:
         at_deadline = deadline is not None and now >= deadline
         if at_deadline:
             now = deadline
-        # a bin closes once its end is --settle old; at the deadline the
-        # last --settle is read all the same, flagged unsettled, so a run
+        error = None
+        if ns.settle == "auto" and state["lag_probe"] is None:
+            # the component's lag right now, once, before the first bin
+            r = run_az(
+                ai_call(
+                    ns.app, _probe_kql(ns), iso(now - timedelta(minutes=10)), iso(now)
+                )
+            )
+            results.append(r)
+            if not r.ok:
+                error = r
+            else:
+                rows = ai_rows(r.data)
+                p = rows[0] if rows else {}
+                state["lag_probe"] = {
+                    "window": [iso(now - timedelta(minutes=10)), iso(now)],
+                    "n": int(p.get("n") or 0),
+                    "p99_s": round(float(p["lag_p99"]), 2)
+                    if p.get("lag_p99") is not None
+                    else None,
+                    "max_s": round(float(p["lag_max"]), 2)
+                    if p.get("lag_max") is not None
+                    else None,
+                }
+                if state["lag_probe"]["max_s"] is not None:
+                    state["lag_max_s"] = max(
+                        state.get("lag_max_s") or 0.0, state["lag_probe"]["max_s"]
+                    )
+        settle = timedelta(seconds=_settle_seconds(ns, state, step))
+        # a bin closes once its end is the settle old; at the deadline the
+        # last settle is read all the same, flagged unsettled, so a run
         # that began inside it is never reported "not started"
         horizon = now if at_deadline else now - settle
         cursor = parse_ts(state["cursor"])
-        error = None
-        while cursor < horizon and state["status"] != "ended":
+        while error is None and cursor < horizon and state["status"] != "ended":
             if bound and recorded_bins and time.monotonic() - began >= bound:
                 break  # --max binds the call, inside a poll as between two
             recorded_bins += 1
@@ -672,57 +737,89 @@ def cmd_watch(ns) -> tuple[int, dict]:
                     first = earlier["first"]
                     for g in earlier["identities"]:
                         _note_identity(state, g)
+                        state["rows"] += g["n"]
                 if state["started"] is None:
                     state["started"] = first
                     state["status"] = "running"
                 _note_identity(state, got)
+                if not partial:
+                    state["rows"] += got["n"]
                 if state["last_row"] is None or got["last"] >= state["last_row"]:
                     state["last_row"] = got["last"]
                 state["empty_since"] = 0
-            elif state["started"] is not None and not partial:
-                state["empty_since"] += 1
-                if state["empty_since"] >= ns.ended_after:
+                if not partial and ns.expect and state["rows"] >= ns.expect:
+                    # the scheduled count has landed: the run ended at its
+                    # last row, no empty bin needed
                     state["status"] = "ended"
                     state["ended"] = state["last_row"]
+                    state["ended_by"] = "count"
+            elif state["started"] is not None and not partial:
+                state["empty_since"] += 1
+                scheduled_end = parse_ts(state["started"]) + length if length else None
+                if scheduled_end and x >= scheduled_end:
+                    # past the scheduled length, one empty closed bin ends it
+                    state["status"] = "ended"
+                    state["ended"] = state["last_row"]
+                    state["ended_by"] = "schedule"
+                elif state["empty_since"] >= ns.ended_after:
+                    state["status"] = "ended"
+                    state["ended"] = state["last_row"]
+                    state["ended_by"] = "quiet"
             if partial:
                 break
         state["commands"].extend(commands(results[recorded:]))
         recorded = len(results)
         state.pop("deadline_note", None)
+        settle_s = int(settle.total_seconds())
         if error is not None:
             _save_watch_state(ns.state, state)
-            return 1, _watch_out(state, ns, now, polls_this_call, failures([error]))
+            return 1, _watch_out(
+                state, ns, now, polls_this_call, settle_s, failures([error])
+            )
         if state["status"] == "ended":
             _save_watch_state(ns.state, state)
-            return 0, _watch_out(state, ns, now, polls_this_call)
+            return 0, _watch_out(state, ns, now, polls_this_call, settle_s)
         if at_deadline:
             need = ns.ended_after - state["empty_since"]
             if state["started"] and state["empty_since"]:
                 state["deadline_note"] = (
                     f"the deadline closes {state['empty_since']} of the {ns.ended_after} "
                     f"empty {ns.bin} bins the end needs: extend --to past the last row by "
-                    f"{ns.ended_after} x {ns.bin} + {ns.settle} ({need * int(step.total_seconds())} s more)"
+                    f"{ns.ended_after} x {ns.bin} + {settle_s}s ({need * int(step.total_seconds())} s more)"
                 )
             elif state["started"]:
                 state["deadline_note"] = (
                     "the run was still producing rows at the deadline: extend --to past "
-                    f"its end by {ns.ended_after} x {ns.bin} + {ns.settle}"
+                    f"its end by {ns.ended_after} x {ns.bin} + {settle_s}s"
                 )
             else:
                 state["deadline_note"] = (
-                    f"no row on the identity up to the deadline (the last {ns.settle} read "
+                    f"no row on the identity up to the deadline (the last {settle_s}s read "
                     "unsettled): no run observed in the window"
                 )
         _save_watch_state(ns.state, state)
         if at_deadline or time.monotonic() - began >= bound:
             return (3 if state["started"] else 4), _watch_out(
-                state, ns, now, polls_this_call
+                state, ns, now, polls_this_call, settle_s
             )
-        time.sleep(every)
+        # wake when the next bin can close - its end plus the settle - never
+        # on a fixed clock; --every is the floor, --max and --to the ceiling
+        wake = parse_ts(state["cursor"]) + step + settle
+        wait = (wake - datetime.now(timezone.utc)).total_seconds()
+        if deadline is not None:
+            wait = min(wait, (deadline - datetime.now(timezone.utc)).total_seconds())
+        if bound:
+            wait = min(wait, bound - (time.monotonic() - began))
+        time.sleep(max(every, wait, 0))
 
 
 def _watch_out(
-    state: dict, ns, now, polls_this_call: int, failed: list | None = None
+    state: dict,
+    ns,
+    now,
+    polls_this_call: int,
+    settle_s: int,
+    failed: list | None = None,
 ) -> dict:
     started, ended = state.get("started"), state.get("ended")
     span = None
@@ -737,6 +834,13 @@ def _watch_out(
         "every": ns.every,
         "ended_after": ns.ended_after,
         "settle": ns.settle,
+        "settle_s": settle_s,
+        "lag_max_s": state.get("lag_max_s"),
+        "lag_probe": state.get("lag_probe"),
+        "length": ns.length,
+        "expect": ns.expect,
+        "rows": state.get("rows", 0),
+        "ended_by": state.get("ended_by"),
         "status": state["status"],
         "started": started,
         "ended": ended,
@@ -773,9 +877,11 @@ def render_watch(o: dict) -> str:
             )
         )
     if o["ended"]:
-        out.append(
-            f"Ended   (UTC): {o['ended']}   # last request row; {o['ended_after']} empty {o['bin']} bin(s) after it"
-        )
+        why = {
+            "count": f"the scheduled {o['expect']} rows landed ({o['rows']} counted)",
+            "schedule": f"one empty {o['bin']} bin past the scheduled {o['length']}",
+        }.get(o.get("ended_by"), f"{o['ended_after']} empty {o['bin']} bin(s) after it")
+        out.append(f"Ended   (UTC): {o['ended']}   # last request row; {why}")
     elif o["started"]:
         out.append(
             f"last row {o['last_row']}, {o['empty_since_last_row']} empty {o['bin']} bin(s) since (ends at {o['ended_after']})"
@@ -798,6 +904,23 @@ def render_watch(o: dict) -> str:
             f"; state {o['state']}"
             if o.get("state")
             else "; no --state: this call holds the whole watch"
+        )
+    )
+    probe = o.get("lag_probe")
+    out.append(
+        f"settle {o['settle_s']} s "
+        + (
+            f"(auto: ingestion lag max {probe['max_s']} s on {probe['n']} rows in the 10 min before the dispatch"
+            + (
+                f", {o['lag_max_s']} s at most on the run's rows"
+                if o.get("lag_max_s") is not None
+                and probe.get("max_s") is not None
+                and o["lag_max_s"] > probe["max_s"]
+                else ""
+            )
+            + f", plus one {o['bin']} bin)"
+            if o["settle"] == "auto" and probe
+            else f"({o['settle']})"
         )
     )
     with_rows = [b for b in o["bins"] if b.get("new")]
@@ -874,8 +997,10 @@ def main() -> int:
     w.add_argument("--to", help="the deadline, RFC3339 UTC (default: none)")
     w.add_argument("--bin", default="30s")
     w.add_argument("--ended-after", type=int, default=4)
-    w.add_argument("--settle", default="120s")
-    w.add_argument("--every", default="30s")
+    w.add_argument("--settle", default="auto")
+    w.add_argument("--length", help="the manifest's scheduled length, a duration")
+    w.add_argument("--expect", type=int, help="the manifest's scheduled request count")
+    w.add_argument("--every", default="5s")
     w.add_argument("--max", default="8m")
     w.add_argument("--state", help="the watch's state file; a later call resumes it")
     w.add_argument("--dimension", action="append")

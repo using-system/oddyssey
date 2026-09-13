@@ -6,7 +6,7 @@
   "--app",
   "aaaaaaaa-0000-0000-0000-00000000000a",
   "--analytics-query",
-  "requests | extend odd_identity = iff(isempty(tostring(customDimensions['user_agent.original'])), tostring(customDimensions['http.user_agent']), tostring(customDimensions['user_agent.original'])), odd_dimension = iff(isempty(tostring(customDimensions['user_agent.original'])), 'http.user_agent', 'user_agent.original') | where odd_identity startswith 'odd-bench/orders-api-watch-load/run-a' | summarize n=count(), first_row=min(timestamp), last_row=max(timestamp), identities=make_set(odd_identity), dimensions=make_set(odd_dimension)",
+  "requests | extend odd_identity = iff(isempty(tostring(customDimensions['user_agent.original'])), tostring(customDimensions['http.user_agent']), tostring(customDimensions['user_agent.original'])), odd_dimension = iff(isempty(tostring(customDimensions['user_agent.original'])), 'http.user_agent', 'user_agent.original') | where odd_identity startswith 'odd-bench/orders-api-watch-load/run-a' | summarize n=count(), first_row=min(timestamp), last_row=max(timestamp), identities=make_set(odd_identity), dimensions=make_set(odd_dimension), lag_max=max((ingestion_time() - timestamp) / 1s)",
   "--start-time",
   "2026-09-13T08:32:36Z",
   "--end-time",
@@ -15,6 +15,6 @@
   "json"
  ],
  "code": 0,
- "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"n\",\n          \"type\": \"long\"\n        },\n        {\n          \"name\": \"first_row\",\n          \"type\": \"datetime\"\n        },\n        {\n          \"name\": \"last_row\",\n          \"type\": \"datetime\"\n        },\n        {\n          \"name\": \"identities\",\n          \"type\": \"dynamic\"\n        },\n        {\n          \"name\": \"dimensions\",\n          \"type\": \"dynamic\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          60,\n          \"2026-09-13T08:32:36.4943812Z\",\n          \"2026-09-13T08:33:05.9931208Z\",\n          \"[\\\"odd-bench/orders-api-watch-load/run-a\\\"]\",\n          \"[\\\"user_agent.original\\\"]\"\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"n\",\n          \"type\": \"long\"\n        },\n        {\n          \"name\": \"first_row\",\n          \"type\": \"datetime\"\n        },\n        {\n          \"name\": \"last_row\",\n          \"type\": \"datetime\"\n        },\n        {\n          \"name\": \"identities\",\n          \"type\": \"dynamic\"\n        },\n        {\n          \"name\": \"dimensions\",\n          \"type\": \"dynamic\"\n        },\n        {\n          \"name\": \"lag_max\",\n          \"type\": \"real\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          60,\n          \"2026-09-13T08:32:36.4943812Z\",\n          \"2026-09-13T08:33:05.9931208Z\",\n          \"[\\\"odd-bench/orders-api-watch-load/run-a\\\"]\",\n          \"[\\\"user_agent.original\\\"]\",\n          7.8383866\n        ]\n      ]\n    }\n  ]\n}\n",
  "stderr": ""
 }

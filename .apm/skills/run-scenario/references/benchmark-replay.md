@@ -176,8 +176,11 @@ discovered, and k6's evidence is the driver's.
 - **The watch is the backend's script.** When the backend's reference
   ships a watch of a driven run (its traces section), run it on the
   manifest's User-Agent prefix from the moment you are dispatched, with
-  the mission's window end as the deadline and a state file in your
-  scratch directory; run the same invocation again when a call's budget
+  the mission's window end as the deadline, a state file in your
+  scratch directory and, where its reference states it takes them, the
+  manifest's scheduled length and request count (the profile's duration
+  and its expected arrivals) - the watch ends the run on them without
+  waiting out the quiet; run the same invocation again when a call's budget
   cuts it — it resumes from its state. What it found goes on the
   record's `Started (UTC):`, `Ended (UTC):`, `Identity:` and `Watch:`
   lines, its queries on the record with the others; the `Poller:` line
@@ -200,10 +203,14 @@ discovered, and k6's evidence is the driver's.
   states them): poll from dispatch — the announced start is a hint;
   before the first row an empty poll means **not started**, and a watch
   reaching its deadline with no row is a stop-and-report ("no run
-  observed in the window"); after the first row the run has ended on
-  **four consecutive empty 30-second bins** of data old enough to have
-  landed, widened to the profile's own spacing where it schedules
-  sparser requests; `Ended (UTC)` is the last request row, never the
+  observed in the window"); after the first row the run has ended
+  **when the manifest's scheduled request count has landed, or, once
+  its scheduled length has elapsed since the first row, on one empty
+  bin of data old enough to have landed** - and, with no schedule to
+  read or short of it, on **four consecutive empty 30-second bins** of
+  such data, widened to the profile's own spacing where it schedules
+  sparser requests; "old enough to have landed" is the backend's
+  ingestion lag as measured, never assumed; `Ended (UTC)` is the last request row, never the
   last empty poll; quiet before the manifest's scheduled total is an
   early end (an aborting threshold, or a generator that died) — say
   which the telemetry supports, never present a truncated window as
