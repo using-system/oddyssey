@@ -778,12 +778,13 @@ def cmd_watch(ns) -> tuple[int, dict]:
             error is None
             and ns.expect
             and state["status"] != "ended"
-            and state.get("partial_bin") is None
             and parse_ts(state["cursor"]) < now
         ):
             # the scheduled count reached inside the unsettled tail: every
             # row has landed, the run ended at the newest - one query over
-            # the tail, its bins on the record unsettled, nothing waited for
+            # the tail (a parked partial bin included: the cursor never
+            # moved past it), its bins on the record unsettled, nothing
+            # waited for
             x = parse_ts(state["cursor"])
             r = run_az(ai_call(ns.app, kql, iso(x), iso(now)))
             results.append(r)
@@ -815,6 +816,7 @@ def cmd_watch(ns) -> tuple[int, dict]:
                     state["rows"] += got["n"]
                     state["last_row"] = got["last"]
                     state["cursor"] = iso(now)
+                    state.pop("partial_bin", None)
                     state["empty_since"] = 0
                     state["status"] = "ended"
                     state["ended"] = got["last"]
