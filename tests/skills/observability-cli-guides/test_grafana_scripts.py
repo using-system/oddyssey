@@ -89,6 +89,10 @@ if a[:2] == ["traces", "query"]:
         from datetime import datetime
         if os.environ.get("FAKE_T_WATCH_ERR") == flag("--from"): err()
         rows = list(q["traces"])
+        if "user_agent" not in a[2]:
+            # the settle probe (the store's traces before the dispatch, no
+            # identity in the selector): the run's rows 100 s earlier
+            rows = [{**t, "startTimeUnixNano": str(int(t["startTimeUnixNano"]) - 100 * 10**9)} for t in rows]
         if os.environ.get("FAKE_T_WATCH_SECOND") == "1":
             # a second run five minutes later, other trace ids
             rows += [{**t, "traceID": t["traceID"][:-1] + "f", "startTimeUnixNano": str(int(t["startTimeUnixNano"]) + 300 * 10**9)} for t in q["traces"]]
@@ -155,6 +159,7 @@ def fake_gcx(tmp_path, monkeypatch):
         "FAKE_T_WATCH_ERR",
         "FAKE_T_WATCH_SECOND",
         "FAKE_UA_BY_ID",
+        "ODD_WATCH_CLOCK",
     ):
         monkeypatch.delenv(var, raising=False)
     return log
@@ -1512,6 +1517,252 @@ def test_watch_keeps_a_clipped_deadline_bin_apart_and_never_duplicates_it(
             "--to", "2026-09-08T16:41:45Z", "--max", "0s", state=tmp_path / "v.json"
         ).stdout
     )
+
+
+def test_watch_settles_on_the_visibility_lag_it_measures(fake_gcx, tmp_path):
+    """--settle auto (the default): Tempo stamps no ingestion time, so the
+    lag is how far behind the clock the store's newest trace is - one probe
+    of the service's traces over the 10 minutes before the dispatch (the
+    newest's start against --from), then the run's own traces of the last
+    bin at every poll; a bin closes once its end is older than the largest
+    lag observed plus one bin. The probe's newest trace started 6.4 s
+    before the dispatch: settle 37 s."""
+    p = watch(
+        "--settle",
+        "auto",
+        "--service",
+        "llmbench-api",
+        "--to",
+        "2026-09-08T16:45:00Z",
+        "--json",
+        state=tmp_path / "w.json",
+    )
+    assert p.returncode == 0, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert o["status"] == "ended" and o["ended_by"] == "quiet"
+    assert o["settle"] == "auto"
+    assert o["lag_probe"] == {
+        "window": ["2026-09-08T16:30:00Z", "2026-09-08T16:40:00Z"],
+        "n": 5,
+        "newest": "2026-09-08T16:39:53Z",
+        "lag_s": 6.4,
+    }
+    assert o["lag_max_s"] == 6.4 and o["settle_s"] == 37
+    calls = [c for c in fake_gcx.read_text().splitlines() if "traces query" in c]
+    assert len(calls) == 9  # the probe, then one call per bin
+    assert 'resource.service.name = "llmbench-api"' in calls[0]
+    assert "user_agent" not in calls[0] and all("user_agent" in c for c in calls[1:])
+    text = watch(
+        "--settle",
+        "auto",
+        "--to",
+        "2026-09-08T16:45:00Z",
+        state=tmp_path / "v.json",
+    ).stdout
+    assert (
+        "settle 37 s (auto: the newest of 5 traces in the 10 min before the dispatch was 6.4 s behind, plus one 30s bin)"
+        in text
+    )
+    probes = [
+        c
+        for c in fake_gcx.read_text().splitlines()
+        if "traces query" in c and "user_agent" not in c
+    ]
+    assert probes[-1].split(" ")[2:4] == ["{", "}"]  # no --service: every trace
+    before = fake_gcx.read_text().count("traces query")
+    p = watch(
+        "--settle",
+        "90s",
+        "--to",
+        "2026-09-08T16:45:00Z",
+        "--json",
+        state=tmp_path / "x.json",
+    )
+    o = json.loads(p.stdout)
+    assert o["settle"] == "90s" and o["settle_s"] == 90 and o["lag_probe"] is None
+    assert fake_gcx.read_text().count("traces query") - before == 8
+
+
+def test_watch_measures_the_lag_on_the_runs_own_traces_at_every_poll(
+    fake_gcx, tmp_path, monkeypatch
+):
+    """Inside the run, the poll reads the unsettled tail once: the newest
+    trace of the last bin against the clock raises the lag the probe
+    measured, and the settle in force follows it."""
+    monkeypatch.setenv("ODD_WATCH_CLOCK", "2026-09-08T16:41:45Z")
+    p = watch(
+        "--settle",
+        "auto",
+        "--max",
+        "0s",
+        "--to",
+        "2026-09-08T16:45:00Z",
+        "--json",
+        state=tmp_path / "w.json",
+    )
+    assert p.returncode == 4, p.stderr + p.stdout  # the tail is not a closed bin
+    o = json.loads(p.stdout)
+    assert o["lag_probe"]["lag_s"] == 6.4
+    assert o["lag_max_s"] == 11.4 and o["settle_s"] == 42
+    assert [b["from"][11:19] for b in o["bins"]] == ["16:40:00", "16:40:30"]
+    assert o["partial_bin"]["from"] == "2026-09-08T16:41:00Z"
+    calls = [c for c in fake_gcx.read_text().splitlines() if "traces query" in c]
+    # the probe, two closed bins, the bin the horizon clips, the tail
+    assert len(calls) == 5
+    assert "--from 2026-09-08T16:41:00Z --to 2026-09-08T16:41:45Z" in calls[-1]
+    assert (
+        "the run's own 11.4 s at most"
+        in watch(
+            "--settle",
+            "auto",
+            "--max",
+            "0s",
+            "--to",
+            "2026-09-08T16:45:00Z",
+            state=tmp_path / "v.json",
+        ).stdout
+    )
+
+
+def test_watch_ends_the_run_on_the_manifests_schedule_without_waiting(
+    fake_gcx, tmp_path
+):
+    p = watch(
+        "--expect",
+        "5",
+        "--to",
+        "2026-09-08T16:45:00Z",
+        "--json",
+        state=tmp_path / "w.json",
+    )
+    assert p.returncode == 0, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert o["ended_by"] == "count" and o["expect"] == 5 and o["length"] is None
+    assert o["ended"] == "2026-09-08T16:41:33Z" and o["rows"] == 5
+    assert len(o["bins"]) == 4 and o["empty_since_last_row"] == 0
+    assert o["identity"] == ["odd-bench/llmbench-store-load/run-store-load-01"]
+    text = watch(
+        "--expect", "5", "--to", "2026-09-08T16:45:00Z", state=tmp_path / "v.json"
+    ).stdout
+    assert (
+        "Ended   (UTC): 2026-09-08T16:41:33Z   # last request row; the scheduled 5 rows landed (5 counted)"
+        in text
+    )
+    p = watch(
+        "--length",
+        "30s",
+        "--to",
+        "2026-09-08T16:45:00Z",
+        "--json",
+        state=tmp_path / "x.json",
+    )
+    assert p.returncode == 0, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert o["ended_by"] == "schedule" and o["length"] == "30s"
+    assert o["ended"] == "2026-09-08T16:41:33Z" and o["empty_since_last_row"] == 1
+    assert len(o["bins"]) == 5
+    assert (
+        "one empty 30s bin past the scheduled 30s"
+        in watch(
+            "--length", "30s", "--to", "2026-09-08T16:45:00Z", state=tmp_path / "y.json"
+        ).stdout
+    )
+    p = watch(
+        "--expect",
+        "999",
+        "--length",
+        "1h",
+        "--to",
+        "2026-09-08T16:45:00Z",
+        "--json",
+        state=tmp_path / "z.json",
+    )
+    assert p.returncode == 0, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert o["ended_by"] == "quiet" and o["empty_since_last_row"] == 4
+
+
+def test_watch_ends_on_the_count_before_the_bins_settle(
+    fake_gcx, tmp_path, monkeypatch
+):
+    """--expect reached inside the unsettled tail: every trace has landed,
+    the run ended at the newest right away - the tail's bins recorded
+    unsettled by the traces' start, nothing waits for them to close."""
+    monkeypatch.setenv("ODD_WATCH_CLOCK", "2026-09-08T16:41:45Z")
+    p = watch(
+        "--expect",
+        "5",
+        "--settle",
+        "10m",
+        "--to",
+        "2026-09-08T16:45:00Z",
+        "--json",
+        state=tmp_path / "w.json",
+    )
+    assert p.returncode == 0, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert o["ended_by"] == "count" and o["settle_s"] == 600 and o["polls"] == 1
+    assert (
+        o["started"] == "2026-09-08T16:41:21Z" and o["ended"] == "2026-09-08T16:41:33Z"
+    )
+    assert o["rows"] == 5 and o["partial_bin"] is None
+    assert [(b["from"][11:19], b["new"]) for b in o["bins"]] == [
+        ("16:40:00", 0),
+        ("16:40:30", 0),
+        ("16:41:00", 4),
+        ("16:41:30", 1),
+    ]
+    assert all(b["unsettled"] for b in o["bins"]) and o["bins"][-1]["partial"]
+    assert o["identity"] == ["odd-bench/llmbench-store-load/run-store-load-01"]
+    log = fake_gcx.read_text()
+    assert log.count("traces query") == 1 and log.count("traces get") == 2
+    saved = json.loads((tmp_path / "w.json").read_text())
+    assert saved["status"] == "ended" and saved["cursor"] == "2026-09-08T16:41:45Z"
+
+
+def test_watch_ends_on_the_count_with_a_partial_bin_parked_at_the_horizon(
+    fake_gcx, tmp_path, monkeypatch
+):
+    """A settle off the bin grid parks a partial bin at the horizon; the
+    tail still counts from the state's cursor - the parked bin's range
+    included - and the run ends on the count in that very poll."""
+    monkeypatch.setenv("ODD_WATCH_CLOCK", "2026-09-08T16:41:45Z")
+    p = watch(
+        "--expect",
+        "5",
+        "--settle",
+        "48s",
+        "--to",
+        "2026-09-08T16:45:00Z",
+        "--json",
+        state=tmp_path / "w.json",
+    )
+    assert p.returncode == 0, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert o["ended_by"] == "count" and o["polls"] == 1
+    assert o["ended"] == "2026-09-08T16:41:33Z" and o["rows"] == 5
+    assert o["partial_bin"] is None
+    froms = [b["from"] for b in o["bins"]]
+    assert len(froms) == len(set(froms)) and sum(b["new"] for b in o["bins"]) == 5
+
+
+def test_watch_wakes_when_the_next_bin_can_close():
+    """Never a fixed clock: the wait runs to the next bin's end plus the
+    settle, --every the floor, the deadline and the call's bound the
+    ceiling."""
+    mod = load("grafana-traces")
+    from datetime import datetime, timedelta, timezone
+
+    cursor = datetime(2026, 9, 8, 16, 41, 0, tzinfo=timezone.utc)
+    step, settle = timedelta(seconds=30), timedelta(seconds=37)
+    at = lambda s: datetime(2026, 9, 8, 16, 41, s, tzinfo=timezone.utc)
+    wait = mod._wake_wait
+    assert wait(cursor, step, settle, at(45), None, 5, None) == 22
+    assert wait(cursor, step, settle, at(45), at(50), 5, None) == 5
+    assert wait(cursor, step, settle, at(45), None, 5, 10) == 10
+    assert wait(cursor, step, settle, at(45), None, 30, None) == 30
+    assert wait(cursor + step, step, settle, at(45), None, 5, None) == 52
+    assert wait(cursor, step, settle, at(59) + timedelta(minutes=1), None, 5, None) == 5
 
 
 def test_the_reference_states_exactly_the_keys_watch_prints(fake_gcx, tmp_path):
