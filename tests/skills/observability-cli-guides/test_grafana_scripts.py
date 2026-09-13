@@ -1250,6 +1250,44 @@ def test_watch_walks_back_before_from_when_the_run_was_already_going(
     assert "before --from" in p.stdout or o["walked_back"]
 
 
+def test_watch_a_gcx_error_inside_the_walk_back_leaves_the_first_bin_unread(
+    fake_gcx, tmp_path, monkeypatch
+):
+    """A walk-back cut by a gcx error must not date the run from the bins it
+    reached: nothing is recorded, exit 1, and the next call re-reads the
+    first bin and walks back whole."""
+    state = tmp_path / "w.json"
+    monkeypatch.setenv("FAKE_T_WATCH_ERR", "2026-09-08T16:41:00Z")
+    p = watch(
+        "--from",
+        "2026-09-08T16:41:30Z",
+        "--to",
+        "2026-09-08T16:45:00Z",
+        "--json",
+        state=state,
+    )
+    assert p.returncode == 1, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert o["error"] and o["status"] == "not started" and o["started"] is None
+    assert o["bins"] == [] and o["walked_back"] == 0
+    monkeypatch.delenv("FAKE_T_WATCH_ERR")
+    p = watch(
+        "--from",
+        "2026-09-08T16:41:30Z",
+        "--to",
+        "2026-09-08T16:45:00Z",
+        "--json",
+        state=state,
+    )
+    assert p.returncode == 0, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert o["started"] == "2026-09-08T16:41:21Z" and o["walked_back"] == 2
+    assert o["ended"] == "2026-09-08T16:41:33Z"
+    froms = [b["from"] for b in o["bins"]]
+    assert len(froms) == len(set(froms)) and froms[0] == "2026-09-08T16:40:30Z"
+    assert sum(b["new"] for b in o["bins"]) == 5
+
+
 def test_watch_resumes_after_a_walk_back_with_the_same_invocation(fake_gcx, tmp_path):
     """The documented resume is the same invocation again: a walk-back that
     moved the record's `from` must not make the state look like another
