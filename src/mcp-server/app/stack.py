@@ -369,16 +369,43 @@ def container_user_env() -> dict[str, str] | None:
     )
 
 
-def _probe(client: httpx.Client, url: str) -> bool:
+# Grafana's own answer through the datasource proxy while it (re)registers
+# its datasource plugins: the backend behind it is not down, the proxy is
+# not wired yet. Measured 1.6 s on a laptop, up to ~10 s on a CI runner,
+# and it can open AFTER the four probes first answered ready (issue #574).
+WIRING_MESSAGE = "Unable to find datasource plugin"
+WIRING_WAIT_S = 15.0
+WIRING_POLL_S = 0.5
+
+
+def _probe_answer(client: httpx.Client, url: str) -> str:
+    """'ready' on a 200, 'wiring' on Grafana's plugin-registry answer,
+    'down' otherwise."""
     try:
-        return client.get(url).status_code == 200
+        response = client.get(url)
     except httpx.TransportError as exc:
         # No response at all: the httpx instrumentation's duration
         # histogram never records this call, so this counter is the only
         # metric trace of it (observation finding A5). A response-coded
         # failure needs nothing here - it already has its own series.
         telemetry.record_probe_failure(type(exc).__name__)
-        return False
+        return "down"
+    if response.status_code == 200:
+        return "ready"
+    if response.status_code == 404 and WIRING_MESSAGE in response.text:
+        return "wiring"
+    return "down"
+
+
+def _probe(client: httpx.Client, url: str) -> bool:
+    """Ready, waiting out Grafana's plugin wiring (bounded) - never a
+    backend's own not-ready, which is reported as it stands."""
+    deadline = time.monotonic() + WIRING_WAIT_S
+    answer = _probe_answer(client, url)
+    while answer == "wiring" and time.monotonic() < deadline:
+        time.sleep(WIRING_POLL_S)
+        answer = _probe_answer(client, url)
+    return answer == "ready"
 
 
 def _otlp_ingest_ready(client: httpx.Client) -> bool:
@@ -430,7 +457,10 @@ def _readiness(transport: httpx.BaseTransport | None = None) -> dict:
     only covers the others by boot-timing coincidence. Probe-only on
     purpose: stack_up polls this every 2 s, and the identity inspects of
     the full status would tax every boot trace for data the loop never
-    reads.
+    reads. A probe answered by Grafana's plugin registry rather than by
+    the backend (WIRING_MESSAGE) is waited out, bounded, so a status
+    taken inside that window - which can open seconds after stack_up
+    saw the four ready - reports the backends, not the proxy (#574).
     """
     with httpx.Client(timeout=3.0, transport=transport) as client:
         signals = {

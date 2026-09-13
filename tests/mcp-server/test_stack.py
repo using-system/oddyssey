@@ -1453,3 +1453,64 @@ def test_stack_down_gives_rm_the_heavy_budget(monkeypatch):
     stack.stack_down()
 
     assert seen["kwargs"]["timeout_s"] == stack.DOCKER_RUN_TIMEOUT_S
+
+
+def test_readiness_waits_out_grafanas_datasource_wiring(monkeypatch):
+    """Issue #574: through the datasource proxy, Grafana answers 404
+    "Unable to find datasource plugin" while it (re)registers its plugins -
+    a window that can open seconds after the four probes first answered
+    ready, on a slow runner. The backend behind it is not down: the probe
+    waits the window out, bounded, instead of reporting a false not-ready."""
+    _no_container(monkeypatch)
+    monkeypatch.setattr(stack.time, "sleep", lambda s: None)
+    answers = {"loki": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "uid/loki" in str(request.url):
+            answers["loki"] += 1
+            if answers["loki"] <= 3:
+                return httpx.Response(
+                    404, json={"message": "Unable to find datasource plugin"}
+                )
+        return httpx.Response(200)
+
+    status = stack_status(transport=httpx.MockTransport(handler))
+    assert status["running"] is True and status["loki"] is True
+    assert answers["loki"] == 4
+
+
+def test_readiness_reports_a_wiring_that_never_ends_as_not_ready(monkeypatch):
+    _no_container(monkeypatch)
+    monkeypatch.setattr(stack, "WIRING_WAIT_S", 0.05)
+    monkeypatch.setattr(stack, "WIRING_POLL_S", 0.01)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "uid/tempo" in str(request.url):
+            return httpx.Response(
+                404, json={"message": "Unable to find datasource plugin"}
+            )
+        return httpx.Response(200)
+
+    status = stack_status(transport=httpx.MockTransport(handler))
+    assert status["running"] is False and status["tempo"] is False
+    assert status["loki"] is True
+
+
+def test_readiness_does_not_wait_on_a_backends_own_not_ready(monkeypatch):
+    """A 503 relayed from a booting backend, or any other 404, is reported
+    at once - only Grafana's plugin-registry answer is a wiring window."""
+    _no_container(monkeypatch)
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if "uid/loki" in str(request.url):
+            return httpx.Response(404, json={"message": "Not found"})
+        if "uid/pyroscope" in str(request.url):
+            return httpx.Response(503, text="Segment Writer not ready")
+        return httpx.Response(200)
+
+    status = stack_status(transport=httpx.MockTransport(handler))
+    assert status["running"] is False
+    assert status["loki"] is False and status["pyroscope"] is False
+    assert calls["n"] == 4
