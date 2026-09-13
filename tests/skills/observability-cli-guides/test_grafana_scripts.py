@@ -88,6 +88,14 @@ if a[:2] == ["traces", "query"]:
         # a watch polls one bin at a time: answer the traces that start inside it
         from datetime import datetime
         if os.environ.get("FAKE_T_WATCH_ERR") == flag("--from"): err()
+        if os.environ.get("FAKE_T_EDGE") == "1":
+            # the local Tempo refuses a search whose start is exactly the
+            # current second minus 30 s (its backend split lands there)
+            clock = datetime.fromisoformat(os.environ["ODD_WATCH_CLOCK"].replace("Z", "+00:00")).timestamp()
+            lo0 = datetime.fromisoformat(flag("--from").replace("Z", "+00:00")).timestamp()
+            if int(lo0) == int(clock) - 30:
+                e = int(clock) - 30
+                print(json.dumps({"type": "gcx.error", "schema_version": "1", "error": {"summary": f"Invalid Tempo search query - http parameter start must be before end. received start={e} end={e}", "exitCode": 1}})); sys.exit(1)
         rows = list(q["traces"])
         if os.environ.get("FAKE_T_RUN"):
             # a driven run of N traces at 2 req/s from the fixture's first row
@@ -170,6 +178,7 @@ def fake_gcx(tmp_path, monkeypatch):
         "ODD_WATCH_CLOCK",
         "FAKE_T_RUN",
         "FAKE_T_LAG",
+        "FAKE_T_EDGE",
     ):
         monkeypatch.delenv(var, raising=False)
     return log
@@ -1272,7 +1281,7 @@ def test_watch_a_gcx_error_inside_the_walk_back_leaves_the_first_bin_unread(
     reached: nothing is recorded, exit 1, and the next call re-reads the
     first bin and walks back whole."""
     state = tmp_path / "w.json"
-    monkeypatch.setenv("FAKE_T_WATCH_ERR", "2026-09-08T16:41:00Z")
+    monkeypatch.setenv("FAKE_T_WATCH_ERR", "2026-09-08T16:40:59Z")  # the 16:41:00 bin
     p = watch(
         "--from",
         "2026-09-08T16:41:30Z",
@@ -1463,7 +1472,7 @@ def test_watch_stops_on_a_gcx_error_and_the_next_call_requeries_that_bin(
     fake_gcx, tmp_path, monkeypatch
 ):
     state = tmp_path / "w.json"
-    monkeypatch.setenv("FAKE_T_WATCH_ERR", "2026-09-08T16:42:00Z")
+    monkeypatch.setenv("FAKE_T_WATCH_ERR", "2026-09-08T16:41:59Z")  # the 16:42:00 bin
     p = watch("--to", "2026-09-08T16:45:00Z", "--json", state=state)
     assert p.returncode == 1, p.stderr + p.stdout
     o = json.loads(p.stdout)
@@ -1620,8 +1629,8 @@ def test_watch_measures_the_lag_on_the_runs_own_traces_at_every_poll(
     # the probe, the tail, then two closed bins and the bin the horizon clips:
     # the bins close on the settle this poll's own newest trace set
     assert len(calls) == 5
-    assert "--from 2026-09-08T16:40:00Z --to 2026-09-08T16:41:45Z" in calls[1]
-    assert "--to 2026-09-08T16:41:03Z" in calls[-1]
+    assert "--from 2026-09-08T16:39:59Z --to 2026-09-08T16:41:45Z" in calls[1]
+    assert "--from 2026-09-08T16:40:59Z --to 2026-09-08T16:41:03Z" in calls[-1]
     assert (
         "the run's own 11.4 s at most"
         in watch(
@@ -1779,6 +1788,102 @@ def test_watch_measures_a_trace_once_so_a_stopped_run_never_inflates_the_settle(
             state=state,
         ).stdout
     )
+
+
+def test_watch_never_queries_from_the_second_the_store_refuses(
+    fake_gcx, tmp_path, monkeypatch
+):
+    """The local Tempo refuses a search whose start is exactly now - 30 s;
+    every range is queried from one second before its bin, so neither the
+    wake landing on cursor + 30 s nor a deadline 30 s past a bin boundary
+    ever meets it - the watch completes, counts exact, no failed call."""
+    monkeypatch.setenv("FAKE_T_EDGE", "1")
+    state = tmp_path / "w.json"
+    clock = 16 * 3600 + 40 * 60 + 30  # the wake lands on cursor + 30 s
+    while True:
+        monkeypatch.setenv(
+            "ODD_WATCH_CLOCK", f"2026-09-08T16:{clock // 60 % 60:02d}:{clock % 60:02d}Z"
+        )
+        p = watch(
+            "--settle",
+            "30s",
+            "--expect",
+            "5",
+            "--max",
+            "0s",
+            "--to",
+            "2026-09-08T17:00:00Z",
+            "--json",
+            state=state,
+        )
+        assert p.returncode in (0, 3, 4), p.stderr + p.stdout
+        o = json.loads(p.stdout)
+        assert "error" not in o, o["error"]
+        if o["status"] == "ended":
+            break
+        clock += 30
+        assert clock < 16 * 3600 + 45 * 60
+    assert o["ended_by"] == "count" and o["rows"] == 5
+    assert (
+        o["started"] == "2026-09-08T16:41:21Z" and o["ended"] == "2026-09-08T16:41:33Z"
+    )
+    assert sum(b["new"] for b in o["bins"]) == 5
+    # a deadline 30 s past a bin boundary: the wake lands on the deadline
+    # second and the last bin's start is now - 30 s
+    monkeypatch.setenv("ODD_WATCH_CLOCK", "2026-09-08T16:42:30Z")
+    p = watch(
+        "--to",
+        "2026-09-08T16:42:30Z",
+        "--max",
+        "0s",
+        "--json",
+        state=tmp_path / "v.json",
+    )
+    assert p.returncode == 3, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert "error" not in o and o["status"] == "running"
+    assert [(b["from"][11:19], b["new"]) for b in o["bins"]] == [
+        ("16:40:00", 0),
+        ("16:40:30", 0),
+        ("16:41:00", 4),
+        ("16:41:30", 1),
+        ("16:42:00", 0),
+    ]
+    assert "--from 2026-09-08T16:41:59Z --to 2026-09-08T16:42:30Z" in o["commands"][-1]
+
+
+def test_watch_counts_a_trace_in_the_overlap_second_once(fake_gcx, tmp_path):
+    """Every range is queried from one second before its bin, so the
+    trace starting at 16:41:29.98 is listed by the 16:41:00 bin and by the
+    16:41:30 bin's query alike, and by the walk-back's bins: counted once,
+    in the record's bins and in rows, forward and walking back."""
+    p = watch("--to", "2026-09-08T16:45:00Z", "--json", state=tmp_path / "w.json")
+    assert p.returncode == 0, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    bins = {b["from"][11:19]: b for b in o["bins"]}
+    assert (bins["16:41:00"]["listed"], bins["16:41:00"]["new"]) == (4, 4)
+    assert (bins["16:41:30"]["listed"], bins["16:41:30"]["new"]) == (2, 1)
+    assert o["rows"] == 5 and sum(b["new"] for b in o["bins"]) == 5
+    assert "--from 2026-09-08T16:41:29Z --to 2026-09-08T16:42:00Z" in "\n".join(
+        o["commands"]
+    )
+    p = watch(
+        "--from",
+        "2026-09-08T16:41:30Z",
+        "--to",
+        "2026-09-08T16:45:00Z",
+        "--json",
+        state=tmp_path / "v.json",
+    )
+    assert p.returncode == 0, p.stderr + p.stdout
+    o = json.loads(p.stdout)
+    assert o["walked_back"] == 2 and o["started"] == "2026-09-08T16:41:21Z"
+    assert [(b["from"][11:19], b["listed"], b["new"]) for b in o["bins"][:3]] == [
+        ("16:40:30", 0, 0),
+        ("16:41:00", 4, 3),
+        ("16:41:30", 2, 2),
+    ]
+    assert o["rows"] == 5
 
 
 def test_watch_ends_the_run_on_the_manifests_schedule_without_waiting(

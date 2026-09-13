@@ -629,13 +629,18 @@ PROBE_MINUTES = 10
 
 
 def _query_bin(ns, x, y, traceql: str | None = None):
+    """One search over [x - 1 s, y] on the run's selector: a range whose
+    start is exactly the store's backend split (now - 30 s on the local
+    Tempo) is refused, and the overlap second costs nothing - the caller
+    deduplicates on trace id against the previous range. The probe (its
+    own selector) is queried as given."""
     return run_gcx(
         [
             "traces",
             "query",
             traceql or ns.traceql,
             "--from",
-            iso(x),
+            iso(x if traceql else x - timedelta(seconds=1)),
             "--to",
             iso(y),
             "--limit",
@@ -696,11 +701,14 @@ def _wake_wait(cursor, step, settle, now, deadline, every: int, remaining) -> fl
     return max(every, wait, 0)
 
 
-def _walk_back(ns, first_bin_start, step, limit: int = WALK_BACK_BINS):
+def _walk_back(
+    ns, first_bin_start, step, later_ids: list[str], limit: int = WALK_BACK_BINS
+):
     """The bins before the first polled one, back to an empty bin (or
-    ``limit`` bins): earliest first, with the earliest row found; the
-    failed result third when gcx failed midway - the walk then counts for
-    nothing, and the next call does it again whole."""
+    ``limit`` bins): earliest first, with the earliest row found, each
+    bin's ``new`` what the bin after it did not list; the failed result
+    third when gcx failed midway - the walk then counts for nothing, and
+    the next call does it again whole."""
     got: list = []
     bins: list[dict] = []
     earliest: tuple[int, str] | None = None
@@ -712,21 +720,24 @@ def _walk_back(ns, first_bin_start, step, limit: int = WALK_BACK_BINS):
         if not r.ok:
             return None, got, r
         rows = traces_list(r.data)
+        ids = [hex_trace_id(t.get("traceID", "")) for t in rows]
+        new = [i for i in ids if i not in set(later_ids)]
         bins.insert(
             0,
             {
                 "from": iso(x),
                 "to": iso(y),
-                "listed": len(rows),
-                "new": len(rows),
-                "capped": len(rows) >= TRACE_LIMIT,
+                "listed": len(ids),
+                "new": len(new),
+                "capped": len(ids) >= TRACE_LIMIT,
             },
         )
         starts = _starts(rows)
         if starts:
             earliest = starts[0]
-        if not rows:
+        if not new:
             break
+        later_ids = ids
         y = x
     if earliest is None:
         return None, got, None
@@ -927,7 +938,7 @@ def cmd_watch(ns) -> tuple[int, dict]:
                 # rows in the very first bin: the run may have begun before
                 # --from - walk back, bin by bin, to its first row, before
                 # this bin is recorded: a gcx error midway leaves both unread
-                earlier, got, walk_error = _walk_back(ns, x, step)
+                earlier, got, walk_error = _walk_back(ns, x, step, ids)
                 results.extend(got)
                 if walk_error is not None:
                     error = walk_error.error
@@ -939,7 +950,7 @@ def cmd_watch(ns) -> tuple[int, dict]:
             else:
                 state["bins"].append(entry)
                 state.pop("partial_bin", None)
-                state["last_bin_ids"] = ids[-200:]
+                state["last_bin_ids"] = ids
                 state["cursor"] = iso(y)
                 state["rows"] += len(new)
             cursor = y
