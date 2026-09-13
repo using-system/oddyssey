@@ -81,7 +81,7 @@ line marked `!` names it.
 
 The UIDs are the isolated context's datasource defaults, so nothing that
 queries through it names a datasource. Verified against gcx v1.0.0 and
-v1.2.0, Grafana 13.1.3 and 13.2.0, all four signals round-tripped.
+v1.2.0, Grafana 13.1.3, 13.2.0 and 13.2.1, all four signals round-tripped.
 
 Discovery across the four signals is what `probe_services.py` above
 already ran — read its output rather than re-deriving it. Past it, the
