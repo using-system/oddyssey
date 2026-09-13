@@ -163,7 +163,8 @@ the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
    times out of four, level when run first — a cause tied to the
    position reads as the branch unless the position alternates too;
    the runner refuses a chain where one side opens every pair, or a
-   pair holding one side twice). For each: the lab is put on the branch
+   pair holding one side twice — a chain of one side only, a replay of
+   the same configuration, is never refused). For each: the lab is put on the branch
    and cleared of what a run left after the tip recorded when the chain
    started (a report branch, a report commit, an untracked report, a
    rewritten `opencode.json` — a lab dirty in any other way is refused
@@ -287,8 +288,9 @@ both. The spread between two runs of one configuration reached 17 s in
 practice; a single sample below the baseline proves nothing.
 
 **Say what two samples can detect.** On one mission, main alone spread
-about 25 % on turns from one day to the next (68 and 87 turns, then 48
-to 61 — study551, study558) and as much on tokens and cost: two samples
+about 25 % on turns on each of two consecutive days (68 and 87 turns,
+then 48 to 61 — study551, study558), and more than that on tokens and
+cost (2.96M to 4.46M input, $0.52 to $0.81 the second day): two samples
 per side tell a change of the order of the run — a composed loop
 replaced by a shipped script, a phase that disappears — from noise, and
 cannot tell a 20 % effect from it. Read the table accordingly: a

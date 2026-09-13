@@ -9,7 +9,8 @@
 One sample is `<tag>=<lab branch>:<mission file>`, run in the order given:
 the sides alternate and so does the position (ABBA) - a chain where one
 side opens every pair, or a pair holding one side twice, is refused before
-anything launches. For each, in order: the lab is put on the branch and
+anything launches (a chain of one side only, a replay, never is). For each,
+in order: the lab is put on the branch and
 cleared of
 what the previous run left (a report branch, a report commit after the
 tip recorded at the chain's start, an untracked report, a rewritten

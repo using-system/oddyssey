@@ -389,18 +389,20 @@ def test_a_chain_where_one_side_opens_every_pair_is_refused_before_launching(
     assert not list(out.glob("*.record.json"))
     # ABBA runs; so does one pair, a lone validation sample, and a chain of
     # one side only (a replay of the same configuration)
-    for chain in (
-        [
-            f"base1=lab-main:{m}",
-            f"after1=lab-after:{m}",
-            f"after2=lab-after:{m}",
-            f"base2=lab-main:{m}",
-        ],
-        [f"base1=lab-main:{m}", f"after1=lab-after:{m}"],
-        [f"after3=lab-after:{m}"],
-        [f"base1=lab-main:{m}", f"base2=lab-main:{m}"],
+    for index, chain in enumerate(
+        (
+            [
+                f"base1=lab-main:{m}",
+                f"after1=lab-after:{m}",
+                f"after2=lab-after:{m}",
+                f"base2=lab-main:{m}",
+            ],
+            [f"base1=lab-main:{m}", f"after1=lab-after:{m}"],
+            [f"after3=lab-after:{m}"],
+            [f"base1=lab-main:{m}", f"base2=lab-main:{m}"],
+        )
     ):
-        p = run_samples(lab, kit, tmp_path / f"study{len(chain)}{chain[0][:5]}", *chain)
+        p = run_samples(lab, kit, tmp_path / f"study{index}", *chain)
         assert p.returncode == 0, p.stderr + p.stdout
 
 
