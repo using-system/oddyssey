@@ -276,8 +276,7 @@ Six subcommands, the whole surface above (`--since <duration>` replaces
   there — the same invocation again resumes it from `--state`, the last
   closed bin onward, never re-querying what it already counted; a
   watch a tool call's budget cuts loses nothing, and a gcx error leaves
-  its bin unread for the next call (inside a walk-back: the first bin
-  and the walk, done again whole). At the deadline the last `--settle`
+  its bin unread for the next call. At the deadline the last `--settle`
   is read unsettled rather than skipped, so a run that began inside it
   is never "not started"; a deadline closer to the last row than
   `--ended-after` × `--bin` + `--settle` cannot close the run, and the
