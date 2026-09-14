@@ -11,31 +11,22 @@ fix. A scenario that cannot be replayed verbatim makes before/after
 comparison an impression, not a measurement.
 
 **A step this package ships a script for is run, never rewritten.** The
-replay of a stored benchmark is `k6-guides`' script; the machine
-preflight and the service probe are their own skills'. Authoring a shell
-script that redoes one of them costs turns before it runs and yields a
-different command each time — two runs then measure two things.
-
+ad-hoc drive is this skill's `scripts/drive_scenario.py` (step 2); a
+stored benchmark's replay is `k6-guides`' `scripts/replay_benchmark.py`
+(`references/benchmark-replay.md`). A curl loop, a helper with a `sleep`
+in it, a poller written for either yields a different command each time —
+two runs then measure two things.
 
 ## Read by situation
 
-**The two mechanical parts are scripts, not prose.** Replaying a stored
-benchmark is `scripts/replay_benchmark.py` (see
-[`references/benchmark-replay.md`](references/benchmark-replay.md)), and
-pointing the query CLI at the local stack is the `setup-local-stack`
-skill's — its `## Configure an isolated context` ships it as one
-command. Run them; do not rebuild them. What is left in these files is
-what you have to decide, which is the only part worth reading.
-
-This file is the method every scenario follows — steps 1 to 5 and the
-rules. What depends on the situation lives in a reference, read by the
+Steps 1 to 5 and the rules are the method; a reference is read by the
 block that applies, never whole:
 
 | Situation | Reference |
 | --- | --- |
-| Every drive: the clean-base order and the identity the queries are qualified by, and the run's t0 after the warmup — a process the run launches, a port already served, a remote target the run cannot launch, a reset that is forbidden, a run whose stages are carved from timestamps | [references/run-identity.md](references/run-identity.md), the block that applies |
-| An iteration that is expensive or non-deterministic, a wait that must stay inside the turn, an **ad-hoc** scenario longer than a tool call (a stored benchmark's own replay script detaches for you - see the row below) | [references/long-scenarios.md](references/long-scenarios.md) |
-| A stored k6 benchmark under `.odd/benchmarks/<name>/` — driven here, or driven elsewhere and only watched | [references/benchmark-replay.md](references/benchmark-replay.md), in place of the ad-hoc commands; its watching section for a run someone else drives |
+| Every drive: the clean-base order and the reset decisions, the identity the queries are qualified by and the instance read from the rows, the run's t0 after the warmup — a port already served, a remote target the run cannot launch, a restart that is not possible, a reset that is forbidden | [references/run-identity.md](references/run-identity.md), the block that applies |
+| An iteration that is expensive or non-deterministic; the watch of a run someone else drives, on a backend that ships no watch script | [references/long-scenarios.md](references/long-scenarios.md) |
+| A stored k6 benchmark under `.odd/benchmarks/<name>/` — driven here, or driven elsewhere and only watched | [references/benchmark-replay.md](references/benchmark-replay.md), in place of step 2; its watching section for a run someone else drives |
 
 Start with the identity reference, then follow the steps below.
 
@@ -56,118 +47,114 @@ In order of preference:
 Prefer a handful of representative operations covered properly over every
 operation covered once. Note anything you deliberately left out.
 
-## 2. Warm up
+## 2. Drive it
 
-Send a few requests per operation (typically 5) before measuring: JIT
-compilation, connection pools, lazy caches, and first-hit schema loads all
-land in the first requests and distort a small sample. Discard the warmup
-from the quoted numbers, and say in the record that it was discarded —
-unless an iteration is expensive: see `references/long-scenarios.md`.
+What you decide: the operations (step 1), the count per operation (step
+3), concurrency or not, the signal the flush wait is sized by (step 5),
+the run slug and the prompt's name. Everything else is the script's:
+
+```bash
+python3 <skills>/run-scenario/scripts/drive_scenario.py http://127.0.0.1:<port> --run-slug <slug> --prompt <observe|verify> --op 'GET /api/users' --op 'POST /api/orders {"sku": "A1"}' --count 30 --wait-for traces --out <scratch>/<slug>
+```
+
+The whole surface: the base URL (positional; `127.0.0.1`, never
+`localhost` — refused; the mission's or the `Machine:` line's when it
+carries one), `--run-slug`, `--prompt`, `--op 'METHOD PATH [COUNT]
+[BODY]'` (repeatable; the count overrides `--count` for that operation,
+the body goes out as `application/json`), `--ops <file>` (one per line),
+`--count` (default 30), `--warmup` (default 5, discarded),
+`--concurrency` (default 1), `--prefix` (default `0ddc0ffe`), `-H 'Name:
+value'` (repeatable; a credential-named header's value is never
+recorded), `--timeout` (per request, default 60 s), `--wait-for
+traces|metrics|none` (default `traces`), `--scenario <name>` (default the
+slug), `--out <dir>`, `--detach`, `--status <dir> [--wait <duration>]`,
+`--dry-run` (the plan and the command, nothing sent), `--json` (the
+record as one object) — nothing else, so `--help` has nothing to add and
+the file nothing to read. It prints step 4's record, three lines of
+which are `<yours: ...>` placeholders to fill, and writes
+`drive-record.json` and `requests.jsonl` under `--out` — the directory
+this run alone owns, `<scratch>/<slug>/` unless the caller named one: a
+sibling's file overwriting yours is silent.
+
+A scenario longer than a tool call is the same invocation with
+`--detach` (returns at once), then `--status <dir> --wait <the length
+plus a margin>` — exit 3 when the bound passes with the drive still
+going, run it again. Never a poller or a helper around it, never a turn
+ended to wait: as a subagent, ending the turn ends the mission.
 
 ## 3. Iterate enough to quote a number
 
 - **>= 30 requests per operation** before quoting a p95 — an operation
   being the unit the service serves distinctly: on an HTTP server the
   method and the route together, so two verbs sharing a route need the
-  count each, and elsewhere that surface's own unit (an RPC method, a
-  tool call). Below that, report observations, not quantiles.
+  count each. Below that, report observations, not quantiles.
 - **~100** before quoting a p99.
-- Sequential by default. If concurrency is part of the question, state the
-  level explicitly — it changes every latency number.
+- Sequential by default. If concurrency is part of the question, state
+  the level explicitly — it changes every latency number.
 - Keep inputs deterministic: fixed IDs, fixed payloads, a fixed seed. A
-  random payload is not replayable; if randomness is unavoidable, record the
-  seed.
+  random payload is not replayable; if randomness is unavoidable, record
+  the seed.
+- An iteration that is expensive or non-deterministic:
+  `references/long-scenarios.md`.
 
 ## 4. Record verbatim
 
-Record the scenario while running it, not from memory. The record is the
-deliverable:
+The record is what the script printed — the deliverable, quoted in the
+report and re-run from its `Commands:` line after a fix:
 
 ```text
 Scenario: <name>
-Base URL: http://127.0.0.1:<port>   # not localhost: a dual-stack host may resolve it to another listener
-Listeners: none   # or: :8000 served by 41234 uvicorn (127.0.0.1) and 51022 com.docker (*), ran on :8001
-Backend:  odd_stack_reset, env: {"PROMETHEUS_EXTRA_ARGS": "..."}   # or "defaults"
-Instance: af6070... (restarted before reset)   # or equivalent identity; add the start time when not restarted
-Identity: launched with service.instance.id=<slug>   # or, when the run launched nothing: User-Agent "odd-verify/<slug>" (+ "-warmup"); traceparent "00-<prefix><run8><seq:016x>-<seq:016x>-01", run8 = sha256(<slug>)[:8]; instance read from the rows: <id>
-Warmup:   5 requests per operation (discarded)
-Load:     30 requests per operation, sequential
+Base URL: http://127.0.0.1:<port>
+Listeners: none   # or: :8000 served by 41234 uvicorn (127.0.0.1) and 51022 com.docker (*)
+Backend:  <yours: odd_stack_reset, env: {...} - or "no reset - separated by the slug and the window">
+Instance: <yours: read from the run's own rows after the wait>
+Identity: User-Agent "odd-<prompt>/<slug>" (+ "-warmup" on the warmup); traceparent "00-<prefix><run8><seq:016x>-<seq:016x>-01", run8 = sha256(<slug>)[:8] = <hex>, trace ids start <prefix><run8>; one sequence run-wide from 1
+Warmup:   5 requests per operation (discarded; seq 1-10)
+Load:     30 requests per operation, sequential (seq 11-70)
 Started (UTC): 2026-08-17T10:04:12Z
 Ended   (UTC): 2026-08-17T10:05:03Z
-Query points: 1 (after Ended)   # more than one only with a reason - see step 5
+Query points: 1 (after Ended; after the 60 s flush wait for traces)
 Commands:
-  for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:8080/api/users; done
-  for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:8080/api/orders/42; done
-  # a mission-required reset is a Commands line too (references/run-identity.md), e.g.:
-  # odd_stack_reset env={"GF_LOG_LEVEL":"debug"}   # reason: the mission observes the reset itself
-Not reproducible: <auth token / seeded data / time-dependent input, or "none">
+  python3 <skills>/run-scenario/scripts/drive_scenario.py http://127.0.0.1:<port> --run-slug <slug> ...   # as printed
+Requests:
+  GET http://127.0.0.1:<port>/api/users x30 (seq 11-40) -> 200:30
+  POST http://127.0.0.1:<port>/api/orders {"sku": "A1"} x30 (seq 41-70) -> 201:28, error:2
+Not reproducible: <yours: auth token / seeded data / time-dependent input, or "none">
 ```
 
-Exact commands, exact counts, exact UTC start and end — the start/end pair
-is also the observation window for every query run against this scenario.
-The `Query points:` line is the default `1` — the whole scenario, then one
-flush wait, then every query (step 5); a mission that must read the store
-at several points lists them here with the reason each one exists. A
-reset the mission requires (`references/run-identity.md`) is a `Commands:` line like any other
-driven call, with its env and its reason — in a benchmark record
-(`references/benchmark-replay.md`) it keeps that slot next to the single `k6 run` command.
-The `Backend:` line records how the stack was (re)started, **including any
-`env`**: a replay must reproduce the backend and not only the requests. A
-bare `odd_stack_reset` reapplies the env persisted in `stack_config.local`,
-so most of that configuration survives on its own; only credential-named
-variables — the ones the reset result lists under `env_not_persisted` — are
-never stored and must be passed again on the replay.
+- `Started`/`Ended` are the observation window of every query.
+- `Backend:` carries how the stack was (re)started **including any
+  `env`**: a bare `odd_stack_reset` reapplies the env persisted in
+  `stack_config.local`; only the credential-named variables the reset
+  result lists under `env_not_persisted` must be passed again. A reset
+  the mission requires (`references/run-identity.md`) is a `Commands:`
+  line of its own, with its env and its reason.
+- `Query points:` is the one point the script pays for; a mission that
+  must read the store at several points (one store per reset in a
+  lifecycle test) runs the script once per point and lists them here,
+  each with its reason.
+- A stored benchmark's record is `references/benchmark-replay.md`'s.
 
 ## 5. Wait for the flush — once per query point
 
-Telemetry lags the last request. On the local stack:
-
-- **~10 s** for metrics to be exported and written into the metrics store (the stack is push-based);
-- **~60 s** for traces to become searchable in the trace store (a full
-  trace fetch by ID may work before search does — cross-check a suspicious
-  search result against a fetch).
-
-**The wait is paid once per query point, after the last request that
-point reads — never once per query, never once per request batch.**
-The default mission has exactly one point, after `Ended`: drive the
-whole scenario to its end, wait once for the slowest signal the mission
-reads (60 s when it reads traces), then run every query against the
-window recorded in step 4. Never interleave requests, waits, and
-queries outside the query points the record declares: a wait after
-every request batch turns a 3-minute scenario into 4 minutes of sleep.
-The wait — a fixed sleep or a bounded poll — is a `sleep` inside a
-helper script run in the foreground (`references/long-scenarios.md`;
-a stored benchmark's replay excepted: its script waits,
-`references/benchmark-replay.md`),
-inside the turn — never a background job whose completion notification
-the turn waits for, never a turn ended to wait. A Monitor-style
-background notifier is a wait only in a main conversation, which is
-re-invoked when it fires; a subagent's turn ends first, so there the
-helper is the only wait.
-
-Every file this skill writes — that helper, a poller and its state, a
-captured output — goes in one scratchpad subdirectory this run alone
-owns: the directory the caller named, else `<scratchpad>/<run slug>/`,
-created before the first file. Parallel missions share the scratchpad
-root, and a sibling's file overwriting yours, or a previous run's left
-where yours goes, is silent.
-
-A mission that must read the store at several points — each reset
-wipes it, so a lifecycle test whose subject is the reset has one store
-per reset — declares them on the record's `Query points:` line with the
-reason each one exists, and pays each point one wait sized to the
-slowest signal **that point** reads (10 s when it reads metrics only).
-A remote backend's wait is not this skill's to size — `observe-run`
-owns it (the backend's documented ingest latency, or a bounded proof
-query); this skill stays scoped to locally running services.
+- `--wait-for` is sized by the slowest signal the point reads: **~60 s**
+  for traces to become searchable on the local stack (a trace fetch by
+  id may work before search does — cross-check a suspicious search
+  result against a fetch), **~10 s** for metrics.
+- Paid **once per query point, after the last request that point reads**
+  — never per query, never per request batch: a wait after every batch
+  turns a 3-minute scenario into 4 minutes of sleep.
+- Inside the turn: the script blocks through it, foreground or `--status
+  --wait`; a background notifier fires after a subagent's turn has ended.
+- A remote backend's wait is `observe-run`'s to size (its documented
+  ingest latency, or a bounded proof query): `--wait-for none`, then that.
 
 ## Output
 
-The scenario block from step 4 (or `references/benchmark-replay.md`'s
-record for a stored benchmark), ready
-to paste into an observation report (the run record, and the replay
-instruction in the measurement protocol) — and ready to re-run unchanged
-after a fix.
+The record above (or `references/benchmark-replay.md`'s for a stored
+benchmark), ready to paste into an observation report — the run record,
+and the replay instruction in the measurement protocol — and ready to
+re-run unchanged after a fix.
 
 ## Rules
 
