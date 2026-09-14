@@ -43,7 +43,7 @@ stdio today; noted as a future hook in §8).
 | 2 | Dependency placement | **Core dependencies** (not an extra) | Coherent with default-on; `http/protobuf` chosen precisely to keep the uvx cold start cheap (no `grpcio`) |
 | 3 | Sampling | Keep the SDK default `parentbased_always_on`, not set explicitly | Human-driven tool calls; volume is trivial |
 | 4 | Collector topology | Direct OTLP export to the stack (no collector) | otel-lgtm embeds a collector; dev-scale traffic |
-| 5 | Probe spans | Keep them (bounded: 2 s polling over a ≤ 120 s boot across the probe URLs → at most ~120 spans) | They tell the stack-boot story under the `odd_stack_up` span |
+| 5 | Probe spans | Keep them (bounded: 2 s polling over a ≤ 120 s boot across the probe URLs → at most ~120 spans; amended 2026-09-14, issue #574: a probe answered by Grafana's plugin registry rather than by the backend re-polls at 0.5 s for at most 15 s, up to 30 more spans per such window) | They tell the stack-boot story under the `odd_stack_up` span |
 | 6 | down/reset span loss | Accepted; `force_flush` before the destroying `docker` call so child spans emitted so far get a chance to land (reset wipes them anyway; down's are lost with the backend) | The alternative is a second backend, contradicting the product |
 | 7 | Logs | Skipped entirely this wave (`OTEL_LOGS_EXPORTER=none`); no stdlib logging introduced beyond exporter quieting | Logs API is Development in Python; nothing to bridge today |
 | 8 | Inbound propagation | Out of scope; future hook documented in §8 | No client sends context over stdio today |

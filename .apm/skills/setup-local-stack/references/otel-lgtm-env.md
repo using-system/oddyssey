@@ -15,7 +15,11 @@ Contract reminders (they apply to every variable below):
 - the embedded default `PROMETHEUS_EXTRA_ARGS=--enable-feature=otlp-deltatocumulative`
   is merged in; a user entry with the same key **overrides** it (dropping
   delta-metric ingestion — CLI coding agents' `claude_code.*` metrics
-  need it, so extend rather than replace);
+  need it, so extend rather than replace); so is
+  `GF_PLUGINS_PREINSTALL_AUTO_UPDATE=false` (the image's datasource
+  plugins stay the ones it ships: Grafana's boot-time update of one from
+  grafana.com makes the datasource proxy answer 404 for that backend for
+  a few seconds, after the stack first reported ready);
 - once applied, env is **sticky**: it is persisted into the global
   configuration's `stack_config.local` and reapplied on every
   recreation (a bare `odd_stack_reset` keeps it); stop applying a
