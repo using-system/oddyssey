@@ -211,7 +211,7 @@ python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py get <trace i
 python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py count '<TraceQL>' --from <start> --to <end> [--bin 30s] [--json]
 python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py search '<TraceQL>' --from <start> --to <end> [--limit 1000] [--json]
 python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py breakdown --service <svc> [--traceql '<TraceQL>'] --from <start> --to <end> [--limit 1000] [--sample 200] [--json]
-python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py watch '<TraceQL>' --from <dispatch instant> --state <scratch>/<slug>-watch.json [--to <deadline>] [--bin 30s] [--ended-after 4] [--settle 60s] [--every 30s] [--max 8m] [--identity-attr <span attribute>]... [--json]
+python3 <Skills>/observability-cli-guides/scripts/grafana-traces.py watch '<TraceQL>' --from <dispatch instant> --state <scratch>/<slug>-watch.json --length <the manifest's scheduled length> --expect <its scheduled request count> [--to <deadline>] [--bin 30s] [--ended-after 4] [--settle auto] [--every 5s] [--max 8m] [--service <svc>]... [--identity-attr <span attribute>]... [--json]
 ```
 
 Six subcommands, the whole surface above (`--since <duration>` replaces
@@ -254,36 +254,32 @@ Six subcommands, the whole surface above (`--since <duration>` replaces
   `{ resource.service.name = "svc" && span.http.status_code >= 500 }` —
   two brace groups joined by `&&` is a parse error.
 - `watch` — a run someone else drives, polled on its identity (a
-  TraceQL selector on the User-Agent — `span.http.user_agent` on a
-  service under the old HTTP semconv, `span.user_agent.original` under
-  the new; the identity value is read off the first row's trace on
-  whichever the spans carry, `--identity-attr` overrides) from the
-  instant polling starts — the dispatch, never the announced start —
-  one `count`-shaped query per closed `--bin` (a bin closes once its end
-  is `--settle` old, so a lagging store never ends a live run), until
-  the run has started (its first row, exact to the row's own
-  timestamp — rows already in the first polled bin make the watch walk
-  back before `--from`, bin by bin to an empty one, so a watch
-  dispatched after the run began still dates it from its first row)
-  and then ended on `--ended-after` consecutive empty bins:
-  `Started (UTC)` and `Ended (UTC)` are the rows', never the watch's
-  clock. `--max` bounds one call, between and inside its polls (`0s`
-  is one whole poll). A deadline off the bin grid clips the last bin:
-  read for the start and the rows, kept apart as `partial_bin` and read
-  again whole on the next call, never a closed bin. Exit 0 ended, 3
-  still running at `--max` or `--to` (the
-  deadline past which "no run observed" is the answer), 4 not started
-  there — the same invocation again resumes it from `--state`, the last
-  closed bin onward, never re-querying what it already counted; a
-  watch a tool call's budget cuts loses nothing, and a gcx error leaves
-  its bin unread for the next call. At the deadline the last `--settle`
-  is read unsettled rather than skipped, so a run that began inside it
-  is never "not started"; a deadline closer to the last row than
-  `--ended-after` × `--bin` + `--settle` cannot close the run, and the
-  output says how much further `--to` must go. The identity is read off
-  the first row's trace, the first row after a gap and the last row's:
-  two values are two runs, and the output says so. `new` in a bin is
-  what the previous bin did not list; a capped bin under-counts. Every
+  TraceQL selector on the User-Agent — `span.http.user_agent` under the
+  old HTTP semconv, `span.user_agent.original` under the new; the
+  identity value is read off the first row's trace, the first row after
+  a gap and the last row's, on whichever the spans carry,
+  `--identity-attr` overrides: two values are two runs, said) from the
+  dispatch, never the announced start — one `count`-shaped query per
+  closed `--bin`, one over the unsettled tail — until the run has
+  started (its first row, walked back to before `--from` when the first
+  polled bin already carries rows) and then ended — **`--expect`
+  reached: at its newest trace the moment the count is there, in the
+  tail too (every trace has landed); `--length` elapsed since the first
+  row: on one empty closed bin; neither, or the run short of both (an
+  abort): on `--ended-after` consecutive empty bins** — `Started (UTC)`
+  and `Ended (UTC)` are the rows', never the watch's clock, and the
+  `Ended` line says which rule closed it. A bin closes once its end is
+  the settle old; `--settle auto` is measured, never a constant: Tempo
+  stamps no ingestion time, so the lag is how far behind the clock the
+  store's newest trace is — one probe of `--service`'s traces (none:
+  every trace) over the 10 min before the dispatch, then the run's own
+  newest trace at every poll — plus one `--bin`, recomputed at every
+  poll; a duration fixes it instead. The watch
+  wakes when the next bin can close (its end plus the settle), never on
+  a fixed clock: `--every` the floor. `--max` bounds one call (`0s`:
+  one whole poll). Exit 0 ended, 3 still running at `--max` or `--to`,
+  4 not started there — the same invocation again resumes it from
+  `--state`; a gcx error leaves its bin unread for the next call. Every
   poll goes to the store; nothing is sent at the service.
 - `breakdown` — over the traces rooted at the service in the window
   (`--traceql` narrows the search, the table still keeps the traces
@@ -322,8 +318,10 @@ and peer first>` (a root's `http.response.status_code`, a child's
 truncated, first, last, roots{<svc> <op>: n}, traces[{traceID,
 rootServiceName, rootTraceName, startTimeUnixNano, durationMs}]`.
 `count` — `traceql, bin, total, capped_bins, bins[{from, to, listed,
-new, capped}], note`. `watch` — `traceql, poll_from, from, to, bin,
-every, ended_after, settle, status (not started, running, ended),
+new, capped}], note`. `watch` — `traceql, services[], poll_from, from,
+to, bin, every, ended_after, settle, settle_s, lag_max_s,
+lag_probe{window, n, newest, lag_s} or null, length, expect, rows,
+ended_by (count, schedule, quiet), status (not started, running, ended),
 started, ended, last_row, span_s, identity[], identity_attr,
 several_identities, empty_since_last_row, walked_back, deadline_note,
 bins[{from, to, listed, new, capped, unsettled}], partial_bin{from, to,
