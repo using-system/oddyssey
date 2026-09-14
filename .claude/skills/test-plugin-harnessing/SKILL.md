@@ -92,7 +92,14 @@ the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
    claims.
 
 3. **Clean what the next run must not read.** Any report a previous run
-   stored, and any leftover container, process or scratch directory. A
+   stored, any leftover container, process or scratch directory — and,
+   on the local stack, **its data**: the stack keeps every trace across
+   samples, so the second run of a pair otherwise finds the first's
+   driven run in its window (another run identity on the rows, more
+   exemplars to open — measured 2026-09-13 as the plausible source of a
+   longer investigation on the side run second). The runner's
+   `--reset-local-stack` (step 4) wipes it before each sample, with the
+   MCP server's own reset, so no study rewrites that step in a hook. A
    run that reads the last run's conclusions is not measuring anything.
    Between two samples, let the previous run's process end and wait a
    few seconds: a launch that reads the CLI's log while the previous
@@ -145,11 +152,19 @@ the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
    ```bash
    python3 <this skill's directory>/scripts/run_samples.py --lab <lab clone> --fake-home <dir> --out <study dir> \
      --cli <opencode|claude|copilot> --model <vendor/name> --phase <phase> \
-     base1=<lab branch>:<mission file> after1=<lab branch>:<mission file> base2=... after2=...
+     base1=<lab branch>:<mission file> after1=<lab branch>:<mission file> after2=... base2=...
    ```
 
    One sample is `<tag>=<lab branch>:<mission file>`, run in the order
-   given (alternate the sides). For each: the lab is put on the branch
+   given: **the sides alternate and so does the position** — `base1,
+   after1, after2, base2`, never `base1, after1, base2, after2`
+   (measured 2026-09-13 over five pairs of one mission: run second in
+   its pair, the side with no measurable change came out heavier four
+   times out of four, level when run first — a cause tied to the
+   position reads as the branch unless the position alternates too;
+   the runner refuses a chain where one side opens every pair, or a
+   pair holding one side twice — a chain of one side only, a replay of
+   the same configuration, is never refused). For each: the lab is put on the branch
    and cleared of what a run left after the tip recorded when the chain
    started (a report branch, a report commit, an untracked report, a
    rewritten `opencode.json` — a lab dirty in any other way is refused
@@ -168,7 +183,12 @@ the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
    instead of polling. Its whole surface, so `--help` has nothing to
    add: the flags above, `--end-pattern`, `--effort` (default
    `medium`), `--timeout` (default 2700 s), `--pause` (default 10 s
-   between samples), `--before <command>` (run before each launch:
+   between samples), `--reset-local-stack` (wipe the local stack's data
+   before each sample, the MCP server's own reset run through this
+   repository's project — step 3; one `reset the local stack before
+   <tag>: wiped <services>` line in the journal, `SAMPLE FAILED <tag>
+   (local stack reset exit <n>)` and no launch when it fails),
+   `--before <command>` (run before each launch:
    recreate the demo stack, send a traffic burst), `--alongside
    <command>` (started right after each launch and waited for: a driver
    that replays a benchmark from a second shell), `--after <command>`,
@@ -266,6 +286,22 @@ in the PR; a change that reports more but confirms less is worse.
 **Two samples minimum before claiming a wall-clock gain**, and state
 both. The spread between two runs of one configuration reached 17 s in
 practice; a single sample below the baseline proves nothing.
+
+**Say what two samples can detect.** On one mission, main alone spread
+about 25 % on turns on each of two consecutive days (68 and 87 turns,
+then 48 to 61 — study551, study558), and more than that on tokens and
+cost (2.96M to 4.46M input, $0.52 to $0.81 the second day): two samples
+per side tell a change of the order of the run — a composed loop
+replaced by a shipped script, a phase that disappears — from noise, and
+cannot tell a 20 % effect from it. Read the table accordingly: a
+difference inside main's own spread is not a gain and not a loss, and
+is never quoted as either. For a change whose executed path is
+identical on both sides — a fix on an error path no sample meets, a
+reference byte-identical to main — the measurement is a coarse
+non-regression check at best, and the PR states it as one: "no
+measurable change expected; two pairs, ABBA, both sides inside main's
+spread", with the table, rather than a table that looks like a
+measurement.
 
 **A behaviour count is stronger evidence than a duration.** Commands
 before the phase closed, scripts authored, resets taken, redundant

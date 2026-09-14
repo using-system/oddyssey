@@ -352,3 +352,137 @@ def test_a_scope_path_outside_the_lab_or_the_fake_home_is_refused(lab, kit, tmp_
         )
         assert p.returncode == 1 and "never absolute" in p.stderr, pair
     assert (precious / "important.txt").read_text() == "keep\n"
+
+
+def test_a_chain_where_one_side_opens_every_pair_is_refused_before_launching(
+    lab, kit, tmp_path
+):
+    """Measured 2026-09-13, five pairs: run second in its pair the side with
+    no measurable change came out heavier four times out of four. A cause
+    tied to the position is indistinguishable from the branch unless the
+    position alternates too: base1, after1, after2, base2."""
+    out = tmp_path / "study"
+    m = kit["mission"]
+    p = run_samples(
+        lab,
+        kit,
+        out,
+        f"base1=lab-main:{m}",
+        f"after1=lab-after:{m}",
+        f"base2=lab-main:{m}",
+        f"after2=lab-after:{m}",
+    )
+    assert p.returncode == 1 and "opens every pair" in p.stderr
+    assert "base1, after1, after2, base2" in p.stderr
+    assert not out.exists() or not list(out.glob("*.record.json"))
+    # a pair holding one side twice never alternated the sides at all
+    p = run_samples(
+        lab,
+        kit,
+        out,
+        f"base1=lab-main:{m}",
+        f"base2=lab-main:{m}",
+        f"after1=lab-after:{m}",
+        f"after2=lab-after:{m}",
+    )
+    assert p.returncode == 1 and "one side twice" in p.stderr
+    assert not list(out.glob("*.record.json"))
+    # ABBA runs; so does one pair, a lone validation sample, and a chain of
+    # one side only (a replay of the same configuration)
+    for index, chain in enumerate(
+        (
+            [
+                f"base1=lab-main:{m}",
+                f"after1=lab-after:{m}",
+                f"after2=lab-after:{m}",
+                f"base2=lab-main:{m}",
+            ],
+            [f"base1=lab-main:{m}", f"after1=lab-after:{m}"],
+            [f"after3=lab-after:{m}"],
+            [f"base1=lab-main:{m}", f"base2=lab-main:{m}"],
+        )
+    ):
+        p = run_samples(lab, kit, tmp_path / f"study{index}", *chain)
+        assert p.returncode == 0, p.stderr + p.stdout
+
+
+FAKE_UV = """\
+#!/usr/bin/env python3
+import json, os, sys
+open(os.environ["FAKE_UV_LOG"], "a").write(json.dumps({"argv": sys.argv[1:], "cwd": os.getcwd()}) + "\\n")
+if os.environ.get("FAKE_UV_FAIL"):
+    print("no such container", file=sys.stderr); sys.exit(3)
+print(json.dumps({"running": True, "services_wiped": ["svc-a", "svc-b"]}))
+"""
+
+
+def test_the_local_stacks_data_is_reset_before_each_sample_only_when_asked(
+    lab, kit, tmp_path
+):
+    """The LGTM stack keeps every trace across samples: the second run of a
+    pair otherwise finds the first's driven run in its window. The reset is
+    the MCP server's own, run through the repository's project, before the
+    --before hook."""
+    fakebin = tmp_path / "fakebin"
+    fakebin.mkdir()
+    (fakebin / "uv").write_text(FAKE_UV)
+    (fakebin / "uv").chmod(0o755)
+    log = tmp_path / "uv.log"
+    env = {
+        "PATH": f"{fakebin}{os.pathsep}{os.environ['PATH']}",
+        "FAKE_UV_LOG": str(log),
+    }
+    out = tmp_path / "study"
+    before = tmp_path / "before.sh"
+    before.write_text(
+        '#!/bin/bash\necho "before $SAMPLE_TAG" >> "$SAMPLE_OUT/order.txt"\n'
+    )
+    p = run_samples(
+        lab,
+        kit,
+        out,
+        f"s1=lab-main:{kit['mission']}",
+        f"s2=lab-after:{kit['mission']}",
+        extra=("--reset-local-stack", "--before", f"bash {before}"),
+        env=env,
+    )
+    assert p.returncode == 0, p.stderr + p.stdout
+    calls = [json.loads(ln) for ln in log.read_text().splitlines()]
+    assert len(calls) == 2
+    for call in calls:
+        assert call["argv"][:2] == ["run", "python"]
+        assert "stack_reset" in call["argv"][-1]
+        assert call["cwd"] == str(ROOT / "src" / "mcp-server")
+    journal = (out / "samples.log").read_text()
+    assert "reset the local stack before s1: wiped svc-a, svc-b" in journal
+    assert "reset the local stack before s2: wiped svc-a, svc-b" in journal
+    assert (out / "s1.reset.log").read_text().strip().endswith("}")
+    # the reset comes before the hook that recreates what the run drives
+    assert (out / "order.txt").read_text().splitlines() == ["before s1", "before s2"]
+    assert journal.index("reset the local stack before s1") < journal.index(
+        "SAMPLE DONE s1"
+    )
+    # without the flag, nothing touches the stack
+    log.unlink()
+    p = run_samples(
+        lab, kit, tmp_path / "study2", f"s3=lab-main:{kit['mission']}", env=env
+    )
+    assert p.returncode == 0, p.stderr + p.stdout
+    assert not log.exists()
+    # a reset that fails is the sample failed, never a launch on stale data
+    p = run_samples(
+        lab,
+        kit,
+        tmp_path / "study3",
+        f"s4=lab-main:{kit['mission']}",
+        f"s5=lab-after:{kit['mission']}",
+        extra=("--reset-local-stack",),
+        env={**env, "FAKE_UV_FAIL": "1"},
+    )
+    assert p.returncode == 1
+    journal = (tmp_path / "study3" / "samples.log").read_text()
+    assert "SAMPLE FAILED s4 (local stack reset exit 3)" in journal
+    assert "SAMPLE FAILED s5 (local stack reset exit 3)" in journal
+    assert "SAMPLE CHAIN DONE 0 of 2" in journal
+    assert not (tmp_path / "study3" / "s4.record.json").exists()
+    assert "no such container" in (tmp_path / "study3" / "s4.reset.log").read_text()
