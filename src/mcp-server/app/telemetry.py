@@ -279,9 +279,12 @@ def traced_tool(fn: Callable[..., dict]) -> Callable[..., dict]:
                 # stack.DaemonUnreachable is the daemon-refusal contract of
                 # issue #521 - the caller must see its one-line remedy, which
                 # a bare RuntimeError would lose to the same withholding.
-                # Checked by class name: stack imports this module, so
-                # importing it here would be a cycle.
-                if type(exc).__name__ == "DaemonUnreachable":
+                # Imported here, not at module level: stack imports this
+                # module, and by the time a tool runs both are loaded, so
+                # the deferred import is exact and cycle-free (#537 nit).
+                from . import stack
+
+                if isinstance(exc, stack.DaemonUnreachable):
                     raise ToolError(str(exc)) from exc
                 raise
             finally:

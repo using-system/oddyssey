@@ -764,7 +764,7 @@ def test_stack_up_reports_env_not_applied_on_a_stopped_container(monkeypatch):
 
     monkeypatch.setattr(stack, "_container_state", lambda: "stopped")
     monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
-    monkeypatch.setattr(stack, "_docker", lambda *args: StartOk())
+    monkeypatch.setattr(stack, "_docker", lambda *args, **kwargs: StartOk())
     monkeypatch.setattr(stack, "_readiness", lambda: {"running": True})
     monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
 
@@ -1290,7 +1290,12 @@ def test_stack_status_daemon_unreachable_on_connect_error(monkeypatch):
 
     assert status["running"] is False
     assert status["daemon"] == "unreachable"
-    assert status["daemon_remedy"] == stack.DAEMON_REMEDY
+    # The CLI's own diagnosis rides along (#537): the remedy names what
+    # the docker CLI said, so a cause "restart Docker Desktop" cannot fix
+    # (a socket the user may not read) is still stated.
+    assert status["daemon_remedy"] == (
+        f"{stack.DAEMON_REMEDY} (docker: {CONNECT_ERROR_STDERR})"
+    )
     assert status["image"] is None
     assert status["env"] is None
 
@@ -1429,7 +1434,10 @@ def test_stack_up_unbinds_a_half_created_container_after_a_run_timeout(
     assert len(rm_calls) == 1
     (args, kwargs) = rm_calls[0]
     assert args == ("rm", "--force", "--volumes", CONTAINER_NAME)
-    assert kwargs["timeout_s"] == stack.DOCKER_RUN_TIMEOUT_S
+    # A container that never finished creating is not heavy to remove:
+    # the short budget caps the worst case near one creation budget
+    # instead of two (#537).
+    assert kwargs["timeout_s"] == stack.DOCKER_CALL_TIMEOUT_S
 
 
 def test_stack_up_unbind_cleanup_is_best_effort(monkeypatch):
@@ -1465,7 +1473,125 @@ def test_stack_down_gives_rm_the_heavy_budget(monkeypatch):
 
     stack.stack_down()
 
-    assert seen["kwargs"]["timeout_s"] == stack.DOCKER_RUN_TIMEOUT_S
+    assert seen["kwargs"]["timeout_s"] == stack.DOCKER_HEAVY_TIMEOUT_S
+
+
+def test_stack_up_starts_a_stopped_container_under_the_state_budget(monkeypatch):
+    # docker start changes state (it boots the container process), so
+    # the 5s inspect budget does not fit it; it never pulls either, so
+    # the creation budget would let a hung daemon block for minutes
+    # (#537 nit).
+    seen: dict = {}
+
+    def fake_docker(*args, **kwargs):
+        seen["args"], seen["kwargs"] = args, kwargs
+        return _Proc()
+
+    monkeypatch.setattr(stack, "_container_state", lambda: "stopped")
+    monkeypatch.setattr(stack, "_container_host_ports", lambda: None)
+    monkeypatch.setattr(stack, "_docker", fake_docker)
+    monkeypatch.setattr(stack, "_readiness", lambda: {"running": True})
+    monkeypatch.setattr(stack, "_otlp_ingest_ready", lambda client: True)
+
+    stack.stack_up()
+
+    assert seen["args"] == ("start", CONTAINER_NAME)
+    assert seen["kwargs"]["timeout_s"] == stack.DOCKER_STATE_TIMEOUT_S
+    assert (
+        stack.DOCKER_CALL_TIMEOUT_S
+        < stack.DOCKER_STATE_TIMEOUT_S
+        < stack.DOCKER_HEAVY_TIMEOUT_S
+    )
+
+
+def test_daemon_remedy_keeps_the_cli_diagnosis(monkeypatch):
+    # Issue #537: a Linux user outside the docker group fails the call and
+    # the probe alike with "permission denied ..." - a remedy that only
+    # says "restart Docker Desktop" cannot fix that. The probe's first
+    # non-empty stderr line is appended, one line still.
+    denied = (
+        "permission denied while trying to connect to the Docker daemon socket"
+        ' at unix:///var/run/docker.sock: Get "http://%2Fvar%2Frun%2Fdocker.sock'
+        '/v1.51/version": dial unix /var/run/docker.sock: connect:'
+        " permission denied"
+    )
+
+    def denied_run(argv, **kwargs):
+        return subprocess.CompletedProcess(
+            argv, 1, stdout="", stderr=f"\n{denied}\nsecond line\n"
+        )
+
+    monkeypatch.setattr(stack.subprocess, "run", denied_run)
+    with pytest.raises(stack.DaemonUnreachable) as caught:
+        stack._run_bounded(["docker", "inspect", CONTAINER_NAME], 5.0, _FakeSpan())
+    assert str(caught.value) == f"{stack.DAEMON_REMEDY} (docker: {denied})"
+    assert "\n" not in str(caught.value)
+
+    # The probe's line wins over the failed call's: the call may have
+    # failed on its own terms while the probe names the daemon's.
+    def probe_names_it(argv, **kwargs):
+        if argv == ["docker", "version"]:
+            return subprocess.CompletedProcess(argv, 1, stdout="", stderr=denied)
+        return subprocess.CompletedProcess(
+            argv, 1, stdout="", stderr="Error: No such object: oddyssey-lgtm"
+        )
+
+    monkeypatch.setattr(stack.subprocess, "run", probe_names_it)
+    with pytest.raises(stack.DaemonUnreachable) as caught:
+        stack._run_bounded(["docker", "inspect", CONTAINER_NAME], 5.0, _FakeSpan())
+    assert str(caught.value) == f"{stack.DAEMON_REMEDY} (docker: {denied})"
+
+    # A probe that hangs after a failed call: the call's line is what
+    # the CLI said, so it is kept.
+    def probe_hangs(argv, **kwargs):
+        if argv == ["docker", "version"]:
+            raise subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
+        return subprocess.CompletedProcess(argv, 1, stdout="", stderr=denied)
+
+    monkeypatch.setattr(stack.subprocess, "run", probe_hangs)
+    with pytest.raises(stack.DaemonUnreachable) as caught:
+        stack._run_bounded(["docker", "inspect", CONTAINER_NAME], 5.0, _FakeSpan())
+    assert str(caught.value) == f"{stack.DAEMON_REMEDY} (docker: {denied})"
+
+    # Nothing said (a silent nonzero exit, or a hung call): the base
+    # remedy alone - never an empty "(docker: )" tail.
+    def silent_run(argv, **kwargs):
+        return subprocess.CompletedProcess(argv, 1, stdout="", stderr="  \n")
+
+    monkeypatch.setattr(stack.subprocess, "run", silent_run)
+    with pytest.raises(stack.DaemonUnreachable) as caught:
+        stack._run_bounded(["docker", "inspect", CONTAINER_NAME], 5.0, _FakeSpan())
+    assert str(caught.value) == stack.DAEMON_REMEDY
+
+    def hung_run(argv, **kwargs):
+        raise subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
+
+    monkeypatch.setattr(stack.subprocess, "run", hung_run)
+    with pytest.raises(stack.DaemonUnreachable) as caught:
+        stack._run_bounded(["docker", "inspect", CONTAINER_NAME], 5.0, _FakeSpan())
+    assert str(caught.value) == stack.DAEMON_REMEDY
+
+
+def test_daemon_probe_runs_under_its_own_bound(monkeypatch):
+    # Issue #537: the `docker version` probe inherited the caller's
+    # timeout - on the creation path it could itself block for the whole
+    # creation budget. It never needs more than the short call budget.
+    timeouts: dict[str, float] = {}
+
+    def failing_run(argv, **kwargs):
+        timeouts[argv[1]] = kwargs.get("timeout")
+        return subprocess.CompletedProcess(argv, 1, stdout="", stderr="")
+
+    monkeypatch.setattr(stack.subprocess, "run", failing_run)
+    with pytest.raises(stack.DaemonUnreachable):
+        stack._run_bounded(
+            ["docker", "run", IMAGE], stack.DOCKER_HEAVY_TIMEOUT_S, _FakeSpan()
+        )
+
+    assert timeouts == {
+        "run": stack.DOCKER_HEAVY_TIMEOUT_S,
+        "version": stack.DOCKER_CALL_TIMEOUT_S,
+    }
 
 
 def test_readiness_waits_out_grafanas_datasource_wiring(monkeypatch):
