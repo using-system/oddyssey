@@ -363,14 +363,16 @@ Steps:
    literal double quotes — the first campaign's shell quoting passed them
    through, and the string opencode received starts and ends with `"`.
    Keep it byte-identical, quotes included: read it back from a previous
-   run's first user message rather than retyping it — from a `claude`
-   transcript or a `copilot` `user.message` event, where it is stored as
-   received. **opencode's store JSON-wraps the argument**: the `text`
-   of its first user part reads `"\"/odd-observe …\""` for the argument
-   `"/odd-observe …"`, one layer of quoting more than what was passed.
-   The argument is the same string under all three CLIs; pass the
-   store's form verbatim and the run receives it double-wrapped (one run
-   of 2026-09-12 did, at 693 characters instead of 683).
+   run's first user message rather than retyping it — the decoded string
+   value (`jq -r`, `json_extract`), never the raw serialized text. Under
+   `claude` and `copilot` that value is the argument as passed. **Under
+   opencode it is not**: `opencode run` stores the argument wrapped in
+   one more pair of escaped quotes than it was given (verified on
+   2026-09-14 with a smoke argument: `"x"` passed, `"\"x\""` stored, after
+   decoding), so the argument to pass is the same 683-character string
+   as under the other two CLIs, and the store's form passed verbatim
+   reaches the run double-wrapped (one run of 2026-09-12 did, at 693
+   characters).
 
    Add exactly three things to that line and nothing else: that the
    services' sources are under `.llms-benchmark/src/`; that you want
@@ -512,11 +514,15 @@ Steps:
 
    **Under `claude`** the whole run's totals are the `type: result`
    object the launch line captured in `run.json`:
-   - **Cost** = `total_cost_usd`, which equals the sum of
-     `modelUsage[<model>].costUSD`. Its `costBasis` is `list`: the API
-     list price, whatever plan the account is on — a subscription changes
-     the bill, not this figure, and this figure is what the table wants.
-   - the token counters are `modelUsage[<model>]`: `inputTokens`,
+   - **Cost** = `total_cost_usd`, the sum of every `modelUsage` key's
+     `costUSD` — since Claude Code 2.1.270 that includes the
+     `claude-haiku-4-5` background call the smoke check describes, about
+     0.001 USD; the table takes the total and the pull request states the
+     haiku share. Its `costBasis` is `list`: the API list price, whatever
+     plan the account is on — a subscription changes the bill, not this
+     figure, and this figure is what the table wants.
+   - the token counters are the benchmarked model's key,
+     `modelUsage[<model>]`: `inputTokens`,
      `outputTokens` (thinking included; `thinkingTokens` states the
      share), `cacheReadInputTokens`, `cacheCreationInputTokens` — for the
      **whole tree**, subagents included (`subagent_stats.spawned` says
@@ -809,19 +815,23 @@ Steps:
    counter a lie ("4,223 failed despite zero failures"). Query
    `--by condition` before ruling on either.
 
-   **The assistant scenario makes nine arrivals, not eight.** One every
-   15 s from t0 to t0+120 s inclusive: nine `POST /ask` traces, all
-   carrying the run's User-Agent, `agent_questions_total` = 9, and 17 or
-   19 `chat` spans depending on the tool loops. A report that calls the
-   ninth "pre-window contamination" stopped its own search one interval
-   short; a report that counts 15 chat spans against 17 usage records
-   miscounted the spans — fetch the eight traces and count.
+   **The assistant scenario makes eight or nine arrivals.** One every
+   15 s from t0, and whether the one at t0+120 s lands depends on the
+   run: three runs of 2026-09-14 had nine `POST /ask` traces, all
+   carrying the run's User-Agent, and `agent_questions_total` = 9;
+   others had eight. Count the run's own traces by its User-Agent before
+   ruling — a ninth that carries the UA is an arrival, not
+   "pre-window contamination" (one report stopped its search one
+   interval short and called the correct counter misleading) — and
+   count the `chat` spans against the traces found, never against
+   eight: one report ruled 17 usage records against "15 chat spans"
+   that were 17.
 
    **Three `service_instance_id` values are one per service**, the api's,
    the mcp's and the agent's — not several instances of one service. And
    **a just-recreated stack has no request telemetry until the first
-   request**: `/health` is excluded from spans and metrics by the
-   instrumentation, so a preflight probe that finds the api and the mcp
+   request**: nothing but the compose healthcheck has reached it, and
+   that leaves none, so a preflight probe that finds the api and the mcp
    "absent" minutes after `up` has found no traffic, not an export gap.
 
    **A large response is not on stdout.** `gcx traces get` on a wide trace
