@@ -34,7 +34,6 @@ CLI, always its latest run.
 | **#11** | `qwen/qwen3.8-27b` | opencode | 1.12.0 | 14 / 16 | 10 / 3 / 3 | 43m52s | $2.09 | $0.150 |
 | **#12** | `qwen/qwen3.8-max-0902` | opencode | 1.12.0 | **14 / 14** | 8 / 3 / 3 | 66m09s | $2.88 | $0.206 |
 | **#13** | `anthropic/claude-sonnet-5` | claude | 1.12.0 | **5 / 5** | 2 / 2 / 1 | 12m20s | $2.55 | $0.511 |
-| **#14** | `anthropic/claude-haiku-4.5` | claude | 1.11.5 ⚠︎ | **2 / 5** | 0 / 5 / 0 | 10m13s | $0.79 | $0.393 |
 
 <details>
 <summary>Run detail — phases, turns, tokens</summary>
@@ -54,7 +53,6 @@ CLI, always its latest run.
 | `qwen/qwen3.8-27b` | opencode | 1.12.0 | 10m51s | 2m01s | 31m00s | 80 | 24.8s | 11.5M | 121k | 10.7M | 4/4 |
 | `qwen/qwen3.8-max-0902` | opencode | 1.12.0 | 9m00s | 2m02s | 55m07s | 47 | 51.1s | 5.5M | 153k | 5.2M | 4/4 |
 | `anthropic/claude-sonnet-5` | claude | 1.12.0 | 2m11s | 2m00s | 8m09s | 67 | 2.1s | 7.5M | 43k | 7.5M | 4/4 |
-| `anthropic/claude-haiku-4.5` | claude | 1.11.5 ⚠︎ | 2m17s | 2m01s | 5m55s | 61 | 2.0s | 4.2M | 33k | 4.2M | 4/4 |
 
 Token counts are rounded; the exact figures are in each run's pull
 request. Input includes the cached share, so Input and Cache overlap by
