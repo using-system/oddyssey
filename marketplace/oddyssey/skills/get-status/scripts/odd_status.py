@@ -45,27 +45,37 @@ if not (_ODD_MEMORY_SCRIPTS / "odd_report.py").is_file():
 sys.path.insert(0, str(_ODD_MEMORY_SCRIPTS))
 import odd_report
 from odd_report import (
+    LEDGER_PATH,
     LEGACY_PREFIX,
     MAX_FINDING_TITLE,
+    MEMORY_PATHS,
     OBSERVATION_MODES,
     REPLAY_MODES,
+    added_commit,
     as_list,
+    benchmark_mentions,
     cap,
     check_report,
+    commits_after,
     finding_ids,
     findings_at_a_glance,
-    git,
     git_root,
+    head_facts,
     headline,
+    instrumentation_services,
     is_separator_row,
+    load_classifications,
     ls_tree,
     normalize_remote,
     paragraphs_starting_with,
     raw_sections,
     repo_identity,
+    report_boundary,
+    resolve_revision,
     scenario_record,
     split_cells,
     split_frontmatter,
+    tree_anchor_diff,
 )
 
 OBSERVATION_MODES_ALL = OBSERVATION_MODES
@@ -73,46 +83,11 @@ ELLIPSIS = odd_report.ELLIPSIS  # the cap marker, read by the tests here
 
 SCHEMA = "odd-status-facts/1"
 
+# the commit that added a report - the boundary the code walk falls back on
+file_commit = added_commit
+
 OBSERVATION_DIR = ".odd/observe-run-reports"
 INSTRUMENTATION_DIR = ".odd/otel-instrumentation-reports"
-LEDGER_PATH = ".odd/decisions.md"
-CLASSIFICATIONS_PATH = ".odd/entry-classifications.md"
-CLASSES = ("runtime", "non-runtime")
-BENCHMARKS_DIR = ".odd/benchmarks"
-
-# The loop's own memory: a commit touching nothing else is never a fix.
-MEMORY_PATHS = (OBSERVATION_DIR, INSTRUMENTATION_DIR, LEDGER_PATH, CLASSIFICATIONS_PATH)
-
-# Top-level tree entries that cannot change a service's runtime behavior
-# in any repository: editor and CI configuration, and the documentation
-# files every project carries. Conservative on purpose - a directory a
-# service could live in (agents/, assets/, marketplace/, ...) is never
-# listed, and anything not listed is reported as unclassified for the
-# skill to decide. Matched on the lower-cased name. The repository's own
-# rulings (.odd/entry-classifications.md) come before this list, and a
-# flag given for one run comes before both.
-NON_RUNTIME_NAMES = {
-    ".editorconfig",
-    ".gitattributes",
-    ".github",
-    ".gitignore",
-    ".idea",
-    ".vscode",
-    "agents.md",
-    "changelog",
-    "changelog.md",
-    "claude.md",
-    "code_of_conduct.md",
-    "contributing.md",
-    "doc",
-    "docs",
-    "license",
-    "license.md",
-    "license.txt",
-    "readme",
-    "readme.md",
-    "security.md",
-}
 
 DEFAULT_SECTION_TEXTS = (3, 5)
 DEFAULT_TABLE_SECTIONS = (2, 3, 5)
@@ -134,8 +109,7 @@ DEFAULT_RECENT = 3
 MAX_COMPACT_PARAGRAPH = 300
 DEFAULT_MAX_RECORD = 800
 DEFAULT_MAX_COMMITS = 10
-MAX_CHANGED_PATHS = 10
-BENCHMARK_RE = re.compile(r"\.odd/benchmarks/([A-Za-z0-9_.-]+)")
+
 # --- git ------------------------------------------------------------------
 
 
@@ -184,96 +158,6 @@ def resolve_root(root: Path, frontmatter: dict, opts: dict) -> dict:
         "source": "unreachable",
         "store_identity_unknown": opts.get("identity") is None,
     }
-
-
-def head_facts(root: Path) -> dict | None:
-    line = git(root, "log", "-1", "--format=%H%x1f%cI")
-    if not line:
-        return None
-    sha, date = line.split("\x1f")
-    return {"sha": sha, "date": date}
-
-
-def file_commit(root: Path, rel: str) -> dict | None:
-    """The commit that added the file - the oldest one, when re-added."""
-    out = git(root, "log", "--diff-filter=A", "--format=%H%x1f%cI", "--", rel)
-    if not out:
-        return None
-    sha, date = out.splitlines()[-1].split("\x1f")
-    return {"sha": sha, "date": date}
-
-
-def resolve_revision(root: Path, value: Any) -> dict | None:
-    if value is None:
-        return None
-    text = str(value)
-    sha = git(root, "rev-parse", "--verify", "--quiet", f"{text}^{{commit}}")
-    return {"value": text, "resolves": bool(sha), "sha": sha or None}
-
-
-def parse_log(out: str | None) -> list[dict]:
-    """Commits from ``git log --format=%H%x1f%cI%x1f%s --name-only``."""
-    commits: list[dict] = []
-    for line in (out or "").splitlines():
-        if "\x1f" in line:
-            sha, date, subject = line.split("\x1f", 2)
-            commits.append(
-                {"sha": sha, "date": date, "subject": subject, "entries": set()}
-            )
-        elif line.strip() and commits:
-            commits[-1]["entries"].add(line.strip().split("/", 1)[0])
-    for commit in commits:
-        commit["entries"] = sorted(commit["entries"])
-    return commits
-
-
-def commits_after(
-    root: Path,
-    boundary: dict,
-    pathspec: list[str],
-    exclude_sha: str | None = None,
-) -> list[dict] | None:
-    """Commits after ``boundary`` touching ``pathspec``, newest first.
-
-    None when there is no boundary to count from. ``exclude_sha`` (the
-    report's own commit) only applies to a commit-date boundary, where
-    ``--since`` would count it: after a resolvable revision, the squash
-    that landed both the fix and the report is a change like any other.
-    """
-    if boundary["kind"] == "revision":
-        selector = [f"{boundary['sha']}..HEAD"]
-        exclude_sha = None
-    elif boundary["kind"] == "commit-date":
-        selector = [f"--since={boundary['date']}"]
-    else:
-        return None
-    out = git(
-        root,
-        "log",
-        "--format=%H%x1f%cI%x1f%s",
-        "--name-only",
-        *selector,
-        "--",
-        *pathspec,
-    )
-    commits = parse_log(out)
-    if exclude_sha:
-        commits = [c for c in commits if c["sha"] != exclude_sha]
-    return commits
-
-
-def report_boundary(revision: dict | None, commit: dict | None) -> dict:
-    if revision and revision["resolves"]:
-        return {"kind": "revision", "sha": revision["sha"]}
-    if commit:
-        return {"kind": "commit-date", "date": commit["date"]}
-    return {"kind": "none"}
-
-
-def changed_paths(root: Path, revision_sha: str, entry: str) -> dict:
-    out = git(root, "diff", "--name-only", revision_sha, "HEAD", "--", entry) or ""
-    paths = [p for p in out.splitlines() if p.strip()]
-    return {"count": len(paths), "paths": paths[:MAX_CHANGED_PATHS]}
 
 
 # --- frontmatter ------------------------------------------------------------
@@ -383,113 +267,7 @@ def capped_sections(
     return out
 
 
-def benchmark_mentions(sections: list[dict], body: str) -> list[dict]:
-    """Every distinct benchmark path the body names, with the section naming it."""
-    found: list[dict] = []
-    seen: set[str] = set()
-
-    def scan(text: str, number: int | None) -> None:
-        for match in BENCHMARK_RE.finditer(text):
-            path = f"{BENCHMARKS_DIR}/{match.group(1).rstrip('.')}"
-            if path not in seen:
-                seen.add(path)
-                found.append({"path": path, "section": number})
-
-    for section in sections:
-        table_text = "\n".join(
-            c for t in section["tables"] for r in t["rows"] for c in r
-        )
-        scan("\n".join(section["lines"]) + "\n" + table_text, section["number"])
-    scan(body, None)
-    return found
-
-
-# --- tree anchor --------------------------------------------------------------
-
-
-def classify_entry(name: str, opts: dict) -> tuple[str, str | None]:
-    """An entry's class and the source that settled it - a flag for this run,
-    the repository's classification ledger, the built-in list - or
-    ``("unclassified", None)`` when none does."""
-    low = name.lower()
-    if low in opts["runtime"]:
-        return "runtime", "flag"
-    if low in opts["non_runtime"]:
-        return "non-runtime", "flag"
-    ruling = opts.get("classifications", {}).get(low)
-    if ruling:
-        return ruling["class"], "file"
-    if low in NON_RUNTIME_NAMES:
-        return "non-runtime", "built-in"
-    return "unclassified", None
-
-
-def tree_anchor_diff(
-    root: Path,
-    anchor: Any,
-    candidate: dict[str, str] | None,
-    revision: dict | None,
-    opts: dict,
-) -> dict | None:
-    if not isinstance(anchor, dict) or candidate is None:
-        return None
-    diff: dict[str, Any] = {
-        "candidate": "HEAD",
-        "root": str(root),
-        "ignored": [],
-        "unchanged": 0,
-        "runtime": [],
-        "non_runtime": [],
-        "unclassified": [],
-        "classified_by": {},
-        "only_in_anchor": [],
-        "only_at_candidate": sorted(set(candidate) - set(anchor) - {".odd"}),
-        "changed_paths": None,
-    }
-    if ".odd" in anchor or ".odd" in candidate:
-        diff["ignored"].append(".odd")
-    differing: list[str] = []
-    for name, digest in sorted(anchor.items()):
-        if name == ".odd":
-            continue
-        if name not in candidate:
-            diff["only_in_anchor"].append(name)
-        elif candidate[name] == str(digest):
-            diff["unchanged"] += 1
-        else:
-            differing.append(name)
-            klass, source = classify_entry(name, opts)
-            if klass == "runtime":
-                diff["runtime"].append(name)
-            elif klass == "non-runtime":
-                diff["non_runtime"].append(name)
-            else:
-                diff["unclassified"].append(name)
-            if source:
-                diff["classified_by"][name] = source
-    if revision and revision["resolves"]:
-        diff["changed_paths"] = {
-            name: changed_paths(root, revision["sha"], name) for name in differing
-        }
-    return diff
-
-
 # --- reports ----------------------------------------------------------------
-
-
-def instrumentation_services(sections: list[dict]) -> list[str]:
-    """The services an instrumentation plan covers: its summary table.
-
-    Only a table whose first column is ``Service`` counts - a plan's
-    section 2 may compare destinations or options instead.
-    """
-    for section in sections:
-        if section["number"] != 2:
-            continue
-        for table in section["tables"]:
-            if table["header"] and table["header"][0].strip("*` ").lower() == "service":
-                return [row[0] for row in table["rows"] if row and row[0].strip()]
-    return []
 
 
 def project_scope(root: Path, project: Any) -> str | None:
@@ -763,56 +541,6 @@ def load_ledger(root: Path, reports: list[dict]) -> dict:
                 "line": number,
                 "date": date,
                 "verdict": verdict,
-                "rationale": rationale,
-            }
-        rows.append(row)
-    return {"present": True, "rows": rows, "effective": effective}
-
-
-def load_classifications(root: Path, head_tree: dict[str, str] | None) -> dict:
-    """The entry-classification ledger, read the way the finding ledger is:
-    every row reported, a bad one skipped with its reason, the latest row
-    for an entry winning. Keyed on the lower-cased entry."""
-    path = root / CLASSIFICATIONS_PATH
-    if not path.is_file():
-        return {"present": False, "rows": [], "effective": {}}
-    known = {name.lower() for name in (head_tree or {})}
-    rows: list[dict] = []
-    effective: dict[str, dict] = {}
-    for number, line in enumerate(
-        path.read_text(encoding="utf-8").splitlines(), start=1
-    ):
-        if not line.lstrip().startswith("|") or is_separator_row(line):
-            continue
-        cells = split_cells(line)
-        if cells and cells[0].lower() == "date":
-            continue
-        row: dict[str, Any] = {"line": number}
-        if len(cells) != 4:
-            row.update(
-                status="skipped",
-                reason=f"expected 4 columns, got {len(cells)}",
-                raw=line.strip(),
-            )
-            rows.append(row)
-            continue
-        date, entry, klass, rationale = cells
-        row.update(date=date, entry=entry, **{"class": klass}, rationale=rationale)
-        if klass.lower() not in CLASSES:
-            row.update(
-                status="skipped",
-                reason=f"class is neither runtime nor non-runtime: {klass}",
-            )
-        elif not entry or entry.lower() not in known:
-            row.update(
-                status="skipped", reason=f"no top-level entry named {entry} at HEAD"
-            )
-        else:
-            row["status"] = "ok"
-            effective[entry.lower()] = {
-                "line": number,
-                "date": date,
-                "class": klass.lower(),
                 "rationale": rationale,
             }
         rows.append(row)

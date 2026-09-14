@@ -7,22 +7,29 @@ unmodified, and record what happened. This does that, so no agent has to
 rebuild it from prose - and so two replays of the same benchmark are the
 same command.
 
-    python3 replay_benchmark.py .odd/benchmarks/<name> --run-slug <slug>
-    python3 replay_benchmark.py <dir> --run-slug s -e BASE_URL=http://host:8080
-    python3 replay_benchmark.py <dir> --run-slug s --send-traceparent   # remote drive
-    python3 replay_benchmark.py <dir> --run-slug s --dry-run            # print, run nothing
-    python3 replay_benchmark.py <dir> --run-slug s --detach <out>       # start, return at once
-    python3 replay_benchmark.py --status <out> --wait 20m               # block until finished
+    python3 replay_benchmark.py .odd/benchmarks/<name> --run-slug <slug> --detach <out>   # start, return at once
+    python3 replay_benchmark.py --status <out> --wait 20m                                 # block until finished
+    python3 replay_benchmark.py <dir> --run-slug s --detach <out> -e BASE_URL=http://host:8080
+    python3 replay_benchmark.py <dir> --run-slug s --detach <out> --send-traceparent   # remote drive
+    python3 replay_benchmark.py <dir> --run-slug s --dry-run                           # print, run nothing
+    python3 replay_benchmark.py --stages <dir> --first-row <UTC>        # the record's stage lines
 
 What it refuses, because they are edits by another name: --vus,
 --iterations, --duration, --stage, --rps, --execution-segment,
 --no-thresholds, --no-setup, --no-teardown. A benchmark that needs one of
 those is a reported failure and a /odd-instrument-bench diff.
 
-Output is the record block: benchmark name and its own git revision,
-whether its directory is clean, the command verbatim, the UTC window,
-k6's exit status, and where the summary landed. With --json, the same as
-one object.
+A replay always runs detached: without --detach the script refuses (exit
+2, the two commands printed) - a benchmark outlasts a tool call, and a
+call cut at its budget is a run launched twice. --status prints the record
+block: benchmark name and its own git revision, whether its directory is
+clean, the command verbatim, the UTC window, k6's exit status, and where
+the summary landed. With --json, the same as one object.
+
+--stages lays the manifest's stage offsets out in UTC from the run's first
+request row - the arithmetic every record redoes - and prints the record's
+`Stages (UTC):` and `Warmup:` lines, t0 (the first quoted stage's start),
+and a ramp's segments with the offered rate at each midpoint.
 """
 
 from __future__ import annotations
@@ -104,9 +111,8 @@ def otel_env() -> dict:
 def summarise(stdout: str, stderr: str) -> dict:
     """The evidence lines a record carries, whichever form produced it.
 
-    The foreground and detached paths must yield the same shapes for the
-    same keys, or an agent reading --json gets a string here and a list
-    there for `stderr`.
+    One shape for every key, or an agent reading --json gets a string here
+    and a list there for `stderr`.
     """
     lines = [
         ln.strip()
@@ -263,6 +269,334 @@ def report_status(out: Path, as_json: bool, wait: str | None = None) -> int:
     return 0
 
 
+# --- the stage boundaries a record needs ---------------------------------------
+
+
+def parse_offset(value: str) -> int:
+    """A k6 duration off the manifest as seconds: 30s, 2m, 1h, 1h30m, 0s."""
+    text = str(value).strip().strip("'\"")
+    total = 0
+    matched = False
+    for num, unit in re.findall(r"(\d+(?:\.\d+)?)\s*([smh])", text):
+        total += float(num) * {"s": 1, "m": 60, "h": 3600}[unit]
+        matched = True
+    if not matched:
+        raise ValueError(f"not a k6 duration: {value!r}")
+    return int(total)
+
+
+def _number(value) -> float | None:
+    """The number a target carries, or None when it is text (`1 per 15s`)."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip()
+    return float(text) if re.fullmatch(r"-?\d+(?:\.\d+)?", text) else None
+
+
+def _leading_number(value) -> float | None:
+    text = str(value).strip()
+    m = re.match(r"-?\d+(?:\.\d+)?", text)
+    return float(m.group(0)) if m else None
+
+
+def _scalar(text: str):
+    text = text.strip()
+    if text and text[0] not in "\"'":
+        text = text.split(" #")[0].strip()
+    text = text.strip("'\"")
+    if text.lower() in ("true", "false"):
+        return text.lower() == "true"
+    if re.fullmatch(r"-?\d+", text):
+        return int(text)
+    if re.fullmatch(r"-?\d+\.\d+", text):
+        return float(text)
+    return text
+
+
+def _flow_mapping(text: str) -> dict:
+    """`{ name: steady, from: 0s, to: 2m, target: 5, quote: true }`."""
+    inner = text.strip()[1:-1]
+    out: dict = {}
+    for part in re.split(r",(?![^\[]*\])", inner):
+        if ":" in part:
+            k, v = part.split(":", 1)
+            out[k.strip()] = _scalar(v)
+    return out
+
+
+def parse_block(lines: list[str]) -> dict | list:
+    """The subset of YAML a manifest's profile uses: nested mappings by
+    indentation, lists of mappings (block or flow style), scalars, block
+    scalars folded to text. Enough to read the stages; a full parser is a
+    dependency the replay does not carry."""
+    items: list[tuple[int, str]] = []
+    for raw in lines:
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        items.append((len(raw) - len(raw.lstrip()), raw.strip()))
+    return _parse(items, 0, len(items))[0]
+
+
+def _parse(items: list[tuple[int, str]], start: int, end: int):
+    if start >= end:
+        return {}, start
+    base = items[start][0]
+    if items[start][1].startswith("- "):
+        out_list: list = []
+        i = start
+        while i < end and items[i][0] == base and items[i][1].startswith("- "):
+            body = items[i][1][2:].strip()
+            j = i + 1
+            while j < end and items[j][0] > base:
+                j += 1
+            if body.startswith("{"):
+                out_list.append(_flow_mapping(body))
+            elif ":" in body:
+                first = (base + 2, body)
+                entry, _ = _parse([first, *items[i + 1 : j]], 0, j - i)
+                out_list.append(entry)
+            else:
+                out_list.append(_scalar(body))
+            i = j
+        return out_list, i
+    out: dict = {}
+    i = start
+    while i < end and items[i][0] == base:
+        line = items[i][1]
+        if ":" not in line:
+            i += 1
+            continue
+        key, value = line.split(":", 1)
+        key, value = key.strip(), value.strip()
+        if value.startswith("#"):
+            value = ""  # a key whose line carries only a comment
+        j = i + 1
+        while j < end and items[j][0] > base:
+            j += 1
+        if value in ("", ">", ">-", "|", "|-") or value.startswith(("> ", "| ")):
+            if (
+                value
+                and j > i + 1
+                and not items[i + 1][1].startswith("- ")
+                and value[0] in ">|"
+            ):
+                out[key] = " ".join(t for _, t in items[i + 1 : j])
+            elif j > i + 1:
+                out[key], _ = _parse(items, i + 1, j)
+            else:
+                out[key] = None
+        elif value.startswith("{"):
+            out[key] = _flow_mapping(value)
+        else:
+            out[key] = _scalar(value)
+        i = j
+    return out, i
+
+
+def manifest_profile(text: str) -> dict:
+    """The manifest's `profile:` block, parsed."""
+    lines = text.splitlines()
+    start = next((k for k, ln in enumerate(lines) if ln.startswith("profile:")), None)
+    if start is None:
+        return {}
+    end = next(
+        (k for k in range(start + 1, len(lines)) if re.match(r"^[A-Za-z_]", lines[k])),
+        len(lines),
+    )
+    parsed = parse_block(lines[start:end])
+    return parsed.get("profile") or {} if isinstance(parsed, dict) else {}
+
+
+def scenario_stages(profile: dict) -> list[tuple[str | None, dict, dict]]:
+    """(scenario name, its block, one stage) per stage, in manifest order:
+    a profile carries its stages at its top or under `scenarios`."""
+    found = []
+    for sc in profile.get("scenarios") or []:
+        if isinstance(sc, dict):
+            for st in sc.get("stages") or []:
+                if isinstance(st, dict):
+                    found.append(
+                        (str(sc.get("scenario") or sc.get("name") or ""), sc, st)
+                    )
+    for st in profile.get("stages") or []:
+        if isinstance(st, dict):
+            found.append((None, profile, st))
+    return found
+
+
+def hhmm(ts: str) -> str:
+    return ts[11:19]
+
+
+def stage_layout(text: str, first_row: str, segment: str) -> dict:
+    """Every stage in UTC from the first request row, the warmup (the
+    unquoted stages before the first quoted one), t0, a ramp's segments."""
+    profile = manifest_profile(text)
+    found = scenario_stages(profile)
+    if not found:
+        raise ValueError("no stages under the manifest's profile")
+    t_first = datetime.datetime.strptime(first_row, "%Y-%m-%dT%H:%M:%SZ").replace(
+        tzinfo=datetime.timezone.utc
+    )
+    seg_s = parse_offset(segment)
+    fmt = "%Y-%m-%dT%H:%M:%SZ"
+    stages: list[dict] = []
+    segments: list[dict] = []
+    previous: dict[str | None, float | None] = {}
+    for scenario, block, st in found:
+        frm, to = parse_offset(st.get("from", "0s")), parse_offset(st.get("to", "0s"))
+        target = st.get("target")
+        number = _number(target)
+        start = previous.get(scenario)
+        if start is None:
+            start = _leading_number(block.get("start_vus", block.get("start_rate", "")))
+            if start is None:
+                start = number
+        ramp = number is not None and start is not None and start != number
+        entry = {
+            "scenario": scenario,
+            "name": str(st.get("name") or f"stage {len(stages) + 1}"),
+            "from_s": frm,
+            "to_s": to,
+            "from": (t_first + datetime.timedelta(seconds=frm)).strftime(fmt),
+            "to": (t_first + datetime.timedelta(seconds=to)).strftime(fmt),
+            "target": target
+            if number is None
+            else (int(number) if number.is_integer() else number),
+            "start_target": None
+            if start is None
+            else (int(start) if float(start).is_integer() else start),
+            "quote": bool(st.get("quote", False)),
+            "ramp": ramp,
+        }
+        stages.append(entry)
+        if number is not None:
+            previous[scenario] = number
+        if ramp and to > frm:
+            t = frm
+            while t < to:
+                u = min(t + seg_s, to)
+                mid = (t + u) / 2
+                rate = start + (number - start) * (mid - frm) / (to - frm)
+                segments.append(
+                    {
+                        "scenario": scenario,
+                        "stage": entry["name"],
+                        "from": (t_first + datetime.timedelta(seconds=t)).strftime(fmt),
+                        "to": (t_first + datetime.timedelta(seconds=u)).strftime(fmt),
+                        "midpoint_rate": round(rate, 3),
+                    }
+                )
+                t = u
+    quoted = [s for s in stages if s["quote"]]
+    t0 = min((s["from"] for s in quoted), default=None)
+    first_quoted_s = min((s["from_s"] for s in quoted), default=None)
+    # the warmup is what the manifest schedules before the first quoted
+    # stage and does not ramp: a ramp before it is a transition, read in
+    # segments, never a warmup
+    warm = [
+        s["name"]
+        for s in stages
+        if not s["quote"]
+        and not s["ramp"]
+        and first_quoted_s is not None
+        and s["to_s"] <= first_quoted_s
+    ]
+    warm_seconds = max((s["to_s"] for s in stages if s["name"] in warm), default=0)
+    end = max(s["to"] for s in stages)
+
+    def label(s: dict) -> str:
+        name = (
+            s["name"]
+            if s["scenario"] is None or len({x["scenario"] for x in stages}) == 1
+            else f"{s['scenario']} {s['name']}"
+        )
+        return f"{name} {hhmm(s['from'])}–{hhmm(s['to'])}" + (
+            "" if s["quote"] else " (excluded)"
+        )
+
+    parts = [label(s) for s in stages]
+    line = (
+        f"Stages (UTC): offsets converted from the first request row {hhmm(first_row)} — "
+        + ", ".join(parts)
+    )
+    if t0:
+        line += (
+            f"; t0 (first measured request, where the quoted numbers start) {hhmm(t0)}"
+        )
+    else:
+        line += "; t0: none - no stage is quoted (the per-segment view is the result)"
+    ramps = [s for s in stages if s["ramp"]]
+    if ramps:
+        line += "; " + ", ".join(
+            f"{s['name']} {hhmm(s['from'])}–{hhmm(s['to'])} read in {seg_s} s segments, offered rate at each segment's midpoint"
+            for s in ramps
+        )
+    if warm:
+        warmup_line = (
+            f"Warmup:    the manifest's {' and '.join(warm)} stage{'s' if len(warm) > 1 else ''}, "
+            f"{warm_seconds} s (excluded from the quoted numbers); t0 and the first row are {warm_seconds} s apart"
+        )
+    elif t0 is None:
+        warmup_line = (
+            "Warmup:    none - no stage is quoted, nothing precedes a steady state"
+        )
+    elif t0 == first_row:
+        warmup_line = "Warmup:    none - the manifest declares no warmup stage, t0 is the first request row"
+    else:
+        gap = first_quoted_s
+        before = [
+            s["name"] for s in stages if s["to_s"] <= first_quoted_s and not s["quote"]
+        ]
+        warmup_line = (
+            f"Warmup:    none declared - t0 is {gap} s after the first row; "
+            f"before it the {' and '.join(before)} stage{'s' if len(before) > 1 else ''} "
+            "ramp rather than warm up, read in segments (excluded from the quoted numbers)"
+        )
+    return {
+        "first_row": first_row,
+        "t0": t0,
+        "end": end,
+        "segment": segment,
+        "stages": stages,
+        "segments": segments,
+        "warmup": {"stages": warm, "seconds": warm_seconds},
+        "stages_line": line,
+        "warmup_line": warmup_line,
+    }
+
+
+def report_stages(bench: Path, first_row: str, segment: str, as_json: bool) -> int:
+    manifest_path = bench / "manifest.yaml"
+    if not manifest_path.is_file():
+        print(f"no manifest.yaml in {bench}", file=sys.stderr)
+        return 1
+    if not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", first_row):
+        print(
+            f"--first-row is the run's first request row as RFC3339 UTC "
+            f"(YYYY-MM-DDTHH:MM:SSZ), got {first_row!r}",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        out = stage_layout(manifest_path.read_text(), first_row, segment)
+    except ValueError as exc:
+        print(f"{bench}: {exc}", file=sys.stderr)
+        return 1
+    if as_json:
+        print(json.dumps(out, indent=2))
+        return 0
+    print(out["stages_line"])
+    print(out["warmup_line"])
+    print(f"t0:  {out['t0'] or 'none'}")
+    print(f"end: {out['end']}  (the last stage's end; a run may exit before it)")
+    for s in out["segments"]:
+        print(
+            f"  {s['stage']}: {hhmm(s['from'])}–{hhmm(s['to'])}  offered rate at midpoint {s['midpoint_rate']}"
+        )
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("benchmark", nargs="?", help="the stored benchmark's directory")
@@ -306,10 +640,35 @@ def main() -> int:
         help="with --status: block until the run finishes or DURATION "
         "(20m, 300s, 1h) passes - exit 3 when still running at the bound",
     )
+    parser.add_argument(
+        "--stages",
+        metavar="DIR",
+        help="print the record's stage lines for the benchmark in DIR, laid "
+        "out from --first-row",
+    )
+    parser.add_argument(
+        "--first-row",
+        metavar="UTC",
+        help="with --stages: the run's first request row, RFC3339 UTC",
+    )
+    parser.add_argument(
+        "--segment",
+        default="30s",
+        metavar="DURATION",
+        help="with --stages: the width a ramp is read in (default 30s)",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
+    if args.stages:
+        if not args.first_row:
+            parser.error(
+                "--stages needs --first-row <the run's first request row, UTC>"
+            )
+        return report_stages(Path(args.stages), args.first_row, args.segment, args.json)
+    if args.first_row:
+        parser.error("--first-row goes with --stages")
     if args.wait and not args.status:
         parser.error("--wait goes with --status")
     if args.wait:
@@ -408,36 +767,24 @@ def main() -> int:
     if args.detach:
         return detach(cmd, repo, Path(args.detach), record, args.json, child_env)
 
-    record["start_utc"] = utc()
-    proc = subprocess.run(
-        cmd,
-        cwd=repo,
-        env={**os.environ, **child_env} if child_env else None,
-        capture_output=True,
-        text=True,
-        check=False,
+    # the replay is always detached: run in the foreground it outlasts a
+    # tool call, gets cut at the budget and gets launched again (one drive
+    # ran twice, 2026-09-12) - the script refuses what the reference forbids
+    out = f"<scratch>/{args.run_slug}"
+    given = [f"-e {v}" for v in (args.env or [])]
+    given += ["--send-traceparent"] if args.send_traceparent else []
+    given += ["--otel"] if getattr(args, "otel", False) else []
+    given += [f"--summary {args.summary}"] if args.summary else []
+    print(
+        "a replay runs detached, never in the foreground - a benchmark outlasts "
+        "a tool call and a cut call is a run launched twice. Run:\n"
+        f"  {sys.argv[0]} {bench} --run-slug {args.run_slug} --detach {out}"
+        + "".join(f" {g}" for g in given)
+        + "\n"
+        f"  {sys.argv[0]} --status {out} --wait <the benchmark's length plus a margin, e.g. 5m>",
+        file=sys.stderr,
     )
-    record["end_utc"] = utc()
-    record["exit_code"] = proc.returncode
-
-    record.update(summarise(proc.stdout, proc.stderr))
-
-    if args.json:
-        print(json.dumps(record, indent=2))
-    else:
-        print(
-            f"Benchmark:  {record['benchmark']} @ {record['revision']}"
-            f"{'' if record['clean'] else '  (DIRTY - no revision to replay at)'}"
-        )
-        print(f"Command:    {record['command']}")
-        print(f"Window:     {record['start_utc']} / {record['end_utc']}")
-        print(f"Exit:       {record['exit_code']}")
-        for ln in record["k6"]:
-            print(f"            {ln}")
-        print(f"Summary:    {record['summary_export']}")
-        if record["stderr"]:
-            print(f"Stderr:     {record['stderr'].splitlines()[0][:160]}")
-    return 0 if proc.returncode == 0 else 2
+    return 2
 
 
 if __name__ == "__main__":

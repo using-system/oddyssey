@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""The observation report's deterministic steps, as one script.
+"""The observation and instrumentation reports' deterministic steps, as one script.
 
-The observe-run-report reference used to spell out, in prose, what the
+The two report references used to spell out, in prose, what the
 inputs already fix: the file's name (the UTC stamp, the slug, the
 observer suffix, the replay prefixes, the ordinal on a collision), the
 frontmatter fields a repository answers (``date``, ``revision``,
-``tree_anchor``, ``repository``), the seven numbered sections, the
+``tree_anchor``, ``repository``), the numbered sections (seven, eight
+on a custom stack), the
 ruling table a replay opens section 3 with, the work branch and the
 lone commit, and the synthesis block a mission closes with. A run read
 that prose right before writing its report, with the whole
@@ -25,11 +26,20 @@ read by one module.
                       [--verifies FILE] [--workload W] [--instance K=V ...]
                       [--process-restarted true|false|K=V ...]
                       [--repository VALUE] [--at UTC] [--no-revision] [--repo PATH]
+    odd_report.py new --kind instrumentation --project SCOPE --stack S --run-name SLUG
+                      [--genai SERVICE ...] [--repository VALUE] [--at UTC]
+                      [--no-revision] [--repo PATH]
     odd_report.py check PATH
-    odd_report.py read PATH --sections 1,2,3,7 [--record]
+    odd_report.py read PATH [--sections 1,2,3,7] [--record]
     odd_report.py synthesis PATH
     odd_report.py show PATH
     odd_report.py persist PATH [--body DRAFT] [--no-commit]
+    odd_report.py baseline [TARGET] [--service S ...] [--stack S] [--env E]
+                           [--depth D] [--own-protocol] [--repo PATH]
+                           (a replay's baseline, mode and depth; exit 3 with an
+                           ``ask:`` line when only the user can settle it)
+    odd_report.py boundary PATH [--runtime NAME ...] [--non-runtime NAME ...] [--repo PATH]
+                           (verification, re-measure or undecidable - exit 3)
 
 Standard library and git only. stdout carries the answer (a path, the
 report's text, the synthesis); stderr carries the notes and the
@@ -42,6 +52,7 @@ import argparse
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -78,7 +89,117 @@ SECTION_TITLES = (
     "Decisions the spec must settle",
     "Measurement protocol for the fix",
 )
+# The eighth section, present only when the mission ran against a custom
+# stack: one bullet per point of friction with the stack as shipped, or a
+# `none` bullet; the frontmatter's stack_friction counts the entries.
+FRICTION_NUMBER = 8
+FRICTION_TITLE = "Stack friction"
+FRICTION_KEY = "stack_friction"
+INSTRUMENTATION_TITLES = (
+    "Stack inventory",
+    "Summary table",
+    "Decisions made, with rationale",
+    "Decisions the spec must settle",
+    "Verification protocol",
+)
+INSTRUMENTATION_FIELDS = ("project", "stack", "run_name", "date")
+SUMMARY_HEADER = [
+    "Service",
+    "Language + version",
+    "Runtime shape",
+    "Approach",
+    "Signals (maturity)",
+    "Key packages (pinned)",
+    "OTLP endpoint",
+    "Effort (S/M/L)",
+    "Risk flags",
+]
+SUMMARY_PATTERNS = (
+    r"service",
+    r"language",
+    r"runtime",
+    r"approach",
+    r"signal",
+    r"package",
+    r"endpoint",
+    r"effort",
+    r"risk",
+)
+CHECK_HEADER = ["Check", "Query", "Expected outcome", "Attribution evidence"]
+CHECK_PATTERNS = (
+    r"check|item|planned",
+    r"query",
+    r"expect",
+    r"attribut|identity|evidence",
+)
+GENAI_TITLE = "GenAI approach"
+# printed after the skeleton by new --kind instrumentation: what persist
+# checks the draft for, so the run reads neither this file nor the check's
+# code to learn the shapes
+INSTRUMENTATION_RULES = (
+    "--- persist checks the draft for: the title and one headline paragraph before "
+    "section 1; the five headings in order, no <fill> left; section 2's table under "
+    "the header row above, `Service` first, one row per service, and the "
+    "`Implementation order:` line; section 5's checks as rows of the table above "
+    "(or bullets `- <check> — <query> — <expected outcome> — <attribution "
+    "evidence>`); no credential value in a check (an env var name, a secret "
+    "reference or a <placeholder> is wiring, and passes); the GenAI approach as "
+    "prose under its heading, never a table row."
+)
+GENAI_HEADING_RE = re.compile(r"^#{3,}\s+GenAI approach\b", re.IGNORECASE)
+# printed after the skeleton by new --kind observation: the reference's
+# `## The body` - what each section carries - read from the reference file
+# itself so it is stated once, and never written to the report. Every
+# measured run opened that section by ranges, three reads, right after new.
+OBSERVATION_REFERENCE = (
+    Path(__file__).resolve().parent.parent / "references" / "observe-run-report.md"
+)
+BODY_CONTRACT_MARK = (
+    "--- what each section carries (the observe-run-report reference's "
+    "`## The body`, printed here - read it here, never from that file):"
+)
+
+
+def body_contract() -> str:
+    """The reference's `## The body` section, heading included; empty when
+    the install dropped the reference (the caller says so)."""
+    try:
+        text = OBSERVATION_REFERENCE.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    _, sep, rest = text.partition("\n## The body\n")
+    if not sep:
+        return ""
+    section = rest.split("\n## ", 1)[0]
+    return "## The body\n" + section.rstrip()
+
+
+GENAI_CELL_RE = re.compile(r"gen\s?ai", re.IGNORECASE)
+ORDER_RE = re.compile(r"implementation order", re.IGNORECASE)
+# a credential written as a value: a key word, a separator, then a literal
+# that is neither a variable, a placeholder nor a redaction
+CREDENTIAL_RE = re.compile(
+    r"(?i)(?:instrumentation[_ -]?key|connection[_ -]?string|api[_ -]?key|secret|"
+    r"password|passwd|token|bearer|authorization)\s*[:=]\s*[\"']?(?:(?:bearer|basic)\s+)?"
+    r"(?![$<{*`]|redacted|none|\(|from |the )([A-Za-z0-9+/=._-]{12,})"
+)
+# what a credential's slot may hold without being one: an env var name, a
+# secret reference written as hyphenated words, a placeholder
+WIRING_RE = re.compile(r"^(?:[A-Z][A-Z0-9_]{3,}|[a-z]+(?:[-_][a-z]+)+|<[^>]+>)$")
+# what starts the value after a `Key=` prefix when it is wired, not written:
+# a placeholder, a variable, a template - never a span delimiter (a backtick
+# or an asterisk closes the span the value sits in) nor the empty string,
+# which is what follows a base64 value's `=` padding
+WIRING_OPENERS = ("<", "$", "{")
+CREDENTIAL_PROJECTION_RE = re.compile(
+    r"(?i)--query\s+\S*(?:instrumentationKey|connectionString|primaryKey|secretKey|"
+    r"apiKey|accessKey)"
+)
+SECRET_LITERAL_RE = re.compile(
+    r"\bsk-[A-Za-z0-9]{20,}|\bInstrumentationKey=[0-9a-f-]{36}"
+)
 FIELD_ORDER = (
+    "project",
     "services",
     "stack",
     "environment",
@@ -94,6 +215,7 @@ FIELD_ORDER = (
     "workload",
     "instance",
     "process_restarted",
+    "stack_friction",
 )
 VERDICTS = ("fixed", "still present", "worse", "not ruled (quick)")
 FATES = ("filled", "still missing", "new", "not ruled (quick)")
@@ -142,6 +264,10 @@ NOT_RULED_RE = re.compile(r"not ruled", re.IGNORECASE)
 
 class Refusal(Exception):
     """One reason, one stderr line, exit 2, nothing written."""
+
+
+class Ask(Exception):
+    """A question only the user can answer: printed as ``ask: ...``, exit 3."""
 
 
 # --- the frontmatter, read as the contract writes it ----------------------------------
@@ -400,6 +526,29 @@ def cap(text: str, limit: int | None) -> tuple[str, bool]:
     return text[:limit] + ELLIPSIS, True
 
 
+def cap_outside_code(text: str, limit: int) -> str:
+    """Cap a line before a code span opens, never inside one: a query cut
+    in half (an unclosed brace, an ellipsis mid-token) reads as a corrupted
+    tool result to a run, which then re-captures the rendering by other
+    means."""
+    if len(text) <= limit:
+        return text
+    head = text[:limit]
+    if head.count("`") % 2 and head.rfind("`"):
+        head = head[: head.rfind("`")]
+    return head.rstrip(" ,;:—-") + ELLIPSIS
+
+
+def gap_line(gap: str) -> str:
+    """A structured bullet (`<gap> — <fate> — <query>`) renders its gap and
+    fate, the query stays in the file; anything else is capped outside
+    code spans."""
+    parts = gap.split(GAP_SPLIT)
+    if len(parts) >= 3 and parts[2].lstrip().startswith("`"):
+        return cap_outside_code(GAP_SPLIT.join(parts[:2]), MAX_LINE)
+    return cap_outside_code(gap, MAX_LINE)
+
+
 def raw_sections(body: str) -> list[dict]:
     """The numbered ``## N.`` sections, uncapped: tables and prose lines."""
     sections: list[dict] = []
@@ -637,6 +786,296 @@ def default_branch(root: Path) -> str:
     return "master" if current == "master" else "main"
 
 
+# --- the code boundary: a report's revision against HEAD (shared with get-status) ---
+
+LEDGER_PATH = ".odd/decisions.md"
+CLASSIFICATIONS_PATH = ".odd/entry-classifications.md"
+BENCHMARKS_DIR = ".odd/benchmarks"
+CLASSES = ("runtime", "non-runtime")
+EXECUTION_MODES = ("drive", "observe", "post-hoc")
+# The loop's own memory: a commit touching nothing else is never a fix.
+MEMORY_PATHS = (OBSERVATION_DIR, INSTRUMENTATION_DIR, LEDGER_PATH, CLASSIFICATIONS_PATH)
+
+# Top-level tree entries that cannot change a service's runtime behavior
+# in any repository: editor and CI configuration, and the documentation
+# files every project carries. Conservative on purpose - a directory a
+# service could live in (agents/, assets/, marketplace/, ...) is never
+# listed, and anything not listed is reported as unclassified for the
+# skill to decide. Matched on the lower-cased name. The repository's own
+# rulings (.odd/entry-classifications.md) come before this list, and a
+# flag given for one run comes before both.
+NON_RUNTIME_NAMES = {
+    ".editorconfig",
+    ".gitattributes",
+    ".github",
+    ".gitignore",
+    ".idea",
+    ".vscode",
+    "agents.md",
+    "changelog",
+    "changelog.md",
+    "claude.md",
+    "code_of_conduct.md",
+    "contributing.md",
+    "doc",
+    "docs",
+    "license",
+    "license.md",
+    "license.txt",
+    "readme",
+    "readme.md",
+    "security.md",
+}
+
+MAX_CHANGED_PATHS = 10
+BENCHMARK_RE = re.compile(r"\.odd/benchmarks/([A-Za-z0-9_.-]+)")
+BASE_URL_RE = re.compile(r"^\W*base url\W+(\S+)", re.IGNORECASE | re.MULTILINE)
+LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0")
+
+
+def head_facts(root: Path) -> dict | None:
+    line = git(root, "log", "-1", "--format=%H%x1f%cI")
+    if not line:
+        return None
+    sha, date = line.split("\x1f")
+    return {"sha": sha, "date": date}
+
+
+def added_commit(root: Path, rel: str) -> dict | None:
+    """The commit that added the file - the oldest one, when re-added."""
+    out = git(root, "log", "--diff-filter=A", "--format=%H%x1f%cI", "--", rel)
+    if not out:
+        return None
+    sha, date = out.splitlines()[-1].split("\x1f")
+    return {"sha": sha, "date": date}
+
+
+def resolve_revision(root: Path, value: Any) -> dict | None:
+    if value is None:
+        return None
+    text = str(value)
+    sha = git(root, "rev-parse", "--verify", "--quiet", f"{text}^{{commit}}")
+    return {"value": text, "resolves": bool(sha), "sha": sha or None}
+
+
+def parse_log(out: str | None) -> list[dict]:
+    """Commits from ``git log --format=%H%x1f%cI%x1f%s --name-only``."""
+    commits: list[dict] = []
+    for line in (out or "").splitlines():
+        if "\x1f" in line:
+            sha, date, subject = line.split("\x1f", 2)
+            commits.append(
+                {"sha": sha, "date": date, "subject": subject, "entries": set()}
+            )
+        elif line.strip() and commits:
+            commits[-1]["entries"].add(line.strip().split("/", 1)[0])
+    for commit in commits:
+        commit["entries"] = sorted(commit["entries"])
+    return commits
+
+
+def commits_after(
+    root: Path,
+    boundary: dict,
+    pathspec: list[str],
+    exclude_sha: str | None = None,
+) -> list[dict] | None:
+    """Commits after ``boundary`` touching ``pathspec``, newest first.
+
+    None when there is no boundary to count from. ``exclude_sha`` (the
+    report's own commit) only applies to a commit-date boundary, where
+    ``--since`` would count it: after a resolvable revision, the squash
+    that landed both the fix and the report is a change like any other.
+    """
+    if boundary["kind"] == "revision":
+        selector = [f"{boundary['sha']}..HEAD"]
+        exclude_sha = None
+    elif boundary["kind"] == "commit-date":
+        selector = [f"--since={boundary['date']}"]
+    else:
+        return None
+    out = git(
+        root,
+        "log",
+        "--format=%H%x1f%cI%x1f%s",
+        "--name-only",
+        *selector,
+        "--",
+        *pathspec,
+    )
+    commits = parse_log(out)
+    if exclude_sha:
+        commits = [c for c in commits if c["sha"] != exclude_sha]
+    return commits
+
+
+def report_boundary(revision: dict | None, commit: dict | None) -> dict:
+    if revision and revision["resolves"]:
+        return {"kind": "revision", "sha": revision["sha"]}
+    if commit:
+        return {"kind": "commit-date", "date": commit["date"]}
+    return {"kind": "none"}
+
+
+def changed_paths(root: Path, revision_sha: str, entry: str) -> dict:
+    out = git(root, "diff", "--name-only", revision_sha, "HEAD", "--", entry) or ""
+    paths = [p for p in out.splitlines() if p.strip()]
+    return {"count": len(paths), "paths": paths[:MAX_CHANGED_PATHS]}
+
+
+def benchmark_mentions(sections: list[dict], body: str) -> list[dict]:
+    """Every distinct benchmark path the body names, with the section naming it."""
+    found: list[dict] = []
+    seen: set[str] = set()
+
+    def scan(text: str, number: int | None) -> None:
+        for match in BENCHMARK_RE.finditer(text):
+            path = f"{BENCHMARKS_DIR}/{match.group(1).rstrip('.')}"
+            if path not in seen:
+                seen.add(path)
+                found.append({"path": path, "section": number})
+
+    for section in sections:
+        table_text = "\n".join(
+            c for t in section["tables"] for r in t["rows"] for c in r
+        )
+        scan("\n".join(section["lines"]) + "\n" + table_text, section["number"])
+    scan(body, None)
+    return found
+
+
+def classify_entry(name: str, opts: dict) -> tuple[str, str | None]:
+    """An entry's class and the source that settled it - a flag for this run,
+    the repository's classification ledger, the built-in list - or
+    ``("unclassified", None)`` when none does."""
+    low = name.lower()
+    if low in opts["runtime"]:
+        return "runtime", "flag"
+    if low in opts["non_runtime"]:
+        return "non-runtime", "flag"
+    ruling = opts.get("classifications", {}).get(low)
+    if ruling:
+        return ruling["class"], "file"
+    if low in NON_RUNTIME_NAMES:
+        return "non-runtime", "built-in"
+    return "unclassified", None
+
+
+def tree_anchor_diff(
+    root: Path,
+    anchor: Any,
+    candidate: dict[str, str] | None,
+    revision: dict | None,
+    opts: dict,
+) -> dict | None:
+    if not isinstance(anchor, dict) or candidate is None:
+        return None
+    diff: dict[str, Any] = {
+        "candidate": "HEAD",
+        "root": str(root),
+        "ignored": [],
+        "unchanged": 0,
+        "runtime": [],
+        "non_runtime": [],
+        "unclassified": [],
+        "classified_by": {},
+        "only_in_anchor": [],
+        "only_at_candidate": sorted(set(candidate) - set(anchor) - {".odd"}),
+        "changed_paths": None,
+    }
+    if ".odd" in anchor or ".odd" in candidate:
+        diff["ignored"].append(".odd")
+    differing: list[str] = []
+    for name, digest in sorted(anchor.items()):
+        if name == ".odd":
+            continue
+        if name not in candidate:
+            diff["only_in_anchor"].append(name)
+        elif candidate[name] == str(digest):
+            diff["unchanged"] += 1
+        else:
+            differing.append(name)
+            klass, source = classify_entry(name, opts)
+            if klass == "runtime":
+                diff["runtime"].append(name)
+            elif klass == "non-runtime":
+                diff["non_runtime"].append(name)
+            else:
+                diff["unclassified"].append(name)
+            if source:
+                diff["classified_by"][name] = source
+    if revision and revision["resolves"]:
+        diff["changed_paths"] = {
+            name: changed_paths(root, revision["sha"], name) for name in differing
+        }
+    return diff
+
+
+def load_classifications(root: Path, head_tree: dict[str, str] | None) -> dict:
+    """The entry-classification ledger, read the way the finding ledger is:
+    every row reported, a bad one skipped with its reason, the latest row
+    for an entry winning. Keyed on the lower-cased entry."""
+    path = root / CLASSIFICATIONS_PATH
+    if not path.is_file():
+        return {"present": False, "rows": [], "effective": {}}
+    known = {name.lower() for name in (head_tree or {})}
+    rows: list[dict] = []
+    effective: dict[str, dict] = {}
+    for number, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        if not line.lstrip().startswith("|") or is_separator_row(line):
+            continue
+        cells = split_cells(line)
+        if cells and cells[0].lower() == "date":
+            continue
+        row: dict[str, Any] = {"line": number}
+        if len(cells) != 4:
+            row.update(
+                status="skipped",
+                reason=f"expected 4 columns, got {len(cells)}",
+                raw=line.strip(),
+            )
+            rows.append(row)
+            continue
+        date, entry, klass, rationale = cells
+        row.update(date=date, entry=entry, **{"class": klass}, rationale=rationale)
+        if klass.lower() not in CLASSES:
+            row.update(
+                status="skipped",
+                reason=f"class is neither runtime nor non-runtime: {klass}",
+            )
+        elif not entry or entry.lower() not in known:
+            row.update(
+                status="skipped", reason=f"no top-level entry named {entry} at HEAD"
+            )
+        else:
+            row["status"] = "ok"
+            effective[entry.lower()] = {
+                "line": number,
+                "date": date,
+                "class": klass.lower(),
+                "rationale": rationale,
+            }
+        rows.append(row)
+    return {"present": True, "rows": rows, "effective": effective}
+
+
+def instrumentation_services(sections: list[dict]) -> list[str]:
+    """The services an instrumentation plan covers: its summary table.
+
+    Only a table whose first column is ``Service`` counts - a plan's
+    section 2 may compare destinations or options instead.
+    """
+    for section in sections:
+        if section["number"] != 2:
+            continue
+        for table in section["tables"]:
+            if table["header"] and table["header"][0].strip("*` ").lower() == "service":
+                return [row[0] for row in table["rows"] if row and row[0].strip()]
+    return []
+
+
 # --- a stored report, read and checked ---------------------------------------------
 
 
@@ -702,7 +1141,7 @@ def check_report(
 
     kind = report["kind"]
     required = (
-        ("project", "stack", "run_name", "date")
+        INSTRUMENTATION_FIELDS
         if kind == "instrumentation"
         else ("services", "stack", "environment", "mode", "window", "run_name", "date")
     )
@@ -778,6 +1217,45 @@ def local_paths(value: Any) -> list[str]:
     return [str(v) for v in values if v and LOCAL_PATH_RE.match(str(v).strip())]
 
 
+def friction_entries(sections: list[dict]) -> tuple[list[str], str | None]:
+    """Section 8's friction bullets (the `- ` items that are not the none
+    line), and the none line when the section carries one."""
+    current = section(sections, FRICTION_NUMBER)
+    if current is None:
+        return [], None
+    entries: list[str] = []
+    none: str | None = None
+    for item in items(current["lines"]):
+        if not item.startswith("- "):
+            continue
+        text = item[2:].strip()
+        if NONE_RE.match(text):
+            none = none or text
+        elif text:
+            entries.append(text)
+    return entries, none
+
+
+def recount_friction(path: Path) -> int | None:
+    """Rewrite the frontmatter's stack_friction from section 8's bullets;
+    the count, or None when the report carries no such field."""
+    text = path.read_text(encoding="utf-8")
+    fm, body, _ = split_frontmatter(text)
+    if FRICTION_KEY not in fm:
+        return None
+    entries, _ = friction_entries(raw_sections(body))
+    head = frontmatter_lines(text)
+    rewritten = [
+        f"{FRICTION_KEY}: {len(entries)}"
+        if line.startswith(f"{FRICTION_KEY}:")
+        else line
+        for line in head
+    ]
+    rest = text[len("\n".join(head)) :]
+    path.write_text("\n".join(rewritten) + rest, encoding="utf-8")
+    return len(entries)
+
+
 def check_body(report: dict, root: Path) -> list[str]:
     """What the body lacks at write time: the numbered sections, no
     placeholder left, and on a replay one ruling per baseline finding."""
@@ -785,7 +1263,20 @@ def check_body(report: dict, root: Path) -> list[str]:
     body = report.get("body") or ""
     sections = raw_sections(body)
     numbers = [s["number"] for s in sections]
-    expected = list(range(1, 8)) if report["kind"] == "observation" else []
+    fm = report.get("frontmatter") or {}
+    custom = FRICTION_KEY in fm
+    expected = (
+        list(range(1, 8))
+        if report["kind"] == "observation"
+        else list(range(1, len(INSTRUMENTATION_TITLES) + 1))
+    )
+    if report["kind"] == "observation" and custom:
+        expected.append(FRICTION_NUMBER)
+    if report["kind"] == "observation" and not custom and FRICTION_NUMBER in numbers:
+        problems.append(
+            f"section {FRICTION_NUMBER} present but the frontmatter carries no "
+            f"{FRICTION_KEY} (new --custom-stack writes it)"
+        )
     for number in expected:
         if number not in numbers:
             problems.append(f"section {number} absent")
@@ -804,16 +1295,26 @@ def check_body(report: dict, root: Path) -> list[str]:
         if PLACEHOLDER_RE.search(line) and current not in flagged:
             flagged.add(current)
             problems.append(f"placeholder left {current}")
-    fm = report.get("frontmatter") or {}
-    if report["kind"] == "observation":
-        lines = body.splitlines()
-        first = next(
-            (i for i, ln in enumerate(lines) if ln.startswith("## ")), len(lines)
-        )
-        if not any(ln.startswith("# ") for ln in lines[:first]):
-            problems.append("title absent before section 1 (a `# ` line)")
-        if not any(ln.strip() and not ln.startswith("#") for ln in lines[:first]):
-            problems.append("headline absent before section 1 (one paragraph)")
+    if report["kind"] == "observation" and custom and FRICTION_NUMBER in numbers:
+        entries, none = friction_entries(sections)
+        if not entries and not none:
+            problems.append(
+                f"section {FRICTION_NUMBER} carries no bullet: one `- <friction>` per point "
+                "of friction with the stack as shipped, or one `- none` bullet"
+            )
+        elif str(fm.get(FRICTION_KEY)) != str(len(entries)):
+            problems.append(
+                f"{FRICTION_KEY} reads {fm.get(FRICTION_KEY)!r} where section "
+                f"{FRICTION_NUMBER} carries {len(entries)} (persist recounts it)"
+            )
+    lines = body.splitlines()
+    first = next((i for i, ln in enumerate(lines) if ln.startswith("## ")), len(lines))
+    if not any(ln.startswith("# ") for ln in lines[:first]):
+        problems.append("title absent before section 1 (a `# ` line)")
+    if not any(ln.strip() and not ln.startswith("#") for ln in lines[:first]):
+        problems.append("headline absent before section 1 (one paragraph)")
+    if report["kind"] == "instrumentation":
+        problems.extend(check_instrumentation_body(sections))
     for value in local_paths(fm.get("repository")):
         problems.append(f"repository carries a local path, never a value: {value}")
     mode = str(fm.get("mode"))
@@ -824,6 +1325,117 @@ def check_body(report: dict, root: Path) -> list[str]:
             base = read_report(target, "observation")
             if "unreadable" not in base:
                 problems.extend(check_rulings(sections, raw_sections(base["body"])))
+    return problems
+
+
+def table_with(
+    tables: list[dict], patterns: tuple[str, ...]
+) -> tuple[dict | None, list[str]]:
+    """The first table whose header carries every pattern, and what the
+    closest table lacks."""
+    best: dict | None = None
+    best_missing: list[str] | None = None
+    for table in tables:
+        missing = [p for p in patterns if column(table["header"], p) is None]
+        if not missing:
+            return table, []
+        if best_missing is None or len(missing) < len(best_missing):
+            best, best_missing = table, missing
+    return None, (best_missing if best is not None else list(patterns))
+
+
+def replayable_checks(current: dict) -> list[list[str]]:
+    """Section 5's checks in their replayable form: the rows of a table with
+    the check, query, expected-outcome and attribution columns, or the
+    bullets carrying four ` — ` parts."""
+    table, _ = table_with(current["tables"], CHECK_PATTERNS)
+    if table is not None:
+        return rows_reduced(table, [(pattern, None) for pattern in CHECK_PATTERNS])
+    found = []
+    for item in items(current["lines"]):
+        if ITEM_RE.match(item):
+            parts = ITEM_RE.sub("", item).split(GAP_SPLIT)
+            if len(parts) >= 4:
+                found.append([p.strip() for p in parts[:4]])
+    return found
+
+
+def credential_in(text: str) -> str | None:
+    """A credential written as a value, or None: a key word followed by a
+    literal that is neither an env var name, a secret reference nor a
+    placeholder; a --query projecting a credential field; a literal key."""
+    for match in CREDENTIAL_RE.finditer(text):
+        literal = match.group(1)
+        following = text[match.end() : match.end() + 1]
+        if literal.endswith(("=", ";")) and following in WIRING_OPENERS:
+            continue  # a key=value prefix cut at a placeholder or a reference
+        if not WIRING_RE.match(literal):
+            return match.group(0)
+    for regex in (CREDENTIAL_PROJECTION_RE, SECRET_LITERAL_RE):
+        match = regex.search(text)
+        if match:
+            return match.group(0)
+    return None
+
+
+def check_instrumentation_body(sections: list[dict]) -> list[str]:
+    """What the instrumentation body lacks: the summary table's columns, the
+    replayable checks, no credential in a check, the GenAI approach as prose."""
+    problems: list[str] = []
+    two = section(sections, 2)
+    if two is not None:
+        table, missing = table_with(two["tables"], SUMMARY_PATTERNS)
+        if table is not None and (
+            not table["header"] or table["header"][0].strip("*` ").lower() != "service"
+        ):
+            problems.append(
+                "section 2's summary table opens with a column other than `Service`: "
+                "the status renderer counts the services off that first column"
+            )
+        if table is None:
+            problems.append(
+                "section 2 carries no summary table with the columns "
+                + ", ".join(SUMMARY_HEADER)
+                + (f" (missing: {', '.join(missing)})" if missing else "")
+            )
+        elif not [r for r in table["rows"] if r and r[0].strip()]:
+            problems.append(
+                "section 2's summary table carries no row (one per service)"
+            )
+        if not any(
+            ORDER_RE.search(line) and not line.startswith("|") for line in two["lines"]
+        ):
+            problems.append(
+                "section 2 carries no `Implementation order:` line (show renders it)"
+            )
+    three = section(sections, 3)
+    if three is not None:
+        for table in three["tables"]:
+            if any(row and GENAI_CELL_RE.search(row[0]) for row in table["rows"]):
+                problems.append(
+                    f"section 3 renders the {GENAI_TITLE} as a table row: it is prose "
+                    f"under a `### {GENAI_TITLE}` heading (a table row there reads as a "
+                    "finding to the status renderer)"
+                )
+                break
+    five = section(sections, 5)
+    if five is not None:
+        if not replayable_checks(five):
+            problems.append(
+                "section 5 carries no replayable check: a table with the columns "
+                + ", ".join(CHECK_HEADER)
+                + " (one row per planned item), or bullets `- <check> — <query> — "
+                "<expected outcome> — <attribution evidence>`"
+            )
+        for line in five["raw"]:
+            found = credential_in(line)
+            if found:
+                problems.append(
+                    f"section 5 projects a credential in a check ({cap(found, 40)[0]}): "
+                    "a check names the wiring - a secret reference, an env var name, "
+                    "a redacted flag - never the value"
+                )
+                break
     return problems
 
 
@@ -946,9 +1558,13 @@ def gap_bullets(baseline: list[dict]) -> list[tuple[str, str]]:
 def skeleton(fields: dict, baseline: list[dict] | None, verdict_fill: bool) -> str:
     """The body: the title, the headline placeholder, the seven sections -
     and on a replay, section 3's ruling table and section 5's gaps carried
-    from the baseline, their verdicts and fates left to the run."""
+    from the baseline, their verdicts and fates left to the run - plus the
+    eighth, stack friction, when the frontmatter counts it (a custom stack)."""
     lines = [f"# Observation report — {fields['run_name']}", "", PLACEHOLDER, ""]
-    for number, title in enumerate(SECTION_TITLES, start=1):
+    titles = list(SECTION_TITLES)
+    if FRICTION_KEY in fields:
+        titles.append(FRICTION_TITLE)
+    for number, title in enumerate(titles, start=1):
         lines += [f"## {number}. {title}", ""]
         if number == 3 and baseline is not None and verdict_fill:
             ids = [
@@ -978,6 +1594,126 @@ def skeleton(fields: dict, baseline: list[dict] | None, verdict_fill: bool) -> s
     return "\n".join(lines)
 
 
+def instrumentation_skeleton(fields: dict, genai: list[str]) -> str:
+    """The body: the title, the headline placeholder, the five sections -
+    section 2 opening with the summary table's header row, section 3
+    carrying a `### GenAI approach` heading per service that calls a model
+    (prose, never a table), section 5 opening with the checks' header row."""
+    lines = [f"# Instrumentation report — {fields['run_name']}", "", PLACEHOLDER, ""]
+    for number, title in enumerate(INSTRUMENTATION_TITLES, start=1):
+        lines += [f"## {number}. {title}", ""]
+        if number == 2:
+            lines += [
+                "| " + " | ".join(SUMMARY_HEADER) + " |",
+                "|" + "---|" * len(SUMMARY_HEADER),
+                "| " + " | ".join([PLACEHOLDER] * len(SUMMARY_HEADER)) + " |",
+                "",
+                f"Implementation order: {PLACEHOLDER}",
+                "",
+            ]
+            continue
+        if number == 3 and genai:
+            lines += [PLACEHOLDER, ""]
+            for service in genai:
+                lines += [f"### {GENAI_TITLE} — {service}", "", PLACEHOLDER, ""]
+            continue
+        if number == 5:
+            lines += [
+                PLACEHOLDER,
+                "",
+                "| " + " | ".join(CHECK_HEADER) + " |",
+                "|" + "---|" * len(CHECK_HEADER),
+                "| " + " | ".join([PLACEHOLDER] * len(CHECK_HEADER)) + " |",
+                "",
+            ]
+            continue
+        lines += [PLACEHOLDER, ""]
+    return "\n".join(lines)
+
+
+def new_instrumentation_report(args: argparse.Namespace) -> tuple[Path, str, list[str]]:
+    notes: list[str] = []
+    for flag, value in (
+        ("--project", args.project),
+        ("--stack", args.stack),
+        ("--run-name", args.run_name),
+    ):
+        if not value:
+            raise Refusal(f"{flag} is required on an instrumentation report")
+    for flag, value in (
+        ("--service", args.service),
+        ("--env", args.env),
+        ("--mode", args.mode),
+        ("--depth", args.depth),
+        ("--window", args.window),
+        ("--from/--to", args.start or args.end),
+        ("--verifies", args.verifies),
+        ("--workload", args.workload),
+        ("--instance", args.instance),
+        ("--process-restarted", args.process_restarted),
+        ("--custom-stack", args.custom_stack),
+    ):
+        if value:
+            raise Refusal(
+                f"{flag} is an observation report's flag, not an instrumentation report's"
+            )
+    run_name = args.run_name
+    if not SLUG_RE.match(run_name):
+        raise Refusal(
+            f"the run name {run_name!r} is not a slug ([a-z0-9][a-z0-9-]*, kebab-case)"
+        )
+    if args.no_revision:
+        root = Path(args.repo).resolve()
+        repo_root = None
+    else:
+        repo_root = git_root(Path(args.repo))
+        if repo_root is None:
+            raise Refusal(
+                f"not a git repository: {Path(args.repo).resolve()} (--no-revision when "
+                "the investigated code is in no repository the run can reach)"
+            )
+        root = repo_root
+    now = args.at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    stamp, date = stamp_of(now)
+    store = root / INSTRUMENTATION_DIR
+    candidate = run_name
+    ordinal = 1
+    while (store / f"{stamp}-{candidate}.md").exists():
+        ordinal += 1
+        candidate = f"{run_name}-{ordinal}"
+    if candidate != run_name:
+        notes.append(
+            f"{stamp}-{run_name}.md is taken: the next free ordinal, run_name "
+            f"{candidate} (section 1 names the report it sits beside)"
+        )
+        run_name = candidate
+    path = store / f"{stamp}-{run_name}.md"
+    fields: dict[str, Any] = {
+        "project": args.project,
+        "stack": args.stack,
+        "run_name": run_name,
+        "date": date,
+    }
+    if repo_root is not None:
+        fields["revision"] = git(repo_root, "rev-parse", "--short", "HEAD")
+        fields["tree_anchor"] = ls_tree(repo_root, "HEAD")
+        if args.repository:
+            fields["repository"] = repository_value(args.repository)
+        else:
+            fields["repository"] = repo_identity(repo_root)
+            if fields["repository"] is None:
+                notes.append(
+                    "no origin remote: repository omitted (never a local path)"
+                )
+    elif args.repository:
+        fields["repository"] = repository_value(args.repository)
+    genai = [g.strip() for value in args.genai for g in value.split(",") if g.strip()]
+    store.mkdir(parents=True, exist_ok=True)
+    body = instrumentation_skeleton(fields, genai)
+    path.write_text(format_frontmatter(fields) + "\n" + body, encoding="utf-8")
+    return path, body + "\n\n" + INSTRUMENTATION_RULES, notes
+
+
 def repository_value(text: str) -> Any:
     value = parse_value(text)
     for path in local_paths(value):
@@ -990,11 +1726,10 @@ def repository_value(text: str) -> Any:
 
 def new_report(args: argparse.Namespace) -> tuple[Path, str, list[str]]:
     notes: list[str] = []
-    if args.kind != "observation":
-        raise Refusal(
-            "new writes observation reports only; an instrumentation report keeps the "
-            "otel-instrumentation-report reference's steps (check and read serve both kinds)"
-        )
+    if args.kind == "instrumentation":
+        return new_instrumentation_report(args)
+    if args.project or args.genai:
+        raise Refusal("--project and --genai belong to --kind instrumentation")
     services = [
         s.strip() for value in args.service for s in value.split(",") if s.strip()
     ]
@@ -1144,10 +1879,20 @@ def new_report(args: argparse.Namespace) -> tuple[Path, str, list[str]]:
         fields["process_restarted"] = parse_pairs(
             args.process_restarted, "--process-restarted", booleans=True
         )
+    if args.custom_stack:
+        fields[FRICTION_KEY] = 0
 
     store.mkdir(parents=True, exist_ok=True)
     body = skeleton(fields, baseline_sections, replay)
     path.write_text(format_frontmatter(fields) + "\n" + body, encoding="utf-8")
+    contract = body_contract()
+    if contract:
+        body = body.rstrip() + "\n\n" + BODY_CONTRACT_MARK + "\n" + contract
+    else:
+        notes.append(
+            f"reference not found beside the script ({OBSERVATION_REFERENCE}): "
+            "read its `## The body` for what each section carries"
+        )
     return path, body, notes
 
 
@@ -1206,12 +1951,121 @@ def rows_reduced(
     return reduced
 
 
-def synthesis_data(text: str) -> dict:
+def kind_of(fm: dict) -> str:
+    """An instrumentation report carries a project and no mode."""
+    return "instrumentation" if "project" in fm and "mode" not in fm else "observation"
+
+
+def pinned_packages(cell: str) -> list[str]:
+    """The pinned packages a summary-table cell names: the comma, semicolon
+    or line separated entries carrying a version."""
+    parts = re.split(r"[,;]|<br\s*/?>|\n", cell)
+    return [p.strip(" `*") for p in parts if p.strip() and re.search(r"\d", p)]
+
+
+def instrumentation_data(fm: dict, text: str, sections: list[dict]) -> dict:
+    data: dict[str, Any] = {
+        "kind": "instrumentation",
+        "frontmatter": fm,
+        "frontmatter_lines": [
+            f"tree_anchor: <{len(fm['tree_anchor'])} entries, in the file>"
+            if line.startswith("tree_anchor:")
+            and isinstance(fm.get("tree_anchor"), dict)
+            else line
+            for line in frontmatter_lines(text)
+        ],
+        "baseline_lines": [],
+        "baseline_name": None,
+        "no_baseline": False,
+        "services": [],
+        "approaches": {},
+        "packages": 0,
+        "order": None,
+        "genai": [],
+        "decisions": [],
+        "decisions_none": None,
+        "checks": [],
+    }
+    one = section(sections, 1)
+    if one is not None:
+        listed = items(one["lines"])
+        found = [i for i in listed if BASELINE_LABEL_RE.match(i)] or [
+            i for i in listed if BASELINE_RE.search(i)
+        ]
+        data["baseline_lines"] = found[:1]
+        for line in found[:1]:
+            match = REPORT_FILE_RE.search(line)
+            if match:
+                data["baseline_name"] = match.group(0)
+            elif re.search(r"no previous", line, re.IGNORECASE):
+                data["no_baseline"] = True
+    two = section(sections, 2)
+    if two is not None:
+        table, _ = table_with(two["tables"], SUMMARY_PATTERNS)
+        if table is not None:
+            rows = rows_reduced(
+                table,
+                [
+                    (r"service", 0),
+                    (r"approach", None),
+                    (r"package", None),
+                    (r"effort", None),
+                    (r"risk", None),
+                ],
+            )
+            data["services"] = rows
+            for row in rows:
+                key = row[1].strip().strip("*`").lower() or "unstated"
+                data["approaches"][key] = data["approaches"].get(key, 0) + 1
+                data["packages"] += len(pinned_packages(row[2]))
+        for line in two["lines"]:
+            if ORDER_RE.search(line) and not line.startswith("|"):
+                data["order"] = re.sub(
+                    r"^\W*implementation order\W*",
+                    "",
+                    line.strip(),
+                    flags=re.IGNORECASE,
+                ).strip()
+                break
+    three = section(sections, 3)
+    if three is not None:
+        for line in three["raw"]:
+            if GENAI_HEADING_RE.match(line):
+                name = re.sub(
+                    r"^#{3,}\s+GenAI approach\s*[—:-]?\s*",
+                    "",
+                    line,
+                    flags=re.IGNORECASE,
+                ).strip()
+                data["genai"].append(name or "a service")
+    four = section(sections, 4)
+    if four is not None:
+        listed = [i for i in items(four["lines"]) if ITEM_RE.match(i)]
+        if listed:
+            data["decisions"] = [ITEM_RE.sub("", i) for i in listed]
+        else:
+            prose = items(four["lines"])
+            if prose and NONE_RE.match(prose[0]):
+                data["decisions_none"] = prose[0]
+            else:
+                data["decisions"] = prose
+    five = section(sections, 5)
+    if five is not None:
+        data["checks"] = replayable_checks(five)
+    return data
+
+
+def synthesis_data(text: str, kind: str | None = None) -> dict:
+    """The synthesis inputs; ``kind`` is the store's (``report_kind``), the
+    frontmatter's shape deciding only for a file outside a store."""
     fm, body, _ = split_frontmatter(text)
     sections = raw_sections(body)
+    if (kind or kind_of(fm)) == "instrumentation":
+        return instrumentation_data(fm, text, sections)
     mode = str(fm.get("mode"))
     replay = mode in REPLAY_MODES
     data: dict[str, Any] = {
+        "kind": "observation",
         "frontmatter": fm,
         "frontmatter_lines": [
             f"tree_anchor: <{len(fm['tree_anchor'])} entries, in the file>"
@@ -1234,7 +2088,12 @@ def synthesis_data(text: str) -> dict:
         "gaps": [],
         "decisions": [],
         "decisions_none": None,
+        "custom_stack": FRICTION_KEY in fm,
+        "friction": [],
+        "friction_none": None,
     }
+    if FRICTION_KEY in fm:
+        data["friction"], data["friction_none"] = friction_entries(sections)
     one = section(sections, 1)
     if one is not None:
         listed = items(one["lines"])
@@ -1335,7 +2194,46 @@ def table_lines(
     return lines
 
 
+def instrumentation_synthesis_text(data: dict) -> str:
+    out: list[str] = [
+        "--- frontmatter",
+        *data["frontmatter_lines"],
+        "--- section 1: recalled baseline",
+    ]
+    out += data["baseline_lines"] or ["(no recalled-baseline line found in section 1)"]
+    out.append(
+        "--- section 2: summary table (service | approach | key packages | effort | risk)"
+    )
+    out += (
+        table_lines(
+            ["Service", "Approach", "Key packages (pinned)", "Effort", "Risk flags"],
+            data["services"],
+        )
+        if data["services"]
+        else ["(no summary table in section 2)"]
+    )
+    out.append("implementation order: " + (data["order"] or "(not stated)"))
+    out.append("--- section 3: GenAI approach")
+    out += [f"- {g}" for g in data["genai"]] or ["(none: no service calls a model)"]
+    out.append("--- section 4: open decisions")
+    if data["decisions"]:
+        out += [f"- {d}" for d in data["decisions"]]
+    else:
+        out.append(data["decisions_none"] or "(none stated)")
+    out.append(
+        "--- section 5: replayable checks (check | query | expected | attribution)"
+    )
+    out += (
+        table_lines(CHECK_HEADER, data["checks"])
+        if data["checks"]
+        else ["(no replayable check in section 5)"]
+    )
+    return "\n".join(out) + "\n"
+
+
 def synthesis_text(data: dict) -> str:
+    if data.get("kind") == "instrumentation":
+        return instrumentation_synthesis_text(data)
     out: list[str] = [
         "--- frontmatter",
         *data["frontmatter_lines"],
@@ -1375,6 +2273,12 @@ def synthesis_text(data: dict) -> str:
         out += [f"- {d}" for d in data["decisions"]]
     else:
         out.append(data["decisions_none"] or "(none stated)")
+    if data["custom_stack"]:
+        out.append(f"--- section {FRICTION_NUMBER}: stack friction")
+        if data["friction"]:
+            out += [f"- {f}" for f in data["friction"]]
+        else:
+            out.append(data["friction_none"] or "(no bullet in section 8)")
     return "\n".join(out) + "\n"
 
 
@@ -1394,6 +2298,623 @@ def locate(path: Path) -> tuple[Path | None, str]:
     except ValueError:
         rel = Path("/".join(path.resolve().parts[-3:]))
     return root, rel.as_posix()
+
+
+# --- a replay's preflight: the baseline, the mode, the depth, the boundary -----------
+
+
+def stored_reports(root: Path) -> list[dict]:
+    """Every stored report of both kinds, newest first - the filenames sort
+    chronologically, and the two stores interleave on them."""
+    found: list[dict] = []
+    for directory, kind in (
+        (OBSERVATION_DIR, "observation"),
+        (INSTRUMENTATION_DIR, "instrumentation"),
+    ):
+        store = root / directory
+        if not store.is_dir():
+            continue
+        for path in store.glob("*.md"):
+            report = read_report(path, kind)
+            report["rel"] = f"{directory}/{path.name}"
+            found.append(report)
+    return sorted(found, key=lambda r: r["name"], reverse=True)
+
+
+def report_services(report: dict) -> list[str]:
+    """An observation report's ``services``; an instrumentation report's
+    summary-table services (its frontmatter carries none)."""
+    if report["kind"] == "instrumentation":
+        return instrumentation_services(raw_sections(report["body"]))
+    return as_list(report["frontmatter"].get("services"))
+
+
+def verifies_value(report: dict) -> str:
+    """What a replay's ``--verifies`` takes: the bare filename of an
+    observation baseline, the repo-relative path of an instrumentation one."""
+    return report["rel"] if report["kind"] == "instrumentation" else report["name"]
+
+
+def matches_scope(
+    report: dict, services: list[str], stack: str | None, environment: str | None
+) -> bool:
+    fm = report["frontmatter"]
+    if services:
+        wanted = {s.lower() for s in services}
+        if not wanted & {s.lower() for s in report_services(report)}:
+            return False
+    if stack and str(fm.get("stack") or "").lower() != stack.lower():
+        return False
+    if environment:
+        if report["kind"] == "instrumentation":
+            return False  # carries no environment by design
+        if str(fm.get("environment") or "").lower() != environment.lower():
+            return False
+    return True
+
+
+def stored_report(root: Path, verifies: str) -> dict | None:
+    """The report a ``verifies`` value names, or None when it is not stored."""
+    target = baseline_path(root, verifies)
+    if not target.is_file():
+        return None
+    kind = "instrumentation" if "/" in verifies else "observation"
+    report = read_report(target, kind)
+    report["rel"] = verifies if "/" in verifies else f"{OBSERVATION_DIR}/{target.name}"
+    return report
+
+
+def resolve_report(
+    root: Path,
+    target: str | None,
+    services: list[str],
+    stack: str | None,
+    environment: str | None,
+) -> dict:
+    """The report the arguments name: a path, a run name (or enough of one),
+    or the newest across both stores under the constraints - asking when
+    the newest reports cover several services or span both kinds."""
+    reports = stored_reports(root)
+    unreadable = [r["name"] for r in reports if "unreadable" in r]
+    reports = [r for r in reports if "unreadable" not in r]
+    if not reports:
+        raise Refusal(
+            "nothing to verify: no report under "
+            f"{OBSERVATION_DIR}/ or {INSTRUMENTATION_DIR}/"
+            + (f" (unreadable: {', '.join(unreadable)})" if unreadable else "")
+        )
+    if target:
+        wanted = Path(target)
+        exact = [
+            r
+            for r in reports
+            if r["rel"] == re.sub(r"^\./", "", target)
+            or r["name"] == wanted.name
+            or (wanted.exists() and Path(r["path"]).resolve() == wanted.resolve())
+        ]
+        if exact:
+            return exact[0]
+        needle = target.lower()
+        candidates = [r for r in reports if needle in r["name"].lower()]
+        if not candidates:
+            raise Refusal(f"no stored report is named or matches {target}")
+        runs = sorted(
+            {str(r["frontmatter"].get("run_name") or r["name"]) for r in candidates}
+        )
+        if len(runs) > 1:
+            raise Ask(
+                f"which report is being verified - {target} matches several runs: "
+                + ", ".join(runs)
+            )
+        return candidates[0]
+    matched = [r for r in reports if matches_scope(r, services, stack, environment)]
+    if not matched:
+        scope = ", ".join(
+            f"{k} {v}"
+            for k, v in (
+                ("services", ", ".join(services)),
+                ("stack", stack),
+                ("environment", environment),
+            )
+            if v
+        )
+        stored = sorted({s for r in reports for s in report_services(r)})
+        stacks = sorted({str(r["frontmatter"].get("stack")) for r in reports})
+        raise Refusal(
+            f"no stored report matches {scope}; stored: services "
+            f"{', '.join(stored) or 'none'}; stacks {', '.join(stacks) or 'none'}"
+        )
+    # the newest reports: the ones of the newest day, and the newest of the
+    # other kind when the stores hold both - several services or two kinds
+    # among them is the user's call
+    newest_day = matched[0]["name"][:10]
+    newest = [r for r in matched if r["name"][:10] == newest_day]
+    for report in matched:
+        if report["kind"] != matched[0]["kind"]:
+            newest.append(report)
+            break
+    lineages: dict[tuple, dict] = {}
+    for report in newest:
+        key = (
+            report["kind"],
+            tuple(sorted(s.lower() for s in report_services(report))),
+        )
+        lineages.setdefault(key, report)  # the newest of each
+    if len(lineages) > 1:
+        raise Ask(
+            "which report is being verified - the newest reports cover several "
+            "services or span both kinds: "
+            + "; ".join(
+                f"{r['rel']} ({r['kind']}, {', '.join(report_services(r)) or 'no service'})"
+                for r in lineages.values()
+            )
+        )
+    return matched[0]
+
+
+def replay_prefix(name: str) -> str | None:
+    """``verify`` or ``re-measure`` when the filename carries the replay
+    prefix - a pre-convention verification says so by name alone."""
+    match = REPORT_NAME_RE.match(name)
+    slug = match.group(2) if match else ""
+    for mode, prefix in PREFIXES.items():
+        if slug.startswith(prefix):
+            return mode
+    return None
+
+
+def hop_to_baseline(root: Path, resolved: dict, own_protocol: bool) -> tuple[dict, str]:
+    """The baseline: the report itself, or - when the resolved report is a
+    verification or a re-measure - the one its ``verifies`` names, exactly
+    one hop; ``own_protocol`` is the carve-out that makes a verification's
+    own protocol the baseline."""
+    fm = resolved["frontmatter"]
+    mode = str(fm.get("mode") or "").lower()
+    by_name = replay_prefix(resolved["name"])
+    replay = resolved["kind"] == "observation" and (mode in REPLAY_MODES or by_name)
+    what = mode if mode in REPLAY_MODES else f"{by_name} by name"
+    if own_protocol:
+        if not replay:
+            raise Refusal(
+                f"--own-protocol applies to a verification or a re-measure; "
+                f"{resolved['name']} is {mode or 'an instrumentation report'}"
+            )
+        return resolved, f"the {what}'s own protocol (the carve-out)"
+    if not replay:
+        return resolved, "the resolved report itself"
+    verifies = fm.get("verifies")
+    if not verifies:
+        raise Ask(
+            f"{resolved['name']} is a {what} with no verifies field (a "
+            "pre-convention report): name the observation report to verify against"
+        )
+    baseline = stored_report(root, str(verifies))
+    if baseline is None:
+        raise Ask(
+            f"{resolved['name']} verifies {verifies}, which is no longer stored: "
+            "name the report to verify against"
+        )
+    if "unreadable" in baseline:
+        raise Refusal(f"{verifies} cannot be read: {baseline['unreadable']}")
+    return baseline, f"one hop from {resolved['name']} ({what})"
+
+
+def walk_mode(root: Path, baseline: dict) -> tuple[str, str]:
+    """The execution mode to replay: the baseline's when it has one, else the
+    first report the ``verifies`` chain reaches whose mode is one - an
+    instrumentation report at the chain's end means ``drive``."""
+    current, hops, seen = baseline, 0, {baseline["name"]}
+    while True:
+        if current["kind"] == "instrumentation":
+            return "drive", (
+                "an instrumentation baseline"
+                if hops == 0
+                else f"the chain reaches an instrumentation report: {current['name']}"
+            )
+        mode = str(current["frontmatter"].get("mode") or "").lower()
+        if mode in EXECUTION_MODES:
+            return mode, (
+                "the baseline's frontmatter"
+                if hops == 0
+                else f"walked {hops} hop{'s' if hops > 1 else ''} to {current['name']}"
+            )
+        if mode not in REPLAY_MODES:
+            raise Ask(
+                f"{current['name']} carries no execution mode ({mode or 'no mode'}, a "
+                "pre-convention report): say which mode to replay - drive, observe "
+                "or post-hoc"
+            )
+        verifies = current["frontmatter"].get("verifies")
+        if not verifies:
+            raise Ask(
+                f"the verifies chain ends at {current['name']} ({mode}, no verifies): "
+                "say which mode to replay - drive, observe or post-hoc"
+            )
+        nxt = stored_report(root, str(verifies))
+        if nxt is None or "unreadable" in nxt or nxt["name"] in seen:
+            raise Ask(
+                f"the verifies chain ends at {current['name']}: it verifies "
+                f"{verifies}, which is not stored - say which mode to replay"
+            )
+        seen.add(nxt["name"])
+        current, hops = nxt, hops + 1
+
+
+def replay_depth(baseline: dict, override: str | None) -> tuple[str, str]:
+    if override:
+        return override, "the argument"
+    if baseline["kind"] == "instrumentation":
+        return "full", "an instrumentation baseline replays every signal"
+    depth = baseline["frontmatter"].get("depth")
+    if depth is None:
+        return "quick", (
+            "the baseline predates the depth field (it ran full); say `full verify` "
+            "to replay at the protocol it ran"
+        )
+    return str(depth), "the baseline's depth field"
+
+
+def recorded_target(body: str) -> str | None:
+    """The record's base URL, when it recorded one (``n/a`` is none)."""
+    record = scenario_record(body) or ""
+    match = BASE_URL_RE.search(record)
+    if not match:
+        return None
+    value = match.group(1).strip("`*,;")
+    return value if "://" in value else None
+
+
+def is_local_target(url: str) -> bool:
+    host = re.sub(r"^[a-z][a-z0-9+.-]*://", "", url, flags=re.IGNORECASE)
+    host = host.split("/", 1)[0].split("@")[-1]
+    host = re.sub(r":\d+$", "", host)
+    return host.lower() in LOCAL_HOSTS
+
+
+def baseline_facts(root: Path, args: argparse.Namespace) -> dict:
+    resolved = resolve_report(root, args.target, args.service, args.stack, args.env)
+    baseline, how = hop_to_baseline(root, resolved, args.own_protocol)
+    mode, mode_why = walk_mode(root, baseline)
+    depth, depth_why = replay_depth(baseline, args.depth)
+    fm = baseline["frontmatter"]
+    sections = raw_sections(baseline["body"])
+    benchmarks = [m["path"] for m in benchmark_mentions(sections, baseline["body"])]
+    target = (
+        recorded_target(baseline["body"]) if baseline["kind"] == "observation" else None
+    )
+    stack = str(fm.get("stack") or "")
+    if mode != "drive":
+        confirmation = f"not needed (mode {mode})"
+    elif stack != "local":
+        confirmation = f"required: the stack {stack} is not local"
+    elif target and not is_local_target(target):
+        confirmation = f"required: the recorded target {target} is not local"
+    elif target:
+        confirmation = "not needed (local stack, local target)"
+    else:
+        confirmation = "not needed (local stack, no recorded target)"
+    return {
+        "report": resolved["rel"],
+        "baseline": baseline["rel"],
+        "kind": baseline["kind"],
+        "how": how,
+        "verifies": verifies_value(baseline),
+        "services": report_services(baseline),
+        "stack": stack,
+        "environment": (
+            None if baseline["kind"] == "instrumentation" else fm.get("environment")
+        ),
+        "mode": mode,
+        "mode_why": mode_why,
+        "depth": depth,
+        "depth_why": depth_why,
+        "revision": fm.get("revision"),
+        "benchmarks": benchmarks,
+        "target": target,
+        "confirmation": confirmation,
+    }
+
+
+def render_baseline(facts: dict) -> str:
+    env = facts["environment"]
+    lines = [
+        f"report: {facts['report']}",
+        f"baseline: {facts['baseline']} ({facts['kind']}, {facts['how']})",
+        f"verifies: {facts['verifies']}",
+        f"services: {', '.join(facts['services']) or 'none named'}",
+        f"stack: {facts['stack'] or 'none'}",
+        "environment: "
+        + (
+            "none (an instrumentation report carries no environment: the comparison "
+            "is skipped, the run records the one it detects)"
+            if facts["kind"] == "instrumentation"
+            else str(env or "none")
+        ),
+        f"mode: {facts['mode']} ({facts['mode_why']})",
+        f"depth: {facts['depth']} ({facts['depth_why']})",
+        f"revision: {facts['revision'] or 'none'}",
+        f"benchmark: {', '.join(facts['benchmarks']) or 'none named'}",
+        f"target: {facts['target'] or 'not recorded'}",
+        f"drive confirmation: {facts['confirmation']}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def porcelain_entries(root: Path) -> dict[str, list[str]]:
+    """The working tree's uncommitted paths by top-level entry - ``.odd``
+    included, for the benchmark a record names; the caller leaves the rest
+    of the loop's own memory out."""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain", "-z"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return {}
+    if proc.returncode != 0:
+        return {}
+    # -z: "XY path\0", a rename adding its source as the next token; the
+    # output is never stripped - the first status letter may be a space
+    entries: dict[str, list[str]] = {}
+    source_next = False
+    for token in proc.stdout.split("\0"):
+        if source_next:  # a rename's source: that entry lost a file
+            source_next = False
+            top = token.split("/", 1)[0]
+            if top:
+                entries.setdefault(top, []).append(token)
+            continue
+        if len(token) < 4:
+            continue
+        status, path = token[:2], token[3:]
+        source_next = status[0] in "RC"
+        top = path.split("/", 1)[0]
+        if top:
+            entries.setdefault(top, []).append(path)
+    return entries
+
+
+def classify_names(names: list[str], opts: dict) -> dict[str, list[str]]:
+    groups: dict[str, list[str]] = {
+        "runtime": [],
+        "non-runtime": [],
+        "unclassified": [],
+    }
+    for name in sorted(set(names)):
+        klass, _ = classify_entry(name, opts)
+        groups[klass].append(name)
+    return groups
+
+
+def boundary_facts(root: Path, path: Path, args: argparse.Namespace) -> dict:
+    """Verification, re-measure or undecidable: the baseline's tree anchor
+    against HEAD entry by entry, the working tree, and the benchmark the
+    record names - the git walk only when the anchor is absent."""
+    kind = report_kind(path)
+    if kind is None:
+        raise Refusal(f"{path} is not a stored report")
+    store_root, rel = locate(path)
+    if store_root is None:
+        raise Refusal(f"{path} is in no git repository")
+    report = read_report(path, kind)
+    if "unreadable" in report:
+        raise Refusal(f"{path.name} cannot be read: {report['unreadable']}")
+    fm = report["frontmatter"]
+    head_tree = ls_tree(root, "HEAD")
+    if head_tree is None:
+        raise Refusal(f"{root} has no HEAD to compare the baseline against")
+    notes: list[str] = []
+    identities = sorted(
+        {i for i in (normalize_remote(str(v)) for v in _repository_values(fm)) if i}
+    )
+    own = repo_identity(root)
+    if identities and own and any(i != own for i in identities):
+        raise Refusal(
+            f"the baseline names the repository {', '.join(identities)}; --repo is "
+            f"{own} - run this in that repository's clone"
+        )
+    if identities and own is None:
+        notes.append(
+            f"the baseline names the repository {', '.join(identities)}; --repo has no "
+            "origin to prove it is the same one"
+        )
+    opts = {
+        "runtime": {n.lower() for n in args.runtime},
+        "non_runtime": {n.lower() for n in args.non_runtime},
+        "classifications": load_classifications(store_root, head_tree)["effective"],
+    }
+    revision = resolve_revision(root, fm.get("revision"))
+    anchor = fm.get("tree_anchor")
+    head_short = git(root, "rev-parse", "--short", "HEAD") or "HEAD"
+    differing: dict[str, list[str]] = {}
+    one_sided: list[str] = []
+    differing_unit = "paths"
+    if isinstance(anchor, dict):
+        diff = tree_anchor_diff(root, anchor, head_tree, revision, opts)
+        method = f"tree anchor ({len(anchor)} entries) against HEAD {head_short}"
+        groups = classify_names(
+            diff["runtime"] + diff["non_runtime"] + diff["unclassified"], opts
+        )
+        # an entry on one side only - added or removed since the anchor -
+        # stays uncertain whatever its ruling (the ledger's rule)
+        one_sided = sorted(set(diff["only_in_anchor"]) | set(diff["only_at_candidate"]))
+        if diff["changed_paths"]:
+            differing = {k: v["paths"] for k, v in diff["changed_paths"].items()}
+    elif revision and revision["resolves"]:
+        out = git(root, "diff", "--name-only", revision["sha"], "HEAD") or ""
+        for p in out.splitlines():
+            if p.strip() and p.split("/", 1)[0] != ".odd":
+                differing.setdefault(p.split("/", 1)[0], []).append(p)
+        groups = classify_names(list(differing), opts)
+        method = (
+            f"no tree anchor: the tree at {revision['value']} against HEAD {head_short}"
+        )
+    else:
+        commit = added_commit(store_root, rel)
+        if commit is None:
+            raise Ask(
+                f"{path.name} carries no tree anchor, "
+                + (
+                    f"its revision {fm.get('revision')} does not resolve"
+                    if fm.get("revision")
+                    else "no revision"
+                )
+                + " and the file is not committed: nothing fixes the boundary - say "
+                "whether the code changed since the baseline"
+            )
+        boundary = report_boundary(None, commit)
+        commits = (
+            commits_after(
+                root,
+                boundary,
+                ["."] + [f":(exclude){m}" for m in MEMORY_PATHS],
+                commit["sha"],
+            )
+            or []
+        )
+        for c in commits:
+            for entry in c["entries"]:
+                if entry != ".odd":
+                    differing.setdefault(entry, []).append(c["sha"][:7])
+        differing_unit = "commits"
+        groups = classify_names(list(differing), opts)
+        method = (
+            f"no tree anchor, revision {fm.get('revision') or 'absent'} unresolvable: "
+            f"the {len(commits)} commit(s) since the report's own commit date "
+            f"{commit['date']}"
+        )
+    uncommitted = porcelain_entries(root)
+    memory_paths = uncommitted.pop(".odd", [])  # a report being written, a ledger
+    dirty = uncommitted
+    dirty_groups = classify_names(list(dirty), opts)
+    sections = raw_sections(report["body"])
+    benchmarks = []
+    own_commit = added_commit(store_root, rel)
+    bench_boundary = report_boundary(revision, own_commit)
+    for mention in benchmark_mentions(sections, report["body"]):
+        bpath = mention["path"]
+        # commits since the revision, else since the report's own commit
+        # date (its own commit ignored) - the same boundary as the code's
+        since = commits_after(
+            store_root,
+            bench_boundary,
+            [bpath],
+            own_commit["sha"] if own_commit else None,
+        )
+        touched = [p for p in memory_paths if p == bpath or p.startswith(bpath + "/")]
+        benchmarks.append({"path": bpath, "commits": since, "dirty": touched})
+    benchmark_changed = any(b["commits"] or b["dirty"] for b in benchmarks)
+    if groups["runtime"] or dirty_groups["runtime"] or benchmark_changed:
+        verdict = "verification"
+    elif groups["unclassified"] or dirty_groups["unclassified"] or one_sided:
+        verdict = "undecidable"
+    else:
+        verdict = "re-measure"
+    return {
+        "verdict": verdict,
+        "baseline": rel,
+        "revision": revision,
+        "method": method,
+        "groups": groups,
+        "differing": differing,
+        "differing_unit": differing_unit,
+        "one_sided": one_sided,
+        "dirty": dirty,
+        "dirty_groups": dirty_groups,
+        "benchmarks": benchmarks,
+        "notes": notes,
+    }
+
+
+def _repository_values(fm: dict) -> list[str]:
+    value = fm.get("repository")
+    if isinstance(value, dict):
+        return [str(v) for v in value.values() if v]
+    return [str(value)] if value else []
+
+
+def render_boundary(facts: dict) -> str:
+    groups, differing = facts["groups"], facts["differing"]
+
+    unit = facts["differing_unit"]
+
+    def entries(names: list[str]) -> str:
+        if not names:
+            return "none"
+        parts = []
+        for name in names:
+            paths = differing.get(name) or []
+            parts.append(
+                f"{name} ({plural(len(paths), unit[:-1])}: {', '.join(paths[:3])})"
+                if paths
+                else name
+            )
+        return ", ".join(parts)
+
+    dirty = facts["dirty"]
+    dirty_text = "clean"
+    if dirty:
+        dirty_text = "dirty: " + ", ".join(
+            f"{name} ({klass}: {', '.join(dirty[name][:3])})"
+            for klass in ("runtime", "unclassified", "non-runtime")
+            for name in facts["dirty_groups"][klass]
+        )
+    bench_lines = []
+    for b in facts["benchmarks"]:
+        if b["commits"] is None and not b["dirty"]:
+            state = "no boundary to count commits from"
+        elif b["commits"] or b["dirty"]:
+            state = (
+                f"changed: {len(b['commits'] or [])} commit(s) since the baseline"
+                + (f", {len(b['dirty'])} uncommitted path(s)" if b["dirty"] else "")
+            )
+        else:
+            state = "unchanged since the baseline"
+        bench_lines.append(f"{b['path']}: {state}")
+    revision = facts["revision"]
+    rev_text = "none"
+    if revision:
+        rev_text = revision["value"] + (
+            "" if revision["resolves"] else " (does not resolve here)"
+        )
+    persist = {
+        "verification": "--mode verify",
+        "re-measure": "--mode re-measure",
+        "undecidable": "undecided",
+    }[facts["verdict"]]
+    if facts["verdict"] == "undecidable":
+        reasons = []
+        if groups["unclassified"] or facts["dirty_groups"]["unclassified"]:
+            reasons.append(
+                "until the unclassified entries are ruled - "
+                '/odd-status "<entry> is runtime | non-runtime" records the ruling, '
+                "--runtime/--non-runtime holds for this run"
+            )
+        if facts["one_sided"]:
+            reasons.append(
+                "no ruling settles an entry present on one side only - ask the "
+                "user which of the two the mission is"
+            )
+        persist += ": " + "; ".join(reasons)
+    lines = [
+        f"boundary: {facts['verdict']}",
+        f"baseline: {facts['baseline']}",
+        f"revision: {rev_text}",
+        f"method: {facts['method']}",
+        f"runtime entries differing: {entries(groups['runtime'])}",
+        "non-runtime entries differing (ignored): "
+        + (", ".join(groups["non-runtime"]) or "none"),
+        f"unclassified entries differing: {entries(groups['unclassified'])}",
+        "entries present on one side only (uncertain): "
+        + (", ".join(facts["one_sided"]) or "none"),
+        f"working tree: {dirty_text}",
+        "benchmark: " + ("; ".join(bench_lines) if bench_lines else "none named"),
+        f"persist: {persist}",
+    ]
+    lines.extend(f"note: {n}" for n in facts["notes"])
+    return "\n".join(lines) + "\n"
 
 
 # --- show ------------------------------------------------------------------------
@@ -1420,7 +2941,101 @@ def not_queried_summary(line: str | None) -> str | None:
     return f"{names} not queried"
 
 
+def dominant_approach(approaches: dict) -> str:
+    if not approaches:
+        return "no"
+    name, count = max(approaches.items(), key=lambda kv: (kv[1], kv[0]))
+    return (
+        name
+        if count * 2 > sum(approaches.values()) or len(approaches) == 1
+        else "mixed"
+    )
+
+
+def render_instrumentation_headline(data: dict) -> str:
+    text = (
+        f"{plural(len(data['services']), 'service')}, "
+        f"{dominant_approach(data['approaches'])} approach, "
+        f"{plural(data['packages'], 'pinned package')}, "
+        f"{plural(len(data['decisions']), 'decision')} open"
+    )
+    if data["genai"]:
+        text += f", GenAI approach for {plural(len(data['genai']), 'service')}"
+    if data["baseline_name"]:
+        text += f", vs baseline {data['baseline_name']}"
+    elif data["no_baseline"]:
+        text += ", no previous report"
+    return f"**{text}**"
+
+
+def render_instrumentation_show(data: dict, rel: str, commit: str | None) -> str:
+    fm = data["frontmatter"]
+    out = [render_instrumentation_headline(data), ""]
+    out.append(
+        f"Stored at `{rel}` — " + (f"commit {commit}" if commit else "not committed")
+    )
+    out.append("")
+    run = [("project", fm.get("project")), ("stack", fm.get("stack"))]
+    if fm.get("revision"):
+        run.append(("revision", fm.get("revision")))
+    if fm.get("repository"):
+        run.append(("repository", format_value(fm.get("repository"))))
+    run.append(("baseline", data["baseline_name"] or "none"))
+    out += [f"{key}: {value}" for key, value in run]
+    out.append("")
+    rows = [
+        [
+            cap(r[0], MAX_CELL)[0],
+            cap(r[1], MAX_CELL)[0],
+            cap(r[2], MAX_TITLE_CELL)[0],
+            cap(r[3], MAX_CELL)[0],
+            cap(r[4], MAX_CELL)[0],
+        ]
+        for r in data["services"]
+    ]
+    out += table_lines(
+        ["Service", "Approach", "Key packages (pinned)", "Effort", "Risk flags"],
+        rows,
+        MAX_ROWS,
+    )
+    if data["order"]:
+        out.append(f"Implementation order: {cap(data['order'], MAX_LINE)[0]}")
+    out.append("")
+    if data["genai"]:
+        out.append(
+            f"GenAI approach (section 3, prose): {', '.join(data['genai'][:MAX_ROWS])}"
+        )
+        out.append("")
+    count = len(data["decisions"])
+    out.append(f"Decisions the spec must settle: {count}")
+    for decision in data["decisions"][:MAX_ROWS]:
+        out.append(f"- {cap(decision, MAX_LINE)[0]}")
+    if count > MAX_ROWS:
+        out.append(f"+{count - MAX_ROWS} more in the report")
+    if not count and data["decisions_none"]:
+        out.append(cap(data["decisions_none"], MAX_LINE)[0])
+    out.append("")
+    out.append(
+        f"Verification protocol: {plural(len(data['checks']), 'replayable check')} in "
+        "section 5 — /odd-verify replays them once the instrumentation lands"
+    )
+    out.append("")
+    if count:
+        out.append(
+            f"Next: settle the {plural(count, 'open decision')}, then build the "
+            "spec-driven instrumentation plan from the report."
+        )
+    else:
+        out.append(
+            "Next: build the spec-driven instrumentation plan from the report; "
+            "replay its protocol with /odd-verify once the instrumentation lands."
+        )
+    return "\n".join(out) + "\n"
+
+
 def render_headline(data: dict) -> str:
+    if data.get("kind") == "instrumentation":
+        return render_instrumentation_headline(data)
     findings = data["findings"]
     high = sum(bool(SEVERE_RE.search(r[2])) for r in findings)
     confirmed = sum(bool(CONFIRMED_RE.match(r[3])) for r in findings)
@@ -1464,6 +3079,8 @@ def render_headline(data: dict) -> str:
 
 
 def render_show(data: dict, rel: str, commit: str | None) -> str:
+    if data.get("kind") == "instrumentation":
+        return render_instrumentation_show(data, rel, commit)
     fm = data["frontmatter"]
     out = [render_headline(data), ""]
     out.append(
@@ -1525,7 +3142,7 @@ def render_show(data: dict, rel: str, commit: str | None) -> str:
     if data["gaps"]:
         out.append("Telemetry gaps:")
         for gap in data["gaps"][:MAX_ROWS]:
-            out.append(f"- {cap(gap, MAX_LINE)[0]}")
+            out.append(f"- {gap_line(gap)}")
         if len(data["gaps"]) > MAX_ROWS:
             out.append(f"+{len(data['gaps']) - MAX_ROWS} more in the report")
     if data["not_queried"] or data["gaps"]:
@@ -1538,6 +3155,24 @@ def render_show(data: dict, rel: str, commit: str | None) -> str:
         out.append(f"+{count - MAX_ROWS} more in the report")
     if not count and data["decisions_none"]:
         out.append(cap(data["decisions_none"], MAX_LINE)[0])
+    if data["custom_stack"]:
+        out.append("")
+        friction = len(data["friction"])
+        out.append(
+            f"Stack friction: {friction}"
+            + (
+                " — /odd-instrument-stack from report fixes the stack from them"
+                if friction
+                else (
+                    " — every backend call went through a shipped invocation, "
+                    "and each answered as its guide states"
+                )
+            )
+        )
+        for entry in data["friction"][:MAX_ROWS]:
+            out.append(f"- {cap(entry, MAX_LINE)[0]}")
+        if friction > MAX_ROWS:
+            out.append(f"+{friction - MAX_ROWS} more in the report")
     out.append("")
     out.append("Next: " + next_action(data))
     return "\n".join(out) + "\n"
@@ -1569,7 +3204,7 @@ def next_action(data: dict) -> str:
 def splice_body(path: Path, draft: Path) -> list[str]:
     """The draft's text under the report's frontmatter, replacing the body.
 
-    The run writes its seven sections to a draft with its file tool and
+    The run writes its sections to a draft with its file tool and
     never edits the report file: the frontmatter stays the script's. A
     frontmatter block the draft opens with is dropped, and said."""
     notes: list[str] = []
@@ -1587,6 +3222,9 @@ def splice_body(path: Path, draft: Path) -> list[str]:
     if not head:
         raise Refusal(f"{path.name} carries no frontmatter to keep; run new first")
     path.write_text("\n".join(head) + "\n\n" + text.strip() + "\n", encoding="utf-8")
+    counted = recount_friction(path)
+    if counted is not None:
+        notes.append(f"{FRICTION_KEY}: {counted} (section {FRICTION_NUMBER} recounted)")
     frontmatter_problems = check_file(path, written_now=True)
     problems = check_file(path, written_now=True, body=True)
     if problems:
@@ -1621,6 +3259,7 @@ def persist(
     fm, _, _ = split_frontmatter(text)
     run_name = str(fm.get("run_name"))
     mode = str(fm.get("mode"))
+    kind = report_kind(path) or "observation"
     root, rel = locate(path)
     notes: list[str] = list(spliced)
     lines = [f"path: {rel}"]
@@ -1631,7 +3270,11 @@ def persist(
         lines.append("commit: not committed (the caller said not to)")
     else:
         branch = git(root, "branch", "--show-current") or ""
-        target = f"docs/odd-observe-run-report-{run_name}"
+        target = (
+            f"docs/odd-instrumentation-report-{run_name}"
+            if kind == "instrumentation"
+            else f"docs/odd-observe-run-report-{run_name}"
+        )
         if branch == default_branch(root):
             exists = git(
                 root, "rev-parse", "--verify", "--quiet", f"refs/heads/{target}"
@@ -1652,7 +3295,9 @@ def persist(
                 branch = target
         if root is not None:
             subject = (
-                f"docs(odd): {SUBJECTS.get(mode, 'observation report')} {run_name}"
+                f"docs(odd): instrumentation investigation {run_name}"
+                if kind == "instrumentation"
+                else f"docs(odd): {SUBJECTS.get(mode, 'observation report')} {run_name}"
             )
             added = git(root, "add", "--", rel)
             committed = (
@@ -1669,7 +3314,7 @@ def persist(
                 lines.append(f"subject: {subject}")
     # the headline alone: the caller's show renders the synthesis from the
     # file once, so the block never travels through two more contexts
-    lines.append(f"headline: {render_headline(synthesis_data(text))}")
+    lines.append(f"headline: {render_headline(synthesis_data(text, kind))}")
     return lines, notes
 
 
@@ -1700,9 +3345,20 @@ def main(argv: list[str] | None = None) -> int:
         "--kind",
         default="observation",
         choices=("observation", "instrumentation"),
-        help="the report kind (default observation; instrumentation is not written here yet)",
+        help="the report kind (default observation)",
     )
     p.add_argument("--repo", default=".", help="a path inside the observed repository")
+    p.add_argument(
+        "--project",
+        help="instrumentation: what was investigated (the repository, or a path in it)",
+    )
+    p.add_argument(
+        "--genai",
+        action="append",
+        default=[],
+        help="instrumentation: a service that calls a model (repeatable) - section 3 "
+        "opens a `### GenAI approach` heading for it",
+    )
     p.add_argument("--service", action="append", default=[], help="repeatable")
     p.add_argument("--stack")
     p.add_argument("--env", help="the detected environment (local, prod, unknown, ...)")
@@ -1759,6 +3415,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="the observed code is in no repository the run can reach",
     )
+    p.add_argument(
+        "--custom-stack",
+        action="store_true",
+        help="the stack is a custom one: the report carries section 8, stack friction, "
+        "and the frontmatter counts its entries",
+    )
 
     for name, doc in (
         ("check", "the memory contract's checks, one problem per stderr line"),
@@ -1771,12 +3433,51 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("read", help="the frontmatter and the named sections")
     p.add_argument("path")
     p.add_argument(
-        "--sections", default="1,2,3,7", help="comma-separated section numbers"
+        "--sections",
+        default=None,
+        help="comma-separated section numbers (default 1,2,3,7 on an observation "
+        "report, 1,2,4,5 on an instrumentation one)",
     )
     p.add_argument(
         "--record",
         action="store_true",
         help="section 1 reduced to its scenario record and replay notes",
+    )
+
+    p = sub.add_parser(
+        "baseline",
+        help="a replay's baseline, verifies value, mode and depth (exit 3: ask)",
+    )
+    p.add_argument("target", nargs="?", help="a report path, or enough of a run name")
+    p.add_argument("--repo", default=".", help="a path inside the repository")
+    p.add_argument("--service", action="append", default=[], help="repeatable")
+    p.add_argument("--stack")
+    p.add_argument("--env", help="the deployment environment the baseline ran on")
+    p.add_argument("--depth", choices=DEPTHS, help="the argument's depth, which wins")
+    p.add_argument(
+        "--own-protocol",
+        action="store_true",
+        help="the carve-out: a verification's own protocol is the baseline",
+    )
+
+    p = sub.add_parser(
+        "boundary",
+        help="verification, re-measure or undecidable, from the baseline's tree "
+        "anchor (exit 3: undecidable)",
+    )
+    p.add_argument("path", help="the baseline report")
+    p.add_argument("--repo", default=".", help="a path inside the observed repository")
+    p.add_argument(
+        "--runtime",
+        action="append",
+        default=[],
+        help="an entry ruled runtime, this run",
+    )
+    p.add_argument(
+        "--non-runtime",
+        action="append",
+        default=[],
+        help="an entry ruled non-runtime, this run",
     )
 
     p = sub.add_parser(
@@ -1786,7 +3487,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--body",
         help="a draft holding the report's body (the title, the headline and the "
-        "seven sections): written under the frontmatter in place of the file's body",
+        "sections - seven, eight on a custom stack; five on an instrumentation "
+        "report): written under the frontmatter in place of the file's body",
     )
     p.add_argument(
         "--no-commit", action="store_true", help="write nothing to git; say so"
@@ -1796,8 +3498,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "new":
             path, body, notes = new_report(args)
-            # the path first, then the body as written: the run replaces
-            # every <fill> from this text and never reads the file back
+            # the path first, then the body as written (plus what never
+            # reaches the file: the observation kind's section contract, the
+            # instrumentation kind's rules footer): the run replaces every
+            # <fill> from this text and never reads the file back
             print(path)
             print(
                 "--- the file below its frontmatter: write it filled (every <fill> "
@@ -1807,6 +3511,19 @@ def main(argv: list[str] | None = None) -> int:
             for note in notes:
                 print(note, file=sys.stderr)
             return 0
+        if args.command in ("baseline", "boundary"):
+            root = git_root(Path(args.repo))
+            if root is None:
+                raise Refusal(f"not a git repository: {Path(args.repo).resolve()}")
+            if args.command == "baseline":
+                sys.stdout.write(render_baseline(baseline_facts(root, args)))
+                return 0
+            path = Path(args.path)
+            if not path.is_file():
+                raise Refusal(f"no such file: {path}")
+            facts = boundary_facts(root, path, args)
+            sys.stdout.write(render_boundary(facts))
+            return 3 if facts["verdict"] == "undecidable" else 0
         path = Path(args.path)
         if not path.is_file():
             raise Refusal(f"no such file: {path}")
@@ -1820,9 +3537,10 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         text = path.read_text(encoding="utf-8")
         if args.command == "read":
-            out, missing = read_sections(
-                text, parse_numbers(args.sections), args.record
+            numbers = args.sections or (
+                "1,2,4,5" if report_kind(path) == "instrumentation" else "1,2,3,7"
             )
+            out, missing = read_sections(text, parse_numbers(numbers), args.record)
             sys.stdout.write(out)
             for line in missing:
                 print(line, file=sys.stderr)
@@ -1830,7 +3548,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command in ("synthesis", "show"):
             root, rel = locate(path)
             commit = file_commit(root, rel)
-            data = synthesis_data(text)
+            data = synthesis_data(text, report_kind(path))
             if args.command == "synthesis":
                 sys.stdout.write(f"path: {rel}\ncommit: {commit or 'not committed'}\n")
                 sys.stdout.write(synthesis_text(data))
@@ -1844,6 +3562,9 @@ def main(argv: list[str] | None = None) -> int:
         for note in notes:
             print(note, file=sys.stderr)
         return 0
+    except Ask as exc:
+        print(f"ask: {exc}")
+        return 3
     except Refusal as exc:
         print(str(exc), file=sys.stderr)
         return 2

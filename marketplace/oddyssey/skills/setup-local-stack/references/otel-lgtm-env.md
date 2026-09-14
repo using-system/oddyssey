@@ -3,7 +3,7 @@
 Environment variables are the container's **only** configuration surface,
 and `odd_stack_up` / `odd_stack_reset` (`env` parameter) are how they
 reach it. This catalog is built from the pinned image's own tag —
-**`grafana/otel-lgtm:0.32.1`** (its README and `docker/run-*.sh`
+**`grafana/otel-lgtm:0.33.0`** (its README and `docker/run-*.sh`
 scripts) — and must be re-validated on every pin bump; when the pin and
 this file disagree, trust the tag.
 
@@ -15,7 +15,11 @@ Contract reminders (they apply to every variable below):
 - the embedded default `PROMETHEUS_EXTRA_ARGS=--enable-feature=otlp-deltatocumulative`
   is merged in; a user entry with the same key **overrides** it (dropping
   delta-metric ingestion — CLI coding agents' `claude_code.*` metrics
-  need it, so extend rather than replace);
+  need it, so extend rather than replace); so is
+  `GF_PLUGINS_PREINSTALL_AUTO_UPDATE=false` (the image's datasource
+  plugins stay the ones it ships: Grafana's boot-time update of one from
+  grafana.com makes the datasource proxy answer 404 for that backend for
+  a few seconds, after the stack first reported ready);
 - once applied, env is **sticky**: it is persisted into the global
   configuration's `stack_config.local` and reapplied on every
   recreation (a bare `odd_stack_reset` keeps it); stop applying a

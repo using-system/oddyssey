@@ -30,7 +30,7 @@ accepts, with its reference, CLI, and aliases — is
 | Azure Monitor (App Insights, Log Analytics) | `az` (KQL) | [references/azure-monitor.md](references/azure-monitor.md) |
 | AWS CloudWatch + X-Ray | `aws` | [references/cloudwatch.md](references/cloudwatch.md) |
 
-Authoring a reference, or a custom stack file: every reference follows
+Authoring a reference, or a custom stack's guide: every reference follows
 [references/CONTRACT.md](references/CONTRACT.md) — the sections it must
 carry, what each answers, and who reads it. A mission never opens it.
 
@@ -40,7 +40,10 @@ UIDs. gcx is the stack's mandatory query CLI.
 
 For Grafana — remote or local — the query commands are the scripts under
 `scripts/grafana-*.py`; `grafana.md`'s `## Query by signal` is the one
-place that states them, with every flag.
+place that states them, with every flag. For Azure Monitor they are the
+scripts under `scripts/azure-monitor-*.py`, stated the same way by
+`azure-monitor.md`'s `## Query by signal`; for CloudWatch the scripts
+under `scripts/cloudwatch-*.py`, stated by `cloudwatch.md`'s.
 
 ## Rules
 

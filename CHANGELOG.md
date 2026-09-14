@@ -1,4 +1,49 @@
-## [1.11.5] - 2026-09-09
+## [1.12.0] - 2026-09-14
+
+### 🚀 Features
+
+- *(prompts)* /odd-instrument-stack authors a custom stack as a directory - guide.md and its query scripts - through a stack-instrumentation-expert agent (#539)
+- *(harness)* Make the harnessing kit multi-CLI - an argument-hint on launch-llms-benchmark, test-plugin-harnessing on the command's three CLIs, AGENTS.md routing every change on the /odd-observe, /odd-verify or /odd-status path through it before a PR (#546)
+- *(skill)* Ship the watch of a driven run for Azure Monitor, on the Grafana watch's contract (#559)
+- *(skill)* Ship the watch of a driven run for CloudWatch, on the Grafana watch's contract (#562)
+- *(mcp)* A docker binary missing from PATH is a diagnosed tool result, never a masked FileNotFoundError (#581)
+
+### 🐛 Bug Fixes
+
+- *(mcp-server)* Bound docker calls and report an unreachable daemon (#536)
+- *(trailer)* Keep the next scene's clock through the crossfade, widen the ship's log card, drop the committed mp4 (#556)
+- *(skill)* Leave the first bin unread when gcx fails inside the Grafana watch's walk-back (#560)
+- *(mcp)* Keep the image's datasource plugins at boot and wait out Grafana's plugin wiring in the readiness probes (#577)
+- *(mcp)* Odd_config_set must not persist a port change it then refuses, and the daemon probe must keep the CLI's diagnosis and its own bound (#580)
+- *(marketplace)* Emit plugin.json at the plugin root too, in the Agent Plugins v1.0.0 shape - the Copilot marketplace intake reads it there, not under .claude-plugin/ (#582)
+
+### 💼 Other
+
+- *(deps)* Bump mcp from 2.1.1 to 2.2.0 in /src/mcp-server (#569)
+
+### 📚 Documentation
+
+- *(bench)* Campaign under 1.11.5 - the eight rows re-run and re-sorted (#533)
+- *(llms-benchmark)* Drop the opencode rows of claude-sonnet-5 and claude-haiku-4.5 from the full report (#554)
+
+### ⚡ Performance
+
+- *(skill)* Ship azure-monitor.md's query surface as azure-monitor-* scripts instead of prose (#540)
+- *(skill)* Ship cloudwatch.md's query surface as cloudwatch-* scripts instead of prose (#541)
+- *(skill)* Ship the instrumentation report's deterministic steps as odd_report.py - new, persist, check, show for the instrumentation kind - and cut the agent and the reference to the judgment (#543)
+- *(prompts)* Ship /odd-verify's deterministic preflight as odd-memory commands - baseline resolution, mode walk, verification-versus-re-measure - and cut the prompt to the judgment (#544)
+- *(skill)* Cut benchmark-replay.md to a list and ship the watch of a driven run and the stage buckets as scripts (#552)
+- *(prompt)* Print the preflight handoff's Machine line, keep a CLI's JSON version out of the block, never cut a gap's query in show, and let new print the body contract (#557)
+- *(skill)* Ship run-scenario's ad-hoc drive as a script - warmup, counts, identity headers, the record, the flush wait - and cut its references to the judgment (#575)
+- *(skill)* Give the Grafana watch the measured settle, the manifest's schedule and the wake-on-close poll (#576)
+- *(harness)* Alternate the position in each pair, reset the local stack's data between samples, and state what two samples can detect (#573)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(mcp)* Bump the local stack image to grafana/otel-lgtm 0.33.0 - Grafana 13.2.1, OpenTelemetry Collector 0.160.0, OBI 0.13.0 (#571)
+- *(apm)* Bump apm-cli to 0.30.0 - the pin in the install commands, the CI workflows, the marketplace build and the harness kit (#572)
+- *(deps)* Bump astral-sh/setup-uv from 10.0.1 to 10.1.0 (#568)
+## [1.11.5] - 2026-09-10
 
 ### 🚀 Features
 

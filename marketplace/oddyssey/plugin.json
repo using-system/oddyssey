@@ -1,4 +1,5 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "oddyssey",
   "version": "1.12.0",
   "description": "Observability-Driven Development for CLI coding agents",
@@ -6,9 +7,9 @@
     "name": "using-system",
     "url": "https://github.com/using-system"
   },
-  "license": "MIT",
   "homepage": "https://github.com/using-system/oddyssey#readme",
   "repository": "https://github.com/using-system/oddyssey",
+  "license": "MIT",
   "keywords": [
     "claude-code",
     "claude-code-plugin",
@@ -18,6 +19,5 @@
     "observability",
     "opentelemetry",
     "developer-tools"
-  ],
-  "displayName": "Oddyssey"
+  ]
 }
