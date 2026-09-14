@@ -4,7 +4,8 @@
 #   .agents/plugins/marketplace.json  (Codex)
 #   marketplace/oddyssey/             (the materialized plugin the manifests
 #                                      point at: agents, commands, skills,
-#                                      .claude-plugin/plugin.json, .mcp.json)
+#                                      plugin.json, .claude-plugin/plugin.json,
+#                                      .mcp.json)
 # Everything it writes is GENERATED - never edit those files by hand.
 # Run by the release workflow after the version bumps, so the artifacts
 # always carry the released version and the matching oddyssey-mcp pin.
@@ -28,23 +29,34 @@ trap 'rm -rf "$TMP"' EXIT
 uvx --from "apm-cli==${APM_CLI_VERSION}" apm pack -o "$TMP"
 
 # Flatten the versioned bundle into the stable path the manifests
-# reference (marketplace/oddyssey), with the plugin manifest where
-# Claude Code expects it.
+# reference (marketplace/oddyssey). The one plugin.json apm pack
+# synthesises becomes two manifests, at the two places the hosts read:
+#   plugin.json                 - the Agent Plugins v1.0.0 location, the one
+#                                 the Copilot marketplace intake and its
+#                                 install smoke test look up (issue #570):
+#                                 the spec's $schema first, then only the
+#                                 spec's top-level fields, whitelisted so a
+#                                 later apm-cli cannot leak one in
+#                                 (displayName is not one - the intake
+#                                 flags it);
+#   .claude-plugin/plugin.json  - the Claude Code location, displayName
+#                                 injected for the `/plugin` picker.
 rm -rf marketplace/oddyssey
 mkdir -p marketplace/oddyssey/.claude-plugin
 cp -R "$TMP"/oddyssey-*/. marketplace/oddyssey/
-mv marketplace/oddyssey/plugin.json marketplace/oddyssey/.claude-plugin/plugin.json
+cp marketplace/oddyssey/plugin.json "$TMP/plugin.json.packed"
+jq '{"$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"}
+    + ({name, version, description, author, homepage, repository, license, keywords}
+       | with_entries(select(.value != null)))' \
+  "$TMP/plugin.json.packed" > marketplace/oddyssey/plugin.json
 
 # apm-cli's plugin.json synthesis carries name/version/description/
 # license/homepage/repository/author/keywords from apm.yml's root, but drops
 # displayName (undocumented in its synthesizer); inject it by hand so the
 # `/plugin` picker shows a human-readable name instead of the package slug.
 DISPLAY_NAME="$(grep -m1 '^displayName:' apm.yml | cut -d':' -f2- | sed 's/^[[:space:]]*//')"
-if [ -n "$DISPLAY_NAME" ]; then
-  jq --arg name "$DISPLAY_NAME" '. + {displayName: $name}' \
-    marketplace/oddyssey/.claude-plugin/plugin.json > "$TMP/plugin.json.patched"
-  mv "$TMP/plugin.json.patched" marketplace/oddyssey/.claude-plugin/plugin.json
-fi
+jq --arg name "$DISPLAY_NAME" '. + (if $name == "" then {} else {displayName: $name} end)' \
+  "$TMP/plugin.json.packed" > marketplace/oddyssey/.claude-plugin/plugin.json
 
 # apm pack does not carry the MCP dependency into the plugin bundle;
 # inject it so a native install gets the stack-piloting server too,
