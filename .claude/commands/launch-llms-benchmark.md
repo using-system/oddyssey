@@ -51,7 +51,9 @@ Steps:
 1. **Preflight** — all of these must hold; stop naming the failing one
    otherwise:
    - `git fetch origin` first, then: the working tree is clean, the
-     current branch is `main`, and it is in sync with `origin/main`;
+     current branch is `main`, and it is in sync with `origin/main`; a
+     `bench/*` branch a previous run left behind is deleted here (it
+     never ships, and it may carry that run's report);
    - `docker info` answers (the demo stack and the observability stack
      are both containers);
    - the local oddyssey stack is up (`odd_stack_status`; `odd_stack_up`
@@ -166,20 +168,30 @@ Steps:
 5. **Clean what the next run must not read — then recreate the demo
    stack, never reuse a running one.** Before every run, whatever the
    previous one's end (a stall killed, an `ERROR` line, a restart leave
-   everything below in place), in this order — the same discipline the
+   everything below in place), in this order — the discipline the
    `test-plugin-harnessing` kit applies before each of its samples:
 
    - **no observation report of the three services, anywhere the run can
      read** — not tracked under `.odd/observe-run-reports/`, not
      untracked there, not on a `docs/odd-*-report-*` branch, not on the
-     work branch (fresh from `main`; a previous run that committed its
-     report to the branch it was on takes that branch with it, step 2
-     makes a new one). One report there and the bench is void: the run
+     work branch. One report there and the bench is void: the run
      recalls it as its baseline and grades itself against a previous
      model's findings — the answer key step 9 exists to keep out of its
      hands. Prove the absence rather than assume it:
-     `python3 .apm/skills/odd-memory/scripts/odd_recall.py --repo . --service llmbench-api --service llmbench-mcp --service llmbench-agent --stack local --env local --depth <depth>`
-     must answer `no stored report matches`.
+     `python3 .apm/skills/odd-memory/scripts/odd_recall.py --repo . --service llmbench-api --service llmbench-mcp --service llmbench-agent --stack local`
+     must answer `no stored report matches` (services and stack only:
+     a depth or an environment on the line would skip a report recorded
+     at another one, and the file would still be there to read).
+   - **the leftovers, before the store is emptied**: any `llmbench*`
+     container beyond the three (a run can start its own copy of the
+     stack under another project name — step 9 tells what one cost, and
+     one left running exports into the store the reset is about to
+     empty), every CLI's scratch directory and the `k6-summary-*.json`
+     files (step 9's list, cleared unconditionally — another session's
+     directory is the same hazard as a previous run's); and **let the
+     previous run's process end, then wait a few seconds**: a launch
+     that reads the CLI's log while the previous run still writes it
+     takes that run's id — the trap step 6's watcher describes.
    - **the oddyssey stack's data: `odd_stack_reset`.** The store is
      shared machine-wide; the previous model's driven run is still inside
      the window this run observes (its own `odd-bench/…/<slug>` identity
@@ -199,15 +211,6 @@ Steps:
      `down -v` matters: it drops the catalog volume. Without it a previous
      run's orders and its service instance ids sit inside the window this
      run observes, and two rows stop being comparable.
-   - **the leftovers**: any `llmbench*` container beyond the three (a run
-     can start its own copy of the stack under another project name —
-     step 9 tells what one cost), every CLI's scratch directory and the
-     `k6-summary-*.json` files (step 9's list — clear them here too when
-     the previous run did not reach step 9).
-   - **let the previous run's process end, and wait a few seconds**
-     before launching: a launch that reads the CLI's log while the
-     previous run still writes it takes that run's id — the trap step 7's
-     selector describes.
 
    Then wait for the three containers to be healthy and prove it with
    one request to each of the three services. Only the api declares a

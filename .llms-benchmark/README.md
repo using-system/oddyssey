@@ -204,11 +204,12 @@ an `OPENAI_API_KEY` in
 That command runs the whole protocol and comes back with a pull request
 adding or replacing the row. What it does:
 
-1. Cleans what the run must not read — a previous bench's report, the
-   local oddyssey stack's data (reset, so the window holds this run's
-   traffic and nothing else), the demo stack recreated, the leftovers —
-   then brings the demo stack up (`docker-compose/llms-benchmark/`)
-   against the local stack and waits for the three services to answer.
+1. Cleans what the run must not read — any observation report of the
+   three services, the leftovers of a previous run, the local oddyssey
+   stack's data (reset, so the window holds this run's traffic and
+   nothing else) — then recreates the demo stack
+   (`docker-compose/llms-benchmark/`) against the local stack and waits
+   for the three services to answer.
 2. Drives the model through the CLI you named — **opencode** on
    OpenRouter, or **claude** — at **medium** reasoning effort — headless,
    one session.
