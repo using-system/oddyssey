@@ -257,8 +257,9 @@ catalog — browse, search, open a product, read the stats, order, read it
 back — both straight at the API and through the four MCP tools; and one
 customer question to the agent every fifteen seconds.
 
-That second rate is a hard ceiling. Every one of its eight iterations is
-a real, paid model call, on every run, for every model ever tested.
+That second rate is a hard ceiling. Every one of its eight (sometimes
+nine) iterations is a real, paid model call, on every run, for every
+model ever tested.
 
 ## There is no answer key
 

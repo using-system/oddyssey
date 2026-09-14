@@ -817,7 +817,7 @@ Steps:
 
    **The assistant scenario makes eight or nine arrivals.** One every
    15 s from t0, and whether the one at t0+120 s lands depends on the
-   run: three runs of 2026-09-14 had nine `POST /ask` traces, all
+   run: some runs of 2026-09-14 had nine `POST /ask` traces, all
    carrying the run's User-Agent, and `agent_questions_total` = 9;
    others had eight. Count the run's own traces by its User-Agent before
    ruling — a ninth that carries the UA is an arrival, not
