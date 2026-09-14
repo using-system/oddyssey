@@ -10,6 +10,8 @@
 # reaches the server subprocess.
 # The config file is backed up/restored so a developer machine is left
 # untouched even if a refused port change were to persist again.
+# Issue #538: with no docker binary on PATH at all, the same tools carry
+# the remedy naming what is missing, never a masked FileNotFoundError.
 
 source "$(dirname "$0")/lib.sh"
 
@@ -93,5 +95,25 @@ mcp_call_env odd_config_get "DOCKER_HOST=${dead_host}" -- > "$workdir/config-aft
 assert_result_contains "$workdir/config-after.json" '"grafana_port": 3000'
 jq -e '.content[0].text | contains("3300") | not' "$workdir/config-after.json" > /dev/null \
   || { echo "ASSERTION FAILED: the refused port change was persisted" >&2; cat "$workdir/config-after.json" >&2; exit 1; }
+
+# No docker binary on PATH: the server is spawned with PATH reduced to an
+# empty directory (an existing one - Python falls back to its default
+# search path only when PATH is unset). The server itself still starts:
+# the venv's console script execs the venv python by absolute path.
+no_docker_path="$workdir/no-docker"
+mkdir -p "$no_docker_path"
+missing_remedy="docker is not installed or not on PATH - install Docker Desktop and retry"
+
+step "odd_stack_status names the missing docker binary"
+mcp_call_env odd_stack_status "PATH=${no_docker_path}" -- > "$workdir/status-missing.json"
+assert_result_contains "$workdir/status-missing.json" '"running": false'
+assert_result_contains "$workdir/status-missing.json" '"daemon": "unreachable"'
+assert_result_contains "$workdir/status-missing.json" "$missing_remedy"
+
+step "odd_stack_up refuses with the missing-binary remedy"
+mcp_call_env odd_stack_up "PATH=${no_docker_path}" -- > "$workdir/up-missing.json" || true
+jq -e '.isError == true' "$workdir/up-missing.json" > /dev/null \
+  || { echo "ASSERTION FAILED: up-missing.json is not a tool error" >&2; cat "$workdir/up-missing.json" >&2; exit 1; }
+assert_result_contains "$workdir/up-missing.json" "$missing_remedy"
 
 echo "stack daemon unreachable: OK"

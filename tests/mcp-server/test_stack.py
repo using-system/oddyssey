@@ -1,4 +1,6 @@
+import errno
 import json
+import os
 import subprocess
 
 import httpx
@@ -1321,6 +1323,67 @@ def test_stack_reset_refuses_when_daemon_unreachable(monkeypatch):
 
     with pytest.raises(RuntimeError, match="the Docker daemon does not answer"):
         stack.stack_reset({})
+
+
+def _no_docker_binary(argv, **kwargs):
+    # The shape subprocess.run raises when no `docker` is on PATH:
+    # FileNotFoundError: [Errno 2] No such file or directory: 'docker'
+    raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), argv[0])
+
+
+def test_stack_status_daemon_unreachable_without_docker_binary(monkeypatch):
+    # Issue #538: no docker binary on PATH is the same down-shaped status
+    # as a dead daemon, with a remedy naming what is missing - never a
+    # FileNotFoundError masked to a bare "Error executing tool".
+    monkeypatch.setattr(stack.subprocess, "run", _no_docker_binary)
+    monkeypatch.setattr(
+        stack,
+        "_readiness",
+        lambda *args, **kwargs: pytest.fail("probes ran without a docker binary"),
+    )
+
+    status = stack_status()
+
+    assert status["running"] is False
+    assert status["daemon"] == "unreachable"
+    assert status["daemon_remedy"] == stack.DOCKER_MISSING_REMEDY
+    assert status["daemon_remedy"] == (
+        "docker is not installed or not on PATH - install Docker Desktop and retry"
+    )
+    assert status["image"] is None
+    assert status["created"] is None
+    assert status["started"] is None
+    assert status["env"] is None
+
+
+def test_stack_up_refuses_without_docker_binary(monkeypatch):
+    # The first docker touch refuses through the channel traced_tool
+    # translates to a ToolError, carrying the missing-binary remedy.
+    monkeypatch.setattr(stack.subprocess, "run", _no_docker_binary)
+
+    with pytest.raises(
+        stack.DaemonUnreachable, match="docker is not installed or not on PATH"
+    ):
+        stack.stack_up({})
+
+
+def test_missing_docker_binary_never_runs_the_daemon_probe(monkeypatch):
+    # A missing binary is settled on the first exec: the `docker version`
+    # classification probe (which would raise the same error) is never
+    # attempted.
+    calls: list[list[str]] = []
+
+    def no_binary(argv, **kwargs):
+        calls.append(argv)
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), argv[0])
+
+    monkeypatch.setattr(stack.subprocess, "run", no_binary)
+
+    with pytest.raises(stack.DaemonUnreachable):
+        stack._container_state()
+
+    assert len(calls) == 1
+    assert calls[0][:2] != ["docker", "version"]
 
 
 def test_container_state_absent_survives_non_connect_errors(monkeypatch):

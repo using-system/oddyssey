@@ -114,10 +114,19 @@ DOCKER_STATE_TIMEOUT_S = 60.0
 DOCKER_HEAVY_TIMEOUT_S = 900.0
 
 DAEMON_REMEDY = "the Docker daemon does not answer - restart Docker Desktop and retry"
+DOCKER_MISSING_REMEDY = (
+    "docker is not installed or not on PATH - install Docker Desktop and retry"
+)
 
 
 class DaemonUnreachable(RuntimeError):
-    """The Docker daemon does not answer - the call was bounded, not hung."""
+    """Docker cannot be reached - the call was bounded, not hung.
+
+    The message is the one-line remedy the client sees: the daemon does
+    not answer (issue #521), or the docker binary is missing from PATH
+    (issue #538) - one class, because every caller degrades the same way
+    and traced_tool translates it by name.
+    """
 
 
 # Widest lookback each backend accepts for the pre-wipe service listing:
@@ -261,10 +270,12 @@ def _run_bounded(
     CLI-level error (e.g. "No such object") the caller keeps as its
     absent/None degradation. The probe runs under the short call budget,
     never the caller's (a creation-path caller would otherwise let it
-    block for the whole pull budget, #537). Both refusal shapes raise
-    DaemonUnreachable with the one-line remedy - the probe's own stderr
-    line first, the failed call's when the probe said nothing; every
-    other nonzero exit returns normally.
+    block for the whole pull budget, #537). A missing docker binary
+    (FileNotFoundError on the first exec, #538) is settled without the
+    probe. All three refusal shapes raise DaemonUnreachable with the
+    one-line remedy - for a failed probe, the probe's own stderr line
+    first, the failed call's when the probe said nothing; every other
+    nonzero exit returns normally.
     """
     try:
         result = subprocess.run(
@@ -276,6 +287,10 @@ def _run_bounded(
         )
     except subprocess.TimeoutExpired:
         raise DaemonUnreachable(DAEMON_REMEDY) from None
+    except FileNotFoundError:
+        # No docker binary on PATH (issue #538): settled on the first exec,
+        # the probe below would only raise the same error.
+        raise DaemonUnreachable(DOCKER_MISSING_REMEDY) from None
     if result.returncode != 0:
         try:
             probe = subprocess.run(
