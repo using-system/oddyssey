@@ -82,10 +82,15 @@ Steps:
        the name only, never its contents); and a smoke run answers with a
        result naming the model:
        `claude -p "Reply with the single word ok" --model <anthropic id> --output-format json < /dev/null`
-       must print a `type: result` JSON whose `modelUsage` has one key,
-       the model's canonical id. Run it from a scratch directory, not the
-       repository — it leaves a session transcript under the directory's
-       project;
+       must print a `type: result` JSON whose `modelUsage` carries the
+       model's canonical id. Since Claude Code 2.1.270 a second key,
+       `claude-haiku-4-5`, sits beside it on every run — a background
+       call of about a thousand tokens the CLI makes on its own
+       (0.001 USD) — so the check is that the benchmarked model's key is
+       there and carries the spend, not that it is alone; step 7 records
+       the haiku share beside the total. Run it from a scratch directory,
+       not the repository — it leaves a session transcript under the
+       directory's project;
      - `copilot`: `copilot --version` answers; the user is logged in
        (`~/.copilot/config.json` carries a non-empty `loggedInUsers` —
        the host and login, nothing else lives there); and a smoke run
@@ -125,7 +130,19 @@ Steps:
    For `opencode`:
    - opencode: `brew upgrade opencode` when Homebrew has it, else
      `opencode upgrade`, else the official install script. Record the
-     resulting `opencode --version`.
+     resulting `opencode --version` — **and smoke the binary before
+     trusting it**: `opencode run --model openrouter/<a cheap model>
+     --format json "reply with the single word ok" < /dev/null` must
+     print a `text` event. On 2026-09-14 Homebrew's `1.18.30_1` rebuild
+     failed every run with `Unexpected server error` on stdout
+     (`TypeError: undefined is not an object (evaluating 'a.name')` in
+     `SystemPrompt.environment`, in any directory) while the official
+     install script's binary of the same version ran; when the brew
+     binary fails the smoke, install the official one
+     (`curl -fsSL https://opencode.ai/install | bash`, with Homebrew off
+     the `PATH` so the script's "already installed" check does not exit
+     early — it lands in `~/.opencode/bin/`) and launch that path
+     explicitly. Record which binary ran in the pull request.
    - the package, for the opencode target, **into the repository**
      (opencode's user scope takes no MCP server, so `--global` fails
      there):
@@ -140,6 +157,11 @@ Steps:
      that path rather than the repository's. Diff it against
      `.apm/skills/` (`diff -rq`, ignoring caches) before launching: an
      older copy there measures another version than the row claims.
+     **The tracked marketplace build is a third**: one run of 2026-09-14
+     resolved every script through `marketplace/oddyssey/skills/`, the
+     artifact the release workflow regenerates from `.apm/`. Diff it the
+     same way; a release that lagged `.apm/` would measure the release,
+     not `HEAD`.
 
    For `copilot`:
    - `copilot update`, then record `copilot --version`.
@@ -341,7 +363,14 @@ Steps:
    literal double quotes — the first campaign's shell quoting passed them
    through, and the string opencode received starts and ends with `"`.
    Keep it byte-identical, quotes included: read it back from a previous
-   run's first user message in the session store rather than retyping it.
+   run's first user message rather than retyping it — from a `claude`
+   transcript or a `copilot` `user.message` event, where it is stored as
+   received. **opencode's store JSON-wraps the argument**: the `text`
+   of its first user part reads `"\"/odd-observe …\""` for the argument
+   `"/odd-observe …"`, one layer of quoting more than what was passed.
+   The argument is the same string under all three CLIs; pass the
+   store's form verbatim and the run receives it double-wrapped (one run
+   of 2026-09-12 did, at 693 characters instead of 683).
 
    Add exactly three things to that line and nothing else: that the
    services' sources are under `.llms-benchmark/src/`; that you want
@@ -463,6 +492,16 @@ Steps:
    telemetry queries under way, the report written. Name what you are
    waiting on, and if a phase stalls with no new log line for several
    minutes, say so instead of waiting silently.
+
+   **A turn that fails the same way three times will not pass.** opencode
+   retries a failed stream without limit. On 2026-09-14 one model's
+   report-writing turn — a single long generation — hit `Upstream idle
+   timeout exceeded` (504) after about 3m50s of streaming four times in
+   a row, and three more times on the identical re-run; a `z-ai` upstream
+   that will not carry that generation is not going to on the fifth try.
+   Kill by the PID after the third identical failure of one turn and
+   record it as the provider not streaming; the row keeps its previous
+   measurement, marked provisional.
 
    Never `pkill` by a pattern that could match another opencode process:
    the user may be running their own session at the same time. Kill by
@@ -693,7 +732,24 @@ Steps:
    contract, and the remedy is the acceptance sentence step 6 now puts in
    the mission — not a system prompt: `--append-system-prompt` reaches the
    root session only, never the subagent that reads the rule, and a run
-   launched with it declined all the same.
+   launched with it declined all the same. Two further shapes, both from
+   one model through `claude` on 2026-09-14, neither about the paid
+   calls: a run that greps the compose file, reads the `OPENAI_API_KEY`
+   line, declares the key missing without opening the `.env` beside it
+   (the containers were up and answering) and asks the headless user to
+   set it; and a run that invokes the scenario skill through the
+   `Skill` tool as if it were a command, waits for a file nothing
+   writes, and goes on to observe an empty store — no `k6` process ever
+   appears. Both are declines; after the second, "did not drive the
+   scenario" is the model's result.
+
+   **An account limit ends a run mid-flight, and the preflight cannot
+   see it coming.** One `claude` run of 2026-09-14 drove the scenario,
+   observed for six minutes, then exited with `is_error: true` and the
+   result text "You've hit your monthly spend limit" — its smoke had
+   passed minutes earlier. That is no row: the previous row stays,
+   marked provisional, and the limit is the user's to lift; ask before
+   re-launching, never spend a run to find out.
 
    **A run that drove but never persisted its report still gets a row.**
    One run drove the scenario, wrote a draft and a findings summary in
@@ -706,7 +762,12 @@ Steps:
    directory before step 9 clears it.
 
    Then read the observation report the run stored under
-   `.odd/observe-run-reports/`
+   `.odd/observe-run-reports/` — **found by the branch, never by a grep
+   for the services**: runs name the file after their own slug
+   (`…-2fcc17e4.md`, `…-run-1789389106.md`, `…-obs-store-load-….md`),
+   so `git diff --name-only main..HEAD -- .odd/observe-run-reports` plus
+   the untracked files there is what lists it; a watcher that greps for
+   `llmbench` reported "no report" on three finished runs of 2026-09-14 —
    and take every finding it reports, one at a time — the anomalies and
    the telemetry gaps alike; an absent signal that really is absent is a
    finding like any other. For each one, rule **confirmed** or **not
@@ -739,6 +800,29 @@ Steps:
    time and 79.0% as the largest total, which is the difference between
    ruling a finding exact and ruling it wrong. Reproduce the report's
    figure under both readings before calling it unsupported.
+
+   **k6's OTLP counters encode a Rate through a `condition` label.**
+   `http_req_failed_total{condition="zero"}` counts the requests whose
+   failed value was 0 and `checks_total{condition="nonzero"}` the checks
+   that passed; summed across the label they equal the request and
+   check totals, and read that way two reports of 2026-09-14 called the
+   counter a lie ("4,223 failed despite zero failures"). Query
+   `--by condition` before ruling on either.
+
+   **The assistant scenario makes nine arrivals, not eight.** One every
+   15 s from t0 to t0+120 s inclusive: nine `POST /ask` traces, all
+   carrying the run's User-Agent, `agent_questions_total` = 9, and 17 or
+   19 `chat` spans depending on the tool loops. A report that calls the
+   ninth "pre-window contamination" stopped its own search one interval
+   short; a report that counts 15 chat spans against 17 usage records
+   miscounted the spans — fetch the eight traces and count.
+
+   **Three `service_instance_id` values are one per service**, the api's,
+   the mcp's and the agent's — not several instances of one service. And
+   **a just-recreated stack has no request telemetry until the first
+   request**: `/health` is excluded from spans and metrics by the
+   instrumentation, so a preflight probe that finds the api and the mcp
+   "absent" minutes after `up` has found no traffic, not an export gap.
 
    **A large response is not on stdout.** `gcx traces get` on a wide trace
    answers with a `gcx.spill_reference` object naming a file it wrote
@@ -791,10 +875,16 @@ Steps:
      up before the run; its data is the next run's business, step 5
      resets it before launching.
    - **delete the run's scratch directory under the system temp dir**
-     (`$TMPDIR/opencode/`, and `/tmp/llmbench-*`, `/tmp/oddyssey-scratch/`
-     or `/tmp/oddyssey-scratchpad/` for a `claude` run, `$TMPDIR/oddyssey/`
-     or `/tmp/oddyssey/` for a `copilot` run — one run of that CLI wrote
-     under each),
+     (`$TMPDIR/opencode/`, and `/tmp/llmbench-*`, `/tmp/oddyssey-scratch/`,
+     `/tmp/oddyssey-scratchpad/`, `/private/tmp/odd-scratch/` or
+     `$TMPDIR/oddyssey/scratch/` for a `claude` run, `$TMPDIR/oddyssey/`,
+     `/tmp/oddyssey/` or `/tmp/oddyssey-observe/` for a `copilot` run —
+     one run of that CLI wrote under each — and **`.odd/scratch/` inside
+     the repository**, where one `copilot` run of 2026-09-14 put its
+     replay record, exemplars and report draft: untracked, unignored, and
+     one `ls` away from the next run; the k6 summary lands beside them
+     as `$TMPDIR/k6-summary-<slug>.json`, and one `claude` run left a
+     `/tmp/llmbench-slug.txt`),
      every run's, not only this one's. Runs name
      that directory themselves and the names collide: one run of #505
      picked a name an earlier session had already used and inherited 248
@@ -819,6 +909,11 @@ Steps:
      `.agents/` also holds the tracked `plugins/` build artifact, and
      removing the parent takes it with it. `git status --porcelain` must
      come back empty afterwards — that is the check, not the deletion;
+   - **a killed run leaves an untracked skeleton** in
+     `.odd/observe-run-reports/` — `odd_report.py new` wrote it, with
+     `<fill>` in every section — that `git checkout main` keeps and the
+     next run's `odd_recall.py` reads. Delete it, then prove the absence
+     with the recall command of step 5 before anything else launches;
    - the run may have committed its observation report to the work
      branch. It does not ship: it names the defects it found, which is
      exactly what must not enter this repository, since the next model to

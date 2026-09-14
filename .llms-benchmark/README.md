@@ -21,40 +21,40 @@ CLI, always its latest run.
 
 | Rank | Model | CLI | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **#1** | `deepseek/deepseek-v4.1-flash` | opencode | 1.11.5 | 14 / 15 | 9 / 4 / 1 | 13m06s | **$0.11** | **$0.008** |
-| **#2** | `openai/gpt-5.6-luna` | copilot | 1.11.5 | **9 / 9** | 5 / 3 / 1 | 9m41s | $0.17 | $0.019 |
-| **#3** | `google/gemini-3.7-flash` | opencode | 1.11.5 | **10 / 10** | 3 / 6 / 1 | **8m08s** | $0.95 | $0.095 |
-| **#4** | `openai/gpt-5.6-sol` | copilot | 1.11.5 | **13 / 13** | 9 / 3 / 1 | 11m40s | $3.33 | $0.256 |
-| **#5** | `openai/gpt-5.6-terra` | copilot | 1.11.5 | 13 / 15 | 10 / 2 / 1 | 14m20s | $1.80 | $0.139 |
-| **#6** | `google/gemini-3.8-flash` | opencode | 1.11.5 | **9 / 9** | 4 / 4 / 1 | 14m29s | $1.61 | $0.179 |
-| **#7** | `anthropic/claude-opus-5` | claude | 1.11.5 | **22 / 22** | 14 / 3 / 5 | 19m51s | $5.54 | $0.252 |
-| **#8** | `anthropic/claude-fable-5.1` | claude | 1.11.5 | **18 / 18** | 10 / 6 / 2 | 17m29s | $7.48 | $0.416 |
-| **#9** | `z-ai/glm-5.3-flash` | opencode | 1.11.5 | 15 / 16 | 8 / 3 / 5 | 25m15s | $0.14 | $0.009 |
-| **#10** | `qwen/qwen3.8-max-0902` | opencode | 1.11.5 | **22 / 22** | 15 / 3 / 4 | 52m30s | $2.15 | $0.098 |
-| **#11** | `qwen/qwen3.8-27b` | opencode | 1.11.5 | 16 / 18 | 11 / 4 / 3 | 51m04s | $1.65 | $0.103 |
-| **#12** | `z-ai/glm-5.3` | opencode | 1.11.5 | 15 / 17 | 10 / 4 / 3 | 52m28s | $2.56 | $0.171 |
-| **#13** | `anthropic/claude-sonnet-5` | claude | 1.11.5 | **7 / 7** | 4 / 3 / 0 | 16m01s | $3.22 | $0.459 |
-| **#14** | `anthropic/claude-haiku-4.5` | claude | 1.11.5 | **2 / 5** | 0 / 5 / 0 | 10m13s | $0.79 | $0.393 |
+| **#1** | `z-ai/glm-5.3` | opencode | 1.12.0 | 18 / 19 | 12 / 4 / 3 | 12m23s | $1.98 | $0.110 |
+| **#2** | `deepseek/deepseek-v4.1-flash` | opencode | 1.11.5 ⚠︎ | 14 / 15 | 9 / 4 / 1 | 13m06s | **$0.11** | **$0.008** |
+| **#3** | `openai/gpt-5.6-luna` | copilot | 1.12.0 | 6 / 7 | 3 / 3 / 1 | **7m02s** | **$0.10** | $0.016 |
+| **#4** | `google/gemini-3.7-flash` | opencode | 1.12.0 | **7 / 7** | 3 / 3 / 1 | 8m34s | $0.87 | $0.124 |
+| **#5** | `openai/gpt-5.6-terra` | copilot | 1.12.0 | 14 / 15 | 11 / 3 / 1 | 14m50s | $2.47 | $0.176 |
+| **#6** | `openai/gpt-5.6-sol` | copilot | 1.12.0 | 11 / 12 | 8 / 3 / 1 | 9m39s | $3.12 | $0.284 |
+| **#7** | `google/gemini-3.8-flash` | opencode | 1.12.0 | **10 / 10** | 5 / 4 / 1 | 14m59s | $1.96 | $0.196 |
+| **#8** | `anthropic/claude-opus-5` | claude | 1.12.0 | 18 / 19 | 12 / 6 / 1 | 21m55s | $6.33 | $0.352 |
+| **#9** | `z-ai/glm-5.3-flash` | opencode | 1.11.5 ⚠︎ | 15 / 16 | 8 / 3 / 5 | 25m15s | $0.14 | $0.009 |
+| **#10** | `anthropic/claude-fable-5.1` | claude | 1.11.5 ⚠︎ | **18 / 18** | 10 / 6 / 2 | 17m29s | $7.48 | $0.416 |
+| **#11** | `qwen/qwen3.8-27b` | opencode | 1.12.0 | 14 / 16 | 10 / 3 / 3 | 43m52s | $2.09 | $0.150 |
+| **#12** | `qwen/qwen3.8-max-0902` | opencode | 1.12.0 | **14 / 14** | 8 / 3 / 3 | 66m09s | $2.88 | $0.206 |
+| **#13** | `anthropic/claude-sonnet-5` | claude | 1.12.0 | **5 / 5** | 2 / 2 / 1 | 12m20s | $2.55 | $0.511 |
+| **#14** | `anthropic/claude-haiku-4.5` | claude | 1.11.5 ⚠︎ | **2 / 5** | 0 / 5 / 0 | 10m13s | $0.79 | $0.393 |
 
 <details>
 <summary>Run detail — phases, turns, tokens</summary>
 
 | Model | CLI | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `deepseek/deepseek-v4.1-flash` | opencode | 1.11.5 | 2m28s | 2m02s | 8m36s | 52 | 7.9s | 5.0M | 96k | 4.8M | 4/4 |
-| `openai/gpt-5.6-luna` | copilot | 1.11.5 | 1m47s | 2m00s | 5m54s | 52 | 3.9s | 4.7M | 33k | 4.7M | 4/4 |
-| `openai/gpt-5.6-terra` | copilot | 1.11.5 | 1m45s | 2m02s | 10m33s | 44 | 5.3s | 3.9M | 49k | 3.9M | 4/4 |
-| `openai/gpt-5.6-sol` | copilot | 1.11.5 | 2m16s | 2m02s | 7m22s | 46 | 7.0s | 4.0M | 32k | 3.8M | 4/4 |
-| `google/gemini-3.7-flash` | opencode | 1.11.5 | 1m12s | 2m01s | 4m55s | 81 | 3.4s | 6.8M | 30k | 6.4M | 4/4 |
-| `google/gemini-3.8-flash` | opencode | 1.11.5 | 4m58s | 2m02s | 7m29s | 139 | 3.6s | 11.8M | 53k | 11.0M | 4/4 |
-| `anthropic/claude-opus-5` | claude | 1.11.5 | 2m52s | 2m02s | 14m57s | 43 | 4.4s | 4.2M | 70k | 4.2M | 4/4 |
-| `anthropic/claude-fable-5.1` | claude | 1.11.5 | 2m55s | 2m02s | 12m32s | 30 | 5.5s | 2.9M | 56k | 2.9M | 4/4 |
-| `z-ai/glm-5.3-flash` | opencode | 1.11.5 | 4m44s | 2m02s | 18m29s | 59 | 13.0s | 5.7M | 114k | 5.3M | 4/4 |
-| `qwen/qwen3.8-max-0902` | opencode | 1.11.5 | 11m35s | 2m02s | 38m53s | 38 | 24.6s | 3.8M | 112k | 3.4M | 4/4 |
-| `qwen/qwen3.8-27b` | opencode | 1.11.5 | 7m30s | 2m02s | 41m32s | 75 | 35.4s | 11.3M | 123k | 10.4M | 4/4 |
-| `z-ai/glm-5.3` | opencode | 1.11.5 | 14m24s | 2m01s | 36m03s | 44 | 13.0s | 4.7M | 173k | 4.2M | 4/4 |
-| `anthropic/claude-sonnet-5` | claude | 1.11.5 | 3m50s | 2m02s | 10m09s | 86 | 3.7s | 10.4M | 54k | 10.4M | 4/4 |
-| `anthropic/claude-haiku-4.5` | claude | 1.11.5 | 2m17s | 2m01s | 5m55s | 61 | 2.0s | 4.2M | 33k | 4.2M | 4/4 |
+| `z-ai/glm-5.3` | opencode | 1.12.0 | 1m28s | 2m01s | 8m54s | 46 | 6.1s | 4.2M | 139k | 4.0M | 4/4 |
+| `deepseek/deepseek-v4.1-flash` | opencode | 1.11.5 ⚠︎ | 2m28s | 2m02s | 8m36s | 52 | 7.9s | 5.0M | 96k | 4.8M | 4/4 |
+| `openai/gpt-5.6-luna` | copilot | 1.12.0 | 1m03s | 2m01s | 3m58s | 38 | 3.2s | 2.5M | 15k | 2.5M | 4/4 |
+| `google/gemini-3.7-flash` | opencode | 1.12.0 | 2m11s | 2m02s | 4m21s | 71 | 4.3s | 4.2M | 31k | 3.5M | 4/4 |
+| `openai/gpt-5.6-terra` | copilot | 1.12.0 | 1m39s | 2m00s | 11m11s | 64 | 3.9s | 6.5M | 54k | 6.5M | 4/4 |
+| `openai/gpt-5.6-sol` | copilot | 1.12.0 | 1m38s | 2m00s | 6m01s | 53 | 4.6s | 3.9M | 22k | 3.8M | 4/4 |
+| `google/gemini-3.8-flash` | opencode | 1.12.0 | 4m26s | 2m02s | 8m31s | 135 | 3.1s | 10.7M | 33k | 9.2M | 4/4 |
+| `anthropic/claude-opus-5` | claude | 1.12.0 | 3m36s | 2m00s | 16m19s | 57 | 8.6s | 6.3M | 59k | 6.3M | 4/4 |
+| `z-ai/glm-5.3-flash` | opencode | 1.11.5 ⚠︎ | 4m44s | 2m02s | 18m29s | 59 | 13.0s | 5.7M | 114k | 5.3M | 4/4 |
+| `anthropic/claude-fable-5.1` | claude | 1.11.5 ⚠︎ | 2m55s | 2m02s | 12m32s | 30 | 5.5s | 2.9M | 56k | 2.9M | 4/4 |
+| `qwen/qwen3.8-27b` | opencode | 1.12.0 | 10m51s | 2m01s | 31m00s | 80 | 24.8s | 11.5M | 121k | 10.7M | 4/4 |
+| `qwen/qwen3.8-max-0902` | opencode | 1.12.0 | 9m00s | 2m02s | 55m07s | 47 | 51.1s | 5.5M | 153k | 5.2M | 4/4 |
+| `anthropic/claude-sonnet-5` | claude | 1.12.0 | 2m11s | 2m00s | 8m09s | 67 | 2.1s | 7.5M | 43k | 7.5M | 4/4 |
+| `anthropic/claude-haiku-4.5` | claude | 1.11.5 ⚠︎ | 2m17s | 2m01s | 5m55s | 61 | 2.0s | 4.2M | 33k | 4.2M | 4/4 |
 
 Token counts are rounded; the exact figures are in each run's pull
 request. Input includes the cached share, so Input and Cache overlap by
@@ -66,18 +66,18 @@ design.
 
 | Rank | Model | CLI | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **#1** | `deepseek/deepseek-v4.1-flash` | opencode | 1.11.5 | **11 / 11** | 7 / 4 / 0 | 14m01s | **$0.20** | **$0.019** |
-| **#2** | `google/gemini-3.7-flash` | opencode | 1.11.5 | 5 / 6 | 1 / 3 / 2 | 8m11s | $0.86 | $0.172 |
-| **#3** | `anthropic/claude-opus-5` | claude | 1.11.5 | **17 / 17** | 9 / 4 / 4 | 14m33s | $4.91 | $0.289 |
+| **#1** | `deepseek/deepseek-v4.1-flash` | opencode | 1.12.0 | **11 / 11** | 6 / 3 / 2 | 16m04s | **$0.14** | **$0.012** |
+| **#2** | `google/gemini-3.7-flash` | opencode | 1.12.0 | **5 / 5** | 1 / 4 / 0 | **8m24s** | $0.73 | $0.146 |
+| **#3** | `anthropic/claude-opus-5` | claude | 1.12.0 | **15 / 15** | 10 / 4 / 1 | 14m30s | $5.19 | $0.346 |
 
 <details>
 <summary>Run detail — phases, turns, tokens</summary>
 
 | Model | CLI | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `deepseek/deepseek-v4.1-flash` | opencode | 1.11.5 | 3m30s | 2m02s | 8m29s | 53 | 7.2s | 4.1M | 80k | 3.1M | 4/4 |
-| `google/gemini-3.7-flash` | opencode | 1.11.5 | 2m17s | 2m02s | 3m52s | 81 | 3.2s | 4.9M | 24k | 4.3M | 4/4 |
-| `anthropic/claude-opus-5` | claude | 1.11.5 | 1m51s | 2m02s | 10m40s | 46 | 3.5s | 4.5M | 49k | 4.5M | 4/4 |
+| `deepseek/deepseek-v4.1-flash` | opencode | 1.12.0 | 5m31s | 2m03s | 8m30s | 53 | 11.2s | 4.8M | 81k | 4.3M | 4/4 |
+| `google/gemini-3.7-flash` | opencode | 1.12.0 | 3m00s | 2m01s | 3m23s | 85 | 3.2s | 4.1M | 21k | 3.6M | 4/4 |
+| `anthropic/claude-opus-5` | claude | 1.12.0 | 2m20s | 2m00s | 10m10s | 51 | 2.8s | 4.8M | 50k | 4.8M | 4/4 |
 
 </details>
 
