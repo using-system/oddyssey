@@ -94,15 +94,24 @@ def _proxy(uid: str, path: str, ports: dict | None = None) -> str:
 
 STARTUP_TIMEOUT_S = 120
 POLL_INTERVAL_S = 2
+# Three budgets, one per kind of work a docker call does (#521, #537):
+# CALL bounds the calls that only read (inspect, ps, the `docker version`
+# probe) and the rescue rm of a container that never finished creating -
+# a live daemon answers those in well under a second. STATE bounds
+# `docker start`: it boots the container process and never pulls, so a
+# minute is an order of magnitude above an honest start (Docker Desktop's
+# first start after the VM wakes is the slow one) and fifteen below the
+# pull budget a hung daemon would otherwise make it wait out. HEAVY
+# bounds the calls that carry real work: the creation `docker run`, which
+# pulls the multi-GB otel-lgtm image before it returns the container ID,
+# so its bound must cover an honest slow pull, not just a live daemon -
+# a dead daemon still refuses fast (the CLI's connect error fires
+# immediately); only a daemon that hangs mid-pull waits out this ceiling
+# - and `docker rm --force --volumes`, which stops and destroys a busy
+# container and its writable layer (review #536).
 DOCKER_CALL_TIMEOUT_S = 5.0
-# The creation path carries the whole first-boot cost: `docker run` pulls
-# the multi-GB otel-lgtm image before it returns the container ID, so its
-# bound must cover an honest slow pull, not just a live daemon. A dead
-# daemon still refuses fast (the CLI's connect error fires immediately);
-# only a daemon that hangs mid-pull waits out this ceiling. The same heavy
-# budget covers `docker rm --force --volumes`, which stops and destroys a
-# busy container (review #536).
-DOCKER_RUN_TIMEOUT_S = 900.0
+DOCKER_STATE_TIMEOUT_S = 60.0
+DOCKER_HEAVY_TIMEOUT_S = 900.0
 
 DAEMON_REMEDY = "the Docker daemon does not answer - restart Docker Desktop and retry"
 
@@ -223,6 +232,22 @@ def run_args(env: dict[str, str] | None = None) -> list[str]:
     ]
 
 
+def _daemon_remedy(*stderrs: str) -> str:
+    """The one-line remedy, carrying the CLI's own diagnosis when it gave one.
+
+    The first non-empty stderr line of the first argument that has one
+    is appended in parentheses (issue #537): "restart Docker Desktop"
+    cannot fix a Linux `permission denied` on the daemon socket, and
+    the CLI already said so. One line always; the base remedy alone when
+    nothing was said (a silent exit, a hung call).
+    """
+    for stderr in stderrs:
+        for line in stderr.splitlines():
+            if line.strip():
+                return f"{DAEMON_REMEDY} (docker: {line.strip()})"
+    return DAEMON_REMEDY
+
+
 def _run_bounded(
     argv: list[str], timeout_s: float, span
 ) -> subprocess.CompletedProcess:
@@ -234,8 +259,12 @@ def _run_bounded(
     `docker version` is the robust oracle - a probe that fails (nonzero or
     timeout) means the daemon did not answer, a probe that answers means a
     CLI-level error (e.g. "No such object") the caller keeps as its
-    absent/None degradation. Both refusal shapes raise DaemonUnreachable
-    with the one-line remedy; every other nonzero exit returns normally.
+    absent/None degradation. The probe runs under the short call budget,
+    never the caller's (a creation-path caller would otherwise let it
+    block for the whole pull budget, #537). Both refusal shapes raise
+    DaemonUnreachable with the one-line remedy - the probe's own stderr
+    line first, the failed call's when the probe said nothing; every
+    other nonzero exit returns normally.
     """
     try:
         result = subprocess.run(
@@ -254,12 +283,14 @@ def _run_bounded(
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=timeout_s,
+                timeout=DOCKER_CALL_TIMEOUT_S,
             )
         except subprocess.TimeoutExpired:
-            raise DaemonUnreachable(DAEMON_REMEDY) from None
+            raise DaemonUnreachable(_daemon_remedy(result.stderr)) from None
         if probe.returncode != 0:
-            raise DaemonUnreachable(DAEMON_REMEDY) from None
+            raise DaemonUnreachable(
+                _daemon_remedy(probe.stderr, result.stderr)
+            ) from None
     span.set_attribute("oddyssey.docker.exit_code", result.returncode)
     return result
 
@@ -586,7 +617,10 @@ def stack_up(
     persisted_names: list[str] = []
     excluded_names: list[str] = []
     if state == "stopped":
-        result = _docker("start", CONTAINER_NAME)
+        # A state change, never a pull: the state budget (see the
+        # constants) fits it where the inspect budget is too tight and the
+        # creation budget would let a hung daemon block for minutes.
+        result = _docker("start", CONTAINER_NAME, timeout_s=DOCKER_STATE_TIMEOUT_S)
         if result.returncode != 0:
             raise RuntimeError(f"docker start failed: {result.stderr.strip()}")
     elif state == "absent":
@@ -594,20 +628,23 @@ def stack_up(
         user_env = {**reapplied, **(env or {})}
         try:
             with telemetry.docker_span("run", container=CONTAINER_NAME) as span:
-                result = _run_bounded(run_args(user_env), DOCKER_RUN_TIMEOUT_S, span)
+                result = _run_bounded(run_args(user_env), DOCKER_HEAVY_TIMEOUT_S, span)
         except DaemonUnreachable:
             # A run cut off mid-pull can leave a half-created container
             # behind (the CLI was killed after the daemon booked the name):
             # unbind it so the next up/reset can proceed instead of dying on
             # a name conflict. Best-effort - a dead daemon refuses the rm
-            # too, which is the same remedy.
+            # too, which is the same remedy. Removing a container that never
+            # finished creating is not heavy work, so the rescue takes the
+            # short budget: the worst case stays near one creation budget,
+            # not two (#537).
             try:
                 _docker(
                     "rm",
                     "--force",
                     "--volumes",
                     CONTAINER_NAME,
-                    timeout_s=DOCKER_RUN_TIMEOUT_S,
+                    timeout_s=DOCKER_CALL_TIMEOUT_S,
                 )
             except DaemonUnreachable:
                 pass
@@ -747,14 +784,14 @@ def stack_down(flush: bool = True) -> dict:
     if flush:
         telemetry.force_flush()
     # --force stops and destroys a busy container: the 5s inspect budget is
-    # too tight for that work, so rm takes the heavy creation budget (the
+    # too tight for that work, so rm takes the heavy budget (the
     # connect-error path still refuses a dead daemon immediately).
     result = _docker(
         "rm",
         "--force",
         "--volumes",
         CONTAINER_NAME,
-        timeout_s=DOCKER_RUN_TIMEOUT_S,
+        timeout_s=DOCKER_HEAVY_TIMEOUT_S,
     )
     if result.returncode != 0 and "no such container" not in result.stderr.lower():
         raise RuntimeError(f"docker rm failed: {result.stderr.strip()}")

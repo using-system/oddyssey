@@ -105,10 +105,18 @@ def test_config_set_survives_a_dead_daemon_for_config_only_changes(
 
     monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / "config.json")
     monkeypatch.setattr(stack, "_container_state", dead_daemon)
-    # Reading the doomed container's env needs the daemon too: with it
-    # down, the port-change path refuses at the same point a real user
-    # would hit.
-    monkeypatch.setattr(stack, "container_user_env", dead_daemon)
+    # The port-change path refuses on the state read itself (#537): the
+    # doomed container's env is never read, the reset never attempted.
+    monkeypatch.setattr(
+        stack,
+        "container_user_env",
+        lambda: pytest.fail("the port change read the container env"),
+    )
+    monkeypatch.setattr(
+        stack,
+        "stack_reset",
+        lambda env=None, **kwargs: pytest.fail("the port change reset the stack"),
+    )
 
     # Backend switch alone: survives, no reset attempted.
     result = server.odd_config_set({"stack": "datadog"})
@@ -128,6 +136,37 @@ def test_config_set_survives_a_dead_daemon_for_config_only_changes(
     # review) rather than a bare RuntimeError the SDK would mask.
     with pytest.raises(ToolError, match="the Docker daemon does not answer"):
         server.odd_config_set({"local": {"grafana_port": 3300}})
+
+
+def test_config_set_never_persists_a_port_change_it_refuses(monkeypatch, tmp_path):
+    # Issue #537: verified on a dead daemon, the port change raised the
+    # remedy AFTER config_ops.save() had written the new port - the caller
+    # saw only the error, and a retry then succeeded silently without the
+    # reset the port change owes. The decision belongs before the write:
+    # a refused port change leaves the configuration exactly as it was.
+    def dead_daemon():
+        raise stack.DaemonUnreachable(stack.DAEMON_REMEDY)
+
+    config_path = tmp_path / "config.json"
+    monkeypatch.setattr(config_module, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(stack, "_container_state", lambda: "absent")
+    server.odd_config_set({"local": {"grafana_port": 3100}})
+    written_before = config_path.read_text()
+    monkeypatch.setattr(stack, "_container_state", dead_daemon)
+    saves: list[dict] = []
+    real_save = config_module.save
+    monkeypatch.setattr(
+        config_module,
+        "save",
+        lambda partial, path=None: saves.append(partial) or real_save(partial, path),
+    )
+
+    with pytest.raises(ToolError, match="the Docker daemon does not answer"):
+        server.odd_config_set({"local": {"grafana_port": 3300}})
+
+    assert saves == []
+    assert config_path.read_text() == written_before
+    assert server.odd_config_get()["local"]["grafana_port"] == 3100
 
 
 def test_config_set_boots_a_stopped_container_before_writing_ports(

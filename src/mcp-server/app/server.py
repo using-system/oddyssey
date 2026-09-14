@@ -162,17 +162,6 @@ def odd_config_set(config: dict) -> dict:
     container either.
     """
     ports_before = config_ops.load()["local"]
-    # The container state only matters for the auto-reset paths; a
-    # configuration-only change (switching backend, persisting
-    # stack_config, ...) needs no Docker at all and must survive a dead
-    # daemon - which is exactly what the user does when the daemon is hung
-    # (#521 review). An unreadable state (DaemonUnreachable) is treated as
-    # unknown: port changes still refuse loudly (their reset genuinely
-    # needs Docker), everything else proceeds.
-    try:
-        state_before = stack_ops._container_state()
-    except stack_ops.DaemonUnreachable:
-        state_before = None
     # Read on the RAW partial, before save validates it: a malformed one
     # is left to save's ValueError contract (isinstance, so this read never
     # raises first), at worst after a wasted boot - booting is idempotent.
@@ -180,6 +169,21 @@ def odd_config_set(config: dict) -> dict:
     will_change_ports = isinstance(local_partial, dict) and any(
         ports_before.get(key) != value for key, value in local_partial.items()
     )
+    # The container state only matters for the auto-reset paths; a
+    # configuration-only change (switching backend, persisting
+    # stack_config, ...) needs no Docker at all and must survive a dead
+    # daemon - which is exactly what the user does when the daemon is hung
+    # (#521 review). An unreadable state (DaemonUnreachable) is unknown: a
+    # port change refuses on it HERE, before the write - its reset
+    # genuinely needs Docker, and a change persisted first and refused
+    # after would apply silently on the retry, without the reset it owes
+    # (#537) - everything else proceeds.
+    try:
+        state_before = stack_ops._container_state()
+    except stack_ops.DaemonUnreachable:
+        if will_change_ports:
+            raise
+        state_before = None
     if will_change_ports and state_before == "stopped":
         # Boot a stopped container BEFORE the write: once the new ports are
         # saved they diverge from the container's, the reset's pre-boot then
@@ -196,7 +200,10 @@ def odd_config_set(config: dict) -> dict:
             pass
     effective = config_ops.save(config)
     result: dict = {"config": effective}
-    if effective["local"] != ports_before and state_before != "absent":
+    # The whole port-change path was decided before the write: only a
+    # container KNOWN to exist is reset - never an unknown state, which
+    # a "!= absent" test would mistake for one (#537).
+    if will_change_ports and state_before in ("running", "stopped"):
         # Read the doomed container's user env BEFORE the reset destroys
         # it, and hand it to the recreation (issue #62).
         preserved = stack_ops.container_user_env()

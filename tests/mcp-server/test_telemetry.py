@@ -3,7 +3,7 @@ import subprocess
 import sys
 
 import pytest
-from oddyssey_mcp import telemetry
+from oddyssey_mcp import stack, telemetry
 from opentelemetry.sdk.metrics import MeterProvider as SdkMeterProvider
 from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from opentelemetry.sdk.trace import TracerProvider as SdkTracerProvider
@@ -154,13 +154,14 @@ def test_traced_tool_translates_daemon_unreachable_to_tool_error(span_capture):
     # Issue #521 review: the daemon-refusal remedy must reach the client
     # as a ToolError - a bare RuntimeError (which DaemonUnreachable
     # subclasses) would be withheld by mcp 2.1.1 as an unexpected crash.
+    # The real class is what the wrapper matches (#537 nit): a
+    # same-named stranger is not the contract, and a bare RuntimeError
+    # stays withheld.
     from mcp.server.mcpserver.exceptions import ToolError
 
     @telemetry.traced_tool
     def odd_no_daemon() -> dict:
-        raise type("DaemonUnreachable", (RuntimeError,), {})(
-            "the Docker daemon does not answer - restart Docker Desktop and retry"
-        )
+        raise stack.DaemonUnreachable(stack.DAEMON_REMEDY)
 
     with pytest.raises(ToolError, match="the Docker daemon does not answer"):
         odd_no_daemon()
@@ -168,6 +169,14 @@ def test_traced_tool_translates_daemon_unreachable_to_tool_error(span_capture):
     (span,) = span_capture.get_finished_spans()
     assert not span.status.is_ok
     assert span.events[0].name == "exception"
+
+    @telemetry.traced_tool
+    def odd_impostor() -> dict:
+        raise type("DaemonUnreachable", (RuntimeError,), {})("not the contract")
+
+    with pytest.raises(RuntimeError, match="not the contract") as caught:
+        odd_impostor()
+    assert not isinstance(caught.value, ToolError)
 
 
 def test_traced_tool_records_duration_histogram(span_capture, metric_capture):
