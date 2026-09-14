@@ -5,7 +5,8 @@ A preflight asks the same questions every time: which CLIs are installed,
 what is running, what the repository's state is, what the memory already
 holds, and - when a stored benchmark is named - what its manifest targets.
 None of it takes judgment, and none of it needs a turn each. This gathers
-all of it concurrently and prints one block.
+all of it concurrently and prints one block, closed by the preflight
+handoff's `Machine:` line - copied into the mission block as printed.
 
 It deliberately does NOT resolve the stack or read the backend's
 configuration: those come from the MCP tools and the backend's own
@@ -60,11 +61,66 @@ def run(args: list[str], cwd: Path | None = None, timeout: int = 20) -> str:
 
 
 def cli(name: str) -> dict:
-    """Present or absent, and the version string when present."""
+    """Present or absent, and the version string when present.
+
+    A CLI that prints a JSON object (`gcx version` does) is reduced to its
+    `version` field: a raw `{...}` in the block reads as a corrupted tool
+    result to a run, which then re-runs the script and reads its source.
+    """
     if shutil.which(name) is None:
         return {"present": False}
-    first = (run(CLIS[name]) or "").splitlines()
+    out = (run(CLIS[name]) or "").strip()
+    if out.startswith("{"):
+        try:
+            parsed = json.loads(out)
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, dict) and parsed.get("version"):
+            return {"present": True, "version": str(parsed["version"])}
+    first = out.splitlines()
     return {"present": True, "version": first[0].strip() if first else ""}
+
+
+VERSION_RE = re.compile(r"\d+(?:\.\d+)+")
+
+
+def short_version(version: str) -> str:
+    """`Docker version 29.0.1, build eedd969` -> `29.0.1`; a string with no
+    number stays as it is."""
+    m = VERSION_RE.search(version or "")
+    return m.group(0) if m else (version or "").strip()
+
+
+def machine_line(report: dict) -> str:
+    """The handoff's `Machine:` line, in one piece: the CLIs and their
+    versions, what is running, the repository's state, the benchmark's
+    target and base URLs - what the mission block carries so the agent
+    never re-derives it, and what the caller copies rather than composes."""
+    clis = ", ".join(
+        f"{name} {short_version(value.get('version', '')) or 'present'}"
+        if value["present"]
+        else f"{name} ABSENT"
+        for name, value in report["clis"].items()
+    )
+    running = ", ".join(c["name"] for c in report["containers"]) or "nothing"
+    r = report["repo"]
+    state = "clean" if r["clean"] else f"dirty ({r['dirty_paths']} paths)"
+    parts = [clis, f"running {running}", f"repo {r['branch']} {r['head']} {state}"]
+    b = report.get("benchmark")
+    if b:
+        if not b["exists"]:
+            parts.append(f"benchmark NOT FOUND at {b['path']}")
+        else:
+            targets = " ".join(f"{k}={v}" for k, v in b["targets"].items())
+            parts.append(
+                f"benchmark {b['name']} -> {b['service']}"
+                + (f", {targets}" if targets else "")
+            )
+    return "Machine: " + "; ".join(parts)
+
+
+def report_json(report: dict) -> dict:
+    return {**report, "machine": machine_line(report)}
 
 
 def containers(name_filter: str | None) -> list[dict]:
@@ -206,6 +262,7 @@ def render(report: dict) -> str:
             )
             if targets:
                 lines.append(f"             targets    {targets}")
+    lines.append(machine_line(report))
     return "\n".join(lines)
 
 
@@ -239,7 +296,7 @@ def main() -> int:
     if f_bench is not None:
         report["benchmark"] = f_bench.result()
 
-    print(json.dumps(report, indent=2) if args.json else render(report))
+    print(json.dumps(report_json(report), indent=2) if args.json else render(report))
     return 0
 
 

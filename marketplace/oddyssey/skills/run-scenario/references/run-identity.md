@@ -58,87 +58,73 @@ Start a clean run in this order — the reverse of what feels natural:
 
 ## The port is already served
 
-Before launching the service, look at
-who listens on its port: `lsof -nP -iTCP:<port> -sTCP:LISTEN` (exit 1
-and no output on a free port). When the port is served by a process
-the run did not start — a stale instance from an earlier session, a
-compose container, someone's work — **never kill it**: run your own
-instance on a free port, launched with the run slug as its
-`service.instance.id` (above), and drive `127.0.0.1:<port>`, never
-`localhost` — on a dual-stack host `localhost` may resolve to whichever
-listener bound the other address family. Qualify every query by the
-run's identity: co-resident emitters sharing a `service.name` fold into
-one series otherwise, and their divergent code states re-export into
-the fresh store. A mission that says "start the service on :<port>"
-reads as "on that port, or the next free one": the deviation is a
-`Listeners:` line in the record — each foreign listener with its pid,
-command and bind address, and the port the run used instead; record
-those fields, never the raw `lsof` output, whose `USER` column is a
-login name — and a sentence in section 1 of the report. A replay
-reads the recorded port the same way: the requests and counts must
-match, the port need not, and a moved port is another `Listeners:`
-line. When the port cannot be moved — fixed in an image, a compose
-file or the code — neither kill the listener nor drive it: stop and
-report what holds the port, with the probe's fields. A run that cannot
-prove which process it measured is not a measurement.
+Before launching the service, look at who listens on its port:
+`lsof -nP -iTCP:<port> -sTCP:LISTEN` (exit 1 and no output on a free
+port). When the port is served by a process the run did not start — a
+stale instance from an earlier session, a compose container, someone's
+work — **never kill it**: run your own instance on a free port, launched
+with the run slug as its `service.instance.id` (above), and drive
+`127.0.0.1:<port>`, never `localhost` — on a dual-stack host `localhost`
+may resolve to whichever listener bound the other address family.
+Qualify every query by the run's identity: co-resident emitters sharing
+a `service.name` fold into one series otherwise. A mission that says
+"start the service on :<port>" reads as "on that port, or the next free
+one": the deviation is the record's `Listeners:` line — the drive
+script's own probe of the port it drove, pid, command and bind address,
+never the raw `lsof` output, whose `USER` column is a login name — plus
+the port the run used instead, and a sentence in section 1 of the
+report. A replay reads the recorded port the same way: the requests and
+counts must match, the port need not, and a moved port is another
+`Listeners:` line. When the port cannot be moved — fixed in an image, a
+compose file or the code — neither kill the listener nor drive it: stop
+and report what holds the port, with the probe's fields. A run that
+cannot prove which process it measured is not a measurement.
 
 ## The run launches nothing
 
-A remote target the run cannot start — a
-deployed service with public ingress, driven by someone else's traffic
-too — offers no process to launch with a slug and no
-`OTEL_RESOURCE_ATTRIBUTES` to set: the identity travels **in the
-requests** instead. Carry it in two headers on every driven request,
-and never in only one of them:
+A remote target the run cannot start — a deployed service with public
+ingress, driven by someone else's traffic too — offers no process to
+launch with a slug: the identity travels **in the requests**, in two
+headers on every driven request, never in only one of them. The ad-hoc
+drive script sends both (`SKILL.md` step 2); a stored benchmark sends
+what it was authored with (below). The scheme, which every generator
+follows and every selector reads:
 
 - `User-Agent: odd-<prompt>/<run slug>` (`odd-verify/<slug>`,
   `odd-observe/<slug>`; `-warmup` appended on warmup requests — the
   suffix that dates the run, "The run starts after the warmup" below).
-  The server's HTTP instrumentation records the header as
-  `user_agent.original`, selectable on the request rows of every backend
-  (`customDimensions['user_agent.original']` in KQL,
-  `span.user_agent.original` in TraceQL) — this is the identity a
-  latency question reads, and it survives a service that ignores
-  `traceparent`. One store reads it on **whichever span roots the
-  trace**. An X-Ray trace summary carries no user agent when the root
-  is a client's own instrumented span (an instrumented load generator
-  — `Http.UserAgent` `null` on every summary, verified 2026-09-05; the
-  filter empty over a range holding the run's traces, 2026-09-04):
-  there the trace-id prefix below identifies the run, and its latency
-  reads from the server segment through `batch-get-traces`, never from
-  a summary's `Duration`. When the generator emits no client span of
-  its own, the server's own segment roots the trace and the identity
-  is readable — `Http.UserAgent` carrying the run's User-Agent on
-  every summary (verified 2026-09-06).
-- `traceparent: 00-<trace id>-<span id>-01`, the trace id being
-  **32 hex in three parts**: a fixed 8-hex prefix shared by every run
-  of the protocol (`0ddc0ffe` unless the protocol records another),
-  8 hex derived from the run slug (the first 8 of
-  `sha256(<slug>)`), and the zero-padded 16-hex request sequence
-  number; the span id is the sequence number on 16 hex. The sequence
-  numbers every driven request of the run, warmup included, from
-  **1** — one counter for the whole run, or, where the generator
-  holds no counter its workers share, a field made **disjoint per
-  worker by construction**, over every worker that sends a request (a
-  k6 script's VUs, and its setup and teardown: the stored-benchmark
-  paragraph below): a span id of all zeros is
-  invalid under W3C trace context, the instrumentation then starts a
-  fresh trace and that request drops out of every prefix selector,
-  and a counter restarted per phase gives two requests one id. The prefix is
-  what a selector matches — `operation_Id startswith '<prefix>'`
-  (KQL), `{ trace:id =~ "<prefix>.*" }` (TraceQL), `trace_id =~
-  "<prefix>.*"` (LogQL) — and pulls every request, dependency, log and
-  exception row of the run with no process identity at all; the slug
-  part is what keeps two runs apart: a trace id made of the prefix and
-  the sequence alone is the **same set of ids on every replay**, and
-  the backend merges the runs under them (observed: one trace id, two
-  instances, two User-Agents). Two runs may share a prefix, never an
-  id. A trace store may print the id **without its leading zeros**
-  (observed 2026-09-05: `0ddc0ffe…` read `ddc0ffe…` in one store's
-  trace search output while its log store kept the 32 hex) — so a
-  prefix check on such output strips them on both sides
-  (`sub("^0+"; "")`), and pads them back when the id is then passed to
-  a flag that validates its width.
+  The server's HTTP instrumentation records it as `user_agent.original`
+  under the stable HTTP semantic conventions and as `http.user_agent`
+  under the old ones — the backend's reference says which its scripts
+  read. This is the identity a latency question reads, and it survives
+  a service that ignores `traceparent`. A store reads it on **whichever
+  span roots the trace**: where a client's own instrumented span roots
+  it (an instrumented load generator), the user agent is absent from
+  the trace summary and the trace-id prefix below identifies the run
+  — the backend's reference states where its latency then reads from.
+- `traceparent: 00-<trace id>-<span id>-01`, the trace id being **32
+  hex in three parts**: a fixed 8-hex prefix shared by every run of the
+  protocol (`0ddc0ffe` unless the protocol records another), 8 hex
+  derived from the run slug (the first 8 of `sha256(<slug>)`), and the
+  zero-padded 16-hex request sequence number; the span id is the
+  sequence number on 16 hex. Two invariants: no two requests of the run
+  share an id, over every worker that sends one — one counter for the
+  whole run from **1**, warmup included, or a field made **disjoint per
+  worker by construction** where the generator holds no shared counter
+  (a k6 script's VUs, its setup and teardown: the stored-benchmark
+  paragraph below); and the field is never all zeros — invalid under
+  W3C trace context, the instrumentation then starts a fresh trace and
+  that request drops out of every prefix selector. The prefix is what a
+  selector matches (the backend's reference states its form) and pulls
+  every row of the run with no process identity at all; the slug part
+  keeps two runs apart — prefix and sequence alone are the **same set
+  of ids on every replay**, and the backend merges the runs under them
+  (observed: one trace id, two instances, two User-Agents). A trace
+  store may print the id **without its leading zeros** (observed
+  2026-09-05, in one store's trace search while its log store kept the
+  32 hex): a prefix check on such output strips them on both sides
+  (`sub("^0+"; "")`) and pads them back for a flag that validates the
+  width.
 
 **A stored k6 benchmark carries the identity its manifest declares.**
 Its script may not be edited (`references/benchmark-replay.md`), so the
@@ -191,30 +177,30 @@ stored benchmark one is a re-authoring, through
 
 Then **read the instance from the run's own rows** —
 `service.instance.id` (or the backend's equivalent) on the requests
-the identity selects — and record it; it is never asserted up front,
-and a run whose rows name two instances says so (a deploy in the
-window, a scaled service). One caveat travels with the scheme: a
-synthetic `traceparent` makes every run trace **rootless** — the
-parent span id never existed — which is fine for presence and count
-rulings and wrong for a latency investigation, whose numbers come
-from the User-Agent identity alone. The `Identity:` line of the
-record (`SKILL.md` step 4) carries both headers' forms with the slug, the prefix
-and the instance read from the rows.
+the identity selects — and record it on the `Instance:` line; it is
+never asserted up front, and a run whose rows name two instances says
+so (a deploy in the window, a scaled service). One caveat travels with
+the scheme: a synthetic `traceparent` makes every run trace
+**rootless** — the parent span id never existed — which is fine for
+presence and count rulings and wrong for a latency investigation, whose
+numbers come from the User-Agent identity alone.
 
 ## The run starts after the warmup
 
-The warmup requests of `SKILL.md` step 2 are discarded from the quoted
-numbers — and from the run's **start**: **t0 is the first measured
-request, never the first request the run sent**. A `min(start time)`
-taken over the whole identity dates the run from a warmup request, and
-every stage boundary derived from t0 shifts with it — the run
-mis-buckets, with no error anywhere (verified 2026-09-06: stage counts
-of n=1 and n=176 until the warmup requests were excluded from t0).
-What marks them depends on how the identity travels: the `-warmup`
-suffix on the User-Agent when it travels in the requests (above) — so
-carve t0 from the rows whose User-Agent has none — and otherwise the
-`Warmup:` line of the record (`SKILL.md` step 4), which says how many
-requests per operation to drop before taking t0.
+The warmup requests are discarded from the quoted numbers — and from
+the run's **start**: **t0 is the first measured request, never the
+first request the run sent**. The drive script's `Started` is that
+instant by construction. When t0 is carved from the rows instead (a run
+someone else drove), a `min(start time)` taken over the whole identity
+dates the run from a warmup request, and every stage boundary derived
+from t0 shifts with it — the run mis-buckets, with no error anywhere
+(verified 2026-09-06: stage counts of n=1 and n=176 until the warmup
+requests were excluded from t0). What marks them depends on how the
+identity travels: the `-warmup` suffix on the User-Agent when it
+travels in the requests (above) — so carve t0 from the rows whose
+User-Agent has none — and otherwise the `Warmup:` line of the record
+(`SKILL.md` step 4), which says how many requests per operation to drop
+before taking t0.
 
 ## Reset once
 
@@ -253,4 +239,3 @@ that the run rode a shared store and why the reset was off the table.
 A window carved by timestamps out of a live store is a weaker
 isolation than a wipe — the record must let the verify run reproduce
 the same carving.
-

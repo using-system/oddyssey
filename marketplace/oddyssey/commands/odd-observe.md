@@ -9,25 +9,28 @@ contract - this prompt only hands it a well-formed mission.
 Preflight first - in the main conversation, before any dispatch (the
 steps needing the user cannot happen inside a subagent).
 
-**Start with the `backend-configuration` skill's `scripts/preflight.py`**
-(add `--benchmark <dir>` when the arguments name a stored benchmark,
-`--containers <name>` when the observed services run in containers). One
-call answers every mechanical question below - which CLIs are installed
-and at which version, what is running, the repository's branch and
-cleanliness, what each `.odd/` store already holds, and the named
-benchmark's target service and base URLs. Read its output; never ask the
-same questions one shell command at a time. What it does **not** answer
-is the part that takes judgment, and that is what the numbered steps
-below are for: resolving the stack, and reading the backend's own
-configuration.
+**Start with the `backend-configuration` skill's `## Check` step 0** -
+one call of its `scripts/preflight.py`, the invocation and its whole
+surface stated there: `--benchmark <dir>` when the arguments name a
+stored benchmark, `--containers <name>` when the observed services run
+in containers. That one output answers every mechanical question below
+- which CLIs are installed and at which version, what is running, the
+repository's branch and cleanliness, what each `.odd/` store already
+holds, and the named benchmark's target service and base URLs - and its
+last line is the handoff's `Machine:` line, copied as printed. Read the
+output; never ask the same questions one shell command at a time, never
+run the script again for another shape of the same answer. What it does
+**not** answer is the part that takes judgment, and that is what the
+numbered steps below are for: resolving the stack, and reading the
+backend's own configuration.
 
 1. Resolve the target stack: the configured one (`odd_config_get`), or
    the one the arguments name - a stack is one of the values the
    `observability-cli-guides` skill's `references/builtin-stacks.md`
    lists (its **Also called** column maps a user's phrasing onto one),
    **or a custom stack the observed repository carries**: a phrasing on
-   no row is a custom stack's name when `.odd/observability-stacks/<name>.md`
-   exists in the observed repository - `<name>` is the file's stem, the
+   no row is a custom stack's name when `.odd/observability-stacks/<name>/guide.md`
+   exists in the observed repository - `<name>` is the directory's name, the
    phrasing lowercased and kebab-cased ("my stack seq" is `seq`). A
    phrasing on neither is a deployment-environment expectation ("on
    prod"), never a switch - see below; when it reads as a stack's name
@@ -36,13 +39,13 @@ configuration.
    environment). A named stack is persisted so the next run starts
    from it: a built-in one with `odd_config_set {"stack": "<name>"}`; a
    custom one the way the `backend-configuration` skill's `## Switch`
-   step 3 writes it - the file checked first, the payload the check
+   step 3 writes it - the stack checked first, the payload the check
    prints passed verbatim - never a bare name, which the server refuses
    for an undeclared stack. A local mission on a non-local stack
    switches to `local` - the local stack is self-serve, nothing to
    authenticate; every other **built-in** stack value names a remote
    backend (the preflight handoff says which instance), and a
-   custom stack is whatever its file targets.
+   custom stack is whatever its guide targets.
 
 2. Run the `backend-configuration` skill's `## Check`: show the CLI's effective
    configuration to the user (no confirmation needed), and stop where
@@ -83,8 +86,9 @@ configuration.
    ask carries both questions, never two in a row. A service-less
    discovery question (below) has no depth.
 
-Build the mission block from the arguments below, applying the agent's own
-defaults for every field not specified:
+Build the mission block from the arguments below; a field the arguments
+do not carry is left out - the agent applies its own default, and its
+file is not read here:
 
 - `Skills: <directory>` - the `skills` line of the `package-layout`
   skill's `scripts/layout.py` - reachable because the preflight above
@@ -127,8 +131,9 @@ defaults for every field not specified:
 Close the mission by running
 `python3 <Skills>/odd-memory/scripts/odd_report.py show <the stored path the agent's reply carries>`
 (its whole surface) and printing the rendering as the final answer,
-translated to the conversation's language, with the stack file's fate
-from the reply when the run changed one. The report file - not the synthesis - is the deliverable the
+translated to the conversation's language - on a custom stack its
+stack-friction count and entries are part of the rendering, with the
+prompt that fixes them. The report file - not the synthesis - is the deliverable the
 next spec-driven wave consumes: never re-dump the raw report in the
 conversation, and never let the synthesis replace the stored file as
 the plan's input.

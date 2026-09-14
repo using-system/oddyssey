@@ -3,7 +3,7 @@
     "oddyssey": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["--refresh-package", "oddyssey-mcp", "oddyssey-mcp==1.11.5"]
+      "args": ["--refresh-package", "oddyssey-mcp", "oddyssey-mcp==1.12.0"]
     }
   }
 }
