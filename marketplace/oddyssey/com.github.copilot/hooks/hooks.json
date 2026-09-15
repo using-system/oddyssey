@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "python3 \"${PLUGIN_ROOT}\"/com.github.copilot/hooks/scripts/scan_odd_identifiers.py PostToolUse",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "command": "python3 \"${PLUGIN_ROOT}\"/com.github.copilot/hooks/scripts/check_report_frontmatter.py PostToolUse",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "preToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "python3 \"${PLUGIN_ROOT}\"/com.github.copilot/hooks/scripts/guard_default_branch.py PreToolUse",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "command": "python3 \"${PLUGIN_ROOT}\"/com.github.copilot/hooks/scripts/guard_append_only.py PreToolUse",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}
