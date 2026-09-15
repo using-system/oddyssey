@@ -5,7 +5,7 @@
 #   marketplace/oddyssey/             (the materialized plugin the manifests
 #                                      point at: agents, commands, skills,
 #                                      plugin.json, .claude-plugin/plugin.json,
-#                                      .mcp.json)
+#                                      .mcp.json, mcp.json, com.github.copilot/)
 # Everything it writes is GENERATED - never edit those files by hand.
 # Run by the release workflow after the version bumps, so the artifacts
 # always carry the released version and the matching oddyssey-mcp pin.
@@ -61,8 +61,23 @@ jq --arg name "$DISPLAY_NAME" '. + (if $name == "" then {} else {displayName: $n
 # apm pack does not carry the MCP dependency into the plugin bundle;
 # inject it so a native install gets the stack-piloting server too,
 # pinned to the same version apm.yml pins.
+# Twice, at the two places the hosts read: .mcp.json is the Claude Code
+# location; mcp.json is the Agent Plugins v1.0.0 one, the only file a
+# client that honours plugin.json's $schema reads for servers (issue #588).
 cat > marketplace/oddyssey/.mcp.json <<EOF
 {
+  "mcpServers": {
+    "oddyssey": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--refresh-package", "oddyssey-mcp", "${MCP_PIN}"]
+    }
+  }
+}
+EOF
+cat > marketplace/oddyssey/mcp.json <<EOF
+{
+  "\$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
   "mcpServers": {
     "oddyssey": {
       "type": "stdio",
@@ -94,6 +109,42 @@ if [ -f marketplace/oddyssey/hooks.json ]; then
   for script in $(grep -o '/hooks/scripts/[^" ]*' marketplace/oddyssey/hooks/hooks.json | sort -u); do
     if [ ! -f "marketplace/oddyssey${script}" ]; then
       echo "hooks/hooks.json names a script the bundle does not carry: ${script}" >&2
+      exit 1
+    fi
+  done
+fi
+
+# Copilot CLI honours plugin.json's Agent Plugins $schema and then reads its
+# own components from the com.github.copilot/ extension namespace only -
+# commands (translated into skills), agents and hooks at the plugin root
+# are "no longer read" (issue #588; the spec keeps skills/ and mcp.json
+# portable, everything else client-namespaced). Mirror the three there:
+# the same agent and command files, and the hooks in Copilot's dialect
+# (version 1, camelCase events, scripts reached through the spec's
+# ${PLUGIN_ROOT}, which Copilot resolves to the plugin root).
+NS="marketplace/oddyssey/com.github.copilot"
+rm -rf "$NS"
+mkdir -p "$NS"
+for kind in agents commands; do
+  if [ -d "marketplace/oddyssey/${kind}" ]; then
+    cp -R "marketplace/oddyssey/${kind}" "${NS}/${kind}"
+  fi
+done
+if [ -f marketplace/oddyssey/hooks/hooks.json ]; then
+  mkdir -p "${NS}/hooks"
+  jq '{version: 1,
+       hooks: (.hooks | with_entries(.key |= ((.[0:1] | ascii_downcase) + .[1:])))}' \
+    marketplace/oddyssey/hooks/hooks.json \
+    | sed 's#\\"${CLAUDE_PLUGIN_ROOT}\\"/hooks/scripts/#\\"${PLUGIN_ROOT}\\"/com.github.copilot/hooks/scripts/#g' \
+    > "${NS}/hooks/hooks.json"
+  if grep -q 'CLAUDE_PLUGIN_ROOT' "${NS}/hooks/hooks.json"; then
+    echo "com.github.copilot/hooks/hooks.json still names the Claude plugin root" >&2
+    exit 1
+  fi
+  cp -R marketplace/oddyssey/hooks/scripts "${NS}/hooks/scripts"
+  for script in $(grep -o '/com.github.copilot/hooks/scripts/[^" ]*' "${NS}/hooks/hooks.json" | sort -u); do
+    if [ ! -f "marketplace/oddyssey${script}" ]; then
+      echo "com.github.copilot/hooks/hooks.json names a script the bundle does not carry: ${script}" >&2
       exit 1
     fi
   done
