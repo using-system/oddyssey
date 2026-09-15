@@ -196,6 +196,23 @@ jobs:
             test -f "marketplace/oddyssey/hooks/scripts/${script}.py"
           done
           test ! -d marketplace/oddyssey/hooks/scripts/__pycache__
+      - name: Assert the plugin carries the Copilot namespace and the spec's mcp.json
+        # Copilot CLI honours plugin.json's Agent Plugins $schema and reads
+        # agents, commands and hooks from com.github.copilot/ only, and the
+        # MCP servers from a root mcp.json - the root copies are "no longer
+        # read" (#588).
+        run: |
+          jq -e '."$schema" == "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json" and .mcpServers.oddyssey.command == "uvx"' marketplace/oddyssey/mcp.json
+          ns=marketplace/oddyssey/com.github.copilot
+          for f in agents commands; do
+            diff -r "marketplace/oddyssey/${f}" "${ns}/${f}"
+          done
+          jq -e '.version == 1 and (.hooks | keys) == ["postToolUse", "preToolUse"]' "${ns}/hooks/hooks.json"
+          for script in guard_default_branch guard_append_only scan_odd_identifiers check_report_frontmatter; do
+            grep -qF "\\\"\${PLUGIN_ROOT}\\\"/com.github.copilot/hooks/scripts/${script}.py" "${ns}/hooks/hooks.json"
+            test -f "${ns}/hooks/scripts/${script}.py"
+          done
+          ! grep -q CLAUDE_PLUGIN_ROOT "${ns}/hooks/hooks.json"
       - name: Assert the regenerated tree carries the committed modes
         # The release commits this tree through an artifact round-trip
         # that flattens every file to 644; a generated tree carrying an
