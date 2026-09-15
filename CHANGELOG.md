@@ -1,3 +1,9 @@
+## [1.12.1] - 2026-09-15
+
+### 🐛 Bug Fixes
+
+- *(commands)* Launch-llms-benchmark cleans what the next run must not read before each run - no report of the three services, the leftovers, the oddyssey stack's data, the demo stack (#585)
+- *(marketplace)* Ship the Copilot components under com.github.copilot/ and the MCP servers in mcp.json (#589)
 ## [1.12.0] - 2026-09-14
 
 ### 🚀 Features
