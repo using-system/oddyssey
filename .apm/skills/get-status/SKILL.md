@@ -100,7 +100,8 @@ states a verdict yet keys none of its rulings by a finding of its
 chain (with the hint, never the guess, when its keys are the
 baseline's ids with an `F` added or dropped), a quick report's
 gaps section opening with its not-queried list, a section not lifted
-or cut by a cap, an unreadable report, a malformed frontmatter value,
+(a gap's text shown up to the cap is a note under the gaps table,
+never a deferral), an unreadable report, a malformed frontmatter value,
 a skipped ledger row — except a classification row naming an entry
 HEAD no longer carries, which the memory invariant reports and no
 ruling can act on. The action column uses step 6's three actions

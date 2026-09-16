@@ -1796,17 +1796,19 @@ def render(
                 f"by the lift, open the body for the rest of "
                 f"{'it' if loss['cut'] == 1 else 'them'}"
             )
+    # the screen's cap on a gap's text is a rendering fact, never a
+    # deferral: it is said next to the gaps, not asked as a judgment
+    cap_notes: list[str] = []
     for g in gaps:
         if g["cut"] and g["paragraph"]:
-            gap_notes.append(
-                f"section 5 of {g['recorded_by']} is one paragraph: {g['cut']} "
-                f"characters, cut at {MAX_GAP_LENGTH}, open the body for the gaps "
-                "it carries"
+            cap_notes.append(
+                f"section 5 of {g['recorded_by']} is one paragraph of {g['cut']} "
+                f"characters, shown up to {MAX_GAP_LENGTH}; the body carries the whole"
             )
     for name, count in sorted(cut_gaps.items()):
-        gap_notes.append(
-            f"section 5 of {name}: {plural(count, 'gap')} cut at {MAX_GAP_LENGTH} "
-            f"characters, open the body for the rest of {'it' if count == 1 else 'them'}"
+        cap_notes.append(
+            f"{plural(count, 'gap')} of {name} shown up to {MAX_GAP_LENGTH} "
+            "characters; the body carries the whole"
         )
     for name in mixed_not_queried(facts):
         gap_notes.append(
@@ -1835,7 +1837,7 @@ def render(
     )
     out += ["## Loop state", "", md_table(LOOP_STATE_HEADER, table), "", *evidence, ""]
     if full:
-        out += full_sections(facts, rows, counts, trends, apart, gaps, recs)
+        out += full_sections(facts, rows, counts, trends, apart, gaps, recs, cap_notes)
     else:
         pairs = len({t["pair"] for t in trends})
         out += [
@@ -1870,6 +1872,7 @@ def full_sections(
     apart: list[dict],
     gaps: list[dict],
     recs: list[dict],
+    cap_notes: list[str] | None = None,
 ) -> list[str]:
     """The working tables: loop state, ledger, trends, gaps, next action."""
     out = [
@@ -1959,6 +1962,8 @@ def full_sections(
             ),
             "",
         ]
+        if cap_notes:
+            out += [f"- {note}" for note in cap_notes] + [""]
     elif mixed_not_queried(facts):
         out += ["No gap listed by rule - see Judgment needed.", ""]
     else:

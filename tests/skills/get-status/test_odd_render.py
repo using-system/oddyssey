@@ -1435,13 +1435,14 @@ def test_a_paragraph_the_split_cannot_cut_is_named_as_one_paragraph(
     [row] = odd_render.gap_rows(facts)
     assert row["cut"] == len(paragraph) and row["truncated"] is False
     assert row["gap"].endswith(odd_render.ELLIPSIS)
-    judgment = odd_render.render(facts, today="2026-08-11").split("## Judgment needed")[
-        1
-    ]
+    text = odd_render.render(facts, today="2026-08-11", full=True)
+    judgment = text.split("## Judgment needed")[1]
+    # the cap is a rendering fact, said under the gaps, never a deferral
+    assert "one paragraph" not in judgment
     assert (
-        f"section 5 of 2026-08-10-1000-a.md is one paragraph: {len(paragraph)} "
-        "characters, cut at 500, open the body for the gaps it carries"
-    ) in judgment
+        f"- section 5 of 2026-08-10-1000-a.md is one paragraph of {len(paragraph)} "
+        "characters, shown up to 500; the body carries the whole"
+    ) in text.split("## Open telemetry gaps")[1].split("## Next recommended")[0]
     assert "beyond the cap" not in judgment
 
 
@@ -1459,13 +1460,14 @@ def test_a_bullet_cut_at_the_cap_is_named_as_a_cut_gap(repo, odd_status, odd_ren
     facts = odd_status.build_facts(repo.root, recent=None, max_title=None)
     [row] = odd_render.gap_rows(facts)
     assert row["cut"] > odd_render.MAX_GAP_LENGTH and row["truncated"] is False
-    judgment = odd_render.render(facts, today="2026-08-11").split("## Judgment needed")[
-        1
-    ]
+    text = odd_render.render(facts, today="2026-08-11", full=True)
+    judgment = text.split("## Judgment needed")[1]
+    # the cap is a rendering fact, said under the gaps, never a deferral
+    assert "cut at 500" not in judgment and "shown up to 500" not in judgment
     assert (
-        "section 5 of 2026-08-10-1000-a.md: 1 gap cut at 500 characters, "
-        "open the body for the rest of it"
-    ) in judgment
+        "- 1 gap of 2026-08-10-1000-a.md shown up to 500 characters; the body "
+        "carries the whole"
+    ) in text.split("## Open telemetry gaps")[1].split("## Next recommended")[0]
     assert "beyond the cap" not in judgment
 
 
@@ -1566,10 +1568,7 @@ def test_a_gap_bullet_past_both_caps_is_deferred_once(repo, odd_status, odd_rend
     rows, judgment = gaps_judgment(repo, odd_status, odd_render, huge.rstrip(", "))
     # the lift cut the bullet, the row cut what the lift left (less its marker)
     assert [r["cut"] for r in rows] == [odd_status.DEFAULT_MAX_TEXT - 1]
-    assert (
-        "section 5 of 2026-08-10-1000-a.md: 1 gap cut at 500 characters, "
-        "open the body for the rest of it"
-    ) in judgment
+    assert "cut at 500" not in judgment and "shown up to 500" not in judgment
     assert "beyond the cap" not in judgment and "by the lift" not in judgment
 
 
