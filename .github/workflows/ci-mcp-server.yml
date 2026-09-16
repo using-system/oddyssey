@@ -84,8 +84,8 @@ jobs:
           # .git/config for a run that has a shell.
           fetch-depth: 0
           persist-credentials: false
-      - uses: using-system/oddyssey-actions/setup-copilot@a8fb5c0ddb9f5641ead38d474add9aaeba75f3cb # v1.2.0
-      - uses: using-system/oddyssey-actions/odd-status@a8fb5c0ddb9f5641ead38d474add9aaeba75f3cb # v1.2.0
+      - uses: using-system/oddyssey-actions/setup-copilot@fd986d11acad06eaf68a8487c96dd4f599c431e9 # v1.2.2
+      - uses: using-system/oddyssey-actions/odd-status@fd986d11acad06eaf68a8487c96dd4f599c431e9 # v1.2.2
         with:
           prompt: oddyssey-mcp
           fail-on: error
