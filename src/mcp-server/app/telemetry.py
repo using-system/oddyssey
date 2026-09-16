@@ -23,6 +23,8 @@ from opentelemetry import metrics, trace
 from opentelemetry.metrics import Counter, Histogram
 from opentelemetry.trace import SpanKind, Status, StatusCode
 
+from . import IMPORTED_AT_NS
+
 _INSTRUMENTATION_NAME = "oddyssey-mcp"
 
 # Applied with setdefault: anything the user sets in the MCP client's
@@ -35,10 +37,18 @@ _DEFAULT_ENV = {
 
 # The metric is in seconds; the SDK's default explicit buckets are
 # millisecond-shaped (5, 10, 25, ... 10000) and would collapse every
-# sub-5s tool call into the first bucket.
+# sub-5s tool call into the first bucket. Below 250 ms the boundaries
+# are fine enough to place a 100-130 ms status call and a sub-ms read
+# (observation gap: one bucket held the whole band, so a quantile on
+# this histogram was an interpolation artifact).
 _DURATION_BUCKETS_SECONDS = [
+    0.005,
+    0.01,
+    0.025,
     0.05,
+    0.075,
     0.1,
+    0.15,
     0.25,
     0.5,
     1,
@@ -209,14 +219,38 @@ def setup_telemetry() -> Callable[[], None]:
 
     def shutdown() -> None:
         # Best-effort: a flush/shutdown error must not mask mcp.run()'s
-        # own exit through main()'s finally block.
+        # own exit through main()'s finally block. The flush runs under
+        # the shutdown span (finding F3), exported by the provider's own
+        # shutdown right after.
         try:
+            _shutdown_span(
+                lambda: (tracer_provider.force_flush(), meter_provider.force_flush())
+            )
             tracer_provider.shutdown()
             meter_provider.shutdown()
         except Exception:  # noqa: BLE001, S110 - shutdown is best-effort
             pass
 
     return shutdown
+
+
+def serving() -> None:
+    """Stamp the process lifecycle up to now as the `oddyssey.server.start` span.
+
+    Starts at the package's import instant and ends when called - main()
+    calls it right before the server starts serving - so a one-shot
+    process leaves one trace that measures its own startup (observation
+    finding F3: the ~1 s of wall time around every tool call had no
+    span). A no-op tracer (telemetry off) makes it free.
+    """
+    span = _tracer.start_span("oddyssey.server.start", start_time=IMPORTED_AT_NS)
+    span.end()
+
+
+def _shutdown_span(flush: Callable[[], object]) -> None:
+    """Run the final flush under the `oddyssey.server.shutdown` span."""
+    with _tracer.start_as_current_span("oddyssey.server.shutdown"):
+        flush()
 
 
 def force_flush(timeout_ms: int = 2000) -> None:
