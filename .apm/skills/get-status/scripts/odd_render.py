@@ -633,15 +633,11 @@ def apply_rulings(
     return problems, frozenset(applied)
 
 
-# The Action column values that leave something due (issue #601): the
-# verdict's warning set. `loop can rest` and `plan verified` are the rest.
-WARNING_ACTIONS = (
-    "verification due",
-    "observation overdue",
-    "fix pending",
-    "plan awaits verification",
-    "judgment needed",
-)
+# The Action column values that leave nothing due (issue #601): every
+# other action - verification due, observation overdue, fix pending,
+# plan awaits verification, judgment needed - is the verdict's warning,
+# so an action added later warns until it is named here.
+RESTING_ACTIONS = ("loop can rest", "plan verified")
 
 
 def verdict(facts: dict, counts: dict[str, int], recs: list[dict]) -> dict:
@@ -680,7 +676,7 @@ def verdict(facts: dict, counts: dict[str, int], recs: list[dict]) -> dict:
             status = "error"
             reasons.append(f"{label}: verification {name_of(last)} failed")
     for rec in recs:
-        if rec["action"] in WARNING_ACTIONS:
+        if rec["action"] not in RESTING_ACTIONS:
             if status == "ok":
                 status = "warning"
             reasons.append(f"{rec['lineage']}: {rec['action']}")
@@ -700,8 +696,9 @@ def verdict_of(facts: dict, today: str | date | None = None) -> dict:
 
 def verdict_lines(v: dict) -> list[str]:
     return [
-        f"- verdict: {v['status']} - {'; '.join(v['reasons'])}",
-        # items apart by a middle dot: an item's evidence carries semicolons
+        # reasons and items apart by a middle dot: an item's evidence, or a
+        # frontmatter error, carries semicolons of its own
+        f"- verdict: {v['status']} - {' \u00b7 '.join(v['reasons'])}",
         "- todo: " + (" \u00b7 ".join(v["todo"]) if v["todo"] else "nothing to do"),
         "",
     ]

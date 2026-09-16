@@ -78,13 +78,13 @@ renderings of the same rules:
   evidence line rather than repeating it.
 - **The verdict**, first in both renderings and in the fact sheet
   (`verdict`): `verdict: ok | warning | error - <its reasons>` and
-  `todo: <the next actions, a middle dot between them>`, computed by
-  the rules from the Action
-  column per lineage, the regressions and the reports the rules could
-  not read — `ok` when every lineage rests (or its plan is verified)
-  and nothing regressed; `warning` when a lineage's action is
-  `verification due`, `observation overdue`, `fix pending`, `plan
-  awaits verification` or `judgment needed`, when the loop has not
+  `todo: <the next actions>`, a middle dot between reasons and between
+  actions, computed by the rules from the Action column per lineage,
+  the regressions and the reports the rules could not read — `ok` when
+  every lineage rests (or its plan is verified) and nothing regressed;
+  `warning` when a lineage's action is anything else (`verification
+  due`, `observation overdue`, `fix pending`, `plan awaits
+  verification`, `judgment needed`), when the loop has not
   started, or when nothing matches the scope; `error` when a finding
   regressed, a lineage's last verification failed, or a report could
   not be read. Telemetry gaps, declined findings and the deferrals no
