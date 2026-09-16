@@ -243,8 +243,11 @@ def serving() -> None:
     finding F3: the ~1 s of wall time around every tool call had no
     span). A no-op tracer (telemetry off) makes it free.
     """
-    span = _tracer.start_span("oddyssey.server.start", start_time=IMPORTED_AT_NS)
-    span.end()
+    try:
+        span = _tracer.start_span("oddyssey.server.start", start_time=IMPORTED_AT_NS)
+        span.end()
+    except Exception:  # noqa: BLE001, S110 - telemetry never takes the server down
+        pass
 
 
 def _shutdown_span(flush: Callable[[], object]) -> None:
@@ -357,8 +360,11 @@ def docker_span(
     the whole operation, e.g. `image-inspect`, and carries
     `oddyssey.docker.image` as its subject instead).
 
-    Exactly one subject is passed: the container for container
-    operations, the image reference for image ones.
+    One subject is passed - the container for container operations,
+    the image reference for image ones - or both, for the one container
+    operation that also reads an image (the merged inspect of finding
+    F10): the span is then named for the container operation and
+    carries oddyssey.docker.image as well.
     """
     attributes = {}
     if container is not None:

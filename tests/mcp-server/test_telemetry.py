@@ -454,6 +454,15 @@ def test_the_final_flush_runs_under_the_shutdown_span(span_capture):
     assert flushed == [True]
 
 
+def test_serving_never_raises(monkeypatch):
+    class Broken:
+        def start_span(self, *args, **kwargs):
+            raise RuntimeError("exporter gone")
+
+    monkeypatch.setattr(telemetry, "_tracer", Broken())
+    telemetry.serving()
+
+
 def test_serving_is_free_without_telemetry(monkeypatch):
     # The API's no-op tracer: nothing installed, nothing raised.
     from opentelemetry import trace

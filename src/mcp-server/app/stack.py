@@ -16,7 +16,12 @@ import time
 # call, between the docker phase and the first probe (the residual of
 # observation finding F1 once the TLS context was gone). Importing it
 # here moves that cost to process startup, inside the server.start span.
-import httpcore  # noqa: F401
+# A warm-up only: httpcore is httpx's dependency, not this project's,
+# so its absence is httpx's business, never a failed server start.
+try:
+    import httpcore  # noqa: F401
+except ImportError:  # pragma: no cover - httpx without httpcore
+    pass
 import httpx
 
 from . import config, telemetry
@@ -319,6 +324,7 @@ def _run_bounded(
 def _docker(
     *args: str,
     image: str | None = None,
+    also_image: str | None = None,
     timeout_s: float = DOCKER_CALL_TIMEOUT_S,
 ) -> subprocess.CompletedProcess:
     """Run one docker command inside its span.
@@ -327,10 +333,15 @@ def _docker(
     image rather than on the stack container (observation finding F2):
     the span then carries oddyssey.docker.image and is named for the
     whole two-word operation ("image-inspect"), which args[0] alone
-    would truncate to the bare noun "image".
+    would truncate to the bare noun "image". also_image names the image
+    a container operation reads alongside the container (the merged
+    inspect of finding F10): the span keeps the container's name and
+    carries both subjects, so a trace still says which image was read.
     """
     if image is None:
-        span_context = telemetry.docker_span(args[0], container=CONTAINER_NAME)
+        span_context = telemetry.docker_span(
+            args[0], container=CONTAINER_NAME, image=also_image
+        )
     else:
         span_context = telemetry.docker_span(f"{args[0]}-{args[1]}", image=image)
     with span_context as span:
@@ -404,20 +415,20 @@ def _inspect_stack() -> tuple[dict | None, list | None]:
     (#83). An absent container or unreadable output yields (None, None),
     never an error.
     """
-    result = _docker("inspect", CONTAINER_NAME, IMAGE)
+    result = _docker("inspect", CONTAINER_NAME, IMAGE, also_image=IMAGE)
     objects = _parse_inspect(result.stdout)
     container = next((o for o in objects if "State" in o), None)
     if container is None:
         return None, None
-    config = (
+    container_config = (
         container.get("Config") if isinstance(container.get("Config"), dict) else {}
     )
     state = container.get("State") if isinstance(container.get("State"), dict) else {}
     inspected = {
-        "image": config.get("Image"),
+        "image": container_config.get("Image"),
         "created": container.get("Created"),
         "started": state.get("StartedAt"),
-        "env": config.get("Env"),
+        "env": container_config.get("Env"),
         "image_id": container.get("Image"),
     }
     image = next((o for o in objects if "State" not in o), None)
@@ -428,11 +439,6 @@ def _inspect_stack() -> tuple[dict | None, list | None]:
         )
         image_env = image_config.get("Env")
     return inspected, image_env if isinstance(image_env, list) else None
-
-
-def _container_inspect() -> dict | None:
-    """The container's identity and env, or None (one inspect)."""
-    return _inspect_stack()[0]
 
 
 def container_user_env(
@@ -555,9 +561,9 @@ def _container_identity(inspected: dict | None = None) -> dict | None:
     Best-effort like container_user_env: an absent container or
     unreadable output yields None, never an error - a status call must
     not fail because docker hiccupped. `inspected` is a
-    `_container_inspect()` result a caller already holds.
+    `_inspect_stack()` container a caller already holds.
     """
-    parsed = inspected if inspected is not None else _container_inspect()
+    parsed = inspected if inspected is not None else _inspect_stack()[0]
     if parsed is None:
         return None
     if not all(isinstance(parsed.get(k), str) for k in ("image", "created", "started")):

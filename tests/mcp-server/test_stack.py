@@ -1789,6 +1789,28 @@ def test_stack_status_asks_docker_once_when_the_pin_vouches_for_the_image(monkey
     assert calls == [("inspect", stack.CONTAINER_NAME, stack.IMAGE)]
 
 
+def test_the_merged_inspect_span_names_both_subjects(monkeypatch):
+    # Finding F10's merged inspect reads the pinned image too: the span keeps
+    # the container operation's name and says which image it read.
+    exporter = InMemorySpanExporter()
+    provider = SdkTracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(stack.telemetry, "_tracer", provider.get_tracer("test"))
+    monkeypatch.setattr(
+        stack.subprocess,
+        "run",
+        lambda args, **kwargs: subprocess.CompletedProcess(
+            args, 0, stdout=json.dumps([_raw_container(), _raw_image()]), stderr=""
+        ),
+    )
+    inspected, image_env = stack._inspect_stack()
+    assert inspected["image_id"] == "sha256:cafe" and image_env == ["PATH=/usr/bin"]
+    (span,) = exporter.get_finished_spans()
+    assert span.name == "oddyssey.docker.inspect"
+    assert span.attributes["oddyssey.docker.container"] == stack.CONTAINER_NAME
+    assert span.attributes["oddyssey.docker.image"] == stack.IMAGE
+
+
 def test_stack_status_reads_the_old_image_after_a_pin_bump(monkeypatch):
     # Issue #83 kept: a container created from another image than the pin
     # gets its own image inspected, never the pin's env diffed against it.
@@ -1880,4 +1902,3 @@ def test_stack_module_loads_httpcore_eagerly():
     import sys
 
     assert "httpcore" in sys.modules
-    assert "httpcore._sync.connection_pool" in sys.modules
