@@ -3091,3 +3091,64 @@ def test_a_regression_claimed_from_outside_a_settled_chain_stays_listed(
         "## Judgment needed"
     )[1]
     assert "2026-08-14-1000-verify-b.md rules F1" in judgment
+
+
+def test_the_verdict_leads_both_renderings_and_follows_the_action_column(
+    repo, odd_status, odd_render
+):
+    baseline_and_verification(repo)  # a / F1 fixed, F2 open; verify-a covers HEAD
+    facts = odd_status.build_facts(repo.root, recent=None)
+    screen = odd_render.render(facts, today="2026-08-13")
+    full = odd_render.render(facts, today="2026-08-13", full=True)
+    first = screen.splitlines()[2]
+    assert first.startswith("- verdict: ")
+    assert screen.splitlines()[3].startswith("- todo: ")
+    assert full.splitlines()[2] == first
+    status = first.split("- verdict: ")[1].split(" - ")[0]
+    action = (
+        next(l for l in screen.splitlines() if l.startswith("| checkout /"))
+        .split("|")[-2]
+        .strip()
+    )
+    expected = "warning" if action in odd_render.WARNING_ACTIONS else "ok"
+    assert status == expected, (first, action)
+    if status == "ok":
+        assert "- todo: nothing to do" in screen
+    else:
+        assert action in screen.splitlines()[3]
+
+
+def test_the_verdict_is_a_warning_when_the_loop_has_not_started(
+    repo, odd_status, odd_render
+):
+    repo.write("README.md", "hello\n")
+    repo.commit("docs: readme")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    text = odd_render.render(facts, today="2026-08-13")
+    assert "- verdict: warning - the loop has not started here" in text
+    assert "- todo: start the loop: /odd-instrument-otel or /odd-observe" in text
+    assert odd_render.verdict_of(facts)["status"] == "warning"
+
+
+def test_the_verdict_is_an_error_on_a_regression_and_ok_when_the_loop_rests(
+    repo, odd_status, odd_render
+):
+    # a regression ruled by the verification: error, whatever the actions say
+    name = baseline_and_verification(repo)
+    facts = odd_status.build_facts(repo.root, recent=None)
+    rows = odd_render.finding_rows(facts)
+    counts = odd_render.burn_down(rows)
+    recs = odd_render.recommendations(facts, "2026-08-13")
+    resting = [dict(r, action="loop can rest") for r in recs]
+    assert odd_render.verdict(facts, counts, resting)["status"] == "ok"
+    assert odd_render.verdict(facts, dict(counts, regressed=1), resting) == {
+        "status": "error",
+        "reasons": ["1 finding regressed"],
+        "todo": [],
+    }
+    due = [dict(r, action="verification due", evidence="src moved") for r in recs]
+    v = odd_render.verdict(facts, counts, due)
+    assert v["status"] == "warning" and v["todo"] == [
+        f"{r['lineage']}: verification due - src moved" for r in recs
+    ]
+    assert name  # the fixture wrote a report

@@ -76,6 +76,20 @@ renderings of the same rules:
   — a lineage's boundary first, memory hygiene last — then capped in
   length and in count (`+N more`), a lineage's item pointing at its
   evidence line rather than repeating it.
+- **The verdict**, first in both renderings and in the fact sheet
+  (`verdict`): `verdict: ok | warning | error - <its reasons>` and
+  `todo: <the next actions>`, computed by the rules from the Action
+  column per lineage, the regressions and the reports the rules could
+  not read — `ok` when every lineage rests (or its plan is verified)
+  and nothing regressed; `warning` when a lineage's action is
+  `verification due`, `observation overdue`, `fix pending`, `plan
+  awaits verification` or `judgment needed`, when the loop has not
+  started, or when nothing matches the scope; `error` when a finding
+  regressed, a lineage's last verification failed, or a report could
+  not be read. Telemetry gaps, declined findings and the deferrals no
+  memory write can close are facts of the rendering: they never move
+  the verdict, and a caller that gates on the loop reads these two
+  lines, never a judgment of its own.
 - **The full rendering** — `--full`, and whenever the caller scoped
   the status to a service, a stack or an environment: everything the
   screen carries, the inventory and the memory invariant as sections,
