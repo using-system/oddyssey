@@ -1942,13 +1942,14 @@ def test_a_ruling_settles_the_out_of_chain_item_it_names(repo, odd_status, odd_r
     f1_item = "2026-08-14-1000-verify-b.md rules F1"
     f2_item = "2026-08-14-1000-verify-b.md rules F2"
     judgment = before.split("## Judgment needed")[1]
-    assert f1_item in judgment and f2_item in judgment
+    # a / F1 is fixed by a's own verification: its chain settled it, no item;
+    # a / F2 is open: the homonym question stands
+    assert f1_item not in judgment and f2_item in judgment
     after = odd_render.render(
-        facts, today="2026-08-15", full=True, ruled=["2026-08-10-1000-a.md/F1=fixed"]
+        facts, today="2026-08-15", full=True, ruled=["2026-08-10-1000-a.md/F2=fixed"]
     )
     judgment = after.split("## Judgment needed")[1]
-    assert f1_item not in judgment  # settled: every finding it names is ruled
-    assert f2_item in judgment  # untouched
+    assert f2_item not in judgment  # settled: every finding it names is ruled
 
 
 def test_the_burn_down_is_attributed_per_lineage(repo, odd_status, odd_render):
@@ -2966,31 +2967,36 @@ def test_a_ledger_row_settles_the_out_of_chain_item_for_good(
     write_verify(
         repo, "2026-08-14-1000-verify-b.md", "2026-08-13-1000-b.md", VERIFY_BODY
     )
-    repo.write(
-        ".odd/decisions.md",
-        LEDGER_HEAD + "| 2026-08-15 | 2026-08-10-1000-a.md / F1 | fixed-elsewhere "
-        "| fixed by #1, ruled by verify-b outside its chain |\n",
-    )
-    repo.commit("docs(odd): reports and a decision")
+    repo.commit("docs(odd): reports")
     facts = odd_status.build_facts(repo.root, recent=None)
     judgment = odd_render.render(facts, today="2026-08-15", full=True).split(
         "## Judgment needed"
     )[1]
-    assert "2026-08-14-1000-verify-b.md rules F1" not in judgment  # settled by the row
-    assert "2026-08-14-1000-verify-b.md rules F2" in judgment  # no row: still deferred
+    assert "2026-08-14-1000-verify-b.md rules F2" in judgment  # a / F2 open: deferred
+    repo.write(
+        ".odd/decisions.md",
+        LEDGER_HEAD + "| 2026-08-15 | 2026-08-10-1000-a.md / F2 | fixed-elsewhere "
+        "| fixed by #1, ruled by verify-b outside its chain |\n",
+    )
+    repo.commit("docs(odd): a decision")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    judgment = odd_render.render(facts, today="2026-08-15", full=True).split(
+        "## Judgment needed"
+    )[1]
+    assert "2026-08-14-1000-verify-b.md rules F2" not in judgment  # settled by the row
     # a reopened finding is deferred again: open is the one verdict that undoes it
     repo.write(
         ".odd/decisions.md",
         LEDGER_HEAD
-        + "| 2026-08-15 | 2026-08-10-1000-a.md / F1 | fixed-elsewhere | fixed by #1 |\n"
-        + "| 2026-08-16 | 2026-08-10-1000-a.md / F1 | open | back to the reports |\n",
+        + "| 2026-08-15 | 2026-08-10-1000-a.md / F2 | fixed-elsewhere | fixed by #1 |\n"
+        + "| 2026-08-16 | 2026-08-10-1000-a.md / F2 | open | back to the reports |\n",
     )
     repo.commit("docs(odd): reversal")
     facts = odd_status.build_facts(repo.root, recent=None)
     judgment = odd_render.render(facts, today="2026-08-16", full=True).split(
         "## Judgment needed"
     )[1]
-    assert "2026-08-14-1000-verify-b.md rules F1" in judgment
+    assert "2026-08-14-1000-verify-b.md rules F2" in judgment
 
 
 def test_a_classification_row_for_a_gone_entry_is_a_fact_not_a_judgment(
@@ -3024,3 +3030,30 @@ def test_a_classification_row_for_a_gone_entry_is_a_fact_not_a_judgment(
     screen = odd_render.render(facts, today="2026-08-13")
     assert "no top-level entry named gone at HEAD" in screen.split("## Loop state")[0]
     assert "classification line 7 skipped" not in screen.split("## Judgment needed")[1]
+
+
+def test_a_finding_its_own_chain_settled_earns_no_out_of_chain_judgment(
+    repo, odd_status, odd_render
+):
+    # verify-a rules a / F1 fixed inside a's chain; verify-b (another chain
+    # of the lineage) rules F1 too, outside its chain. The homonym question
+    # changes nothing for a finding its chain already settled: no item.
+    baseline_and_verification(repo)  # a / F1 fixed by verify-a, F2 open
+    body_b = DEFAULT_BODY.replace("| F1 | N+1 on cart lines", "| F3 | Lock contention")
+    body_b = body_b.replace(
+        "| F2 | Cold start | low | suspected | first call 400 ms | none |\n", ""
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-13-1000-b.md",
+        observation(run_name="b", date="2026-08-13", body=body_b),
+    )
+    write_verify(
+        repo, "2026-08-14-1000-verify-b.md", "2026-08-13-1000-b.md", VERIFY_BODY
+    )
+    repo.commit("docs(odd): reports")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    judgment = odd_render.render(facts, today="2026-08-15", full=True).split(
+        "## Judgment needed"
+    )[1]
+    assert "2026-08-14-1000-verify-b.md rules F1" not in judgment  # a / F1: fixed
+    assert "2026-08-14-1000-verify-b.md rules F2" in judgment  # a / F2: still open

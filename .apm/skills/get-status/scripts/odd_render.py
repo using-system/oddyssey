@@ -426,22 +426,36 @@ def finding_definers(facts: dict) -> dict[tuple[str, str], list[str]]:
     return definers
 
 
-def out_of_chain_rulings(facts: dict, ruled: frozenset[str] = frozenset()) -> list[str]:
+def out_of_chain_rulings(
+    facts: dict,
+    ruled: frozenset[str] = frozenset(),
+    rows: list[dict] | None = None,
+) -> list[str]:
     """Rulings a verification carries on an id no report in its chain defines,
     while another report does - the same finding, or a homonym: a judgment.
 
     An item is settled, and dropped, once every finding it names is ruled:
-    by the caller for this run (``ruled`` holds their ledger keys), or for
+    by the caller for this run (``ruled`` holds their ledger keys), for
     good by the decisions ledger, whose latest row on the finding declines
-    it - the maintainer's judgment, persisted where the status reads it."""
+    it - the maintainer's judgment, persisted where the status reads it -
+    or by the finding's own chain, when a verification of its own already
+    ruled it fixed or regressed (``rows``, the finding rows by rule): the
+    homonym question changes nothing for a finding its chain settled."""
     by_name = {name_of(r): r for r in readable(facts)}
     definers = finding_definers(facts)
     effective = facts["ledger"]["effective"]
+    by_chain = {
+        f"{Path(r['report']).name} / {r['id']}"
+        for r in (rows if rows is not None else finding_rows(facts))
+        if r["state"] in ("fixed-and-verified", "regressed", "declined")
+    }
 
     def settled(key: str) -> bool:
         decision = effective.get(key)
-        return key in ruled or bool(
-            decision and str(decision["verdict"]).lower() != "open"
+        return (
+            key in ruled
+            or key in by_chain
+            or bool(decision and str(decision["verdict"]).lower() != "open")
         )
 
     out = []
@@ -1735,7 +1749,7 @@ def render(
                 f"finding {Path(r['report']).name} / {r['id']}: "
                 f"ruling not readable by rule ({r['ruled_by']})"
             )
-    rulings += out_of_chain_rulings(facts, ruled_keys)
+    rulings += out_of_chain_rulings(facts, ruled_keys, rows)
     for report in readable(facts):
         unread = unread_baseline_rulings(report, facts, ruled_keys)
         if unread:
