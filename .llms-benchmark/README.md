@@ -30,7 +30,7 @@ CLI, always its latest run.
 | **#7** | `anthropic/claude-opus-5` | claude | 1.12.0 | 18 / 19 | 12 / 6 / 1 | 21m55s | $6.33 | $0.352 |
 | **#8** | `z-ai/glm-5.3-flash` | opencode | 1.11.5 ⚠︎ | 15 / 16 | 8 / 3 / 5 | 25m15s | $0.14 | **$0.009** |
 | **#9** | `deepseek/deepseek-v4.1-flash` | opencode | 1.12.0 | 15 / 16 | 11 / 3 / 2 | 58m54s | $0.36 | $0.024 |
-| **#10** | `anthropic/claude-fable-5.1` | claude | 1.11.5 ⚠︎ | **18 / 18** | 10 / 6 / 2 | 17m29s | $7.48 | $0.416 |
+| **#10** | `anthropic/claude-fable-5.1` | claude | 1.12.0 | **17 / 17** | 10 / 5 / 2 | 17m08s | $7.55 | $0.444 |
 | **#11** | `qwen/qwen3.8-27b` | opencode | 1.12.0 | 14 / 16 | 10 / 3 / 3 | 43m52s | $2.09 | $0.150 |
 | **#12** | `qwen/qwen3.8-max-0902` | opencode | 1.12.0 | **14 / 14** | 8 / 3 / 3 | 66m09s | $2.88 | $0.206 |
 | **#13** | `anthropic/claude-sonnet-5` | claude | 1.12.0 | **5 / 5** | 2 / 2 / 1 | 12m20s | $2.55 | $0.511 |
@@ -49,7 +49,7 @@ CLI, always its latest run.
 | `anthropic/claude-opus-5` | claude | 1.12.0 | 3m36s | 2m00s | 16m19s | 57 | 8.6s | 6.3M | 59k | 6.3M | 4/4 |
 | `z-ai/glm-5.3-flash` | opencode | 1.11.5 ⚠︎ | 4m44s | 2m02s | 18m29s | 59 | 13.0s | 5.7M | 114k | 5.3M | 4/4 |
 | `deepseek/deepseek-v4.1-flash` | opencode | 1.12.0 | 24m06s | 2m01s | 32m47s | 64 | 18.7s | 6.3M | 69k | 4.3M | 4/4 |
-| `anthropic/claude-fable-5.1` | claude | 1.11.5 ⚠︎ | 2m55s | 2m02s | 12m32s | 30 | 5.5s | 2.9M | 56k | 2.9M | 4/4 |
+| `anthropic/claude-fable-5.1` | claude | 1.12.0 | 2m52s | 2m02s | 12m14s | 36 | 3.6s | 3.6M | 60k | 3.6M | 4/4 |
 | `qwen/qwen3.8-27b` | opencode | 1.12.0 | 10m51s | 2m01s | 31m00s | 80 | 24.8s | 11.5M | 121k | 10.7M | 4/4 |
 | `qwen/qwen3.8-max-0902` | opencode | 1.12.0 | 9m00s | 2m02s | 55m07s | 47 | 51.1s | 5.5M | 153k | 5.2M | 4/4 |
 | `anthropic/claude-sonnet-5` | claude | 1.12.0 | 2m11s | 2m00s | 8m09s | 67 | 2.1s | 7.5M | 43k | 7.5M | 4/4 |
