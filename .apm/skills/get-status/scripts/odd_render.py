@@ -450,8 +450,12 @@ def out_of_chain_rulings(
         if r["state"] in ("fixed-and-verified", "regressed", "declined")
     }
 
-    def settled(key: str) -> bool:
+    def settled(key: str, ruling: str) -> bool:
         decision = effective.get(key)
+        if classify_ruling(ruling) == "regressed":
+            # a regression claimed from outside the chain on a finding the
+            # chain settled is the one case worth a look: never dropped
+            return key in ruled
         return (
             key in ruled
             or key in by_chain
@@ -469,7 +473,7 @@ def out_of_chain_rulings(
         for row in rulings_of(verification):
             defined = definers.get((lineage_label(verification), row["id"]), [])
             if defined and not any(d in in_chain for d in defined):
-                if all(settled(f"{d} / {row['id']}") for d in defined):
+                if all(settled(f"{d} / {row['id']}", row["ruling"]) for d in defined):
                     continue
                 out.append(
                     f"{name_of(verification)} rules {row['id']} "

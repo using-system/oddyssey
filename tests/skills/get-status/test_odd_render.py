@@ -1570,6 +1570,13 @@ def test_a_gap_bullet_past_both_caps_is_deferred_once(repo, odd_status, odd_rend
     assert [r["cut"] for r in rows] == [odd_status.DEFAULT_MAX_TEXT - 1]
     assert "cut at 500" not in judgment and "shown up to 500" not in judgment
     assert "beyond the cap" not in judgment and "by the lift" not in judgment
+    full = odd_render.render(
+        odd_status.build_facts(repo.root, recent=None), today="2026-08-11", full=True
+    )
+    assert (
+        "- 1 gap of 2026-08-10-1000-a.md shown up to 500 characters; the body "
+        "carries the whole"
+    ) in full.split("## Open telemetry gaps")[1]
 
 
 def test_two_verdict_words_are_deferred_as_two_verdicts(repo, odd_status, odd_render):
@@ -3056,3 +3063,31 @@ def test_a_finding_its_own_chain_settled_earns_no_out_of_chain_judgment(
     )[1]
     assert "2026-08-14-1000-verify-b.md rules F1" not in judgment  # a / F1: fixed
     assert "2026-08-14-1000-verify-b.md rules F2" in judgment  # a / F2: still open
+
+
+def test_a_regression_claimed_from_outside_a_settled_chain_stays_listed(
+    repo, odd_status, odd_render
+):
+    # a / F1 is fixed by a's own verification; verify-b, another chain of the
+    # lineage, rules F1 worse - the one out-of-chain case never dropped
+    baseline_and_verification(repo)
+    body_b = DEFAULT_BODY.replace("| F1 | N+1 on cart lines", "| F3 | Lock contention")
+    body_b = body_b.replace(
+        "| F2 | Cold start | low | suspected | first call 400 ms | none |\n", ""
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-13-1000-b.md",
+        observation(run_name="b", date="2026-08-13", body=body_b),
+    )
+    worse = VERIFY_BODY.replace(
+        "| F1 | N+1 on cart lines | FIXED | 1 span per call |",
+        "| F1 | N+1 on cart lines | worse, regressed | 12 spans per call |",
+    )
+    assert worse != VERIFY_BODY
+    write_verify(repo, "2026-08-14-1000-verify-b.md", "2026-08-13-1000-b.md", worse)
+    repo.commit("docs(odd): reports")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    judgment = odd_render.render(facts, today="2026-08-15", full=True).split(
+        "## Judgment needed"
+    )[1]
+    assert "2026-08-14-1000-verify-b.md rules F1" in judgment

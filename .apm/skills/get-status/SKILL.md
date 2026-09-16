@@ -95,7 +95,8 @@ the anchor cannot classify, an entry present on one side only, a
 commit-date boundary with commits since), a ruling on an id its chain
 does not define (the same finding, or a homonym) unless the decisions
 ledger's latest row on that finding declines it — the row is the
-judgment, persisted — a verification that
+judgment, persisted — or its own chain already ruled it (a regression
+claimed from outside stays listed), a verification that
 states a verdict yet keys none of its rulings by a finding of its
 chain (with the hint, never the guess, when its keys are the
 baseline's ids with an `F` added or dropped), a quick report's
