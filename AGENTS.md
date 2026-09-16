@@ -58,7 +58,9 @@ the paths touched (commands and pins are owned by
 `.github/workflows/` is canonical if they ever disagree):
 
 - `src/mcp-server/`, `tests/`, or `integration-tests/` changed → CI
-  runs lint, unit, **and** integration unconditionally: unit tests
+  runs lint, unit, **and** integration unconditionally (and, on this
+  repository's own PRs, the `odd-status` verdict through the
+  oddyssey-actions - not runnable locally, not a required check): unit tests
   (`uv run --project src/mcp-server pytest -c src/mcp-server/pyproject.toml tests/mcp-server -v`),
   lint/format at the CI-pinned ruff
   (`uvx ruff@0.16.4 check` / `format --check` on `src/mcp-server tests/mcp-server`),

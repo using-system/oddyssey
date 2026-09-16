@@ -69,14 +69,23 @@ jobs:
     # table lands in the run's summary. Not a required check.
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    # On the job: a step timeout does not reach a composite action's inner
+    # steps, and the model run is one of them.
+    timeout-minutes: 10
     permissions:
       contents: read
       copilot-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The status reads git: each report's commit date and its
+          # recorded revision against the commits after it - a shallow
+          # clone grafts every report onto HEAD. No credential is left in
+          # .git/config for a run that has a shell.
+          fetch-depth: 0
+          persist-credentials: false
       - uses: using-system/oddyssey-actions/setup-copilot@22b03769eac9c4b3291318587b030af4ab415ee1 # v1.1.0
       - uses: using-system/oddyssey-actions/odd-status@22b03769eac9c4b3291318587b030af4ab415ee1 # v1.1.0
-        timeout-minutes: 10
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
