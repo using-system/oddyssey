@@ -3151,4 +3151,8 @@ def test_the_verdict_is_an_error_on_a_regression_and_ok_when_the_loop_rests(
     assert v["status"] == "warning" and v["todo"] == [
         f"{r['lineage']}: verification due - src moved" for r in recs
     ]
+    # the rendering keeps the items apart by a middle dot - an item's
+    # evidence carries semicolons of its own
+    two = odd_render.verdict_lines(dict(v, todo=["a: due - x; y", "b: due - z"]))
+    assert two[1] == "- todo: a: due - x; y \u00b7 b: due - z"
     assert name  # the fixture wrote a report

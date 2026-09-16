@@ -78,7 +78,8 @@ renderings of the same rules:
   evidence line rather than repeating it.
 - **The verdict**, first in both renderings and in the fact sheet
   (`verdict`): `verdict: ok | warning | error - <its reasons>` and
-  `todo: <the next actions>`, computed by the rules from the Action
+  `todo: <the next actions, a middle dot between them>`, computed by
+  the rules from the Action
   column per lineage, the regressions and the reports the rules could
   not read — `ok` when every lineage rests (or its plan is verified)
   and nothing regressed; `warning` when a lineage's action is

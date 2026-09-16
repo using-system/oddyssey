@@ -701,7 +701,8 @@ def verdict_of(facts: dict, today: str | date | None = None) -> dict:
 def verdict_lines(v: dict) -> list[str]:
     return [
         f"- verdict: {v['status']} - {'; '.join(v['reasons'])}",
-        "- todo: " + ("; ".join(v["todo"]) if v["todo"] else "nothing to do"),
+        # items apart by a middle dot: an item's evidence carries semicolons
+        "- todo: " + (" \u00b7 ".join(v["todo"]) if v["todo"] else "nothing to do"),
         "",
     ]
 
