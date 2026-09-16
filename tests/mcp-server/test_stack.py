@@ -99,8 +99,11 @@ def test_run_args_rejects_malformed_env_keys():
 
 def _no_container(monkeypatch) -> None:
     """Stub the identity reads away: readiness assertions must not need docker."""
-    monkeypatch.setattr(stack, "_container_identity", lambda: None)
-    monkeypatch.setattr(stack, "container_user_env", lambda: None)
+    monkeypatch.setattr(stack, "_inspect_stack", lambda: (None, None))
+    monkeypatch.setattr(stack, "_container_identity", lambda inspected=None: None)
+    monkeypatch.setattr(
+        stack, "container_user_env", lambda inspected=None, image_env=None: None
+    )
 
 
 def test_stack_status_all_ready(monkeypatch):
@@ -165,10 +168,32 @@ def test_stack_status_is_not_running_until_every_signal_is_ready(monkeypatch):
     assert status["pyroscope"] is True
 
 
-def _identity_docker(monkeypatch, *, inspect_json=None, returncode=0):
-    """Route stack._docker: identity inspect answers inspect_json."""
+def _raw_container(env=None, image_id="sha256:cafe", **identity):
+    """A container object as a bare `docker inspect` prints it."""
+    return {
+        "Id": "abc",
+        "Created": identity.get("created", "2026-08-29T08:12:03.1Z"),
+        "State": {"StartedAt": identity.get("started", "2026-08-29T08:12:04.5Z")},
+        "Image": image_id,
+        "Config": {
+            "Image": identity.get("image", "grafana/otel-lgtm:0.33.0"),
+            "Env": env if env is not None else ["PATH=/usr/bin"],
+        },
+    }
 
-    def fake_docker(*args):
+
+def _raw_image(env=None, image_id="sha256:cafe"):
+    """An image object as a bare `docker inspect` prints it (no State)."""
+    return {
+        "Id": image_id,
+        "Config": {"Env": env if env is not None else ["PATH=/usr/bin"]},
+    }
+
+
+def _identity_docker(monkeypatch, *, inspect_json=None, returncode=0):
+    """Route stack._docker: the one docker inspect answers inspect_json."""
+
+    def fake_docker(*args, **kwargs):
         return subprocess.CompletedProcess(
             args, returncode, stdout=inspect_json or "", stderr=""
         )
@@ -180,13 +205,12 @@ def test_stack_status_carries_container_identity(monkeypatch):
     # Issue #118: a report's instance identity (image tag, lifecycle
     # timestamps, effective env) must be fillable from the tool alone -
     # no docker inspect on the caller's side.
-    _identity_docker(
-        monkeypatch,
-        inspect_json='{"image": "grafana/otel-lgtm:0.33.0",'
-        ' "created": "2026-08-29T08:12:03.1Z",'
-        ' "started": "2026-08-29T08:12:04.5Z"}',
+    _identity_docker(monkeypatch, inspect_json=json.dumps([_raw_container()]))
+    monkeypatch.setattr(
+        stack,
+        "container_user_env",
+        lambda inspected=None, image_env=None: {"GF_LOG_LEVEL": "debug"},
     )
-    monkeypatch.setattr(stack, "container_user_env", lambda: {"GF_LOG_LEVEL": "debug"})
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200)
@@ -203,7 +227,7 @@ def test_stack_status_absent_container_yields_null_identity(monkeypatch):
     # No container: every identity field is null - env included, because
     # "no container" and "container with no user env" are different facts.
     _identity_docker(monkeypatch, returncode=1)
-    monkeypatch.setattr(stack, "container_user_env", lambda: None)
+    monkeypatch.setattr(stack, "container_user_env", lambda inspected=None: None)
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500)
@@ -222,12 +246,15 @@ def test_stack_status_redacts_credential_named_env_values(monkeypatch):
     # access); the VALUE never leaves the server.
     _identity_docker(
         monkeypatch,
-        inspect_json='{"image": "i", "created": "c", "started": "s"}',
+        inspect_json=json.dumps([_raw_container(image="i", created="c", started="s")]),
     )
     monkeypatch.setattr(
         stack,
         "container_user_env",
-        lambda: {"GF_LOG_LEVEL": "debug", "X_DEMO_TOKEN": "fake"},
+        lambda inspected=None, image_env=None: {
+            "GF_LOG_LEVEL": "debug",
+            "X_DEMO_TOKEN": "fake",
+        },
     )
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -241,7 +268,7 @@ def test_stack_status_survives_malformed_inspect_output(monkeypatch):
     # Best-effort by contract: a status call must never fail because
     # docker hiccupped - unreadable identity degrades to nulls.
     _identity_docker(monkeypatch, inspect_json="not json")
-    monkeypatch.setattr(stack, "container_user_env", lambda: None)
+    monkeypatch.setattr(stack, "container_user_env", lambda inspected=None: None)
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200)
@@ -256,7 +283,7 @@ def test_stack_status_survives_non_object_inspect_output(monkeypatch):
     # identity read is best-effort, so "never an exception" covers every
     # shape docker could hand back, not just unparseable bytes.
     _identity_docker(monkeypatch, inspect_json="null")
-    monkeypatch.setattr(stack, "container_user_env", lambda: None)
+    monkeypatch.setattr(stack, "container_user_env", lambda inspected=None: None)
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200)
@@ -1046,7 +1073,16 @@ def _fake_env_inspects(
             return _Proc(stdout=json.dumps(image))
         if container is None:
             return _Proc(returncode=1, stderr="no such object")
-        return _Proc(stdout=json.dumps({"env": container, "image": container_image}))
+        # the pinned image is another object than the container's own image
+        # here, so the caller must inspect the container's image itself
+        return _Proc(
+            stdout=json.dumps(
+                [
+                    _raw_container(env=container, image_id=container_image),
+                    _raw_image(image, "sha256:pinned"),
+                ]
+            )
+        )
 
     monkeypatch.setattr(stack, "_docker", fake_docker)
 
@@ -1135,7 +1171,13 @@ def test_container_user_env_image_inspect_span_names_the_image(monkeypatch):
             args,
             0,
             stdout=json.dumps(
-                {"env": ["PATH=/usr/bin", "GF_LOG_LEVEL=debug"], "image": "sha256:0ld"}
+                [
+                    _raw_container(
+                        env=["PATH=/usr/bin", "GF_LOG_LEVEL=debug"],
+                        image_id="sha256:0ld",
+                    ),
+                    _raw_image(["PATH=/usr/bin"], "sha256:pinned"),
+                ]
             ),
         )
 
@@ -1716,3 +1758,147 @@ def test_readiness_does_not_wait_on_a_backends_own_not_ready(monkeypatch):
     assert status["running"] is False
     assert status["loki"] is False and status["pyroscope"] is False
     assert calls["n"] == 4
+
+
+def test_stack_status_asks_docker_once_when_the_pin_vouches_for_the_image(monkeypatch):
+    # Observation findings F2 then F10: identity and env used to cost two
+    # inspects of the same container plus the image inspect; then one of
+    # each. One `docker inspect <container> <pinned image>` feeds all of
+    # it when the container was created from the pinned image.
+    calls: list[tuple] = []
+
+    def fake_docker(*args, **kwargs):
+        calls.append(args)
+        return _Proc(
+            stdout=json.dumps(
+                [
+                    _raw_container(
+                        env=["PATH=/usr/bin", *stack.DEFAULT_ENV, "GF_LOG_LEVEL=debug"],
+                        created="2026-09-16T08:00:00.0Z",
+                    ),
+                    _raw_image(["PATH=/usr/bin"]),
+                ]
+            )
+        )
+
+    monkeypatch.setattr(stack, "_docker", fake_docker)
+    status = stack_status(transport=httpx.MockTransport(lambda r: httpx.Response(200)))
+    assert status["image"] == "grafana/otel-lgtm:0.33.0"
+    assert status["created"] == "2026-09-16T08:00:00.0Z"
+    assert status["env"] == {"GF_LOG_LEVEL": "debug"}
+    assert calls == [("inspect", stack.CONTAINER_NAME, stack.IMAGE)]
+
+
+def test_the_merged_inspect_span_names_both_subjects(monkeypatch):
+    # Finding F10's merged inspect reads the pinned image too: the span keeps
+    # the container operation's name and says which image it read.
+    exporter = InMemorySpanExporter()
+    provider = SdkTracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(stack.telemetry, "_tracer", provider.get_tracer("test"))
+    monkeypatch.setattr(
+        stack.subprocess,
+        "run",
+        lambda args, **kwargs: subprocess.CompletedProcess(
+            args, 0, stdout=json.dumps([_raw_container(), _raw_image()]), stderr=""
+        ),
+    )
+    inspected, image_env = stack._inspect_stack()
+    assert inspected["image_id"] == "sha256:cafe" and image_env == ["PATH=/usr/bin"]
+    (span,) = exporter.get_finished_spans()
+    assert span.name == "oddyssey.docker.inspect"
+    assert span.attributes["oddyssey.docker.container"] == stack.CONTAINER_NAME
+    assert span.attributes["oddyssey.docker.image"] == stack.IMAGE
+
+
+def test_stack_status_reads_the_old_image_after_a_pin_bump(monkeypatch):
+    # Issue #83 kept: a container created from another image than the pin
+    # gets its own image inspected, never the pin's env diffed against it.
+    calls: list[tuple] = []
+
+    def fake_docker(*args, **kwargs):
+        calls.append(args)
+        if args[0] == "image":
+            return _Proc(stdout=json.dumps(["PATH=/from-old-image"]))
+        return _Proc(
+            stdout=json.dumps(
+                [
+                    _raw_container(
+                        env=["PATH=/from-old-image", "GF_LOG_LEVEL=debug"],
+                        image_id="sha256:0ld",
+                    ),
+                    _raw_image(["PATH=/usr/bin"], "sha256:pinned"),
+                ]
+            )
+        )
+
+    monkeypatch.setattr(stack, "_docker", fake_docker)
+    status = stack_status(transport=httpx.MockTransport(lambda r: httpx.Response(200)))
+    assert status["env"] == {"GF_LOG_LEVEL": "debug"}
+    assert [c[0] for c in calls] == ["inspect", "image"]
+    assert calls[1][-1] == "sha256:0ld"
+
+
+def test_stack_status_keeps_the_container_when_the_pinned_image_is_absent(monkeypatch):
+    # docker inspect exits 1 when one of the objects is missing but still
+    # prints the ones it found: the container answers, the env diff reads
+    # the container's own image.
+    calls: list[tuple] = []
+
+    def fake_docker(*args, **kwargs):
+        calls.append(args)
+        if args[0] == "image":
+            return _Proc(stdout=json.dumps(["PATH=/usr/bin"]))
+        return _Proc(
+            returncode=1,
+            stdout=json.dumps(
+                [_raw_container(env=["PATH=/usr/bin", "GF_LOG_LEVEL=debug"])]
+            ),
+            stderr="No such object: grafana/otel-lgtm:0.33.0",
+        )
+
+    monkeypatch.setattr(stack, "_docker", fake_docker)
+    status = stack_status(transport=httpx.MockTransport(lambda r: httpx.Response(200)))
+    assert status["image"] == "grafana/otel-lgtm:0.33.0"
+    assert status["env"] == {"GF_LOG_LEVEL": "debug"}
+    assert [c[0] for c in calls] == ["inspect", "image"]
+
+
+def test_stack_status_absent_container_makes_no_image_inspect(monkeypatch):
+    calls: list[tuple] = []
+
+    def fake_docker(*args, **kwargs):
+        calls.append(args)
+        return _Proc(returncode=1, stderr="no such object")
+
+    monkeypatch.setattr(stack, "_docker", fake_docker)
+    status = stack_status(transport=httpx.MockTransport(lambda r: httpx.Response(200)))
+    assert status["image"] is None and status["env"] is None
+    assert [c[0] for c in calls] == ["inspect"]
+
+
+def test_probe_clients_build_no_tls_context(monkeypatch):
+    # Observation finding F1 (I1): every probe URL is http://localhost,
+    # and httpx's default TLS context (the CA bundle load) was the ~28 ms
+    # uninstrumented interval of every one-shot status call.
+    seen: list[dict] = []
+
+    class Recording(httpx.Client):
+        def __init__(self, **kwargs):
+            seen.append(kwargs)
+            super().__init__(**kwargs)
+
+    monkeypatch.setattr(stack.httpx, "Client", Recording)
+    stack._readiness(transport=httpx.MockTransport(lambda r: httpx.Response(200)))
+    stack.stored_services(
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, json={}))
+    )
+    assert seen and all(kw.get("verify") is False for kw in seen)
+
+
+def test_stack_module_loads_httpcore_eagerly():
+    # Observation finding F1's residual: httpx builds its transport - and
+    # imports httpcore, ~27 ms - at the first client, in the request path.
+    import sys
+
+    assert "httpcore" in sys.modules

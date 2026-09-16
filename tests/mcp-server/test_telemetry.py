@@ -431,3 +431,57 @@ def test_export_endpoint_follows_the_configured_otlp_port(
         assert os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://localhost:4418"
     finally:
         shutdown()
+
+
+def test_serving_stamps_the_startup_as_one_span(span_capture):
+    # Observation finding F3 (I3): the one-shot process's lifecycle had
+    # no span. The start span begins at the package's import instant.
+    from oddyssey_mcp import IMPORTED_AT_NS
+
+    telemetry.serving()
+    (span,) = span_capture.get_finished_spans()
+    assert span.name == "oddyssey.server.start"
+    assert span.start_time == IMPORTED_AT_NS
+    assert span.end_time >= span.start_time
+    assert span.parent is None
+
+
+def test_the_final_flush_runs_under_the_shutdown_span(span_capture):
+    flushed: list[bool] = []
+    telemetry._shutdown_span(lambda: flushed.append(True))
+    (span,) = span_capture.get_finished_spans()
+    assert span.name == "oddyssey.server.shutdown"
+    assert flushed == [True]
+
+
+def test_serving_never_raises(monkeypatch):
+    class Broken:
+        def start_span(self, *args, **kwargs):
+            raise RuntimeError("exporter gone")
+
+    monkeypatch.setattr(telemetry, "_tracer", Broken())
+    telemetry.serving()
+
+
+def test_serving_is_free_without_telemetry(monkeypatch):
+    # The API's no-op tracer: nothing installed, nothing raised.
+    from opentelemetry import trace
+
+    monkeypatch.setattr(telemetry, "_tracer", trace.get_tracer("noop-test"))
+    telemetry.serving()
+    telemetry._shutdown_span(lambda: None)
+
+
+def test_duration_buckets_resolve_a_status_call():
+    # Observation gap: 105-127 ms all fell in one bucket (0.1-0.25).
+    boundaries = telemetry._DURATION_BUCKETS_SECONDS
+    assert boundaries == sorted(boundaries)
+    assert [b for b in boundaries if b < 0.25] == [
+        0.005,
+        0.01,
+        0.025,
+        0.05,
+        0.075,
+        0.1,
+        0.15,
+    ]

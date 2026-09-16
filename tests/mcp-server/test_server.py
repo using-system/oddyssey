@@ -71,7 +71,9 @@ def test_config_set_resets_the_stack_only_on_port_change_with_container(
         ),
     )
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
-    monkeypatch.setattr(stack, "container_user_env", lambda: None, raising=False)
+    monkeypatch.setattr(
+        stack, "container_user_env", lambda inspected=None: None, raising=False
+    )
 
     # stack change alone: no reset
     result = server.odd_config_set({"stack": "datadog"})
@@ -110,7 +112,7 @@ def test_config_set_survives_a_dead_daemon_for_config_only_changes(
     monkeypatch.setattr(
         stack,
         "container_user_env",
-        lambda: pytest.fail("the port change read the container env"),
+        lambda inspected=None: pytest.fail("the port change read the container env"),
     )
     monkeypatch.setattr(
         stack,
@@ -179,7 +181,9 @@ def test_config_set_boots_a_stopped_container_before_writing_ports(
     events: list[str] = []
     real_save = config_module.save
     monkeypatch.setattr(stack, "_container_state", lambda: "stopped")
-    monkeypatch.setattr(stack, "container_user_env", lambda: None, raising=False)
+    monkeypatch.setattr(
+        stack, "container_user_env", lambda inspected=None: None, raising=False
+    )
     monkeypatch.setattr(
         stack,
         "stack_up",
@@ -210,7 +214,9 @@ def test_config_set_preboot_skips_the_port_guard(monkeypatch, tmp_path):
     # container and reports services_wiped: [] over real data (#35).
     monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / "config.json")
     monkeypatch.setattr(stack, "_container_state", lambda: "stopped")
-    monkeypatch.setattr(stack, "container_user_env", lambda: None, raising=False)
+    monkeypatch.setattr(
+        stack, "container_user_env", lambda inspected=None: None, raising=False
+    )
     guard_flags: list[bool] = []
     monkeypatch.setattr(
         stack,
@@ -259,7 +265,7 @@ def test_config_set_carries_the_container_env_through_the_auto_reset(
     monkeypatch.setattr(
         stack,
         "container_user_env",
-        lambda: events.append("read_env") or {"GF_LOG_LEVEL": "debug"},
+        lambda inspected=None: events.append("read_env") or {"GF_LOG_LEVEL": "debug"},
     )
 
     def fake_reset(env=None, *, persist=True):
@@ -284,7 +290,7 @@ def test_config_set_reset_survives_an_unreadable_container_env(monkeypatch, tmp_
     monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / "config.json")
     captured: dict = {}
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
-    monkeypatch.setattr(stack, "container_user_env", lambda: None)
+    monkeypatch.setattr(stack, "container_user_env", lambda inspected=None: None)
 
     def fake_reset(env=None, *, persist=True):
         captured["env"] = env
@@ -305,7 +311,9 @@ def test_config_set_auto_reset_never_re_persists_the_carried_env(monkeypatch, tm
     monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / "config.json")
     captured: dict = {}
     monkeypatch.setattr(stack, "_container_state", lambda: "running")
-    monkeypatch.setattr(stack, "container_user_env", lambda: {"GF_LOG_LEVEL": "debug"})
+    monkeypatch.setattr(
+        stack, "container_user_env", lambda inspected=None: {"GF_LOG_LEVEL": "debug"}
+    )
 
     def fake_reset(env=None, *, persist=True):
         captured["persist"] = persist

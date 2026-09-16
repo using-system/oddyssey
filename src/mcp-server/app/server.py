@@ -224,6 +224,7 @@ def main() -> None:
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     shutdown = telemetry.setup_telemetry()
     try:
+        telemetry.serving()
         mcp.run()
     finally:
         shutdown()

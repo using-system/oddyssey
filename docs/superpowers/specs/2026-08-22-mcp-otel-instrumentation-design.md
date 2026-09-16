@@ -125,7 +125,13 @@ src/mcp-server/app/
   `oddyssey.docker.image` — and carries
   `oddyssey.docker.image=<image ref>` instead of the container
   attribute. The subject is now a keyword (`container=` or `image=`);
-  container operations keep the shape frozen above.
+  container operations keep the shape frozen above. Amended 2026-09-16
+  (issue #594, observation report finding F10): the status call's
+  `inspect` reads the container and the pinned image in one docker
+  call and carries both subjects - `oddyssey.docker.container` and
+  `oddyssey.docker.image=<the pinned tag>` - under the container
+  operation's name; the fallback `image-inspect` after a pin bump keeps
+  its own shape, its `oddyssey.docker.image` being the image id.
 - `force_flush() -> None` — flushes the span processor with a short
   timeout (~2 s); called by `stack.py` right before the `docker rm` of
   `down`/`reset`. Failure is swallowed.

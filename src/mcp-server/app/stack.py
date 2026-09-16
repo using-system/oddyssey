@@ -11,6 +11,17 @@ import json
 import subprocess
 import time
 
+# httpx imports httpcore lazily, at the first transport it builds - ~27 ms
+# of module loading that landed in the middle of every one-shot status
+# call, between the docker phase and the first probe (the residual of
+# observation finding F1 once the TLS context was gone). Importing it
+# here moves that cost to process startup, inside the server.start span.
+# A warm-up only: httpcore is httpx's dependency, not this project's,
+# so its absence is httpx's business, never a failed server start.
+try:
+    import httpcore  # noqa: F401
+except ImportError:  # pragma: no cover - httpx without httpcore
+    pass
 import httpx
 
 from . import config, telemetry
@@ -313,6 +324,7 @@ def _run_bounded(
 def _docker(
     *args: str,
     image: str | None = None,
+    also_image: str | None = None,
     timeout_s: float = DOCKER_CALL_TIMEOUT_S,
 ) -> subprocess.CompletedProcess:
     """Run one docker command inside its span.
@@ -321,10 +333,15 @@ def _docker(
     image rather than on the stack container (observation finding F2):
     the span then carries oddyssey.docker.image and is named for the
     whole two-word operation ("image-inspect"), which args[0] alone
-    would truncate to the bare noun "image".
+    would truncate to the bare noun "image". also_image names the image
+    a container operation reads alongside the container (the merged
+    inspect of finding F10): the span keeps the container's name and
+    carries both subjects, so a trace still says which image was read.
     """
     if image is None:
-        span_context = telemetry.docker_span(args[0], container=CONTAINER_NAME)
+        span_context = telemetry.docker_span(
+            args[0], container=CONTAINER_NAME, image=also_image
+        )
     else:
         span_context = telemetry.docker_span(f"{args[0]}-{args[1]}", image=image)
     with span_context as span:
@@ -371,8 +388,68 @@ def _container_host_ports() -> dict | None:
     return {key: host_port(p) for key, p in CONTAINER_PORTS.items()}
 
 
-def container_user_env() -> dict[str, str] | None:
+def _parse_inspect(stdout: str) -> list[dict]:
+    """The objects a bare `docker inspect` printed, or nothing readable."""
+    try:
+        parsed = json.loads(stdout.strip() or "null")
+    except ValueError:
+        return []
+    return (
+        [o for o in parsed if isinstance(o, dict)] if isinstance(parsed, list) else []
+    )
+
+
+def _inspect_stack() -> tuple[dict | None, list | None]:
+    """The container's identity and env, and the pinned image's env, in
+    ONE docker inspect.
+
+    Observation findings F2 then F10: the status call ran two inspects
+    of the same container plus the image inspect, then one of each -
+    the docker CLI phase at 81 % of the call. `docker inspect` takes
+    several objects and answers each it finds (exit 1 when one is
+    missing, the found ones still printed), so the container and the
+    pinned IMAGE are read together. The image's env is only trusted
+    when the container was created from that very image (its `.Image`
+    id equals the pin's `Id`): after a pin bump with a surviving old
+    container the two differ, and the caller reads the old image itself
+    (#83). An absent container or unreadable output yields (None, None),
+    never an error.
+    """
+    result = _docker("inspect", CONTAINER_NAME, IMAGE, also_image=IMAGE)
+    objects = _parse_inspect(result.stdout)
+    container = next((o for o in objects if "State" in o), None)
+    if container is None:
+        return None, None
+    container_config = (
+        container.get("Config") if isinstance(container.get("Config"), dict) else {}
+    )
+    state = container.get("State") if isinstance(container.get("State"), dict) else {}
+    inspected = {
+        "image": container_config.get("Image"),
+        "created": container.get("Created"),
+        "started": state.get("StartedAt"),
+        "env": container_config.get("Env"),
+        "image_id": container.get("Image"),
+    }
+    image = next((o for o in objects if "State" not in o), None)
+    image_env = None
+    if image is not None and image.get("Id") == inspected["image_id"]:
+        image_config = (
+            image.get("Config") if isinstance(image.get("Config"), dict) else {}
+        )
+        image_env = image_config.get("Env")
+    return inspected, image_env if isinstance(image_env, list) else None
+
+
+def container_user_env(
+    inspected: dict | None = None, image_env: list | None = None
+) -> dict[str, str] | None:
     """User-set environment of the existing container, or None.
+
+    `inspected` and `image_env` are an `_inspect_stack()` result a
+    caller already holds (the status call passes its own, so docker is
+    asked once); absent, this reads them - and reads the container's
+    own image when the combined inspect could not vouch for it (#83).
 
     The auto-reset of odd_config_set recreates the container and must carry
     forward what the user applied through stack_up/stack_reset (issue #62):
@@ -386,36 +463,29 @@ def container_user_env() -> dict[str, str] | None:
     Best-effort by contract: an unreadable inspect preserves nothing and
     never raises - losing env on that path beats blocking the reset.
     """
-    container = _docker(
-        "inspect",
-        "--format",
-        '{"env": {{json .Config.Env}}, "image": {{json .Image}}}',
-        CONTAINER_NAME,
-    )
-    if container.returncode != 0:
+    if inspected is None:
+        inspected, image_env = _inspect_stack()
+    if inspected is None:
         return None
-    try:
-        parsed = json.loads(container.stdout.strip())
-        container_env = parsed["env"]
-        image_ref = parsed["image"]
-    except (ValueError, KeyError, TypeError):
-        return None
+    container_env = inspected.get("env")
+    image_ref = inspected.get("image_id")
     if not isinstance(container_env, list) or not isinstance(image_ref, str):
         return None
-    image = _docker(
-        "image",
-        "inspect",
-        "--format",
-        "{{json .Config.Env}}",
-        image_ref,
-        image=image_ref,
-    )
-    if image.returncode != 0:
-        return None
-    try:
-        image_env = json.loads(image.stdout.strip())
-    except ValueError:
-        return None
+    if image_env is None:
+        image = _docker(
+            "image",
+            "inspect",
+            "--format",
+            "{{json .Config.Env}}",
+            image_ref,
+            image=image_ref,
+        )
+        if image.returncode != 0:
+            return None
+        try:
+            image_env = json.loads(image.stdout.strip())
+        except ValueError:
+            return None
     inherited = (
         set(image_env if isinstance(image_env, list) else [])
         | set(DEFAULT_ENV)
@@ -485,31 +555,34 @@ def _otlp_ingest_ready(client: httpx.Client) -> bool:
         return False
 
 
-def _container_identity() -> dict | None:
+def _container_identity(inspected: dict | None = None) -> dict | None:
     """Image tag and lifecycle timestamps of the existing container, or None.
 
-    One inspect, best-effort like container_user_env: an absent
-    container or unreadable output yields None, never an error - a
-    status call must not fail because docker hiccupped.
+    Best-effort like container_user_env: an absent container or
+    unreadable output yields None, never an error - a status call must
+    not fail because docker hiccupped. `inspected` is a
+    `_inspect_stack()` container a caller already holds.
     """
-    result = _docker(
-        "inspect",
-        "--format",
-        '{"image": {{json .Config.Image}}, "created": {{json .Created}},'
-        ' "started": {{json .State.StartedAt}}}',
-        CONTAINER_NAME,
-    )
-    if result.returncode != 0:
-        return None
-    try:
-        parsed = json.loads(result.stdout.strip())
-    except ValueError:
-        return None
-    if not isinstance(parsed, dict):
+    parsed = inspected if inspected is not None else _inspect_stack()[0]
+    if parsed is None:
         return None
     if not all(isinstance(parsed.get(k), str) for k in ("image", "created", "started")):
         return None
     return {k: parsed[k] for k in ("image", "created", "started")}
+
+
+def _client(transport: httpx.BaseTransport | None = None) -> httpx.Client:
+    """The HTTP client every probe and query uses - no TLS context.
+
+    Every URL it ever opens is `http://localhost:<port>` (the stack's
+    proxies and the OTLP listener), so the TLS context httpx builds by
+    default is pure cost: loading the CA bundle took ~28 ms of every
+    one-shot status call, uninstrumented (observation finding F1), and
+    ~12 ms on each of stack_up's readiness polls. `verify=False` skips
+    it; nothing here verifies a certificate because nothing here speaks
+    TLS.
+    """
+    return httpx.Client(timeout=3.0, transport=transport, verify=False)
 
 
 def _readiness(transport: httpx.BaseTransport | None = None) -> dict:
@@ -524,7 +597,7 @@ def _readiness(transport: httpx.BaseTransport | None = None) -> dict:
     taken inside that window - which can open seconds after stack_up
     saw the four ready - reports the backends, not the proxy (#574).
     """
-    with httpx.Client(timeout=3.0, transport=transport) as client:
+    with _client(transport) as client:
         signals = {
             "prometheus": _probe(client, _proxy("prometheus", "/-/ready")),
             "tempo": _probe(client, _proxy("tempo", "/ready")),
@@ -537,7 +610,8 @@ def _readiness(transport: httpx.BaseTransport | None = None) -> dict:
 def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
     """Readiness plus the container's identity (issue #118).
 
-    image/created/started come from one inspect, env from
+    image/created/started and env come from ONE docker inspect of the
+    container and the pinned image (findings F2, F10), env through
     container_user_env() with credential-named values redacted to None
     (the name closes the visibility gap - observation finding N3 - the
     value never leaves the server). Absent or unreadable container:
@@ -549,8 +623,11 @@ def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
     daemon "unreachable" plus daemon_remedy, the one-line remedy.
     """
     try:
-        identity = _container_identity()
-        user_env = container_user_env()
+        inspected, image_env = _inspect_stack()
+        identity = _container_identity(inspected) if inspected is not None else None
+        user_env = (
+            container_user_env(inspected, image_env) if inspected is not None else None
+        )
     except DaemonUnreachable as exc:
         remedy = str(exc)
     else:
@@ -682,7 +759,7 @@ def stack_up(
     deadline = time.monotonic() + STARTUP_TIMEOUT_S
     while time.monotonic() < deadline:
         if status["running"]:
-            with httpx.Client(timeout=3.0) as client:
+            with _client() as client:
                 while time.monotonic() < deadline and not _otlp_ingest_ready(client):
                     time.sleep(POLL_INTERVAL_S)
             # Push spans queued while the stack was down/booting into the
@@ -753,7 +830,7 @@ def stored_services(transport: httpx.BaseTransport | None = None) -> list[str]:
         return [v for v in items if isinstance(v, str)]
 
     services: set[str] = set()
-    with httpx.Client(timeout=3.0, transport=transport) as client:
+    with _client(transport) as client:
         try:
             tempo = client.get(
                 _proxy("tempo", "/api/search/tag/service.name/values", ports),
