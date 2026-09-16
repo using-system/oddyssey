@@ -712,6 +712,11 @@ def screen_lines(facts: dict) -> list[str]:
             + [f"decisions.md line {r['line']} - {r['reason']}" for r in skipped]
             + [
                 f"entry-classifications.md line {r['line']} - {r['reason']}"
+                + (
+                    " (a fact, no ruling to make)"
+                    if r["reason"].startswith("no top-level entry named")
+                    else ""
+                )
                 for r in skipped_classes
             ]
         )
@@ -1590,10 +1595,14 @@ def invariant_section(facts: dict) -> list[str]:
     for row in skipped:
         rows.append([f"decisions.md line {row['line']}", row["reason"]])
     for row in skipped_classes:
-        rows.append([f"entry-classifications.md line {row['line']}", row["reason"]])
+        reason = row["reason"]
+        if reason.startswith("no top-level entry named"):
+            # renamed or removed since: reported, and nothing to rule on
+            reason += " (a fact, no ruling to make)"
+        rows.append([f"entry-classifications.md line {row['line']}", reason])
     if rows:
         out += [
-            md_table(["File", "Violation"], rows),
+            md_table(["File", "Reported"], rows),
             "",
             (
                 "The store is append-only: a report is never edited to repair it - "

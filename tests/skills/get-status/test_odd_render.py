@@ -2280,7 +2280,7 @@ def test_a_skipped_classification_row_is_reported_never_fatal(
     line = next(l for l in text.splitlines() if "memory invariant" in l)
     assert "1 ledger row skipped" in line
     assert (
-        "entry-classifications.md line 7 - no top-level entry named nope at HEAD"
+        "entry-classifications.md line 7 - no top-level entry named nope at HEAD (a fact, no ruling to make)"
         in line
     )
     assert "classifications: 0 row(s), 1 skipped" in text
@@ -2291,7 +2291,7 @@ def test_a_skipped_classification_row_is_reported_never_fatal(
     section = full.split("## Memory invariant")[1].split("## ")[0]
     assert "- Classifications: 1 row(s) skipped" in section
     assert (
-        "| entry-classifications.md line 7 | no top-level entry named nope at HEAD |"
+        "| entry-classifications.md line 7 | no top-level entry named nope at HEAD (a fact, no ruling to make) |"
         in section
     )
     assert "- Entry classifications: absent (no entry classified yet)" not in full
