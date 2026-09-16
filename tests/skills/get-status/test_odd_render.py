@@ -3091,3 +3091,104 @@ def test_a_regression_claimed_from_outside_a_settled_chain_stays_listed(
         "## Judgment needed"
     )[1]
     assert "2026-08-14-1000-verify-b.md rules F1" in judgment
+
+
+def test_the_verdict_leads_both_renderings_and_follows_the_action_column(
+    repo, odd_status, odd_render
+):
+    baseline_and_verification(repo)  # a / F1 fixed, F2 open; verify-a covers HEAD
+    facts = odd_status.build_facts(repo.root, recent=None)
+    screen = odd_render.render(facts, today="2026-08-13")
+    full = odd_render.render(facts, today="2026-08-13", full=True)
+    first = screen.splitlines()[2]
+    assert first.startswith("- verdict: ")
+    assert screen.splitlines()[3].startswith("- todo: ")
+    assert full.splitlines()[2] == first
+    status = first.split("- verdict: ")[1].split(" - ")[0]
+    action = (
+        next(l for l in screen.splitlines() if l.startswith("| checkout /"))
+        .split("|")[-2]
+        .strip()
+    )
+    expected = "ok" if action in odd_render.RESTING_ACTIONS else "warning"
+    assert status == expected, (first, action)
+    if status == "ok":
+        assert "- todo: nothing to do" in screen
+    else:
+        assert action in screen.splitlines()[3]
+
+
+def test_the_verdict_is_a_warning_when_the_loop_has_not_started(
+    repo, odd_status, odd_render
+):
+    repo.write("README.md", "hello\n")
+    repo.commit("docs: readme")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    text = odd_render.render(facts, today="2026-08-13")
+    assert "- verdict: warning - the loop has not started here" in text
+    assert "- todo: start the loop: /odd-instrument-otel or /odd-observe" in text
+    assert odd_render.verdict_of(facts)["status"] == "warning"
+
+
+def test_the_verdict_is_an_error_on_a_regression_and_ok_when_the_loop_rests(
+    repo, odd_status, odd_render
+):
+    # a regression ruled by the verification: error, whatever the actions say
+    name = baseline_and_verification(repo)
+    facts = odd_status.build_facts(repo.root, recent=None)
+    rows = odd_render.finding_rows(facts)
+    counts = odd_render.burn_down(rows)
+    recs = odd_render.recommendations(facts, "2026-08-13")
+    resting = [dict(r, action="loop can rest") for r in recs]
+    assert odd_render.verdict(facts, counts, resting)["status"] == "ok"
+    assert odd_render.verdict(facts, dict(counts, regressed=1), resting) == {
+        "status": "error",
+        "reasons": ["1 finding regressed"],
+        "todo": [],
+    }
+    due = [dict(r, action="verification due", evidence="src moved") for r in recs]
+    v = odd_render.verdict(facts, counts, due)
+    assert v["status"] == "warning" and v["todo"] == [
+        f"{r['lineage']}: verification due - src moved" for r in recs
+    ]
+    # every action that is not the resting pair warns - an action added
+    # later included - and a plan's verified state rests
+    for action in (
+        "observation overdue",
+        "fix pending",
+        "plan awaits verification",
+        "judgment needed",
+        "an action added later",
+    ):
+        one = [dict(r, action=action) for r in recs]
+        assert odd_render.verdict(facts, counts, one)["status"] == "warning", action
+    verified = [dict(r, action="plan verified") for r in recs]
+    assert odd_render.verdict(facts, counts, verified)["status"] == "ok"
+    # the rendering keeps reasons and items apart by a middle dot - an
+    # item's evidence carries semicolons of its own
+    two = odd_render.verdict_lines(
+        dict(v, reasons=["a; b", "c"], todo=["a: due - x; y", "b: due - z"])
+    )
+    assert two[0] == "- verdict: warning - a; b \u00b7 c"
+    assert two[1] == "- todo: a: due - x; y \u00b7 b: due - z"
+    assert name  # the fixture wrote a report
+
+
+def test_the_verdict_is_an_error_on_a_failed_verification_or_an_unreadable_report(
+    repo, odd_status, odd_render
+):
+    name = baseline_and_verification(repo)
+    # a lineage whose last verification failed: the fixture's verification,
+    # its verdict line flipped
+    failed = VERIFY_BODY.replace("2/2 checks PASS", "1/2 checks FAIL")
+    write_verify(repo, "2026-08-13-1000-verify-a.md", "2026-08-10-1000-a.md", failed)
+    repo.commit("docs(odd): a failed verification", date="2026-08-13T12:00:00Z")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    v = odd_render.verdict_of(facts)
+    assert v["status"] == "error", v
+    assert any("verify-a.md failed" in r for r in v["reasons"]), v
+    # a report the rules could not read
+    facts["reports"][0] = {"path": facts["reports"][0]["path"], "unreadable": "x"}
+    v = odd_render.verdict_of(facts)
+    assert v["status"] == "error" and any("unreadable" in r for r in v["reasons"])
+    assert name
