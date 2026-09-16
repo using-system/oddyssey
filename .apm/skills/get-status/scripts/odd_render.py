@@ -694,12 +694,15 @@ def verdict_of(facts: dict, today: str | date | None = None) -> dict:
     return verdict(facts, burn_down(rows), recommendations(facts, today))
 
 
+# reasons and todo items apart by a middle dot: an item's evidence, or a
+# frontmatter error, carries semicolons of its own
+DOT = " \u00b7 "
+
+
 def verdict_lines(v: dict) -> list[str]:
     return [
-        # reasons and items apart by a middle dot: an item's evidence, or a
-        # frontmatter error, carries semicolons of its own
-        f"- verdict: {v['status']} - {' \u00b7 '.join(v['reasons'])}",
-        "- todo: " + (" \u00b7 ".join(v["todo"]) if v["todo"] else "nothing to do"),
+        f"- verdict: {v['status']} - {DOT.join(v['reasons'])}",
+        "- todo: " + (DOT.join(v["todo"]) if v["todo"] else "nothing to do"),
         "",
     ]
 
