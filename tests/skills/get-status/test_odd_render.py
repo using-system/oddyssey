@@ -1435,13 +1435,14 @@ def test_a_paragraph_the_split_cannot_cut_is_named_as_one_paragraph(
     [row] = odd_render.gap_rows(facts)
     assert row["cut"] == len(paragraph) and row["truncated"] is False
     assert row["gap"].endswith(odd_render.ELLIPSIS)
-    judgment = odd_render.render(facts, today="2026-08-11").split("## Judgment needed")[
-        1
-    ]
+    text = odd_render.render(facts, today="2026-08-11", full=True)
+    judgment = text.split("## Judgment needed")[1]
+    # the cap is a rendering fact, said under the gaps, never a deferral
+    assert "one paragraph" not in judgment
     assert (
-        f"section 5 of 2026-08-10-1000-a.md is one paragraph: {len(paragraph)} "
-        "characters, cut at 500, open the body for the gaps it carries"
-    ) in judgment
+        f"- section 5 of 2026-08-10-1000-a.md is one paragraph of {len(paragraph)} "
+        "characters, shown up to 500; the body carries the whole"
+    ) in text.split("## Open telemetry gaps")[1].split("## Next recommended")[0]
     assert "beyond the cap" not in judgment
 
 
@@ -1459,13 +1460,14 @@ def test_a_bullet_cut_at_the_cap_is_named_as_a_cut_gap(repo, odd_status, odd_ren
     facts = odd_status.build_facts(repo.root, recent=None, max_title=None)
     [row] = odd_render.gap_rows(facts)
     assert row["cut"] > odd_render.MAX_GAP_LENGTH and row["truncated"] is False
-    judgment = odd_render.render(facts, today="2026-08-11").split("## Judgment needed")[
-        1
-    ]
+    text = odd_render.render(facts, today="2026-08-11", full=True)
+    judgment = text.split("## Judgment needed")[1]
+    # the cap is a rendering fact, said under the gaps, never a deferral
+    assert "cut at 500" not in judgment and "shown up to 500" not in judgment
     assert (
-        "section 5 of 2026-08-10-1000-a.md: 1 gap cut at 500 characters, "
-        "open the body for the rest of it"
-    ) in judgment
+        "- 1 gap of 2026-08-10-1000-a.md shown up to 500 characters; the body "
+        "carries the whole"
+    ) in text.split("## Open telemetry gaps")[1].split("## Next recommended")[0]
     assert "beyond the cap" not in judgment
 
 
@@ -1566,11 +1568,15 @@ def test_a_gap_bullet_past_both_caps_is_deferred_once(repo, odd_status, odd_rend
     rows, judgment = gaps_judgment(repo, odd_status, odd_render, huge.rstrip(", "))
     # the lift cut the bullet, the row cut what the lift left (less its marker)
     assert [r["cut"] for r in rows] == [odd_status.DEFAULT_MAX_TEXT - 1]
-    assert (
-        "section 5 of 2026-08-10-1000-a.md: 1 gap cut at 500 characters, "
-        "open the body for the rest of it"
-    ) in judgment
+    assert "cut at 500" not in judgment and "shown up to 500" not in judgment
     assert "beyond the cap" not in judgment and "by the lift" not in judgment
+    full = odd_render.render(
+        odd_status.build_facts(repo.root, recent=None), today="2026-08-11", full=True
+    )
+    assert (
+        "- 1 gap of 2026-08-10-1000-a.md shown up to 500 characters; the body "
+        "carries the whole"
+    ) in full.split("## Open telemetry gaps")[1]
 
 
 def test_two_verdict_words_are_deferred_as_two_verdicts(repo, odd_status, odd_render):
@@ -1942,13 +1948,14 @@ def test_a_ruling_settles_the_out_of_chain_item_it_names(repo, odd_status, odd_r
     f1_item = "2026-08-14-1000-verify-b.md rules F1"
     f2_item = "2026-08-14-1000-verify-b.md rules F2"
     judgment = before.split("## Judgment needed")[1]
-    assert f1_item in judgment and f2_item in judgment
+    # a / F1 is fixed by a's own verification: its chain settled it, no item;
+    # a / F2 is open: the homonym question stands
+    assert f1_item not in judgment and f2_item in judgment
     after = odd_render.render(
-        facts, today="2026-08-15", full=True, ruled=["2026-08-10-1000-a.md/F1=fixed"]
+        facts, today="2026-08-15", full=True, ruled=["2026-08-10-1000-a.md/F2=fixed"]
     )
     judgment = after.split("## Judgment needed")[1]
-    assert f1_item not in judgment  # settled: every finding it names is ruled
-    assert f2_item in judgment  # untouched
+    assert f2_item not in judgment  # settled: every finding it names is ruled
 
 
 def test_the_burn_down_is_attributed_per_lineage(repo, odd_status, odd_render):
@@ -2279,19 +2286,18 @@ def test_a_skipped_classification_row_is_reported_never_fatal(
     line = next(l for l in text.splitlines() if "memory invariant" in l)
     assert "1 ledger row skipped" in line
     assert (
-        "entry-classifications.md line 7 - no top-level entry named nope at HEAD"
+        "entry-classifications.md line 7 - no top-level entry named nope at HEAD (a fact, no ruling to make)"
         in line
     )
     assert "classifications: 0 row(s), 1 skipped" in text
-    assert (
-        "classification line 7 skipped: no top-level entry named nope at HEAD"
-        in text.split("## Judgment needed")[1]
-    )
+    # reported by the invariant, never a judgment: no ruling can act on an
+    # entry that is gone, and the ledger is append-only
+    assert "classification line 7 skipped" not in text.split("## Judgment needed")[1]
     full = rendered(repo, odd_status, odd_render)
     section = full.split("## Memory invariant")[1].split("## ")[0]
     assert "- Classifications: 1 row(s) skipped" in section
     assert (
-        "| entry-classifications.md line 7 | no top-level entry named nope at HEAD |"
+        "| entry-classifications.md line 7 | no top-level entry named nope at HEAD (a fact, no ruling to make) |"
         in section
     )
     assert "- Entry classifications: absent (no entry classified yet)" not in full
@@ -2946,3 +2952,142 @@ def test_a_verification_carrying_no_ruling_row_at_all_is_deferred(
         "2026-08-10-1000-a.md (2 findings left unruled): it carries no ruling "
         "row at all - open the body" in judgment
     )
+
+
+def test_a_ledger_row_settles_the_out_of_chain_item_for_good(
+    repo, odd_status, odd_render
+):
+    # the same setup as the --ruled test above: verify-b rules F1, which only
+    # report a defines. A decisions-ledger row declining a / F1 is the
+    # maintainer's judgment, persisted - the item leaves the list on every
+    # run, with no flag
+    baseline_and_verification(repo)
+    body_b = DEFAULT_BODY.replace("| F1 | N+1 on cart lines", "| F3 | Lock contention")
+    body_b = body_b.replace(
+        "| F2 | Cold start | low | suspected | first call 400 ms | none |\n", ""
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-13-1000-b.md",
+        observation(run_name="b", date="2026-08-13", body=body_b),
+    )
+    write_verify(
+        repo, "2026-08-14-1000-verify-b.md", "2026-08-13-1000-b.md", VERIFY_BODY
+    )
+    repo.commit("docs(odd): reports")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    judgment = odd_render.render(facts, today="2026-08-15", full=True).split(
+        "## Judgment needed"
+    )[1]
+    assert "2026-08-14-1000-verify-b.md rules F2" in judgment  # a / F2 open: deferred
+    repo.write(
+        ".odd/decisions.md",
+        LEDGER_HEAD + "| 2026-08-15 | 2026-08-10-1000-a.md / F2 | fixed-elsewhere "
+        "| fixed by #1, ruled by verify-b outside its chain |\n",
+    )
+    repo.commit("docs(odd): a decision")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    judgment = odd_render.render(facts, today="2026-08-15", full=True).split(
+        "## Judgment needed"
+    )[1]
+    assert "2026-08-14-1000-verify-b.md rules F2" not in judgment  # settled by the row
+    # a reopened finding is deferred again: open is the one verdict that undoes it
+    repo.write(
+        ".odd/decisions.md",
+        LEDGER_HEAD
+        + "| 2026-08-15 | 2026-08-10-1000-a.md / F2 | fixed-elsewhere | fixed by #1 |\n"
+        + "| 2026-08-16 | 2026-08-10-1000-a.md / F2 | open | back to the reports |\n",
+    )
+    repo.commit("docs(odd): reversal")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    judgment = odd_render.render(facts, today="2026-08-16", full=True).split(
+        "## Judgment needed"
+    )[1]
+    assert "2026-08-14-1000-verify-b.md rules F2" in judgment
+
+
+def test_a_classification_row_for_a_gone_entry_is_a_fact_not_a_judgment(
+    repo, odd_status, odd_render
+):
+    # the entry was renamed or removed: the memory invariant reports the
+    # skipped row, the judgment list does not ask anyone to rule on it -
+    # nothing can be ruled on an entry that is gone, and the ledger is
+    # append-only. A row skipped for a bad class is still a judgment.
+    baseline_and_verification(repo)
+    repo.write(
+        ".odd/entry-classifications.md",
+        "# ODD entry classifications\n\nRows are appended, never rewritten.\n\n"
+        "| Date | Entry | Class | Rationale |\n|---|---|---|---|\n"
+        "| 2026-08-12 | gone | non-runtime | renamed since |\n"
+        "| 2026-08-12 | src | maybe | no such class |\n",
+    )
+    repo.commit("docs(odd): classifications")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    text = odd_render.render(facts, today="2026-08-13", full=True)
+    invariant, judgment = (
+        text.split("## Memory invariant")[1].split("## Loop state")[0],
+        text.split("## Judgment needed")[1],
+    )
+    assert "no top-level entry named gone at HEAD" in invariant
+    assert "classification line 7 skipped" not in judgment
+    assert (
+        "classification line 8 skipped: class is neither runtime nor non-runtime"
+        in (judgment)
+    )
+    screen = odd_render.render(facts, today="2026-08-13")
+    assert "no top-level entry named gone at HEAD" in screen.split("## Loop state")[0]
+    assert "classification line 7 skipped" not in screen.split("## Judgment needed")[1]
+
+
+def test_a_finding_its_own_chain_settled_earns_no_out_of_chain_judgment(
+    repo, odd_status, odd_render
+):
+    # verify-a rules a / F1 fixed inside a's chain; verify-b (another chain
+    # of the lineage) rules F1 too, outside its chain. The homonym question
+    # changes nothing for a finding its chain already settled: no item.
+    baseline_and_verification(repo)  # a / F1 fixed by verify-a, F2 open
+    body_b = DEFAULT_BODY.replace("| F1 | N+1 on cart lines", "| F3 | Lock contention")
+    body_b = body_b.replace(
+        "| F2 | Cold start | low | suspected | first call 400 ms | none |\n", ""
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-13-1000-b.md",
+        observation(run_name="b", date="2026-08-13", body=body_b),
+    )
+    write_verify(
+        repo, "2026-08-14-1000-verify-b.md", "2026-08-13-1000-b.md", VERIFY_BODY
+    )
+    repo.commit("docs(odd): reports")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    judgment = odd_render.render(facts, today="2026-08-15", full=True).split(
+        "## Judgment needed"
+    )[1]
+    assert "2026-08-14-1000-verify-b.md rules F1" not in judgment  # a / F1: fixed
+    assert "2026-08-14-1000-verify-b.md rules F2" in judgment  # a / F2: still open
+
+
+def test_a_regression_claimed_from_outside_a_settled_chain_stays_listed(
+    repo, odd_status, odd_render
+):
+    # a / F1 is fixed by a's own verification; verify-b, another chain of the
+    # lineage, rules F1 worse - the one out-of-chain case never dropped
+    baseline_and_verification(repo)
+    body_b = DEFAULT_BODY.replace("| F1 | N+1 on cart lines", "| F3 | Lock contention")
+    body_b = body_b.replace(
+        "| F2 | Cold start | low | suspected | first call 400 ms | none |\n", ""
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-13-1000-b.md",
+        observation(run_name="b", date="2026-08-13", body=body_b),
+    )
+    worse = VERIFY_BODY.replace(
+        "| F1 | N+1 on cart lines | FIXED | 1 span per call |",
+        "| F1 | N+1 on cart lines | worse, regressed | 12 spans per call |",
+    )
+    assert worse != VERIFY_BODY
+    write_verify(repo, "2026-08-14-1000-verify-b.md", "2026-08-13-1000-b.md", worse)
+    repo.commit("docs(odd): reports")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    judgment = odd_render.render(facts, today="2026-08-15", full=True).split(
+        "## Judgment needed"
+    )[1]
+    assert "2026-08-14-1000-verify-b.md rules F1" in judgment

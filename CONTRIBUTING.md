@@ -96,8 +96,8 @@ spec wins if this summary ever drifts):
   `tests/`, or `integration-tests/` change. The same workflow also
   runs the loop's `odd-status` verdict on the server through the
   [oddyssey-actions](https://github.com/using-system/oddyssey-actions),
-  on the repository's own PRs, judging with the package's latest
-  release; read its summary. It is not a required check, but an
+  on the repository's own PRs, judging with the PR's own package (a
+  release is never cut to prove a PR); read its summary. It is not a required check, but an
   `error` verdict fails the run.
 - **A change on the path of `/odd-observe`, `/odd-verify` or
   `/odd-status` is measured before the PR** with the

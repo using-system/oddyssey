@@ -63,7 +63,8 @@ jobs:
   odd-status:
     # The loop's verdict on the server, the way a consumer gets it: the
     # oddyssey-actions on this repository's own memory (.odd/), Copilot
-    # on the actions' default model, the package at its latest release.
+    # on the actions' default model, the package at the PR's own commit
+    # (when the job runs: this workflow's paths filter, not every PR).
     # The run is billed to this repository, so it runs on its own PRs
     # only (a fork's PR gets no copilot-requests anyway); its verdict
     # table lands in the run's summary. Not a required check.
@@ -84,8 +85,14 @@ jobs:
           # .git/config for a run that has a shell.
           fetch-depth: 0
           persist-credentials: false
-      - uses: using-system/oddyssey-actions/setup-copilot@fd986d11acad06eaf68a8487c96dd4f599c431e9 # v1.2.2
-      - uses: using-system/oddyssey-actions/odd-status@fd986d11acad06eaf68a8487c96dd4f599c431e9 # v1.2.2
+      - uses: using-system/oddyssey-actions/setup-copilot@24d88425a007c967f132653822cf237df9bddef7 # v1.2.3
+        with:
+          # The PR's own package - its skills, its status script - on the
+          # repository's memory: when the job runs, what it judges is what
+          # the PR ships, not the last release (a release is never cut to
+          # prove a PR).
+          oddyssey-version: ${{ github.event.pull_request.head.sha }}
+      - uses: using-system/oddyssey-actions/odd-status@24d88425a007c967f132653822cf237df9bddef7 # v1.2.3
         with:
           prompt: oddyssey-mcp
           fail-on: error
