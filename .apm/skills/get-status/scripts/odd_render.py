@@ -430,10 +430,20 @@ def out_of_chain_rulings(facts: dict, ruled: frozenset[str] = frozenset()) -> li
     """Rulings a verification carries on an id no report in its chain defines,
     while another report does - the same finding, or a homonym: a judgment.
 
-    An item is settled, and dropped, once the caller ruled every finding
-    it names (``ruled`` holds their ledger keys)."""
+    An item is settled, and dropped, once every finding it names is ruled:
+    by the caller for this run (``ruled`` holds their ledger keys), or for
+    good by the decisions ledger, whose latest row on the finding declines
+    it - the maintainer's judgment, persisted where the status reads it."""
     by_name = {name_of(r): r for r in readable(facts)}
     definers = finding_definers(facts)
+    effective = facts["ledger"]["effective"]
+
+    def settled(key: str) -> bool:
+        decision = effective.get(key)
+        return key in ruled or bool(
+            decision and str(decision["verdict"]).lower() != "open"
+        )
+
     out = []
     for verification in readable(facts):
         if not is_verify(verification):
@@ -445,7 +455,7 @@ def out_of_chain_rulings(facts: dict, ruled: frozenset[str] = frozenset()) -> li
         for row in rulings_of(verification):
             defined = definers.get((lineage_label(verification), row["id"]), [])
             if defined and not any(d in in_chain for d in defined):
-                if all(f"{d} / {row['id']}" in ruled for d in defined):
+                if all(settled(f"{d} / {row['id']}") for d in defined):
                     continue
                 out.append(
                     f"{name_of(verification)} rules {row['id']} "
@@ -1688,7 +1698,12 @@ def render(
         if row["status"] == "skipped":
             hygiene.append(f"ledger line {row['line']} skipped: {row['reason']}")
     for row in (facts.get("classifications") or {"rows": []})["rows"]:
-        if row["status"] == "skipped":
+        # a row naming an entry HEAD no longer carries (renamed, removed)
+        # is a fact of the memory invariant, never a judgment: no ruling
+        # can act on an entry that is gone, and the ledger is append-only
+        if row["status"] == "skipped" and not row["reason"].startswith(
+            "no top-level entry named"
+        ):
             hygiene.append(
                 f"classification line {row['line']} skipped: {row['reason']}"
             )

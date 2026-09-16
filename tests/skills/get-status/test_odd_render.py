@@ -2283,10 +2283,9 @@ def test_a_skipped_classification_row_is_reported_never_fatal(
         in line
     )
     assert "classifications: 0 row(s), 1 skipped" in text
-    assert (
-        "classification line 7 skipped: no top-level entry named nope at HEAD"
-        in text.split("## Judgment needed")[1]
-    )
+    # reported by the invariant, never a judgment: no ruling can act on an
+    # entry that is gone, and the ledger is append-only
+    assert "classification line 7 skipped" not in text.split("## Judgment needed")[1]
     full = rendered(repo, odd_status, odd_render)
     section = full.split("## Memory invariant")[1].split("## ")[0]
     assert "- Classifications: 1 row(s) skipped" in section
@@ -2946,3 +2945,82 @@ def test_a_verification_carrying_no_ruling_row_at_all_is_deferred(
         "2026-08-10-1000-a.md (2 findings left unruled): it carries no ruling "
         "row at all - open the body" in judgment
     )
+
+
+def test_a_ledger_row_settles_the_out_of_chain_item_for_good(
+    repo, odd_status, odd_render
+):
+    # the same setup as the --ruled test above: verify-b rules F1, which only
+    # report a defines. A decisions-ledger row declining a / F1 is the
+    # maintainer's judgment, persisted - the item leaves the list on every
+    # run, with no flag
+    baseline_and_verification(repo)
+    body_b = DEFAULT_BODY.replace("| F1 | N+1 on cart lines", "| F3 | Lock contention")
+    body_b = body_b.replace(
+        "| F2 | Cold start | low | suspected | first call 400 ms | none |\n", ""
+    )
+    repo.write(
+        ".odd/observe-run-reports/2026-08-13-1000-b.md",
+        observation(run_name="b", date="2026-08-13", body=body_b),
+    )
+    write_verify(
+        repo, "2026-08-14-1000-verify-b.md", "2026-08-13-1000-b.md", VERIFY_BODY
+    )
+    repo.write(
+        ".odd/decisions.md",
+        LEDGER_HEAD + "| 2026-08-15 | 2026-08-10-1000-a.md / F1 | fixed-elsewhere "
+        "| fixed by #1, ruled by verify-b outside its chain |\n",
+    )
+    repo.commit("docs(odd): reports and a decision")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    judgment = odd_render.render(facts, today="2026-08-15", full=True).split(
+        "## Judgment needed"
+    )[1]
+    assert "2026-08-14-1000-verify-b.md rules F1" not in judgment  # settled by the row
+    assert "2026-08-14-1000-verify-b.md rules F2" in judgment  # no row: still deferred
+    # a reopened finding is deferred again: open is the one verdict that undoes it
+    repo.write(
+        ".odd/decisions.md",
+        LEDGER_HEAD
+        + "| 2026-08-15 | 2026-08-10-1000-a.md / F1 | fixed-elsewhere | fixed by #1 |\n"
+        + "| 2026-08-16 | 2026-08-10-1000-a.md / F1 | open | back to the reports |\n",
+    )
+    repo.commit("docs(odd): reversal")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    judgment = odd_render.render(facts, today="2026-08-16", full=True).split(
+        "## Judgment needed"
+    )[1]
+    assert "2026-08-14-1000-verify-b.md rules F1" in judgment
+
+
+def test_a_classification_row_for_a_gone_entry_is_a_fact_not_a_judgment(
+    repo, odd_status, odd_render
+):
+    # the entry was renamed or removed: the memory invariant reports the
+    # skipped row, the judgment list does not ask anyone to rule on it -
+    # nothing can be ruled on an entry that is gone, and the ledger is
+    # append-only. A row skipped for a bad class is still a judgment.
+    baseline_and_verification(repo)
+    repo.write(
+        ".odd/entry-classifications.md",
+        "# ODD entry classifications\n\nRows are appended, never rewritten.\n\n"
+        "| Date | Entry | Class | Rationale |\n|---|---|---|---|\n"
+        "| 2026-08-12 | gone | non-runtime | renamed since |\n"
+        "| 2026-08-12 | src | maybe | no such class |\n",
+    )
+    repo.commit("docs(odd): classifications")
+    facts = odd_status.build_facts(repo.root, recent=None)
+    text = odd_render.render(facts, today="2026-08-13", full=True)
+    invariant, judgment = (
+        text.split("## Memory invariant")[1].split("## Loop state")[0],
+        text.split("## Judgment needed")[1],
+    )
+    assert "no top-level entry named gone at HEAD" in invariant
+    assert "classification line 7 skipped" not in judgment
+    assert (
+        "classification line 8 skipped: class is neither runtime nor non-runtime"
+        in (judgment)
+    )
+    screen = odd_render.render(facts, today="2026-08-13")
+    assert "no top-level entry named gone at HEAD" in screen.split("## Loop state")[0]
+    assert "classification line 7 skipped" not in screen.split("## Judgment needed")[1]
