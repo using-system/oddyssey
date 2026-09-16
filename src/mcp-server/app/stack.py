@@ -11,6 +11,12 @@ import json
 import subprocess
 import time
 
+# httpx imports httpcore lazily, at the first transport it builds - ~27 ms
+# of module loading that landed in the middle of every one-shot status
+# call, between the docker phase and the first probe (the residual of
+# observation finding F1 once the TLS context was gone). Importing it
+# here moves that cost to process startup, inside the server.start span.
+import httpcore  # noqa: F401
 import httpx
 
 from . import config, telemetry

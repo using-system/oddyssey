@@ -1786,3 +1786,12 @@ def test_probe_clients_build_no_tls_context(monkeypatch):
         transport=httpx.MockTransport(lambda r: httpx.Response(200, json={}))
     )
     assert seen and all(kw.get("verify") is False for kw in seen)
+
+
+def test_stack_module_loads_httpcore_eagerly():
+    # Observation finding F1's residual: httpx builds its transport - and
+    # imports httpcore, ~27 ms - at the first client, in the request path.
+    import sys
+
+    assert "httpcore" in sys.modules
+    assert "httpcore._sync.connection_pool" in sys.modules
