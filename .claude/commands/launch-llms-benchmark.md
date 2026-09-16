@@ -693,7 +693,13 @@ Steps:
      inside a 1240 s run, on the first run). The two together separate
      the two ways of being slow — many short turns is a model groping,
      few long ones is a model slow to answer.
-   - the **oddyssey version** (`odd_config_get`'s `version`);
+   - the **oddyssey version** (`odd_config_get`'s `version`) — the
+     release whose `.apm/` tree the run read. When the server the CLI
+     launched carries a later patch whose `.apm/` is identical
+     (`git diff <that tag> HEAD -- .apm` empty), the row keeps the
+     release's version and the pull request states what the server
+     answered (2026-09-16: the install generated `oddyssey-mcp==1.12.1`
+     under a `.apm/` identical to `v1.12.0`'s);
    - how many of the four signals the run actually queried — count
      `gcx metrics` / `traces` / `logs` / `profiles` invocations in
      `~/.local/share/opencode/log/opencode.log` for this run's id, and
