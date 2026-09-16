@@ -661,7 +661,12 @@ Steps:
      rate inside a weekday window; pick the tier the run's UTC launch
      time falls in (one model of this campaign doubles its rates on
      weekdays between 01:00–04:00 and 06:00–10:00 UTC, and a run at
-     19:35 UTC reconciled at the base rates). If it still
+     19:35 UTC reconciled at the base rates). The tier billed can also
+     differ from the window published: on 2026-09-16 two runs of that
+     model thirteen minutes apart, both after the window's 10:00 UTC
+     end, reconciled one exactly at the doubled tier and the other
+     exactly at the base tier — the table takes the recorded figure and
+     the pull request names the tier it reconciled at. If it still
      does not reconcile, say so instead of publishing the number.
 
    Also read off, under either CLI:

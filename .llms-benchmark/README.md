@@ -22,13 +22,13 @@ CLI, always its latest run.
 | Rank | Model | CLI | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | **#1** | `z-ai/glm-5.3` | opencode | 1.12.0 | 18 / 19 | 12 / 4 / 3 | 12m23s | $1.98 | $0.110 |
-| **#2** | `openai/gpt-5.6-luna` | copilot | 1.12.0 | 6 / 7 | 3 / 3 / 1 | **7m02s** | **$0.10** | **$0.016** |
-| **#3** | `google/gemini-3.7-flash` | opencode | 1.12.0 | **7 / 7** | 3 / 3 / 1 | 8m34s | $0.87 | $0.124 |
-| **#4** | `openai/gpt-5.6-terra` | copilot | 1.12.0 | 14 / 15 | 11 / 3 / 1 | 14m50s | $2.47 | $0.176 |
-| **#5** | `openai/gpt-5.6-sol` | copilot | 1.12.0 | 11 / 12 | 8 / 3 / 1 | 9m39s | $3.12 | $0.284 |
-| **#6** | `google/gemini-3.8-flash` | opencode | 1.12.0 | **10 / 10** | 5 / 4 / 1 | 14m59s | $1.96 | $0.196 |
-| **#7** | `anthropic/claude-opus-5` | claude | 1.12.0 | 18 / 19 | 12 / 6 / 1 | 21m55s | $6.33 | $0.352 |
-| **#8** | `deepseek/deepseek-v4.1-flash` | opencode | 1.12.0 | 15 / 16 | 11 / 3 / 2 | 58m54s | $0.36 | $0.024 |
+| **#2** | `deepseek/deepseek-v4.1-flash` | opencode | 1.12.0 | **10 / 10** | 5 / 3 / 2 | 9m54s | $0.20 | $0.020 |
+| **#3** | `openai/gpt-5.6-luna` | copilot | 1.12.0 | 6 / 7 | 3 / 3 / 1 | **7m02s** | **$0.10** | **$0.016** |
+| **#4** | `google/gemini-3.7-flash` | opencode | 1.12.0 | **7 / 7** | 3 / 3 / 1 | 8m34s | $0.87 | $0.124 |
+| **#5** | `openai/gpt-5.6-terra` | copilot | 1.12.0 | 14 / 15 | 11 / 3 / 1 | 14m50s | $2.47 | $0.176 |
+| **#6** | `openai/gpt-5.6-sol` | copilot | 1.12.0 | 11 / 12 | 8 / 3 / 1 | 9m39s | $3.12 | $0.284 |
+| **#7** | `google/gemini-3.8-flash` | opencode | 1.12.0 | **10 / 10** | 5 / 4 / 1 | 14m59s | $1.96 | $0.196 |
+| **#8** | `anthropic/claude-opus-5` | claude | 1.12.0 | 18 / 19 | 12 / 6 / 1 | 21m55s | $6.33 | $0.352 |
 | **#9** | `anthropic/claude-fable-5.1` | claude | 1.12.0 | **17 / 17** | 10 / 5 / 2 | 17m08s | $7.55 | $0.444 |
 | **#10** | `z-ai/glm-5.3-flash` | opencode | 1.12.0 | 13 / 14 | 7 / 4 / 2 | 66m43s | $0.24 | $0.018 |
 | **#11** | `qwen/qwen3.8-27b` | opencode | 1.12.0 | 14 / 16 | 10 / 3 / 3 | 43m52s | $2.09 | $0.150 |
@@ -41,13 +41,13 @@ CLI, always its latest run.
 | Model | CLI | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `z-ai/glm-5.3` | opencode | 1.12.0 | 1m28s | 2m01s | 8m54s | 46 | 6.1s | 4.2M | 139k | 4.0M | 4/4 |
+| `deepseek/deepseek-v4.1-flash` | opencode | 1.12.0 | 1m27s | 2m01s | 6m26s | 48 | 4.2s | 4.1M | 76k | 3.8M | 4/4 |
 | `openai/gpt-5.6-luna` | copilot | 1.12.0 | 1m03s | 2m01s | 3m58s | 38 | 3.2s | 2.5M | 15k | 2.5M | 4/4 |
 | `google/gemini-3.7-flash` | opencode | 1.12.0 | 2m11s | 2m02s | 4m21s | 71 | 4.3s | 4.2M | 31k | 3.5M | 4/4 |
 | `openai/gpt-5.6-terra` | copilot | 1.12.0 | 1m39s | 2m00s | 11m11s | 64 | 3.9s | 6.5M | 54k | 6.5M | 4/4 |
 | `openai/gpt-5.6-sol` | copilot | 1.12.0 | 1m38s | 2m00s | 6m01s | 53 | 4.6s | 3.9M | 22k | 3.8M | 4/4 |
 | `google/gemini-3.8-flash` | opencode | 1.12.0 | 4m26s | 2m02s | 8m31s | 135 | 3.1s | 10.7M | 33k | 9.2M | 4/4 |
 | `anthropic/claude-opus-5` | claude | 1.12.0 | 3m36s | 2m00s | 16m19s | 57 | 8.6s | 6.3M | 59k | 6.3M | 4/4 |
-| `deepseek/deepseek-v4.1-flash` | opencode | 1.12.0 | 24m06s | 2m01s | 32m47s | 64 | 18.7s | 6.3M | 69k | 4.3M | 4/4 |
 | `anthropic/claude-fable-5.1` | claude | 1.12.0 | 2m52s | 2m02s | 12m14s | 36 | 3.6s | 3.6M | 60k | 3.6M | 4/4 |
 | `z-ai/glm-5.3-flash` | opencode | 1.12.0 | 11m45s | 2m00s | 52m58s | 46 | 48.1s | 4.0M | 115k | 2.5M | 4/4 |
 | `qwen/qwen3.8-27b` | opencode | 1.12.0 | 10m51s | 2m01s | 31m00s | 80 | 24.8s | 11.5M | 121k | 10.7M | 4/4 |
@@ -64,7 +64,7 @@ design.
 
 | Rank | Model | CLI | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **#1** | `deepseek/deepseek-v4.1-flash` | opencode | 1.12.0 | **11 / 11** | 6 / 3 / 2 | 16m04s | **$0.14** | **$0.012** |
+| **#1** | `deepseek/deepseek-v4.1-flash` | opencode | 1.12.0 | **8 / 8** | 4 / 3 / 1 | 8m50s | **$0.09** | **$0.011** |
 | **#2** | `google/gemini-3.7-flash` | opencode | 1.12.0 | **5 / 5** | 1 / 4 / 0 | **8m24s** | $0.73 | $0.146 |
 | **#3** | `anthropic/claude-opus-5` | claude | 1.12.0 | **15 / 15** | 10 / 4 / 1 | 14m30s | $5.19 | $0.346 |
 
@@ -73,7 +73,7 @@ design.
 
 | Model | CLI | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `deepseek/deepseek-v4.1-flash` | opencode | 1.12.0 | 5m31s | 2m03s | 8m30s | 53 | 11.2s | 4.8M | 81k | 4.3M | 4/4 |
+| `deepseek/deepseek-v4.1-flash` | opencode | 1.12.0 | 1m01s | 2m02s | 5m47s | 58 | 4.1s | 5.0M | 66k | 4.8M | 2/4 |
 | `google/gemini-3.7-flash` | opencode | 1.12.0 | 3m00s | 2m01s | 3m23s | 85 | 3.2s | 4.1M | 21k | 3.6M | 4/4 |
 | `anthropic/claude-opus-5` | claude | 1.12.0 | 2m20s | 2m00s | 10m10s | 51 | 2.8s | 4.8M | 50k | 4.8M | 4/4 |
 
