@@ -59,3 +59,26 @@ jobs:
         run: uv sync --project src/mcp-server
       - name: Run the integration tests
         run: bash integration-tests/mcp-server/run.sh
+
+  odd-status:
+    # The loop's verdict on the server, the way a consumer gets it: the
+    # oddyssey-actions on this repository's own memory (.odd/), Copilot
+    # on the actions' default model, the package at its latest release.
+    # The run is billed to this repository, so it runs on its own PRs
+    # only (a fork's PR gets no copilot-requests anyway); its verdict
+    # table lands in the run's summary. Not a required check.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      copilot-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: using-system/oddyssey-actions/setup-copilot@22b03769eac9c4b3291318587b030af4ab415ee1 # v1.1.0
+      - uses: using-system/oddyssey-actions/odd-status@22b03769eac9c4b3291318587b030af4ab415ee1 # v1.1.0
+        timeout-minutes: 10
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          prompt: oddyssey-mcp
+          fail-on: error

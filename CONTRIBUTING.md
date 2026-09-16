@@ -93,7 +93,11 @@ spec wins if this summary ever drifts):
   in the PR first — it triggers a major release.
 - CI must be green: the 8-target APM matrix runs on every PR; the
   server's lint, unit, and integration jobs all run when `src/`,
-  `tests/`, or `integration-tests/` change.
+  `tests/`, or `integration-tests/` change. The same workflow also
+  runs the loop's `odd-status` verdict on the server through the
+  [oddyssey-actions](https://github.com/using-system/oddyssey-actions),
+  on the repository's own PRs; read its summary, it is not a required
+  check.
 - **A change on the path of `/odd-observe`, `/odd-verify` or
   `/odd-status` is measured before the PR** with the
   `test-plugin-harnessing` skill (`.claude/skills/`), against main
