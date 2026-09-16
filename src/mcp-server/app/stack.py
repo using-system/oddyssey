@@ -377,38 +377,73 @@ def _container_host_ports() -> dict | None:
     return {key: host_port(p) for key, p in CONTAINER_PORTS.items()}
 
 
-def _container_inspect() -> dict | None:
-    """Identity and env of the existing container, from ONE inspect.
-
-    Observation finding F2: the status call ran two inspects of the same
-    container (identity, then env) plus the image inspect - three
-    sequential subprocesses at ~80 ms. This reads everything the two
-    needed at once; an absent container or unreadable output yields
-    None, never an error.
-    """
-    result = _docker(
-        "inspect",
-        "--format",
-        '{"image": {{json .Config.Image}}, "created": {{json .Created}},'
-        ' "started": {{json .State.StartedAt}}, "env": {{json .Config.Env}},'
-        ' "image_id": {{json .Image}}}',
-        CONTAINER_NAME,
-    )
-    if result.returncode != 0:
-        return None
+def _parse_inspect(stdout: str) -> list[dict]:
+    """The objects a bare `docker inspect` printed, or nothing readable."""
     try:
-        parsed = json.loads(result.stdout.strip())
+        parsed = json.loads(stdout.strip() or "null")
     except ValueError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
+        return []
+    return (
+        [o for o in parsed if isinstance(o, dict)] if isinstance(parsed, list) else []
+    )
 
 
-def container_user_env(inspected: dict | None = None) -> dict[str, str] | None:
+def _inspect_stack() -> tuple[dict | None, list | None]:
+    """The container's identity and env, and the pinned image's env, in
+    ONE docker inspect.
+
+    Observation findings F2 then F10: the status call ran two inspects
+    of the same container plus the image inspect, then one of each -
+    the docker CLI phase at 81 % of the call. `docker inspect` takes
+    several objects and answers each it finds (exit 1 when one is
+    missing, the found ones still printed), so the container and the
+    pinned IMAGE are read together. The image's env is only trusted
+    when the container was created from that very image (its `.Image`
+    id equals the pin's `Id`): after a pin bump with a surviving old
+    container the two differ, and the caller reads the old image itself
+    (#83). An absent container or unreadable output yields (None, None),
+    never an error.
+    """
+    result = _docker("inspect", CONTAINER_NAME, IMAGE)
+    objects = _parse_inspect(result.stdout)
+    container = next((o for o in objects if "State" in o), None)
+    if container is None:
+        return None, None
+    config = (
+        container.get("Config") if isinstance(container.get("Config"), dict) else {}
+    )
+    state = container.get("State") if isinstance(container.get("State"), dict) else {}
+    inspected = {
+        "image": config.get("Image"),
+        "created": container.get("Created"),
+        "started": state.get("StartedAt"),
+        "env": config.get("Env"),
+        "image_id": container.get("Image"),
+    }
+    image = next((o for o in objects if "State" not in o), None)
+    image_env = None
+    if image is not None and image.get("Id") == inspected["image_id"]:
+        image_config = (
+            image.get("Config") if isinstance(image.get("Config"), dict) else {}
+        )
+        image_env = image_config.get("Env")
+    return inspected, image_env if isinstance(image_env, list) else None
+
+
+def _container_inspect() -> dict | None:
+    """The container's identity and env, or None (one inspect)."""
+    return _inspect_stack()[0]
+
+
+def container_user_env(
+    inspected: dict | None = None, image_env: list | None = None
+) -> dict[str, str] | None:
     """User-set environment of the existing container, or None.
 
-    `inspected` is a `_container_inspect()` result a caller already
-    holds (the status call passes its own, so the container is read
-    once); absent, this reads it.
+    `inspected` and `image_env` are an `_inspect_stack()` result a
+    caller already holds (the status call passes its own, so docker is
+    asked once); absent, this reads them - and reads the container's
+    own image when the combined inspect could not vouch for it (#83).
 
     The auto-reset of odd_config_set recreates the container and must carry
     forward what the user applied through stack_up/stack_reset (issue #62):
@@ -422,27 +457,29 @@ def container_user_env(inspected: dict | None = None) -> dict[str, str] | None:
     Best-effort by contract: an unreadable inspect preserves nothing and
     never raises - losing env on that path beats blocking the reset.
     """
-    parsed = inspected if inspected is not None else _container_inspect()
-    if parsed is None:
+    if inspected is None:
+        inspected, image_env = _inspect_stack()
+    if inspected is None:
         return None
-    container_env = parsed.get("env")
-    image_ref = parsed.get("image_id")
+    container_env = inspected.get("env")
+    image_ref = inspected.get("image_id")
     if not isinstance(container_env, list) or not isinstance(image_ref, str):
         return None
-    image = _docker(
-        "image",
-        "inspect",
-        "--format",
-        "{{json .Config.Env}}",
-        image_ref,
-        image=image_ref,
-    )
-    if image.returncode != 0:
-        return None
-    try:
-        image_env = json.loads(image.stdout.strip())
-    except ValueError:
-        return None
+    if image_env is None:
+        image = _docker(
+            "image",
+            "inspect",
+            "--format",
+            "{{json .Config.Env}}",
+            image_ref,
+            image=image_ref,
+        )
+        if image.returncode != 0:
+            return None
+        try:
+            image_env = json.loads(image.stdout.strip())
+        except ValueError:
+            return None
     inherited = (
         set(image_env if isinstance(image_env, list) else [])
         | set(DEFAULT_ENV)
@@ -567,8 +604,8 @@ def _readiness(transport: httpx.BaseTransport | None = None) -> dict:
 def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
     """Readiness plus the container's identity (issue #118).
 
-    image/created/started and env come from ONE container inspect
-    (finding F2) plus the image inspect the env diff needs, env through
+    image/created/started and env come from ONE docker inspect of the
+    container and the pinned image (findings F2, F10), env through
     container_user_env() with credential-named values redacted to None
     (the name closes the visibility gap - observation finding N3 - the
     value never leaves the server). Absent or unreadable container:
@@ -580,9 +617,11 @@ def stack_status(transport: httpx.BaseTransport | None = None) -> dict:
     daemon "unreachable" plus daemon_remedy, the one-line remedy.
     """
     try:
-        inspected = _container_inspect()
+        inspected, image_env = _inspect_stack()
         identity = _container_identity(inspected) if inspected is not None else None
-        user_env = container_user_env(inspected) if inspected is not None else None
+        user_env = (
+            container_user_env(inspected, image_env) if inspected is not None else None
+        )
     except DaemonUnreachable as exc:
         remedy = str(exc)
     else:
