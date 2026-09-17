@@ -426,14 +426,42 @@ def finding_definers(facts: dict) -> dict[tuple[str, str], list[str]]:
     return definers
 
 
-def out_of_chain_rulings(facts: dict, ruled: frozenset[str] = frozenset()) -> list[str]:
+def out_of_chain_rulings(
+    facts: dict,
+    ruled: frozenset[str] = frozenset(),
+    rows: list[dict] | None = None,
+) -> list[str]:
     """Rulings a verification carries on an id no report in its chain defines,
     while another report does - the same finding, or a homonym: a judgment.
 
-    An item is settled, and dropped, once the caller ruled every finding
-    it names (``ruled`` holds their ledger keys)."""
+    An item is settled, and dropped, once every finding it names is ruled:
+    by the caller for this run (``ruled`` holds their ledger keys), for
+    good by the decisions ledger, whose latest row on the finding declines
+    it - the maintainer's judgment, persisted where the status reads it -
+    or by the finding's own chain, when a verification of its own already
+    ruled it fixed or regressed (``rows``, the finding rows by rule): the
+    homonym question changes nothing for a finding its chain settled."""
     by_name = {name_of(r): r for r in readable(facts)}
     definers = finding_definers(facts)
+    effective = facts["ledger"]["effective"]
+    by_chain = {
+        f"{Path(r['report']).name} / {r['id']}"
+        for r in (rows if rows is not None else finding_rows(facts))
+        if r["state"] in ("fixed-and-verified", "regressed", "declined")
+    }
+
+    def settled(key: str, ruling: str) -> bool:
+        decision = effective.get(key)
+        if classify_ruling(ruling) == "regressed":
+            # a regression claimed from outside the chain on a finding the
+            # chain settled is the one case worth a look: never dropped
+            return key in ruled
+        return (
+            key in ruled
+            or key in by_chain
+            or bool(decision and str(decision["verdict"]).lower() != "open")
+        )
+
     out = []
     for verification in readable(facts):
         if not is_verify(verification):
@@ -445,7 +473,7 @@ def out_of_chain_rulings(facts: dict, ruled: frozenset[str] = frozenset()) -> li
         for row in rulings_of(verification):
             defined = definers.get((lineage_label(verification), row["id"]), [])
             if defined and not any(d in in_chain for d in defined):
-                if all(f"{d} / {row['id']}" in ruled for d in defined):
+                if all(settled(f"{d} / {row['id']}", row["ruling"]) for d in defined):
                     continue
                 out.append(
                     f"{name_of(verification)} rules {row['id']} "
@@ -605,6 +633,80 @@ def apply_rulings(
     return problems, frozenset(applied)
 
 
+# The Action column values that leave nothing due (issue #601): every
+# other action - verification due, observation overdue, fix pending,
+# plan awaits verification, judgment needed - is the verdict's warning,
+# so an action added later warns until it is named here.
+RESTING_ACTIONS = ("loop can rest", "plan verified")
+
+
+def verdict(facts: dict, counts: dict[str, int], recs: list[dict]) -> dict:
+    """The loop's verdict by rule - ok, warning or error - with its reasons
+    and the next actions, from what the tables already say: the Action
+    column per lineage, the regressions, the reports the rules could not
+    read. Telemetry gaps, declined findings and the deferrals no memory
+    write can close are facts of the rendering, never the verdict."""
+    if not facts["loop_started"]:
+        return {
+            "status": "warning",
+            "reasons": ["the loop has not started here"],
+            "todo": ["start the loop: /odd-instrument-otel or /odd-observe"],
+        }
+    if facts["matched"] == 0:
+        return {
+            "status": "warning",
+            "reasons": ["no stored report matches the scope"],
+            "todo": ["widen the scope, or observe what it names"],
+        }
+    status, reasons, todo = "ok", [], []
+    for report in facts["reports"]:
+        if "unreadable" in report:
+            status = "error"
+            reasons.append(f"unreadable report {Path(report['path']).name}")
+    for report in readable(facts):
+        for error in report.get("frontmatter_errors", []):
+            status = "error"
+            reasons.append(f"frontmatter of {name_of(report)}: {error}")
+    if counts.get("regressed"):
+        status = "error"
+        reasons.append(f"{plural(counts['regressed'], 'finding')} regressed")
+    for label, reports in lineages(facts).items():
+        last = reports[-1]
+        if is_verify(last) and verdict_label(last).startswith("FAIL"):
+            status = "error"
+            reasons.append(f"{label}: verification {name_of(last)} failed")
+    for rec in recs:
+        if rec["action"] not in RESTING_ACTIONS:
+            if status == "ok":
+                status = "warning"
+            reasons.append(f"{rec['lineage']}: {rec['action']}")
+            todo.append(f"{rec['lineage']}: {rec['action']} - {rec['evidence']}")
+    if not reasons:
+        reasons.append("every lineage can rest")
+    return {"status": status, "reasons": reasons, "todo": todo}
+
+
+def verdict_of(facts: dict, today: str | date | None = None) -> dict:
+    """The verdict from a fact sheet alone (no ruling flags) - for the sheet."""
+    if not facts["loop_started"] or facts["matched"] == 0:
+        return verdict(facts, {}, [])
+    rows = finding_rows(facts)
+    return verdict(facts, burn_down(rows), recommendations(facts, today))
+
+
+# reasons and todo items apart by a middle dot: an item's evidence, or a
+# frontmatter error, carries semicolons of its own
+DOT = " \u00b7 "
+
+
+def verdict_lines(v: dict) -> list[str]:
+    return [
+        f"- verdict: {v['status']} - {DOT.join(v['reasons'])}",
+        "- todo: " + (DOT.join(v["todo"]) if v["todo"] else "nothing to do"),
+        "",
+    ]
+
+
 def plural(count: int, noun: str) -> str:
     return f"{count} {noun}" + ("" if count == 1 else "s")
 
@@ -688,6 +790,11 @@ def screen_lines(facts: dict) -> list[str]:
             + [f"decisions.md line {r['line']} - {r['reason']}" for r in skipped]
             + [
                 f"entry-classifications.md line {r['line']} - {r['reason']}"
+                + (
+                    " (a fact, no ruling to make)"
+                    if r["reason"].startswith("no top-level entry named")
+                    else ""
+                )
                 for r in skipped_classes
             ]
         )
@@ -1566,10 +1673,14 @@ def invariant_section(facts: dict) -> list[str]:
     for row in skipped:
         rows.append([f"decisions.md line {row['line']}", row["reason"]])
     for row in skipped_classes:
-        rows.append([f"entry-classifications.md line {row['line']}", row["reason"]])
+        reason = row["reason"]
+        if reason.startswith("no top-level entry named"):
+            # renamed or removed since: reported, and nothing to rule on
+            reason += " (a fact, no ruling to make)"
+        rows.append([f"entry-classifications.md line {row['line']}", reason])
     if rows:
         out += [
-            md_table(["File", "Violation"], rows),
+            md_table(["File", "Reported"], rows),
             "",
             (
                 "The store is append-only: a report is never edited to repair it - "
@@ -1658,6 +1769,7 @@ def render(
     else:
         message = None
     if message is not None:
+        out += verdict_lines(verdict(facts, {}, []))
         out.append(message)
         if ruled:
             out.append(f"{plural(len(ruled), 'ruling')} not applied: nothing to rule.")
@@ -1688,7 +1800,12 @@ def render(
         if row["status"] == "skipped":
             hygiene.append(f"ledger line {row['line']} skipped: {row['reason']}")
     for row in (facts.get("classifications") or {"rows": []})["rows"]:
-        if row["status"] == "skipped":
+        # a row naming an entry HEAD no longer carries (renamed, removed)
+        # is a fact of the memory invariant, never a judgment: no ruling
+        # can act on an entry that is gone, and the ledger is append-only
+        if row["status"] == "skipped" and not row["reason"].startswith(
+            "no top-level entry named"
+        ):
             hygiene.append(
                 f"classification line {row['line']} skipped: {row['reason']}"
             )
@@ -1720,7 +1837,7 @@ def render(
                 f"finding {Path(r['report']).name} / {r['id']}: "
                 f"ruling not readable by rule ({r['ruled_by']})"
             )
-    rulings += out_of_chain_rulings(facts, ruled_keys)
+    rulings += out_of_chain_rulings(facts, ruled_keys, rows)
     for report in readable(facts):
         unread = unread_baseline_rulings(report, facts, ruled_keys)
         if unread:
@@ -1758,17 +1875,19 @@ def render(
                 f"by the lift, open the body for the rest of "
                 f"{'it' if loss['cut'] == 1 else 'them'}"
             )
+    # the screen's cap on a gap's text is a rendering fact, never a
+    # deferral: it is said next to the gaps, not asked as a judgment
+    cap_notes: list[str] = []
     for g in gaps:
         if g["cut"] and g["paragraph"]:
-            gap_notes.append(
-                f"section 5 of {g['recorded_by']} is one paragraph: {g['cut']} "
-                f"characters, cut at {MAX_GAP_LENGTH}, open the body for the gaps "
-                "it carries"
+            cap_notes.append(
+                f"section 5 of {g['recorded_by']} is one paragraph of {g['cut']} "
+                f"characters, shown up to {MAX_GAP_LENGTH}; the body carries the whole"
             )
     for name, count in sorted(cut_gaps.items()):
-        gap_notes.append(
-            f"section 5 of {name}: {plural(count, 'gap')} cut at {MAX_GAP_LENGTH} "
-            f"characters, open the body for the rest of {'it' if count == 1 else 'them'}"
+        cap_notes.append(
+            f"{plural(count, 'gap')} of {name} shown up to {MAX_GAP_LENGTH} "
+            "characters; the body carries the whole"
         )
     for name in mixed_not_queried(facts):
         gap_notes.append(
@@ -1787,6 +1906,8 @@ def render(
             )
     judgment = boundaries + rulings + verdicts + gap_notes + hygiene
 
+    # the verdict first, by rule, from the tables below (issue #601)
+    out += verdict_lines(verdict(facts, counts, recs))
     if full:
         out += inventory_lines(facts)
         out += invariant_section(facts)
@@ -1797,7 +1918,7 @@ def render(
     )
     out += ["## Loop state", "", md_table(LOOP_STATE_HEADER, table), "", *evidence, ""]
     if full:
-        out += full_sections(facts, rows, counts, trends, apart, gaps, recs)
+        out += full_sections(facts, rows, counts, trends, apart, gaps, recs, cap_notes)
     else:
         pairs = len({t["pair"] for t in trends})
         out += [
@@ -1832,6 +1953,7 @@ def full_sections(
     apart: list[dict],
     gaps: list[dict],
     recs: list[dict],
+    cap_notes: list[str] | None = None,
 ) -> list[str]:
     """The working tables: loop state, ledger, trends, gaps, next action."""
     out = [
@@ -1921,6 +2043,8 @@ def full_sections(
             ),
             "",
         ]
+        if cap_notes:
+            out += [f"- {note}" for note in cap_notes] + [""]
     elif mixed_not_queried(facts):
         out += ["No gap listed by rule - see Judgment needed.", ""]
     else:

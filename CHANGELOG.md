@@ -1,3 +1,26 @@
+## [1.12.2] - 2026-09-17
+
+### 🚀 Features
+
+- *(ci)* Odd-status gate on the MCP server in ci-mcp-server - the loop's verdict through the oddyssey-actions on every server PR (#592)
+- *(skill)* Get-status emits the loop's verdict itself - ok, warning or error with the next actions, computed by its rules (#602)
+
+### 🐛 Bug Fixes
+
+- *(mcp)* Clear the loop's warning on oddyssey-mcp - the status call's docker phase and TLS setup, startup and shutdown spans, finer duration buckets, the rulings and the verifications (#595)
+- *(skill)* Get-status - a ledger row or the finding's own chain settles an out-of-chain ruling, a gone entry's row and a capped gap are facts, and the gate judges the PR's own package (#600)
+
+### 📚 Documentation
+
+- *(bench)* Campaign under 1.12.0 - eighteen runs, sixteen rows re-run and re-sorted, and the protocol fixed on what the days taught (#587)
+- *(readme)* A GitHub integration section pointing at oddyssey-actions (#606)
+- *(readme)* The GitHub Actions under Install, with an example, instead of a section of their own (#608)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(ci)* Odd-status job on oddyssey-actions v1.2.0 - the action takes the workflow token itself, the env lines go (#597)
+- *(ci)* Odd-status job on oddyssey-actions v1.2.2 - the gate follows the loop state's own verdict (#599)
+- *(ci)* Odd-status job on oddyssey-actions v1.2.4 - the gate reads the verdict the package emits (#604)
 ## [1.12.1] - 2026-09-15
 
 ### 🐛 Bug Fixes

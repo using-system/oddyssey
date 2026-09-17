@@ -76,6 +76,21 @@ renderings of the same rules:
   — a lineage's boundary first, memory hygiene last — then capped in
   length and in count (`+N more`), a lineage's item pointing at its
   evidence line rather than repeating it.
+- **The verdict**, first in both renderings and in the fact sheet
+  (`verdict`): `verdict: ok | warning | error - <its reasons>` and
+  `todo: <the next actions>`, a middle dot between reasons and between
+  actions, computed by the rules from the Action column per lineage,
+  the regressions and the reports the rules could not read — `ok` when
+  every lineage rests (or its plan is verified) and nothing regressed;
+  `warning` when a lineage's action is anything else (`verification
+  due`, `observation overdue`, `fix pending`, `plan awaits
+  verification`, `judgment needed`), when the loop has not
+  started, or when nothing matches the scope; `error` when a finding
+  regressed, a lineage's last verification failed, or a report could
+  not be read. Telemetry gaps, declined findings and the deferrals no
+  memory write can close are facts of the rendering: they never move
+  the verdict, and a caller that gates on the loop reads these two
+  lines, never a judgment of its own.
 - **The full rendering** — `--full`, and whenever the caller scoped
   the status to a service, a stack or an environment: everything the
   screen carries, the inventory and the memory invariant as sections,
@@ -93,13 +108,19 @@ verification stating no verdict, a quick verification that ruled only
 part of its items, a boundary the files cannot settle (tree entries
 the anchor cannot classify, an entry present on one side only, a
 commit-date boundary with commits since), a ruling on an id its chain
-does not define (the same finding, or a homonym), a verification that
+does not define (the same finding, or a homonym) unless the decisions
+ledger's latest row on that finding declines it — the row is the
+judgment, persisted — or its own chain already ruled it (a regression
+claimed from outside stays listed), a verification that
 states a verdict yet keys none of its rulings by a finding of its
 chain (with the hint, never the guess, when its keys are the
 baseline's ids with an `F` added or dropped), a quick report's
 gaps section opening with its not-queried list, a section not lifted
-or cut by a cap, an unreadable report, a malformed frontmatter value,
-a skipped ledger row. The action column uses step 6's three actions
+(a gap's text shown up to the cap is a note under the gaps table,
+never a deferral), an unreadable report, a malformed frontmatter value,
+a skipped ledger row — except a classification row naming an entry
+HEAD no longer carries, which the memory invariant reports and no
+ruling can act on. The action column uses step 6's three actions
 plus `fix pending` (observed, nothing landed, nothing to verify),
 `plan verified` / `plan awaits verification` for a plan's lineage, and
 `judgment needed` for a deferral.
@@ -114,7 +135,9 @@ ruling back to the script as a flag and run it again:
 - `--ruled <report>/<id>=<state>`, `<state>` one of `open`, `fixed`,
   `regressed`: a finding whose ruling the rules could not read ("still
   passing" is a pass), a ruling on an id outside its chain you
-  judge to be the same finding, or the findings a verification left
+  judge to be the same finding (a decisions-ledger row on that finding,
+  through `odd-memory`'s `decisions` reference, settles it for good
+  instead), or the findings a verification left
   unread by keying them its own way — the item leaves the list, and the
   lineage's action follows, once every finding it names is ruled. A
   ruling on a declined finding is refused — the ledger is the memory,
