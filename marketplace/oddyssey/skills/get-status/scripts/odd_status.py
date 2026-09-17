@@ -855,6 +855,9 @@ def main(argv: list[str] | None = None) -> int:
             odd_render.render(facts, today=args.today, full=full, ruled=args.ruled)
         )
         return 0
+    import odd_render
+
+    facts["verdict"] = odd_render.verdict_of(facts)
     json.dump(facts, sys.stdout, ensure_ascii=False, separators=(",", ":"))
     sys.stdout.write("\n")
     return 0
