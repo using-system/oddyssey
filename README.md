@@ -253,6 +253,18 @@ friction, and `from report` turns that into the fix. How, in
 More invocation examples for every prompt live in
 [docs/guide/prompts.md](docs/guide/prompts.md).
 
+## GitHub integration
+
+Everything the loop does in your terminal, a workflow can do on a
+runner. The
+[oddyssey-actions](https://github.com/using-system/oddyssey-actions)
+repository brings Observability-Driven Development into GitHub
+Actions: one setup action per coding CLI, which installs the CLI and
+this package on the runner, and one action per oddyssey capability,
+which runs it headless and turns its result into outputs your workflow
+can gate on. Pick the setup that matches the CLI you use, then the
+actions you need; each one is documented there, next to its code.
+
 ## Every backend
 
 The missions query the backend your telemetry lands in, through its
