@@ -63,6 +63,22 @@ other CLIs (Codex, opencode, Cursor, Windsurf, Kiro, Gemini) install
 via APM above. opencode and Cursor install into the current
 repository only — leave `--global` out.
 
+### With GitHub Actions
+
+In a workflow, a setup action installs the CLI and the package on the
+runner, and the other actions run the loop's commands headless:
+
+```yaml
+- uses: using-system/oddyssey-actions/setup-copilot@v1
+- uses: using-system/oddyssey-actions/odd-status@v1
+  with:
+    fail-on: error
+```
+
+There is a setup action per supported CLI and an action per oddyssey
+capability; the catalog, with what each one takes and returns, lives
+in [oddyssey-actions](https://github.com/using-system/oddyssey-actions).
+
 ## Which model/CLI to use?
 
 A ranking of models and coding-agent CLIs on the loop's own work is kept
@@ -252,18 +268,6 @@ friction, and `from report` turns that into the fix. How, in
 
 More invocation examples for every prompt live in
 [docs/guide/prompts.md](docs/guide/prompts.md).
-
-## GitHub integration
-
-Everything the loop does in your terminal, a workflow can do on a
-runner. The
-[oddyssey-actions](https://github.com/using-system/oddyssey-actions)
-repository brings Observability-Driven Development into GitHub
-Actions: one setup action per coding CLI, which installs the CLI and
-this package on the runner, and one action per oddyssey capability,
-which runs it headless and turns its result into outputs your workflow
-can gate on. Pick the setup that matches the CLI you use, then the
-actions you need; each one is documented there, next to its code.
 
 ## Every backend
 
