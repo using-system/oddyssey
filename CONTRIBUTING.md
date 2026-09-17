@@ -105,6 +105,14 @@ spec wins if this summary ever drifts):
   measured just before the work, two samples per side, and the PR
   states the numbers — AGENTS.md's "Plugin harnessing" section says
   what counts as on the path and what the bar is.
+- **A separate reviewer sub-agent checks the branch before the PR**
+  — and before every push that updates it: a general-purpose
+  sub-agent with a fresh context reviews the whole diff against the
+  issue, each round of fixes goes back to the same reviewer until it
+  returns no finding, the PR body records the outcome, and the push,
+  the PR and the merge each wait for your explicit go. AGENTS.md's "A
+  separate reviewer sub-agent checks the branch before its PR"
+  section is the rule.
 - Keep one logical change per PR, and match the surrounding style —
   the agent/skill markdown files are executable contracts, so wording
   changes there are behavior changes.
