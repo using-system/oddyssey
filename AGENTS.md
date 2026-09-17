@@ -88,24 +88,25 @@ the paths touched (commands and pins are owned by
 
 A PR pushed red costs a review round-trip; run the checks first.
 
-## A separate reviewer agent checks the branch before its PR
+## A separate reviewer sub-agent checks the branch before its PR
 
 No branch reaches a PR on its author's judgment alone. Before a PR is
 opened, and again before every push that updates one, the coding
-agent that made the change dispatches a **separate reviewer agent** —
-a sub-agent with a fresh context, on the most capable model the host
+agent that made the change dispatches a **separate reviewer
+sub-agent** — a general-purpose sub-agent with a fresh context, not
+one of the package's agents, on the most capable model the host
 offers, never the author re-reading its own diff — over the branch's
 whole diff against the default branch, with the issue it closes as
-the spec and the CI results in hand. The reviewer's findings go back
-to the author; each round of fixes goes back to the **same reviewer**,
-which re-checks the branch, until it returns no finding — green means
-the reviewer said so, not the author. The PR body records the
-outcome: what the review found and what changed for it. Two things
-the review never replaces: the CI checks above, which run first, and
-the maintainer's **explicit go** — the push, the PR and the merge each
-wait for it, and a go with a question attached is not a go. On the
-path of `/odd-observe`, `/odd-verify` or `/odd-status`, the reviewer
-is briefed with the bound-review rule of "Plugin harnessing" below:
+the spec. The reviewer's findings go back to the author; each round
+of fixes goes back to the **same reviewer**, which re-checks the
+branch, until it returns no finding — green means the reviewer said
+so, not the author. The PR body records the outcome: what the review
+found and what changed for it. Two things the review never replaces:
+the CI checks above, which run first, and the **explicit go** of the
+person directing the work — the push, the PR and the merge each wait
+for it, and a go with a question attached is not a go. On the path
+of `/odd-observe`, `/odd-verify` or `/odd-status`, the reviewer is
+briefed with the bound-review rule of "Plugin harnessing" below:
 blocking findings only, every proposed fix costed and re-measured.
 
 ## Tests follow the MCP server
