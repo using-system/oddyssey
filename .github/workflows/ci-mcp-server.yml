@@ -85,14 +85,14 @@ jobs:
           # .git/config for a run that has a shell.
           fetch-depth: 0
           persist-credentials: false
-      - uses: using-system/oddyssey-actions/setup-copilot@e3c21a3b98d90e30995402b893f22f30ef50a3a6 # v1.2.4
+      - uses: using-system/oddyssey-actions/setup-copilot@fce0a9626191933f268134b12fdf18030db36d8d # v1.3.0
         with:
           # The PR's own package - its skills, its status script - on the
           # repository's memory: when the job runs, what it judges is what
           # the PR ships, not the last release (a release is never cut to
           # prove a PR).
           oddyssey-version: ${{ github.event.pull_request.head.sha }}
-      - uses: using-system/oddyssey-actions/odd-status@e3c21a3b98d90e30995402b893f22f30ef50a3a6 # v1.2.4
+      - uses: using-system/oddyssey-actions/odd-status@fce0a9626191933f268134b12fdf18030db36d8d # v1.3.0
         with:
           prompt: oddyssey-mcp
           fail-on: error
