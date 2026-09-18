@@ -45,7 +45,6 @@ services: [checkout, payment]
 stack: local
 environment: local
 mode: drive
-depth: full
 window: 2026-08-22T10:04:12Z/2026-08-22T10:05:03Z
 run_name: checkout-latency-sweep
 date: 2026-08-22
@@ -62,7 +61,6 @@ process_restarted: true
 | `stack` | yes | The backend the run queried | `local`, or a remote backend name |
 | `environment` | yes | The deployment environment, detected from the telemetry, never asked | the detected value; `local` on the local stack; `unknown` when the service emits none |
 | `mode` | yes | How the run executed, or what kind of replay it was | `drive`, `observe`, `post-hoc`, `verify`, `re-measure` |
-| `depth` | new reports | How far the mission went | `quick` (the signals the question touches, a collapsed report), `full`; absent on older reports, which ran full — `/odd-verify` replays such a baseline at `quick` unless you say `full verify` |
 | `window` | yes | The observed interval, UTC — the run's own span, not the time a mission spent waiting for it | `start/end` |
 | `run_name` | yes | The filename's slug | kebab-case |
 | `date` | yes | The run's UTC date | `YYYY-MM-DD` |
@@ -97,9 +95,9 @@ the three.
 4. **Improvement opportunities** — each with a measurable gain and the
    query that will prove it landed.
 5. **Telemetry gaps** — what the service should emit but does not:
-   the `not queried` line first when the run has one, then one bullet
-   per gap carrying its fate (`filled`, `still missing`, `new`,
-   `not ruled (quick)`) and the discovery query that came back empty.
+   one bullet per gap carrying its fate (`filled`, `still missing`,
+   `new`) and the discovery query that came back empty; a signal the
+   backend cannot serve is stated on its own line, never as a gap.
 6. **Decisions the spec must settle** — what telemetry cannot answer.
 7. **Measurement protocol for the fix** — the scenario to replay and
    every check with its before-value, its pass criterion, and how its
@@ -115,13 +113,10 @@ the three.
    <path>` fixes it from this section
    ([custom-backends.md](custom-backends.md)).
 
-A `quick` report keeps the seven headings with sections 1, 2 and 7
-complete and 3 to 6 reduced to their essentials — section 8, on a
-custom stack, complete at both depths; section 5 names the signals
-the run did not query. A verification adds its verdicts:
+A verification adds its verdicts:
 section 3 opens with one row per finding of the baseline — its id as
-the baseline wrote it (`1`, `F4`), then `fixed`, `still present`,
-`worse`, or `not ruled (quick)` — before the findings the run names
+the baseline wrote it (`1`, `F4`), then `fixed`, `still present` or
+`worse` — before the findings the run names
 itself; each check passed or failed; each gap filled or still missing.
 That id is how `/odd-status` burns a finding down, so a ruling written
 under a renumbered id, or only in prose, leaves the finding open in

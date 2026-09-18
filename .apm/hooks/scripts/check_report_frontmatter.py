@@ -8,7 +8,7 @@ history and the status flags it forever. This hook runs after a tool
 wrote a file: when the file is a report under
 ``.odd/observe-run-reports/`` or ``.odd/otel-instrumentation-reports/``
 it checks the filename shape, the required fields of the kind present
-and non-empty, ``mode`` and ``depth`` among their values, ``window`` as
+and non-empty, ``mode`` among its values, ``window`` as
 ``<start>/<end>`` in UTC with the end after the start, ``date`` matching
 the filename's date, ``run_name`` matching the filename's slug, and on
 a ``verify`` or ``re-measure`` report a ``verifies`` naming a stored
@@ -19,11 +19,9 @@ lone commit.
 The checker is the one the ``get-status`` skill runs over the stored
 history (``check_report`` in its ``odd_status.py``), copied here: a
 hook script imports nothing outside itself, and a test runs both over
-one fixture set so the two copies cannot drift. Two intended
-differences: ``depth`` - the status reads a report without it as a
-legacy file that predates the field; a report being written now has no
-such excuse - and an unreadable file - the status lists it as a
-violation (``unreadable: <error>``); the hook fails open on it, the
+one fixture set so the two copies cannot drift. One intended
+difference: an unreadable file - the status lists it as a violation
+(``unreadable: <error>``); the hook fails open on it, the
 filename-shape problem included, since a file it cannot read is not a
 report it can judge.
 
@@ -206,7 +204,7 @@ def split_top_level(text: str, sep: str = ",") -> list[str]:
     the beginning of an item or right after a mapping colon - so an
     apostrophe inside a bare word is just a character.
     """
-    parts, buf, depth, quote = [], [], 0, None
+    parts, buf, nesting, quote = [], [], 0, None
     for ch in text:
         if quote:
             buf.append(ch)
@@ -216,10 +214,10 @@ def split_top_level(text: str, sep: str = ",") -> list[str]:
         if ch in ("'", '"') and scalar_can_start(buf):
             quote = ch
         elif ch in "[{":
-            depth += 1
+            nesting += 1
         elif ch in "]}":
-            depth -= 1
-        if ch == sep and depth == 0:
+            nesting -= 1
+        if ch == sep and nesting == 0:
             parts.append("".join(buf))
             buf = []
         else:
@@ -343,15 +341,10 @@ WINDOW_RE = re.compile(
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 OBSERVATION_MODES_ALL = ("drive", "observe", "post-hoc", "verify", "re-measure")
 REPLAY_MODES = ("verify", "re-measure")
-DEPTHS = ("quick", "full")
 
 
 def check_report(report: dict, stored_names: set[str], root: Path) -> list[str]:
-    """What the report lacks against the memory contract's frontmatter.
-
-    The one line that differs from get-status's copy: ``depth`` is
-    required - a report written now does not predate the field.
-    """
+    """What the report lacks against the memory contract's frontmatter."""
     problems: list[str] = []
     name = Path(report["path"]).name
     match = REPORT_NAME_RE.match(name)
@@ -391,11 +384,6 @@ def check_report(report: dict, stored_names: set[str], root: Path) -> list[str]:
             problems.append(
                 f"mode {mode!r} is not one of {list(OBSERVATION_MODES_ALL)}"
             )
-        depth = fm.get("depth")
-        if depth is None:
-            problems.append("depth absent")
-        elif str(depth) not in DEPTHS:
-            problems.append(f"depth {str(depth)!r} is not one of {list(DEPTHS)}")
         window = values.get("window")
         if window is not None:
             wm = WINDOW_RE.match(window)

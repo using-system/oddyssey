@@ -215,7 +215,6 @@ def baseline_and_verification(repo: Repo, *, verify_date="2026-08-12") -> str:
         ("REGRESSED: p95 +40 %", "regressed"),
         ("still present", "open"),
         ("still missing", "open"),
-        ("not ruled (quick)", "open"),
         ("present, unattributed", "open"),
         ("unchanged (spec-scoped out)", "open"),
         ("carried", "open"),
@@ -248,12 +247,12 @@ def test_classify_ruling(odd_render, text, state):
     assert odd_render.classify_ruling(text) == state
 
 
-def report_with(verdict_lines, findings, depth=None):
+def report_with(verdict_lines, findings):
     return {
         "verdict_lines": verdict_lines,
         "headline": None,
         "findings": findings,
-        "frontmatter": {"depth": depth} if depth else {},
+        "frontmatter": {},
     }
 
 
@@ -271,32 +270,21 @@ def test_verdict_label_reads_the_verdict_paragraph_then_the_rulings(odd_render):
     assert odd_render.verdict_label(counted) == "FAIL (16/18)"
 
 
-def test_verdict_label_counts_rulings_wherever_they_sit_and_states_quick_coverage(
-    odd_render,
-):
+def test_verdict_label_counts_rulings_wherever_they_sit(odd_render):
     rulings = report_with(
         [],
         [
             {"id": "C1", "ruling": "PASS", "section": 7},
             {"id": "C2", "ruling": "still present", "section": 3},
-            {"id": "C3", "ruling": "not ruled (quick)", "section": 7},
             {"id": "F9", "ruling": None, "section": 3},
         ],
-        depth="quick",
     )
-    assert (
-        odd_render.verdict_label(rulings)
-        == "1 of 2 rulings closed (quick, 2 of 3 ruled)"
-    )
+    assert odd_render.verdict_label(rulings) == "1 of 2 rulings closed"
     passed = report_with(
         ["**Verdict: PASS**"],
-        [
-            {"id": "C1", "ruling": "PASS", "section": 7},
-            {"id": "C3", "ruling": "not ruled (quick)", "section": 7},
-        ],
-        depth="quick",
+        [{"id": "C1", "ruling": "PASS", "section": 7}],
     )
-    assert odd_render.verdict_label(passed) == "PASS (quick, 1 of 2 ruled)"
+    assert odd_render.verdict_label(passed) == "PASS"
 
 
 # --- the findings ledger ---------------------------------------------------------
@@ -716,42 +704,6 @@ def test_observation_overdue_when_the_cadence_lapsed(repo, odd_status, odd_rende
     assert rec["action"] != "observation overdue"
 
 
-def test_a_quick_verification_states_its_coverage_and_defers_the_rest(
-    repo, odd_status, odd_render
-):
-    body = VERIFY_BODY.replace(
-        "| F2 | Cold start | still present | 390 ms |",
-        "| F2 | Cold start | not ruled (quick) | - |",
-    )
-    rev = repo.git("rev-parse", "--short", "HEAD")
-    repo.write(
-        ".odd/observe-run-reports/2026-08-10-1000-a.md",
-        observation(
-            run_name="a",
-            revision=rev,
-            extra_frontmatter=f"tree_anchor: {repo.tree_anchor()}",
-        ),
-    )
-    repo.commit("docs(odd): report", date="2026-08-10T12:00:00Z")
-    text = observation(
-        run_name="a",
-        mode="verify",
-        date="2026-08-12",
-        revision=repo.git("rev-parse", "--short", "HEAD"),
-        extra_frontmatter=f"verifies: 2026-08-10-1000-a.md\ntree_anchor: {repo.tree_anchor()}",
-        body=body,
-    ).replace("depth: full", "depth: quick")
-    repo.write(".odd/observe-run-reports/2026-08-12-1000-verify-a.md", text)
-    repo.commit("docs(odd): quick verification", date="2026-08-12T12:00:00Z")
-    facts = odd_status.build_facts(repo.root, recent=None)
-    rendered_text = odd_render.render(facts, full=True, today="2026-08-13")
-    assert "PASS (quick, 3 of 4 ruled)" in rendered_text
-    judgment = rendered_text.split("## Judgment needed")[1]
-    assert "quick verification 2026-08-12-1000-verify-a.md ruled 3 of 4" in judgment
-    rows = own_rows(odd_render, facts)
-    assert rows["F2"]["state"] == "open"
-
-
 # --- gaps ------------------------------------------------------------------------
 
 
@@ -781,7 +733,7 @@ def test_golden_rendering_of_a_verified_lineage(repo, odd_status, odd_render):
     text = rendered(repo, odd_status, odd_render, today="2026-08-13")
     expected_state = (
         "| checkout / local / local "
-        "| 2026-08-10 a (drive, depth full) "
+        "| 2026-08-10 a (drive) "
         "| 2026-08-12 2026-08-12-1000-verify-a.md: PASS, verifies 2026-08-10-1000-a.md "
         "| observed 2026-08-10 (a) -> change since: uncertain -> verified 2026-08-12 (PASS) "
         "| tree anchor equals HEAD |"
@@ -1088,10 +1040,10 @@ def test_a_ruling_on_an_id_outside_the_chain_is_deferred_not_ignored(
     assert "outside its chain" in judgment
 
 
-def test_a_quick_verification_leaving_baseline_findings_unruled_cannot_rest_the_loop(
+def test_a_verification_ruling_none_of_the_baseline_findings_cannot_rest_the_loop(
     repo, odd_status, odd_render
 ):
-    # the quick verification rules nothing of the baseline's F1/F2
+    # the verification rules nothing of the baseline's F1/F2
     body = VERIFY_BODY.replace(
         "| F1 | N+1 on cart lines | FIXED | 1 span per call |\n", ""
     ).replace("| F2 | Cold start | still present | 390 ms |\n", "")
@@ -1112,52 +1064,28 @@ def test_a_quick_verification_leaving_baseline_findings_unruled_cannot_rest_the_
         revision=repo.git("rev-parse", "--short", "HEAD"),
         extra_frontmatter=f"verifies: 2026-08-10-1000-a.md\ntree_anchor: {repo.tree_anchor()}",
         body=body,
-    ).replace("depth: full", "depth: quick")
+    )
     repo.write(".odd/observe-run-reports/2026-08-12-1000-verify-a.md", text)
-    repo.commit("docs(odd): quick verification", date="2026-08-12T12:00:00Z")
+    repo.commit("docs(odd): verification", date="2026-08-12T12:00:00Z")
     facts = odd_status.build_facts(repo.root, recent=None)
     [rec] = odd_render.recommendations(facts, today="2026-08-13")
     assert rec["action"] == "judgment needed"
-    assert "2 finding(s) of 2026-08-10-1000-a.md unruled" in rec["evidence"]
+    assert "rules on no finding of its baseline 2026-08-10-1000-a.md" in rec["evidence"]
 
 
-def test_a_not_queried_item_is_dropped_whole_and_deferred(repo, odd_status, odd_render):
-    body = DEFAULT_BODY.replace(
-        "- **Logs: absent for checkout** - no log stream carries the service.",
-        "Not queried (quick): logs, profiles — the probes (`gcx logs; labels`) showed nothing;\n"
-        "the baseline's gaps stand: no startup span (F3).",
-    )
-    text = observation(run_name="a", body=body).replace("depth: full", "depth: quick")
+def test_a_depth_field_on_a_stored_report_changes_nothing_it_renders(
+    repo, odd_status, odd_render
+):
+    # older reports may carry the field: it is neither rendered nor read
+    text = observation(run_name="a").replace("mode: drive", "mode: drive\ndepth: quick")
     repo.write(".odd/observe-run-reports/2026-08-10-1000-a.md", text)
     repo.commit("docs(odd): report")
     facts = odd_status.build_facts(repo.root, recent=None)
     [row] = odd_render.gap_rows(facts)
-    assert (
-        row["gap"]
-        == "(quick report) gaps mixed into the not-queried list - see Judgment needed"
-    )
+    assert row["gap"].startswith("**Logs: absent for checkout**")
     text = odd_render.render(facts, full=True, today="2026-08-11")
-    assert "No gap recorded" not in text
-    judgment = text.split("## Judgment needed")[1]
-    assert (
-        "section 5 of 2026-08-10-1000-a.md mixes a not-queried list with its gaps"
-        in judgment
-    )
-
-
-def test_a_not_queried_list_of_none_keeps_the_item(repo, odd_status, odd_render):
-    body = DEFAULT_BODY.replace(
-        "- **Logs: absent for checkout** - no log stream carries the service.",
-        "**Not queried (quick): none** (logs for C4 only). Baseline gaps, ruled:\n"
-        "`traces_spanmetrics_*` still carry no instance id — **still missing**.",
-    )
-    text = observation(run_name="a", body=body).replace("depth: full", "depth: quick")
-    repo.write(".odd/observe-run-reports/2026-08-10-1000-a.md", text)
-    repo.commit("docs(odd): report")
-    facts = odd_status.build_facts(repo.root, recent=None)
-    [row] = odd_render.gap_rows(facts)
-    assert "still carry no instance id" in row["gap"]
-    assert odd_render.mixed_not_queried(facts) == []
+    assert "depth" not in text and "quick" not in text
+    assert "| 2026-08-10 a (drive) |" in text
 
 
 def test_gaps_recorded_as_a_table_are_read(repo, odd_status, odd_render):
@@ -1183,7 +1111,7 @@ def test_gaps_recorded_as_a_table_are_read(repo, odd_status, odd_render):
 # the not-queried statement spliced in front, the ruled gaps comma-spliced
 # with their fate markers, the new gaps after them without one.
 LEGACY_GAPS_PARAGRAPH = (
-    "**Not queried (full): none** — all four signals queried. Baseline gaps,\n"
+    "**Not queried (this run): none** — all four signals queried. Baseline gaps,\n"
     "ruled: `traces_spanmetrics_*` still carry no `service_instance_id`\n"
     "(`gcx metrics series 'traces_spanmetrics_calls_total{service=\"checkout\"}'"
     " --since 15m --jq '[.data[] | keys[]] | unique'`\n"
@@ -1193,7 +1121,7 @@ LEGACY_GAPS_PARAGRAPH = (
     "series list) — **still missing**; client spans of the simulated upstreams\n"
     "carry only `peer.service` (+ `error.type` on failure; fetched span attrs\n"
     '`["peer.service", "error.type"]`) — **still the case**, acceptable for an\n'
-    "in-process simulation. New at full depth: no allocation profiles for the\n"
+    "in-process simulation. New this run: no allocation profiles for the\n"
     "service — `gcx profiles exemplars profile '{service_name=\"checkout\"}'"
     " --profile-type memory:alloc_space:bytes:space:bytes --from … --to …`\n"
     "→ 0 exemplars (the pyroscope-io Python SDK pushes CPU only; the listed\n"
@@ -1213,7 +1141,7 @@ def test_a_legacy_paragraph_is_split_on_its_fate_markers(odd_render):
         "`traces_spanmetrics_*` still carry no `s",
         "no process/runtime metrics (`process_*`,",
         "client spans of the simulated upstreams ",
-        "New at full depth: no allocation profile",
+        "New this run: no allocation profiles for",
         "profiles carry no `service.instance.id` ",
         "no handoff to the `otel-instrumentation-",
     ]
@@ -1231,9 +1159,9 @@ def test_a_legacy_paragraph_is_split_on_its_fate_markers(odd_render):
     assert pieces[4].endswith("None of the gaps was in the fix wave's scope")
 
 
-def test_a_legacy_quick_paragraph_drops_its_lead_in_and_closing_prose(odd_render):
+def test_a_legacy_paragraph_drops_its_lead_in_and_closing_prose(odd_render):
     paragraph = (
-        "**Not queried (quick): none** (logs and profiles for C4/C5 only). Baseline "
+        "**Not queried (this run): none** (logs and profiles for C4/C5 only). Baseline "
         "gaps, ruled: `traces_spanmetrics_*` still carry no `service_instance_id` "
         "(`gcx metrics series 'x' --jq '[.data[] | keys[]] | unique'` → `service`) "
         "— **still missing**, by Tempo's generator design; no process/runtime "
@@ -1283,43 +1211,6 @@ def test_the_closing_handoff_phrase_with_a_backtick_is_not_a_gap(
     assert not any("handoff" in r["gap"] for r in rows)
 
 
-def test_a_quick_report_with_no_gap_is_not_mixed(repo, odd_status, odd_render):
-    body = DEFAULT_BODY.replace(
-        "- **Logs: absent for checkout** - no log stream carries the service.",
-        "not queried (quick): logs, profiles\n\nNo gap the queried signals showed.",
-    )
-    text = observation(run_name="a", body=body).replace("depth: full", "depth: quick")
-    repo.write(".odd/observe-run-reports/2026-08-10-1000-a.md", text)
-    repo.commit("docs(odd): report")
-    facts = odd_status.build_facts(repo.root, recent=None)
-    assert odd_render.gap_rows(facts) == []
-    assert odd_render.mixed_not_queried(facts) == []
-    text = odd_render.render(facts, full=True, today="2026-08-11")
-    assert "No gap recorded" in text
-    assert "section 5 of" not in text.split("## Judgment needed")[1]
-
-
-def test_a_not_queried_none_line_alone_is_not_a_gap(repo, odd_status, odd_render):
-    body = DEFAULT_BODY.replace(
-        "- **Logs: absent for checkout** - no log stream carries the service.",
-        "**Not queried (full): none** — all four signals queried.",
-    )
-    repo.write(
-        ".odd/observe-run-reports/2026-08-10-1000-a.md",
-        observation(run_name="a", body=body),
-    )
-    repo.commit("docs(odd): report")
-    facts = odd_status.build_facts(repo.root, recent=None)
-    assert odd_render.gap_rows(facts) == []
-    assert odd_render.mixed_not_queried(facts) == []
-    assert (
-        "section 5 of"
-        not in odd_render.render(facts, today="2026-08-11").split("## Judgment needed")[
-            1
-        ]
-    )
-
-
 def test_the_sentence_cut_after_a_marker_takes_a_backticked_opening(odd_render):
     paragraph = (
         "`a` — **filled**, by design. `b` gone — **still missing**. `c` — **new**."
@@ -1331,55 +1222,10 @@ def test_the_sentence_cut_after_a_marker_takes_a_backticked_opening(odd_render):
     ]
 
 
-def test_a_full_report_not_queried_list_is_deferred_without_the_quick_prefix(
-    repo, odd_status, odd_render
-):
-    body = DEFAULT_BODY.replace(
-        "- **Logs: absent for checkout** - no log stream carries the service.",
-        "Not queried (full): profiles — the profiler was down for the window; on\n"
-        "the queried signals the baseline gaps stand: no startup span (F3).",
-    )
-    repo.write(
-        ".odd/observe-run-reports/2026-08-10-1000-a.md",
-        observation(run_name="a", body=body),
-    )
-    repo.commit("docs(odd): report")
-    facts = odd_status.build_facts(repo.root, recent=None)
-    [row] = odd_render.gap_rows(facts)
-    assert row["gap"] == "gaps mixed into the not-queried list - see Judgment needed"
-    assert odd_render.mixed_not_queried(facts) == ["2026-08-10-1000-a.md"]
-    judgment = odd_render.render(facts, full=True, today="2026-08-11").split(
-        "## Judgment needed"
-    )[1]
-    assert "section 5 of 2026-08-10-1000-a.md mixes a not-queried list" in judgment
-
-
-def test_a_no_gap_opening_that_carries_a_query_does_not_settle_the_section(
-    repo, odd_status, odd_render
-):
-    body = DEFAULT_BODY.replace(
-        "- **Logs: absent for checkout** - no log stream carries the service.",
-        "not queried (quick): logs, profiles\n\n"
-        "No gaps in logs; three in traces: no startup span (F3) — "
-        "`gcx traces search --name startup` → none.",
-    )
-    text = observation(run_name="a", body=body).replace("depth: full", "depth: quick")
-    repo.write(".odd/observe-run-reports/2026-08-10-1000-a.md", text)
-    repo.commit("docs(odd): report")
-    facts = odd_status.build_facts(repo.root, recent=None)
-    [row] = odd_render.gap_rows(facts)
-    assert row["gap"].endswith(
-        "gaps mixed into the not-queried list - see Judgment needed"
-    )
-    assert odd_render.mixed_not_queried(facts) == ["2026-08-10-1000-a.md"]
-    text = odd_render.render(facts, full=True, today="2026-08-11")
-    assert "No gap recorded" not in text
-
-
 def test_a_paragraph_without_a_fate_marker_is_not_split(odd_render):
     paragraph = (
-        "Not queried (quick): logs, profiles — the probes (`gcx logs; labels`) "
-        "showed nothing; the baseline's gaps stand: no startup span (F3)."
+        "The probes (`gcx logs; labels`) showed nothing; the baseline's gaps "
+        "stand: no startup span (F3)."
     )
     assert odd_render.split_legacy_gaps(paragraph) == [paragraph]
 
@@ -1401,7 +1247,7 @@ def test_a_legacy_paragraph_yields_one_row_per_gap(repo, odd_status, odd_render)
         "`traces_spanmetrics_*` st",
         "no process/runtime metric",
         "client spans of the simul",
-        "New at full depth: no all",
+        "New this run: no allocati",
         "profiles carry no `servic",
     ]
     assert not any(r["truncated"] or r["cut"] for r in rows)
@@ -1525,9 +1371,9 @@ def test_the_bullets_the_lift_cut_are_counted(repo, odd_status, odd_render):
 
 
 def test_a_cut_lead_before_the_bullets_defers_nothing(repo, odd_status, odd_render):
-    """The not-queried line a mission opens its gaps section with is not a
-    gap: the lift cutting it lists every gap the section carries."""
-    lead = "Not queried (full): profiles - " + "x" * 1600
+    """The prose a section opens with before its bullets is not a gap: the
+    lift cutting it lists every gap the section carries."""
+    lead = "The probes this run opened with - " + "x" * 1600
     rows, judgment = gaps_judgment(
         repo, odd_status, odd_render, f"{lead}\n\n{gap_bullets(2)}"
     )
@@ -1701,7 +1547,7 @@ def test_memory_invariant_section_lists_violations_and_skipped_ledger_rows(
     )
     repo.write(
         ".odd/observe-run-reports/2026-08-11-1000-b.md",
-        observation(run_name="b", date="2026-08-11").replace("depth: full\n", ""),
+        observation(run_name="b", date="2026-08-11"),
     )
     repo.write(
         ".odd/decisions.md",
@@ -1712,29 +1558,10 @@ def test_memory_invariant_section_lists_violations_and_skipped_ledger_rows(
     text = rendered(repo, odd_status, odd_render)
     section = text.split("## Memory invariant")[1].split("## ")[0]
     assert "1 of 2" in section
-    assert (
-        "1 predate the `depth` field and read as full (2026-08-11-1000-b.md)" in section
-    )
     assert "2026-08-10-1000-a.md" in section and "mode 'drove'" in section
-    assert "2026-08-11-1000-b.md | depth absent" not in section
+    assert "2026-08-11-1000-b.md" not in section
     assert "line 7" in section and "carries no finding F9" in section
     assert "append-only" in section
-
-
-def test_memory_invariant_note_caps_the_legacy_names(repo, odd_status, odd_render):
-    for day in range(10, 15):
-        repo.write(
-            f".odd/observe-run-reports/2026-08-{day}-1000-r{day}.md",
-            observation(run_name=f"r{day}", date=f"2026-08-{day}").replace(
-                "depth: full\n", ""
-            ),
-        )
-    repo.commit("docs(odd): reports")
-    text = rendered(repo, odd_status, odd_render)
-    section = text.split("## Memory invariant")[1].split("## ")[0]
-    assert "5 predate the `depth` field" in section
-    assert "2026-08-12-1000-r12.md, +2 more)" in section
-    assert "r13.md" not in section
 
 
 # --- the one-screen rendering --------------------------------------------------
@@ -2051,7 +1878,7 @@ JUDGMENT_GROUPS = (
     ),
     (
         "verdict",
-        lambda i, _: "verdicts" in i or "no verdict" in i or i.startswith("quick "),
+        lambda i, _: "verdicts" in i or "no verdict" in i,
     ),
     ("gap", lambda i, _: i.startswith(("section 5 of ", "gaps of "))),
     (
@@ -2088,8 +1915,8 @@ def test_the_judgment_list_is_ordered_by_what_settling_an_item_changes(
     # one item of each group, more than the screen's cap in all: a boundary
     # only a judgment settles, a ruling the rules cannot read, one on an id
     # outside the chain, a verification keying none of its baseline's ids,
-    # two verdict words, a quick report's gaps mixed into its not-queried
-    # list, two refused flags, a skipped ledger row and three malformed flags
+    # two verdict words, a report whose section 5 the lift truncated, two
+    # refused flags, a skipped ledger row and three malformed flags
     rev = repo.git("rev-parse", "--short", "HEAD")
     repo.write(
         ".odd/observe-run-reports/2026-08-10-1000-a.md",
@@ -2135,11 +1962,10 @@ def test_the_judgment_list_is_ordered_by_what_settling_an_item_changes(
     repo.commit("docs(odd): verifications and a decision", date="2026-08-13T12:00:00Z")
     repo.write("src/app.py", "print('changed again')\n")
     repo.commit("fix: another change", date="2026-08-14T12:00:00Z")
-    # a quick report leading its own lineage, its gaps mixed into the not-queried list
-    quick_body = DEFAULT_BODY.replace(
+    # a report leading its own lineage, its section 5 longer than the lift keeps
+    long_body = DEFAULT_BODY.replace(
         "- **Logs: absent for checkout** - no log stream carries the service.",
-        "Not queried (quick): logs, profiles — the probes showed nothing;\n"
-        "the baseline's gaps stand: no startup span (F1).",
+        gap_bullets(odd_status.MAX_TEXT_BULLETS + 1),
     )
     repo.write(
         ".odd/observe-run-reports/2026-08-14-1300-c.md",
@@ -2149,10 +1975,10 @@ def test_the_judgment_list_is_ordered_by_what_settling_an_item_changes(
             services="[payment]",
             revision=repo.git("rev-parse", "--short", "HEAD"),
             extra_frontmatter=f"tree_anchor: {repo.tree_anchor()}",
-            body=quick_body,
-        ).replace("depth: full", "depth: quick"),
+            body=long_body,
+        ),
     )
-    repo.commit("docs(odd): quick observation report", date="2026-08-14T13:00:00Z")
+    repo.commit("docs(odd): observation report", date="2026-08-14T13:00:00Z")
     facts = odd_status.build_facts(repo.root, recent=None, max_title=None)
     [rec] = [
         r
@@ -2722,10 +2548,9 @@ RULINGS_ONLY_BODY = VERIFY_BODY.replace(
         ("fixed", "fixed-and-verified"),
         ("still present", "open"),
         ("worse", "regressed"),
-        ("not ruled (quick)", "open"),
     ],
 )
-def test_the_four_verdict_words_the_contract_mandates_all_classify(
+def test_the_three_verdict_words_the_contract_mandates_all_classify(
     odd_render, verdict, state
 ):
     # the contract's vocabulary and the reader's classifier are one thing:
@@ -2762,43 +2587,6 @@ def test_a_verification_written_to_the_contract_rules_every_baseline_finding(
     assert (
         "Burn-down: open 2 · fixed-and-verified 1 · regressed 1 · declined 0." in text
     )
-
-
-def test_a_quick_verification_writing_not_ruled_quick_still_defers(
-    repo, odd_status, odd_render
-):
-    # the contract mandates a row for every baseline finding, `not ruled
-    # (quick)` included: naming a finding is not ruling it
-    rev = repo.git("rev-parse", "--short", "HEAD")
-    repo.write(
-        ".odd/observe-run-reports/2026-08-10-1000-a.md",
-        observation(
-            run_name="a",
-            revision=rev,
-            extra_frontmatter=f"tree_anchor: {repo.tree_anchor()}",
-        ),
-    )
-    repo.commit("docs(odd): report", date="2026-08-10T12:00:00Z")
-    body = VERIFY_BODY.replace(
-        "| F2 | Cold start | still present | 390 ms |",
-        "| F2 | Cold start | not ruled (quick) | logs not queried |",
-    )
-    text = observation(
-        run_name="a",
-        mode="verify",
-        date="2026-08-12",
-        revision=repo.git("rev-parse", "--short", "HEAD"),
-        extra_frontmatter=f"verifies: 2026-08-10-1000-a.md\ntree_anchor: {repo.tree_anchor()}",
-        body=body,
-    ).replace("depth: full", "depth: quick")
-    repo.write(".odd/observe-run-reports/2026-08-12-1000-verify-a.md", text)
-    repo.commit("docs(odd): quick verification", date="2026-08-12T12:00:00Z")
-    facts = odd_status.build_facts(repo.root, recent=None)
-    rows = own_rows(odd_render, facts)
-    assert rows["F2"]["state"] == "open"
-    [rec] = odd_render.recommendations(facts, today="2026-08-13")
-    assert rec["action"] == "judgment needed"
-    assert "1 finding(s) of 2026-08-10-1000-a.md unruled" in rec["evidence"]
 
 
 def test_a_verification_keyed_with_an_older_reports_ids_is_deferred(

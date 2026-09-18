@@ -29,7 +29,7 @@ It prints one line per stored benchmark, tab-separated: `name` (the
 directory), `service`, `test_type`, `executor` (the manifest's
 `profile.executor`), `authored`. It reads the manifests in Python, so
 none of them reaches the conversation. Drop `--service` to list the
-whole store; `--stack`, `--env`, `--mode`, `--depth` and `--project`
+whole store; `--stack`, `--env`, `--mode` and `--project`
 belong to the report kinds and are refused here.
 
 Unlike a report recall, the **whole listing** is the answer, not its

@@ -1,6 +1,6 @@
 ---
 description: Verify that a fix or an implemented instrumentation plan landed - replay a stored report's protocol (observation or instrumentation report) and get the full observation report, carrying the verdict on everything it recorded - measurements, anomalies, telemetry gaps, or planned signals now present
-argument-hint: "[<report path> | my last <service | env | stack> report] [full | quick]"
+argument-hint: "[<report path> | my last <service | env | stack> report]"
 ---
 
 Invoke the `observe-run` agent. It owns the whole method and the report
@@ -14,20 +14,20 @@ an **instrumentation report** (presence rulings on planned signals).
   `.odd/otel-instrumentation-reports/`, enough of a run name to find
   it, or constraints on the newest-first resolution ("my last report
   for checkout", "my last prod report", "my last report on seq": a
-  service, a deployment environment, a stack) - a depth ("full
-  verify", "quick check"), the carve-out "verify that verification's
-  own protocol", how the caller frames the mission (a verification, or
+  service, a deployment environment, a stack) - the carve-out "verify
+  that verification's own protocol", how the caller frames the mission
+  (a verification, or
   "nothing changed, re-measure"), and, when the report's stack is
   remote, the access material the agent will need.
 
 **Resolve the baseline first**, with the `odd-memory` skill's
 `observe-run-report` reference, `## Resolving a replay` - its
-`baseline` command, the arguments' report, constraints and depth passed
-as flags, nothing else. It settles what the inputs fix: the resolved
+`baseline` command, the arguments' report and constraints passed as
+flags, nothing else. It settles what the inputs fix: the resolved
 report, the baseline one hop away (or none under the carve-out), the
 `verifies` value, the services, the stack, the environment, the
-execution mode the `verifies` chain reaches, the depth and its reason,
-the revision, the benchmark the record names, the recorded target, and
+execution mode the `verifies` chain reaches, the revision, the
+benchmark the record names, the recorded target, and
 whether a drive needs the user's confirmation. An `ask:` line is a
 question only the user can answer - which report, which original,
 which mode - put it to them verbatim and stop until they answer; never
@@ -83,10 +83,7 @@ this order:
    confirmation - k6 needs no account and no configuration), otherwise
    follow that reference's non-interactive path for the platform or
    hand the remaining steps to the user and stop.
-5. **The depth.** State the `depth` line in the conversation, reason
-   included, before anything is dispatched - the run record must say
-   when the depth was defaulted.
-6. **Verification or re-measure.** The same reference's `boundary`
+5. **Verification or re-measure.** The same reference's `boundary`
    command on the baseline: `verification` when a runtime entry, an
    uncommitted change to one, or the benchmark the record names moved
    since the baseline's revision - the mission tests a fix;
@@ -126,7 +123,7 @@ Then build the mission block:
   mode (never inferred from whether the report records a scenario or a
   benchmark - an `observe`-mode report backed by a stored benchmark
   records a replayable protocol nobody authorized this run to drive),
-  the depth, the benchmark when one is named, the baseline's path -
+  the benchmark when one is named, the baseline's path -
   the agent uses it as the recalled baseline - and its environment:
   the agent detects the environment of its own run, compares it
   against the one handed over, and owns the hard stop when the two
@@ -136,7 +133,7 @@ Then build the mission block:
 - remote drive: the confirmation step 2 obtained is what authorizes a
   `drive` mission on a remote stack - state that it was given, and for
   what;
-- verification or re-measure, from step 6, with what changed; the run
+- verification or re-measure, from step 5, with what changed; the run
   persists through the reference's `new --mode verify` (or `--mode
   re-measure`) `--verifies <the verifies line>` - the script names the
   file and writes the frontmatter, this block restates none of it;

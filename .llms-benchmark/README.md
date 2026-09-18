@@ -11,13 +11,7 @@ variables are the model and the CLI.
 
 ## Results
 
-One section per observation depth. **Full** queries all four signals;
-**quick** queries metrics and traces only, so a quick row can reach
-performance anomalies and little else, and is ranked among quick rows,
-never against the full ones. Within a section, one row per model and
-CLI, always its latest run.
-
-### Full report
+One row per model and CLI, always its latest run.
 
 | Rank | Model | CLI | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -57,25 +51,6 @@ CLI, always its latest run.
 Token counts are rounded; the exact figures are in each run's pull
 request. Input includes the cached share, so Input and Cache overlap by
 design.
-
-</details>
-
-### Quick report
-
-| Rank | Model | CLI | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **#1** | `deepseek/deepseek-v4.1-flash` | opencode | 1.12.0 | **8 / 8** | 4 / 3 / 1 | 8m50s | **$0.09** | **$0.011** |
-| **#2** | `google/gemini-3.7-flash` | opencode | 1.12.0 | **5 / 5** | 1 / 4 / 0 | **8m24s** | $0.73 | $0.146 |
-| **#3** | `anthropic/claude-opus-5` | claude | 1.12.0 | **15 / 15** | 10 / 4 / 1 | 14m30s | $5.19 | $0.346 |
-
-<details>
-<summary>Run detail — phases, turns, tokens</summary>
-
-| Model | CLI | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `deepseek/deepseek-v4.1-flash` | opencode | 1.12.0 | 1m01s | 2m02s | 5m47s | 58 | 4.1s | 5.0M | 66k | 4.8M | 2/4 |
-| `google/gemini-3.7-flash` | opencode | 1.12.0 | 3m00s | 2m01s | 3m23s | 85 | 3.2s | 4.1M | 21k | 3.6M | 4/4 |
-| `anthropic/claude-opus-5` | claude | 1.12.0 | 2m20s | 2m00s | 10m10s | 51 | 2.8s | 4.8M | 50k | 4.8M | 4/4 |
 
 </details>
 
@@ -179,19 +154,17 @@ latest run.
 ## How a row is produced
 
 ```text
-/launch-llms-benchmark opencode anthropic/claude-sonnet-5 full
-/launch-llms-benchmark claude anthropic/claude-haiku-4.5 full
-/launch-llms-benchmark opencode google/gemini-3.7-flash quick
-/launch-llms-benchmark copilot openai/gpt-5.6-luna full
+/launch-llms-benchmark opencode anthropic/claude-sonnet-5
+/launch-llms-benchmark claude anthropic/claude-haiku-4.5
+/launch-llms-benchmark opencode google/gemini-3.7-flash
+/launch-llms-benchmark copilot openai/gpt-5.6-luna
 ```
 
-The CLI, the model id and the depth are the only arguments — `opencode`
+The CLI and the model id are the only arguments — `opencode`
 for any model OpenRouter serves, `claude` for Anthropic's models through
 Claude Code's headless mode, `copilot` for the models GitHub Copilot
 CLI serves; the model always written in the same
-`vendor/name` form, so one model's rows line up; `full` or `quick`, the
-observation depth, which picks the results section the row lands in.
-The credentials are
+`vendor/name` form, so one model's rows line up. The credentials are
 prerequisites you set up once and the command never asks for: an
 OpenRouter provider configured in opencode, a Claude Code login and
 the package installed at user scope for it, or a Copilot CLI login, and
@@ -212,17 +185,15 @@ adding or replacing the row. What it does:
    OpenRouter, or **claude** — at **medium** reasoning effort — headless,
    one session.
 3. Gives it one mission — a single `/odd-observe` invocation naming the
-   three services, the stored scenario `benchmark/llmbench-store-load/`,
-   the **depth** you named and the **local** stack — states that the scenario's
+   three services, the stored scenario `benchmark/llmbench-store-load/`
+   and the **local** stack — states that the scenario's
    paid model calls are accepted, and asks for every kind of
    anomaly, not only the slow ones: performance, outright errors, wrong
-   behavior, and telemetry that is missing or lying. Each of the four is
+   behavior, and telemetry that is missing or lying. Each of the three is
    named on purpose. The services, so the run never guesses its scope
    from what happens to be running. The scenario, so every row comes from
    the same replayed traffic. The stack, so no row is observed against a
-   backend the others were not. The depth, because a shallower one
-   queries metrics and traces only, and a run under it can reach
-   performance anomalies and nothing else however good the model is.
+   backend the others were not.
 4. Grades the report finding by finding, on evidence: the cited query is
    re-run, the accused line is opened. Both hold, or the finding does not
    count. Telemetry gaps are findings like any other.

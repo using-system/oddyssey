@@ -141,7 +141,7 @@ jobs:
           probe="$(mktemp -d)"
           mkdir -p "$probe/.odd/observe-run-reports"
           report="$probe/.odd/observe-run-reports/2026-08-10-1000-checkout-sweep.md"
-          printf -- '---\nservices: [checkout]\nstack: local\nenvironment: local\nmode: drive\ndepth: full\nrun_name: checkout-sweep\ndate: 2026-08-10\n---\n' > "$report"
+          printf -- '---\nservices: [checkout]\nstack: local\nenvironment: local\nmode: drive\nrun_name: checkout-sweep\ndate: 2026-08-10\n---\n' > "$report"
           payload='{"tool_name":"Write","tool_input":{"file_path":"'"$report"'"},"cwd":"'"$probe"'"}'
           set +e
           echo "$payload" | python3 .claude/hooks/oddyssey/scripts/check_report_frontmatter.py PostToolUse
@@ -150,10 +150,10 @@ jobs:
           if [ "$rc" -ne 2 ]; then
             echo "the report check answered $rc on a report without a window, expected 2" >&2; exit 1
           fi
-          printf -- '---\nservices: [checkout]\nstack: local\nenvironment: local\nmode: drive\ndepth: full\nwindow: 2026-08-10T10:00:00Z/2026-08-10T10:05:00Z\nrun_name: checkout-sweep\ndate: 2026-08-10\n---\n' > "$report"
+          printf -- '---\nservices: [checkout]\nstack: local\nenvironment: local\nmode: drive\nwindow: 2026-08-10T10:00:00Z/2026-08-10T10:05:00Z\nrun_name: checkout-sweep\ndate: 2026-08-10\n---\n' > "$report"
           echo "$payload" | python3 .claude/hooks/oddyssey/scripts/check_report_frontmatter.py PostToolUse
           replay="$probe/.odd/observe-run-reports/2026-08-12-1000-verify-checkout-sweep.md"
-          printf -- '---\nservices: [checkout]\nstack: local\nenvironment: local\nmode: verify\ndepth: quick\nwindow: 2026-08-12T10:00:00Z/2026-08-12T10:05:00Z\nrun_name: checkout-sweep\nverifies: 2026-08-01-1000-ghost.md\ndate: 2026-08-12\n---\n' > "$replay"
+          printf -- '---\nservices: [checkout]\nstack: local\nenvironment: local\nmode: verify\nwindow: 2026-08-12T10:00:00Z/2026-08-12T10:05:00Z\nrun_name: checkout-sweep\nverifies: 2026-08-01-1000-ghost.md\ndate: 2026-08-12\n---\n' > "$replay"
           payload='{"tool_name":"Write","tool_input":{"file_path":"'"$replay"'"},"cwd":"'"$probe"'"}'
           set +e
           message="$(echo "$payload" | python3 .claude/hooks/oddyssey/scripts/check_report_frontmatter.py PostToolUse 2>&1)"

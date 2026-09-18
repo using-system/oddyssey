@@ -83,7 +83,6 @@ services: [checkout]
 stack: local
 environment: local
 mode: drive
-depth: full
 window: 2026-08-10T10:00:00Z/2026-08-10T10:01:00Z
 run_name: a
 date: 2026-08-10

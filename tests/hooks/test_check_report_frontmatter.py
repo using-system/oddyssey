@@ -14,9 +14,8 @@ two deploy separately and a hook script imports nothing outside itself.
 One shared fixture set runs through both checkers, and the agreement
 test asserts they return the same problems, so a drift between the two
 copies fails here instead of surfacing as a report the hook accepted
-and the status flags. The two intended differences are stated there:
-at write time a missing ``depth`` is a problem, not a legacy note, and
-a file the hook cannot read is passed over (the status lists it as
+and the status flags. The one intended difference is stated there: a
+file the hook cannot read is passed over (the status lists it as
 ``unreadable``).
 """
 
@@ -107,7 +106,6 @@ def observation(**overrides) -> str:
         "stack": "local",
         "environment": "local",
         "mode": "drive",
-        "depth": "full",
         "window": WINDOW,
         "run_name": "checkout-sweep",
         "date": "2026-08-10",
@@ -150,7 +148,6 @@ class Case:
 
 
 MODES = "['drive', 'observe', 'post-hoc', 'verify', 're-measure']"
-DEPTHS = "['quick', 'full']"
 
 CASES = (
     # well-formed
@@ -236,16 +233,11 @@ CASES = (
         observation(services="[]", run_name="empty-services"),
         ("services absent", "services empty"),
     ),
-    # at write time depth is required, its value bounded
+    # a depth field, whatever its value, is ignored: neither required nor read
     Case(
-        f"{OBS}/2026-08-10-1009-no-depth.md",
-        observation(depth=None, run_name="no-depth"),
-        ("depth absent",),
-    ),
-    Case(
-        f"{OBS}/2026-08-10-1010-bad-depth.md",
-        observation(depth="deep", run_name="bad-depth"),
-        (f"depth 'deep' is not one of {DEPTHS}",),
+        f"{OBS}/2026-08-10-1009-with-depth.md",
+        observation(depth="deep", run_name="with-depth"),
+        (),
     ),
     Case(
         f"{OBS}/2026-08-10-1011-bad-mode.md",
@@ -605,21 +597,16 @@ def test_fails_open_on_a_report_it_cannot_decode(hook, odd_status, tmp_path, hom
 
 # --- the hook's checker and get-status's check_report agree ---------------------
 
-LEGACY_DEPTH = "depth absent (predates the field: reads as full)"
-
 
 def test_the_hook_and_the_status_return_the_same_problems(hook, odd_status, store):
     """One fixture set, two checkers, equal verdicts.
 
-    Two intended differences. get-status reads a report without
-    ``depth`` as a legacy file that predates the field, while a report
-    being written now has no such excuse - the hook says ``depth absent``.
-    And a file get-status cannot read is a violation (``unreadable:
-    <error>``, the filename-shape problem kept), while the hook fails open
-    on it and returns None - covered by its own test below, never by
-    this fixture set, which holds readable files only. Everything else
-    must be identical, message for message: a drift between the two
-    copies fails here.
+    One intended difference: a file get-status cannot read is a
+    violation (``unreadable: <error>``, the filename-shape problem kept),
+    while the hook fails open on it and returns None - covered by its
+    own test below, never by this fixture set, which holds readable
+    files only. Everything else must be identical, message for message:
+    a drift between the two copies fails here.
     """
     stored = {
         Path(rel).name
@@ -628,8 +615,7 @@ def test_the_hook_and_the_status_return_the_same_problems(hook, odd_status, stor
     }
     for case in CASES:
         report = odd_status.parse_report(store, case.rel, case.kind)
-        status_problems = odd_status.check_report(report, stored, store)
-        expected = ["depth absent" if p == LEGACY_DEPTH else p for p in status_problems]
+        expected = odd_status.check_report(report, stored, store)
         assert hook.check_file(store / case.rel) == expected, case.rel
         assert list(case.problems) == expected, case.rel
 
@@ -638,20 +624,10 @@ def test_the_hook_and_the_report_script_return_the_same_problems(
     hook, odd_report, store
 ):
     """The skills read the format through odd-memory's ``odd_report.py``;
-    its write-time reading (``written_now``) is the hook's, message for
-    message, so ``odd_report.py check`` refuses on a host without the hook
-    exactly what the hook refuses after a write."""
+    its frontmatter reading is the hook's, message for message, so
+    ``odd_report.py check`` refuses on a host without the hook exactly
+    what the hook refuses after a write."""
     for case in CASES:
         expected = hook.check_file(store / case.rel)
-        assert odd_report.check_file(store / case.rel, written_now=True) == expected, (
-            case.rel
-        )
+        assert odd_report.check_file(store / case.rel) == expected, case.rel
         assert list(case.problems) == expected, case.rel
-
-
-def test_the_depth_difference_is_the_one_stated(hook, odd_status, store):
-    rel = f"{OBS}/2026-08-10-1009-no-depth.md"
-    report = odd_status.parse_report(store, rel, "observation")
-    assert odd_status.check_report(report, set(), store) == [LEGACY_DEPTH]
-    assert hook.check_file(store / rel) == ["depth absent"]
-    assert odd_status.LEGACY_PREFIX in LEGACY_DEPTH  # what the status lists as legacy
