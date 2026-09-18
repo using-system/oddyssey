@@ -64,6 +64,26 @@ CUSTOM_NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 CUSTOM_FIELD_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 DECLARATION_KEYS = frozenset({"stack_config_fields"})
 
+# A stack_config key is "<stack>" or "<environment>-<stack>" (issue #618):
+# a remote backend's targeting values differ per deployment environment,
+# so one stack may hold one entry per environment next to its plain one.
+# The environment is kebab-case with no trailing dash - stricter than
+# CUSTOM_NAME_RE - and never the sentinel the agents record when the
+# telemetry carries no environment. The key is parsed by suffix, the
+# longest known stack winning ("dev-azure-monitor" is dev + azure-monitor,
+# "pre-prod-cloudwatch" is pre-prod + cloudwatch); "local" takes no
+# prefix - the local stack is the local environment by construction. The
+# optional global "environment" field selects, for the configured stack,
+# the entry whose key resolves to (environment, stack), else the plain
+# one: two whole entries, never a merge.
+ENVIRONMENT_RE = re.compile(r"^[a-z]([a-z0-9-]*[a-z0-9])?$")
+ENVIRONMENT_SENTINEL = "unknown"
+KEY_FORMS = (
+    "<stack> or <environment>-<stack> - <stack> a built-in or a declared custom"
+    " stack, <environment> kebab-case (^[a-z]([a-z0-9-]*[a-z0-9])?$) and never"
+    f" {ENVIRONMENT_SENTINEL!r}; local takes no prefix"
+)
+
 DEFAULTS = {
     "stack": "local",
     "local": {
@@ -101,21 +121,66 @@ def _valid_declaration(declaration: object) -> bool:
     )
 
 
-def _allowed_fields(
-    stack_key: str, custom: dict[str, dict]
-) -> frozenset[str] | None | bool:
-    """The field whitelist of a stack: None for an open set, False when
-    the stack is neither built-in nor declared."""
-    if stack_key in STACKS:
-        return STACK_CONFIG_FIELDS[stack_key]
-    if stack_key in custom:
-        return frozenset(custom[stack_key]["stack_config_fields"])
-    return False
+def _valid_environment(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and ENVIRONMENT_RE.fullmatch(value) is not None
+        and value != ENVIRONMENT_SENTINEL
+    )
 
 
-def _stack_config_key_allowed(stack_key: str, key: str, custom: dict) -> bool:
-    fields = _allowed_fields(stack_key, custom)
-    return fields is None or (fields is not False and key in fields)
+def _split_prefixed(key: str, known: frozenset[str]) -> tuple[str, str] | None:
+    """The (environment, stack) parse of a key that is not itself a known
+    stack: the longest known stack that is its "-<stack>" suffix, and the
+    environment before it. None when no stack is the suffix or the prefix
+    is no environment - "local" is never a suffix."""
+    for stack in sorted(known - {"local"}, key=len, reverse=True):
+        if key.endswith("-" + stack):
+            prefix = key[: -len(stack) - 1]
+            return (prefix, stack) if _valid_environment(prefix) else None
+    return None
+
+
+def resolve_stack_config_key(
+    key: object, custom: dict[str, dict]
+) -> tuple[str | None, str] | None:
+    """(environment, stack) for a stack_config key: (None, key) when the
+    key is a known stack, the suffix parse otherwise, None when the key
+    resolves to nothing - the whitelist is the stack's either way."""
+    if not isinstance(key, str):
+        return None
+    if key in STACKS or key in custom:
+        return None, key
+    return _split_prefixed(key, frozenset(STACKS) | frozenset(custom))
+
+
+def _allowed_fields(stack: str, custom: dict[str, dict]) -> frozenset[str] | None:
+    """The field whitelist of a known stack: None for an open set."""
+    if stack in STACKS:
+        return STACK_CONFIG_FIELDS[stack]
+    return frozenset(custom[stack]["stack_config_fields"])
+
+
+def _stack_config_key_allowed(stack: str, key: str, custom: dict) -> bool:
+    fields = _allowed_fields(stack, custom)
+    return fields is None or key in fields
+
+
+def _effective_entry(stack: str, environment: str | None, stack_config: dict) -> dict:
+    """The entry the configured pair resolves to: the environment's when
+    one is persisted for it, the stack's plain one otherwise - whole, never
+    merged. On the local stack the environment is inert."""
+    if stack == "local":
+        environment = None
+    key = stack
+    if environment is not None and f"{environment}-{stack}" in stack_config:
+        key = f"{environment}-{stack}"
+    return {
+        "stack": stack,
+        "environment": environment,
+        "stack_config_key": key,
+        "stack_config": dict(stack_config.get(key, {})),
+    }
 
 
 def installed_version() -> str | None:
@@ -141,6 +206,7 @@ def load(path: Path | None = None) -> dict:
     target = CONFIG_PATH if path is None else path
     effective = {
         "stack": DEFAULTS["stack"],
+        "environment": None,
         "local": dict(DEFAULTS["local"]),
         "stack_config": {},
         "custom": {},
@@ -149,25 +215,37 @@ def load(path: Path | None = None) -> dict:
     try:
         stored = json.loads(target.read_text())
     except FileNotFoundError:
+        effective["effective"] = _effective_entry("local", None, {})
         return effective
     except (OSError, ValueError):
         effective["invalid_ignored"] = ["<file>"]
+        effective["effective"] = _effective_entry("local", None, {})
         return effective
     if not isinstance(stored, dict):
         effective["invalid_ignored"] = ["<file>"]
+        effective["effective"] = _effective_entry("local", None, {})
         return effective
 
     # Declarations first: the stack and the stack_config entries below are
     # read against them, so a broken declaration takes its stack down with
-    # it - flagged twice, once per dropped field, never silently.
+    # it - flagged twice, once per dropped field, never silently. A name
+    # that parses as <environment>-<known stack> (a built-in, or another
+    # otherwise-valid declaration) is dropped too: its entry is then read
+    # as that stack's environment entry - the one backward-compatibility
+    # exception of #618.
     raw_custom = stored.get("custom", {})
     if isinstance(raw_custom, dict):
+        candidates = {
+            name
+            for name, declaration in raw_custom.items()
+            if isinstance(name, str)
+            and CUSTOM_NAME_RE.fullmatch(name)
+            and name not in STACKS
+            and _valid_declaration(declaration)
+        }
         for name, declaration in raw_custom.items():
-            if (
-                isinstance(name, str)
-                and CUSTOM_NAME_RE.fullmatch(name)
-                and name not in STACKS
-                and _valid_declaration(declaration)
+            if name in candidates and (
+                _split_prefixed(name, frozenset(STACKS) | (candidates - {name})) is None
             ):
                 effective["custom"][name] = {
                     "stack_config_fields": list(declaration["stack_config_fields"])
@@ -184,6 +262,12 @@ def load(path: Path | None = None) -> dict:
     else:
         invalid.append("stack")
 
+    environment = stored.get("environment")
+    if environment is None or _valid_environment(environment):
+        effective["environment"] = environment
+    else:
+        invalid.append("environment")
+
     local = stored.get("local", {})
     if isinstance(local, dict):
         for key in DEFAULTS["local"]:
@@ -199,15 +283,15 @@ def load(path: Path | None = None) -> dict:
     raw_sc = stored.get("stack_config", {})
     if isinstance(raw_sc, dict):
         for stack_key, payload in raw_sc.items():
-            if _allowed_fields(stack_key, custom) is False or not isinstance(
-                payload, dict
-            ):
+            resolved = resolve_stack_config_key(stack_key, custom)
+            if resolved is None or not isinstance(payload, dict):
                 invalid.append(f"stack_config.{stack_key}")
                 continue
+            _, stack_of_key = resolved
             clean = {}
             for key, value in payload.items():
                 if _valid_config_value(value) and _stack_config_key_allowed(
-                    stack_key, key, custom
+                    stack_of_key, key, custom
                 ):
                     clean[key] = value
                 else:
@@ -218,6 +302,9 @@ def load(path: Path | None = None) -> dict:
 
     if invalid:
         effective["invalid_ignored"] = invalid
+    effective["effective"] = _effective_entry(
+        effective["stack"], effective["environment"], effective["stack_config"]
+    )
     return effective
 
 
@@ -247,6 +334,26 @@ def _validate_custom(partial: dict, stored_custom: dict) -> dict:
                 f'custom.{name} must be {{"stack_config_fields": [...]}} - a list'
                 f" of unique snake_case field names, got {declaration!r}"
             )
+        # A name readable as <environment>-<known stack> would make a
+        # stack_config key readable two ways (#618): refused in both
+        # directions - the name itself, and a name that would turn an
+        # already-declared one into its environment entry.
+        known = frozenset(STACKS) | frozenset(effective) - {name}
+        parsed = _split_prefixed(name, known)
+        if parsed is not None:
+            raise ValueError(
+                f"custom.{name}: {name!r} reads as the {parsed[0]!r} environment"
+                f" entry of stack {parsed[1]!r} (stack_config keys are"
+                f" <environment>-<stack>) - pick a name that ends in no known stack"
+            )
+        for other in sorted(effective):
+            if other != name and _split_prefixed(other, known | {name}) is not None:
+                raise ValueError(
+                    f"custom.{name}: declaring {name!r} would make the declared"
+                    f" custom stack {other!r} read as its environment entry"
+                    f" (stack_config keys are <environment>-<stack>) - remove"
+                    f" {other!r} first, or in the same call"
+                )
         effective[name] = {
             "stack_config_fields": list(declaration["stack_config_fields"])
         }
@@ -266,12 +373,24 @@ def save(partial: dict, path: Path | None = None) -> dict:
     never reads a half-written file.
     """
     target = CONFIG_PATH if path is None else path
-    unknown = set(partial) - {"stack", "local", "stack_config", "custom"}
+    unknown = set(partial) - {"stack", "environment", "local", "stack_config", "custom"}
     if unknown:
         raise ValueError(f"unknown configuration keys: {sorted(unknown)}")
 
     before = load(target)
     custom = _validate_custom(partial, before["custom"])
+    # None is the deletion marker here too: {"environment": null} clears
+    # the field, and the missions read the stack's plain entry.
+    if (
+        "environment" in partial
+        and partial["environment"] is not None
+        and not _valid_environment(partial["environment"])
+    ):
+        raise ValueError(
+            "environment must be a kebab-case name"
+            f" (^[a-z]([a-z0-9-]*[a-z0-9])?$), never {ENVIRONMENT_SENTINEL!r},"
+            f" or null to clear it, got {partial['environment']!r}"
+        )
     effective_stack = partial.get("stack", before["stack"])
     removed = {name for name, decl in partial.get("custom", {}).items() if decl is None}
     if effective_stack in removed:
@@ -312,12 +431,15 @@ def save(partial: dict, path: Path | None = None) -> dict:
         # of a removed custom declaration get cleaned up (#228).
         if payload is None:
             continue
-        allowed = _allowed_fields(stack_key, custom)
-        if allowed is False:
+        resolved = resolve_stack_config_key(stack_key, custom)
+        if resolved is None:
             raise ValueError(
                 f"stack_config keys must be one of {list(STACKS)} or a declared"
-                f" custom stack, got {stack_key!r}"
+                f" custom stack, optionally prefixed by an environment ({KEY_FORMS}),"
+                f" got {stack_key!r}"
             )
+        _, stack_of_key = resolved
+        allowed = _allowed_fields(stack_of_key, custom)
         if not isinstance(payload, dict):
             raise ValueError(  # noqa: TRY004
                 f"stack_config.{stack_key} must be an object of scalar values"
@@ -334,7 +456,7 @@ def save(partial: dict, path: Path | None = None) -> dict:
                     f"stack_config.{stack_key}.{key} must be a string, number,"
                     f" boolean, or null to delete the key, got {value!r}"
                 )
-            if not _stack_config_key_allowed(stack_key, key, custom):
+            if not _stack_config_key_allowed(stack_of_key, key, custom):
                 if allowed:
                     raise ValueError(
                         f"stack_config.{stack_key} accepts only "
@@ -357,6 +479,11 @@ def save(partial: dict, path: Path | None = None) -> dict:
         stored = {}
     if "stack" in partial:
         stored["stack"] = partial["stack"]
+    if "environment" in partial:
+        if partial["environment"] is None:
+            stored.pop("environment", None)
+        else:
+            stored["environment"] = partial["environment"]
     if local_partial:
         stored_local = stored.get("local")
         stored["local"] = {

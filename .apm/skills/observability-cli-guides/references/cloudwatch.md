@@ -80,8 +80,9 @@ surface: `--help` has nothing to add and the files have nothing to read.
 A run that lacks a shape of the work records it in its report's `## 8.
 Stack friction`, never a wrapper.
 
-Common to every script: the targeting values come from
-`stack_config.cloudwatch` and are passed as flags - `--profile
+Common to every script: the targeting values come from the
+`stack_config` entry the preflight resolved (the handoff's `Target:`
+line names the key and carries the values) and are passed as flags - `--profile
 <profile> --region <region>` on every script, `--log-group <log_group>`
 (the application logs group), `--metrics-log-group <metrics_log_group>`
 (the EMF group), `--xray-group <xray>` (an X-Ray group name, where the
@@ -609,7 +610,7 @@ report's stack-friction section.
 Two sources, labelled per line - the CLI's effective credentials and
 the persisted targeting values.
 
-**If `stack_config.cloudwatch.profile` is persisted, run every
+**If the resolved entry persists `profile`, run every
 command below (display and connection proof alike) with `--profile
 <profile>`** - a bare call answers for whatever profile happens to
 resolve without a flag, which on an SSO setup with no `default` is
@@ -634,7 +635,11 @@ Token has expired and refresh failed`, exit 255) while still printing a
 partial table - the same auth failure the connection proof diagnoses,
 one step earlier. Carry on to the proof's expired-token guidance.
 
-From `stack_config.cloudwatch` (per `odd_config_get`):
+From the `stack_config` entry the preflight resolved - for the
+configured pair `odd_config_get`'s `effective.stack_config`, its
+`effective.stack_config_key` naming it: `<environment>-cloudwatch`
+when one is persisted for the configured environment, `cloudwatch`
+otherwise - shown next to its key:
 
 - `region` - the region the mission queries, when pinned separately
   from the CLI's effective one.
@@ -651,7 +656,7 @@ From `stack_config.cloudwatch` (per `odd_config_get`):
   when persisted; the default group otherwise.
 
 Every field the user did not persist is listed as "not persisted - the
-mission will ask", and a present-but-empty `stack_config.cloudwatch`
+mission will ask", and a present-but-empty resolved entry
 (`{}`) means exactly that for all of them: a valid state, not an error.
 Call out a persisted `region` that differs from the CLI's effective one
 - the query targets the persisted value.

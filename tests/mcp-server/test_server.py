@@ -383,3 +383,56 @@ def test_config_set_config_block_carries_no_version(monkeypatch):
 
     assert result["config"]["stack"] == "datadog"
     assert "version" not in result["config"]
+
+
+def test_config_get_returns_the_environment_and_the_effective_entry(
+    monkeypatch, tmp_path
+):
+    # Issue #618: the read resolves the configured pair, so a consumer of
+    # it never composes the fallback itself - and it keeps taking no
+    # argument.
+    monkeypatch.setattr(config_module, "CONFIG_PATH", tmp_path / "config.json")
+    monkeypatch.setattr(stack, "_container_state", lambda: "absent")
+    tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
+    assert tools["odd_config_get"].input_schema.get("properties", {}) == {}
+
+    result = server.odd_config_get()
+    assert result["environment"] is None
+    assert result["effective"] == {
+        "stack": "local",
+        "environment": None,
+        "stack_config_key": "local",
+        "stack_config": {},
+    }
+
+    server.odd_config_set(
+        {
+            "stack": "cloudwatch",
+            "environment": "prod",
+            "stack_config": {
+                "cloudwatch": {"region": "eu-west-1"},
+                "prod-cloudwatch": {"log_group": "/example/prod-logs"},
+            },
+        }
+    )
+    result = server.odd_config_get()
+    assert result["environment"] == "prod"
+    assert result["effective"] == {
+        "stack": "cloudwatch",
+        "environment": "prod",
+        "stack_config_key": "prod-cloudwatch",
+        "stack_config": {"log_group": "/example/prod-logs"},
+    }
+
+
+def test_config_descriptions_state_the_environment_and_the_effective_entry():
+    # An agent learns the key grammar, the field and the resolved block
+    # from the tool descriptions, not by hitting the raised error.
+    tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
+    get_description = tools["odd_config_get"].description
+    set_description = tools["odd_config_set"].description
+    assert "environment" in get_description
+    assert "effective" in get_description
+    assert "stack_config_key" in get_description
+    assert "<environment>-<stack>" in set_description
+    assert '"environment": null' in set_description

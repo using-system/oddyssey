@@ -104,7 +104,8 @@ DQL queries will run against.
   vs token contexts, how a context is created); this section owns only
   what to display.
 
-`stack_config.dynatrace` is expected **empty** — the dtctl context
+The `stack_config` entry the preflight resolved (`dynatrace`, or an
+`<environment>-dynatrace` entry) is expected **empty** — the dtctl context
 already names the environment. Present-and-empty (`{}`) or missing both
 display as "nothing persisted — the dtctl context is the source".
 

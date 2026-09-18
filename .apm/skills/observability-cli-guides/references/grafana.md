@@ -536,7 +536,8 @@ instance, so the display is the context, not an invented value.
   server URL and org; never echo a token, password, or any other
   credential field the view prints.
 
-`stack_config.grafana` is expected **empty** — the gcx context already
+The `stack_config` entry the preflight resolved (`grafana`, or an
+`<environment>-grafana` entry) is expected **empty** — the gcx context already
 names the instance, and duplicating it in the global configuration only
 creates a second truth to drift. Present-and-empty (`{}`) or missing
 both display as "nothing persisted — the gcx context is the source".

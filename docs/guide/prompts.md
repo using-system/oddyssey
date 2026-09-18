@@ -141,8 +141,10 @@ Observes a running service through its telemetry and writes the
 plan-ready report under `.odd/observe-run-reports/`. Arguments:
 **service name(s)**, **stack** (default: the configured one),
 **mode** (`drive` / `observe` / `post-hoc`), **benchmark**, **window**,
-**focus**, and **baseline expectations**. The deployment environment is never an argument: the
-agent detects it from the telemetry.
+**focus**, and **baseline expectations**. A deployment environment
+named in the arguments (`in prod`) is persisted like a named stack and
+selects the values persisted for it; the agent still detects the
+environment from the telemetry and stops when the two diverge.
 
 > The target stack's CLI must be installed, configured and connected
 > beforehand: the preflight proves it and fails fast — offering the
@@ -247,8 +249,9 @@ one are left out of the scenario and the report says so.
 
 Across all of them:
 
-- "on prod" / "on uat" is an expectation about the deployment
-  environment the agent detects, never a stack;
+- "on prod" / "in uat" names the deployment environment, never a
+  stack: persisted for the next run, and an expectation the agent
+  checks against the environment it detects;
 - a `drive` mission starts from a clean base: the service is
   restarted and the local stack reset, so telemetry stored before the
   run is wiped; when the service's port is already served by
@@ -464,9 +467,11 @@ takes the latest report on a custom stack.
 
 ## /odd-config
 
-Displays the current backend configuration — stack, targeted
-instance, connection proof — then offers to change it. Arguments: a
-**target stack**, or a value to **persist** or **clear** for one. A
+Displays the current backend configuration — stack, environment,
+targeted instance, connection proof — then offers to change it.
+Arguments: a **target stack**, an **environment** to target or clear,
+or a value to **persist** or **clear** for a stack — in an
+environment when one is named. A
 custom stack is written by `/odd-instrument-stack`, never here.
 
 ```text
@@ -495,6 +500,22 @@ for that stack, without switching to it.
 
 "clear the workspace for azure-monitor" removes that targeting value,
 without switching.
+
+```text
+/odd-config target prod
+```
+
+"target prod" points the missions at the values persisted for prod:
+the `prod-<stack>` entry when there is one, the stack's own otherwise.
+`/odd-config clear the environment` goes back to the stacks' own
+entries.
+
+```text
+/odd-config persist log group "/ecs/checkout-prod" for cloudwatch in prod
+```
+
+"... for cloudwatch in prod" stores the value in cloudwatch's prod
+entry, without switching to either.
 
 ```text
 /odd-config set the local Grafana port to 3001

@@ -125,8 +125,10 @@ the report.
 - **Focus** — performance, errors, correctness, cost/cardinality, a named
   endpoint, or a full sweep (default: full sweep).
 - **Preflight** — optional: the `Preflight:` handoff block the caller's
-  `backend-configuration` `## Check` closed with (stack, backend,
-  reference read, CLI and context, target values, connection proof
+  `backend-configuration` `## Check` closed with (stack, the configured
+  environment, backend,
+  reference read, CLI and context, the `stack_config` entry the values
+  came from and the values, connection proof
   with its UTC). It is **conversation-scope**: section 1 restates the
   stack and backend, never the block — a real tenant, workspace or
   site name, a GUID, a login, a home-directory path, a value persisted
@@ -398,11 +400,17 @@ run record.
    report" in section 1 and fall back to the within-run baseline.
 
    When the mission hands you a **baseline environment** to compare
-   against (verify missions), that comparison is yours: matching, carry
+   against (verify missions), or the preflight handoff carries a
+   **configured** one (the `environment=` of its `Preflight:` line,
+   other than `none`), that comparison is yours: matching, carry
    on; diverging, **stop hard** — no verdict is ever ruled across
-   environments. Name both values (baseline `prod`, detected `uat`) and
+   environments, and an entry persisted for one environment never
+   answers for another. Name both values (baseline `prod`, detected
+   `uat`; configured `prod`, detected `dev`) and
    recommend rerunning against the baseline's environment, or observing
-   the detected one as a new baseline. A baseline carrying no
+   the detected one as a new baseline — for a configured one,
+   retargeting the configuration, or observing the detected environment
+   as its own. A baseline carrying no
    environment (an instrumentation report has none by design) skips the
    check — record the detected environment fresh.
 

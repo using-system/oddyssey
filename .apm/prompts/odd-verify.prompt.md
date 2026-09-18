@@ -36,12 +36,17 @@ guess past it. `nothing to verify` ends the mission.
 Preflight next - in the main conversation, before any dispatch, in
 this order:
 
-1. **The stack.** The `stack` line is the contract being replayed.
-   When it disagrees with the configured stack (`odd_config_get`),
+1. **The stack and the environment.** The `stack` and `environment`
+   lines are the contract being replayed.
+   When the pair disagrees with the configured one (`odd_config_get`'s
+   `stack` and `environment`),
    say so and **follow the report** - a verify run replays the
-   baseline's stack, never silently retargets the current one, and
+   baseline's pair, never silently retargets the current one, and
    never rewrites the configuration: the divergence is stated, not
-   persisted. That `stack` may be a custom name - a value on no row of
+   persisted; the entry the replay reads is the report's pair's, which
+   step 3's `## Check` resolves itself when the pair is not the
+   configured one (`effective` answers for the configured pair only),
+   and says so. That `stack` may be a custom name - a value on no row of
    `builtin-stacks.md`: step 3's `## Check` resolves it from
    `.odd/observability-stacks/<name>/guide.md` in this clone and, when
    that directory is absent, stops with the `observability-stack`

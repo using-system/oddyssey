@@ -99,7 +99,7 @@ def odd_stack_reset(env: dict[str, str] | None = None) -> dict:
 @mcp.tool()
 @telemetry.traced_tool
 def odd_config_get() -> dict:
-    """Read the global oddyssey configuration: the configured stack (local, or a remote backend) and the local stack host ports (defaults applied; invalid stored values are listed in invalid_ignored). Also returns stack_config: per-stack non-secret targeting values (identifiers, names, regions) persisted for each backend, and version (read-only, never accepted by odd_config_set): the installed oddyssey-mcp package version (null when the server runs from a source checkout that is not installed as a distribution)."""
+    """Read the global oddyssey configuration: the configured stack (local, or a remote backend), the configured deployment environment (null when none is set), and the local stack host ports (defaults applied; invalid stored values are listed in invalid_ignored). Also returns stack_config: non-secret targeting values (identifiers, names, regions) persisted per backend, keyed <stack> or <environment>-<stack>; effective: the entry resolved for the configured pair - {"stack", "environment", "stack_config_key", "stack_config"} where stack_config_key is "<environment>-<stack>" when an entry is persisted for the configured environment, the plain "<stack>" otherwise (the fallback; no merge of the two), and stack_config is that entry ({} when nothing is persisted) - so a consumer of the configured pair never composes the fallback itself; on the local stack the environment is inert (effective.environment is null, the key "local"); and version (read-only, never accepted by odd_config_set): the installed oddyssey-mcp package version (null when the server runs from a source checkout that is not installed as a distribution). Takes no argument."""
     return {**config_ops.load(), "version": config_ops.installed_version()}
 
 
@@ -109,14 +109,18 @@ def odd_config_set(config: dict) -> dict:
     """Update the global oddyssey configuration (partial merge).
 
     config example: {"stack": "datadog"} or {"local": {"grafana_port": 3300}} or
-    {"stack_config": {"azure-monitor": {"workspace": "<guid>"}}}.
+    {"stack_config": {"azure-monitor": {"workspace": "<guid>"}}} or
+    {"environment": "prod", "stack_config": {"prod-cloudwatch": {"log_group":
+    "<log_group>"}}}.
     stack is one of: local (the local stack - the default), grafana (a
     REMOTE Grafana - the CLI context says which instance), azure-monitor,
     cloudwatch, datadog, dynatrace - or a custom stack (a backend
     the package does not ship, described by a stack directory in the observed
     repository) declared under custom in the same call or an earlier one:
     {"stack": "seq", "custom": {"seq": {"stack_config_fields":
-    ["base_url"]}}}. A custom name is kebab-case, never a built-in one; its
+    ["base_url"]}}}. A custom name is kebab-case, never a built-in one and
+    never one that reads as <environment>-<known stack> (prod-cloudwatch,
+    or prod-seq once seq is declared - refused in both directions); its
     declaration lists the stack_config fields the stack's guide names (an
     empty list when it persists nothing), and a re-declaration replaces
     the list. The server never reads the stack's guide - the caller derives
@@ -145,10 +149,19 @@ def odd_config_set(config: dict) -> dict:
     changed OTLP port only after the MCP server restarts, and applications
     configured against the old ports keep exporting to them - their
     OTEL_EXPORTER_OTLP_ENDPOINT must be updated to the new otlp_endpoint.
-    stack_config is merged per stack (other stacks' payloads are untouched)
+    stack_config is keyed <stack> or <environment>-<stack> - one entry per
+    deployment environment next to the stack's plain one, e.g.
+    {"stack_config": {"prod-cloudwatch": {"log_group": "<log_group>"}}}: the
+    environment is kebab-case (^[a-z]([a-z0-9-]*[a-z0-9])?$, never
+    "unknown"), the key is parsed by suffix (dev-azure-monitor is dev +
+    azure-monitor, pre-prod-cloudwatch is pre-prod + cloudwatch - the
+    longest known stack wins), a key whose suffix is no known stack is
+    rejected, and local takes no prefix. stack_config is merged per key
+    (other entries' payloads are untouched)
     and never boots or resets the stack container; values must be non-secret
     scalars - credentials stay in the CLI's own auth store, referenced by
-    name only. Each stack accepts only its own documented field set (e.g.
+    name only. Each stack accepts only its own documented field set, for
+    its prefixed entries too (e.g.
     azure-monitor: subscription, resource_group, workspace,
     app_insights_app; grafana/datadog/dynatrace: none, their CLI
     context carries targeting; a custom stack: its declared list) - an
@@ -158,8 +171,16 @@ def odd_config_set(config: dict) -> dict:
     {"stack_config": {"azure-monitor": {"workspace":
     null}}} removes that key (the last deletion leaves the entry present but
     empty - "not configured"), {"stack_config": {"azure-monitor": null}}
-    removes the stack's entry entirely; a deletion never boots or resets the
+    removes the stack's entry entirely, {"stack_config": {"prod-cloudwatch":
+    null}} an environment's; a deletion never boots or resets the
     container either.
+    environment selects, for the configured stack, which entry the missions
+    read: {"environment": "prod"} persists it (the same pattern as a key's
+    prefix, "unknown" refused), {"environment": null} clears it; absent by
+    default. odd_config_get's effective block resolves the configured pair
+    - the <environment>-<stack> entry when one is persisted, else the
+    plain <stack> entry, whole, never merged. On the local stack the field
+    is inert (the environment is local by construction).
     """
     ports_before = config_ops.load()["local"]
     # Read on the RAW partial, before save validates it: a malformed one
