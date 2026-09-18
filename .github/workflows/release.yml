@@ -41,7 +41,7 @@ jobs:
     # pulls an unpinned transitive closure) - so it references NO
     # secret: the App key and token live only in release below, which
     # runs no such code. The bumped files leave as an artifact.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     outputs:
@@ -136,7 +136,7 @@ jobs:
     # over the artifact prepare produced. Opens the release PR, waits
     # for its CI, merges it, re-points the tag at the merge commit, and
     # creates the GitHub release.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: prepare
     timeout-minutes: 30
     # contents: write exists for one purpose: the tag re-point below is
@@ -305,7 +305,7 @@ jobs:
           fi
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: release
     permissions:
       contents: read
@@ -331,7 +331,7 @@ jobs:
     # a tag-scoped deployment policy (this run's ref IS the version
     # tag), so every PyPI publish is an explicit human act on a
     # specific tag.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: build
     environment: pypi
     permissions:
