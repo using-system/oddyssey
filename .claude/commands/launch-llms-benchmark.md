@@ -1,6 +1,6 @@
 ---
 description: Benchmark one LLM on the llms-benchmark demo stack - drive it through a coding-agent CLI (opencode, claude or copilot) on the stored scenario, grade the observation report it produced, and propose its row of the results table
-argument-hint: "<opencode | claude | copilot> <vendor/model> <full | quick>"
+argument-hint: "<opencode | claude | copilot> <vendor/model>"
 ---
 
 Run the whole llms-benchmark protocol for one model on one CLI, end to
@@ -20,13 +20,9 @@ the same way you would grade a colleague's incident report.
   `opencode`, `claude` or `copilot`; the **model** to benchmark, as its
   canonical `vendor/name` id, the OpenRouter form
   (`anthropic/claude-sonnet-5`, `openai/gpt-5-mini`,
-  `google/gemini-3.5-flash-lite`, ...); and the **depth** of the
-  observation, `full` or `quick` — the `/odd-observe` depth the mission
-  names, and the section of the results page the row lands in (step
-  10). Those are the only three inputs. Ask for whichever is missing and
-  stop until you have all three. Model and CLI identify the row inside
-  its depth's tables: the same model on two CLIs is two rows, and the
-  same model and CLI at two depths is one row in each section.
+  `google/gemini-3.5-flash-lite`, ...). Those are the only two inputs.
+  Ask for whichever is missing and stop until you have both. Model and
+  CLI identify the row: the same model on two CLIs is two rows.
 - The model id is written the same way whatever the CLI, so the two
   rows of one model line up. Each CLI is handed its own form of it:
   `opencode` takes it as `openrouter/<model>`; `claude` takes Anthropic
@@ -202,8 +198,8 @@ Steps:
      hands. Prove the absence rather than assume it:
      `python3 .apm/skills/odd-memory/scripts/odd_recall.py --repo . --service llmbench-api --service llmbench-mcp --service llmbench-agent --stack local`
      must answer `no stored report matches` (services and stack only:
-     a depth or an environment on the line would skip a report recorded
-     at another one, and the file would still be there to read).
+     an environment on the line would skip a report recorded at
+     another one, and the file would still be there to read).
    - **the leftovers, before the store is emptied**: any `llmbench*`
      container beyond the three (a run can start its own copy of the
      stack under another project name — step 9 tells what one cost, and
@@ -336,30 +332,23 @@ Steps:
    the kind of leftover state that makes two rows incomparable.)
 
    The mission prompt is one `/odd-observe` invocation that carries all
-   four of its inputs itself — the services, the scenario, the depth and
-   the stack — rather than naming some of them in prose around it:
+   three of its inputs itself — the services, the scenario and the
+   stack — rather than naming some of them in prose around it:
 
    ```text
    /odd-observe observe the three services llmbench-api, llmbench-mcp and
    llmbench-agent by running .llms-benchmark/benchmark/llmbench-store-load/
-   at <depth> depth on the local stack
+   on the local stack
    ```
 
-   where `<depth>` is the `full` or `quick` you were given, and nothing
-   else in the line changes between the two. Each of the four is named
-   on purpose:
+   Nothing in the line changes between two runs. Each of the three is
+   named on purpose:
    - **the three services**, so the mission never has to guess its own
      scope from what happens to be running on the machine, and so the
      report's frontmatter carries all three;
    - **the scenario**, because every row of the table was produced from
      that same replayed traffic, and an ad-hoc one would grade the
      traffic instead of the model;
-   - **the depth**, because the two are not the same observation:
-     `quick` queries metrics and traces only, so a run under it can
-     reach performance anomalies and little else, whatever the model is
-     worth, and its rows are comparable with each other and not with
-     the `full` rows — which is why the results page keeps one section
-     per depth;
    - **the local stack**, because a mission that leaves it unsaid picks
      up whatever backend the configuration happens to carry.
 
@@ -955,20 +944,15 @@ Steps:
     - From `main`, freshly pulled, create
       `docs/llms-benchmark-<cli>-<model-slug>` and make **one** change:
       the row in the results tables of `.llms-benchmark/README.md`.
-      **The depth picks the section** — `## Results` holds a `### Full
-      report` subsection and a `### Quick report` subsection, each with
-      the two tables below, and a `full` run's row goes in the first,
-      a `quick` run's in the second. **Inside a section a row is
-      identified by model and CLI together.** The pair is not in that
-      section's table yet → append the row; already there → replace
-      that row in place. The same model driven through two CLIs is two
-      rows (`google/gemini-3.7-flash` under `opencode` and under another
-      CLI both appear), and the same model and CLI at both depths is one
-      row in each section; the oddyssey version is not part of the key —
-      a new run of the same model, CLI and depth overwrites the row,
-      whatever version the old one carried. Each section carries no
-      history: one row per model and CLI, always the latest run. A
-      section's rank is its own: a quick row is ranked among quick rows.
+      `## Results` holds the two tables below. **A row is identified by
+      model and CLI together.** The pair is not in the table yet →
+      append the row; already there → replace that row in place. The
+      same model driven through two CLIs is two rows
+      (`google/gemini-3.7-flash` under `opencode` and under another CLI
+      both appear); the oddyssey version is not part of the key — a new
+      run of the same model and CLI overwrites the row, whatever version
+      the old one carried. The table carries no history: one row per
+      model and CLI, always the latest run.
 
     **Two tables, not one.** Seventeen columns scroll the model name off
     the screen and the rows stop being readable, and GitHub keeps no CSS

@@ -127,8 +127,6 @@ NEW = (
     "local",
     "--mode",
     "drive",
-    "--depth",
-    "full",
     "--window",
     WINDOW,
 )
@@ -224,8 +222,6 @@ def test_new_takes_the_window_as_a_query_script_printed_it(repo, report):
         "local",
         "--mode",
         "post-hoc",
-        "--depth",
-        "full",
         "--run-name",
         "a",
         "--from",
@@ -295,7 +291,6 @@ def test_a_slug_the_filename_rule_refuses_is_a_usage_error(repo):
     "args, message",
     [
         (("--mode", "sideways"), "mode"),
-        (("--depth", "deep"), "depth"),
         (("--window", "2026-08-10T10:00:00Z"), "window"),
         (("--window", "2026-08-10T10:05:00Z/2026-08-10T10:00:00Z"), "window"),
         (("--verifies", "x.md"), "verifies"),
@@ -322,7 +317,7 @@ def test_the_frontmatter_records_the_repository_facts(repo, report):
     assert fm["stack"] == "local"
     assert fm["environment"] == "local"
     assert fm["mode"] == "drive"
-    assert fm["depth"] == "full"
+    assert "depth" not in fm
     assert fm["revision"] == repo.git("rev-parse", "--short", "HEAD")
     assert fm["repository"] == "github.com/example-org/checkout"
     assert fm["workload"] == "repo-under-analysis"
@@ -430,7 +425,7 @@ def test_process_restarted_takes_a_boolean_or_a_per_service_map(repo, report):
 def test_the_frontmatter_passes_the_hook_checker(repo, report, hook):
     path = new(repo)
     assert hook.check_file(path) == []
-    assert report.check_file(path, written_now=True) == []
+    assert report.check_file(path) == []
 
 
 def test_environment_may_be_unknown_but_never_absent(repo, report):
@@ -445,8 +440,6 @@ def test_environment_may_be_unknown_but_never_absent(repo, report):
         "local",
         "--mode",
         "drive",
-        "--depth",
-        "full",
         "--window",
         WINDOW,
         "--run-name",
@@ -489,12 +482,14 @@ def test_check_names_a_missing_section_and_a_frontmatter_problem(repo):
     path = new(repo)
     fill(path)
     text = path.read_text(encoding="utf-8")
-    text = text.replace("## 5. Telemetry gaps\n", "").replace("depth: full\n", "")
+    text = text.replace("## 5. Telemetry gaps\n", "").replace(
+        "environment: local\n", ""
+    )
     path.write_text(text, encoding="utf-8")
     proc = run(repo, "check", str(path))
     assert proc.returncode == 2
     assert "section 5" in proc.stderr
-    assert "depth absent" in proc.stderr
+    assert "environment absent" in proc.stderr
 
 
 def test_check_reads_an_instrumentation_report_by_the_hook_rules_and_its_body(repo):
@@ -798,7 +793,6 @@ services: [checkout]
 stack: local
 environment: local
 mode: drive
-depth: full
 window: 2026-08-08T10:00:00Z/2026-08-08T10:05:00Z
 run_name: checkout-sweep
 date: 2026-08-08
@@ -872,8 +866,12 @@ def test_a_re_measure_uses_its_own_prefix(repo, report):
     assert frontmatter(report, path)["mode"] == "re-measure"
 
 
-def test_a_replay_inherits_the_baseline_depth_and_quick_when_it_has_none(repo, report):
+def test_a_replay_ignores_a_depth_field_on_its_baseline(repo, report):
     name = baseline(repo)
+    repo.write(
+        f"{OBS}/{name}",
+        BASELINE.replace("mode: drive\n", "mode: drive\ndepth: quick\n"),
+    )
     proc = run(
         repo,
         "new",
@@ -893,31 +891,8 @@ def test_a_replay_inherits_the_baseline_depth_and_quick_when_it_has_none(repo, r
         name,
     )
     assert proc.returncode == 0, proc.stderr
-    assert frontmatter(report, Path(proc.stdout.splitlines()[0]))["depth"] == "full"
-    repo.write(f"{OBS}/{name}", BASELINE.replace("depth: full\n", ""))
-    proc = run(
-        repo,
-        "new",
-        "--repo",
-        str(repo.root),
-        "--service",
-        "checkout",
-        "--stack",
-        "local",
-        "--env",
-        "local",
-        "--mode",
-        "verify",
-        "--window",
-        WINDOW,
-        "--verifies",
-        name,
-        "--at",
-        "2026-08-11T10:00:00Z",
-    )
-    assert proc.returncode == 0, proc.stderr
-    assert frontmatter(report, Path(proc.stdout.splitlines()[0]))["depth"] == "quick"
-    assert "quick" in proc.stderr
+    assert "depth" not in frontmatter(report, Path(proc.stdout.splitlines()[0]))
+    assert "depth" not in proc.stderr
 
 
 def test_a_replay_pre_fills_the_ruling_table_from_the_baseline_findings(repo, report):
@@ -980,7 +955,7 @@ def test_a_replay_of_an_instrumentation_report_names_it_by_path(repo, report):
     assert path.name == "2026-08-10-1004-verify-app-python.md"
     fm = frontmatter(report, path)
     assert fm["verifies"] == rel
-    assert fm["depth"] == "full"
+    assert "depth" not in fm
 
 
 def test_a_replay_names_a_baseline_that_is_not_stored_and_refuses(repo):
@@ -1208,18 +1183,26 @@ def test_persist_prints_the_headline_never_the_synthesis_block(repo):
 
 DRIVE = "2026-09-04-1107-mcp-read-tools.md"
 VERIFY = "2026-08-29-1107-verify-stack-config-lifecycle.md"
-QUICK = "2026-09-04-1038-status-quick-check.md"
+# a stored drive report carrying the depth field older reports wrote: read like any other
+WITH_DEPTH_FIELD = next(
+    p.name
+    for p in sorted(STORED.glob("*.md"))
+    if all(
+        m in p.read_text(encoding="utf-8").split("\n---\n", 1)[0]
+        for m in ("\ndepth:", "\nmode: drive\n")
+    )
+)
 
 
 @pytest.fixture
 def store(tmp_path: Path) -> Repo:
-    """A repository holding three real stored reports: a drive, a verify, a quick."""
+    """A repository holding real stored reports: a drive, a verify, one with a depth field."""
     r = Repo(tmp_path / "store")
     (r.root / OBS).mkdir(parents=True)
     for name in (
         DRIVE,
         VERIFY,
-        QUICK,
+        WITH_DEPTH_FIELD,
         "2026-08-28-1531-stack-config-lifecycle.md",
         "2026-09-03-1756-remeasure-mcp-read-tools.md",
     ):
@@ -1272,11 +1255,14 @@ def test_synthesis_of_a_verification_quotes_the_rulings_and_the_checks(store):
     assert "The N2 ruling" not in out  # prose stays in the file
 
 
-def test_synthesis_of_a_quick_report_carries_its_not_queried_line(store):
-    proc = run(store, "synthesis", f"{OBS}/{QUICK}")
+def test_synthesis_of_a_report_with_a_depth_field_lists_its_gaps_as_recorded(store):
+    proc = run(store, "synthesis", f"{OBS}/{WITH_DEPTH_FIELD}")
     assert proc.returncode == 0, proc.stderr
-    assert "not queried (quick): logs, profiles" in proc.stdout
-    assert "None this run" in proc.stdout
+    assert "--- section 5" in proc.stdout and "\n- " in proc.stdout
+    # no not-queried statement lifted apart from the bullets: every section 5
+    # bullet is a gap, and section 1 opens the body right after the frontmatter
+    body = proc.stdout.split("--- section 1", 1)[1]
+    assert not any(ln.lower().startswith("not queried") for ln in body.splitlines())
 
 
 def test_show_renders_the_observation_synthesis_in_order(store):
@@ -1304,12 +1290,13 @@ def test_show_renders_a_verification_verdict_first(store):
     assert "baseline: 2026-08-29-0953-verify-stack-config-lifecycle.md" in proc.stdout
 
 
-def test_show_renders_a_quick_report_as_quick(store):
-    proc = run(store, "show", f"{OBS}/{QUICK}")
+def test_show_reads_a_report_with_a_depth_field_like_any_other(store):
+    proc = run(store, "show", f"{OBS}/{WITH_DEPTH_FIELD}")
     assert proc.returncode == 0, proc.stderr
     first = next(ln for ln in proc.stdout.splitlines() if ln.strip())
-    assert first.startswith("**quick")
-    assert "not queried" in first
+    assert first.startswith("**") and "anomalies" in first
+    # the run facts carry no depth line; the body's own words stay its own
+    assert not any(ln.startswith("depth") for ln in proc.stdout.splitlines())
 
 
 LONG_QUERY = (
@@ -1331,7 +1318,6 @@ def test_show_never_cuts_a_gap_s_query_in_half(repo):
     text = path.read_text(encoding="utf-8")
     section = (
         "## 5. Telemetry gaps\n\n"
-        "- not queried (quick): logs, profiles\n"
         f"- `gen_ai.client.operation.duration` histogram not emitted by the agent — new — {LONG_QUERY}\n"
         "- **Profiles: none for `llmbench-mcp`.** the labels list names two other services; "
         f"the query {LONG_QUERY} answers `0`; the same on `llmbench-api` answers 460 000 000.\n\n"
@@ -1383,9 +1369,7 @@ def test_the_status_and_recall_scripts_read_through_this_module(report):
 
 def test_check_report_agrees_with_the_hook_on_the_stored_reports(report, hook):
     for path in sorted(STORED.glob("*.md")):
-        assert hook.check_file(path) == report.check_file(path, written_now=True), (
-            path.name
-        )
+        assert hook.check_file(path) == report.check_file(path), path.name
 
 
 # --- a custom stack: section 8, stack friction ----------------------------------
@@ -1618,7 +1602,7 @@ def test_baseline_resolves_the_newest_report_and_asks_when_the_kinds_span(repo):
     assert got["verifies"] == "2026-08-08-1000-checkout-sweep.md"
     assert got["services"] == "checkout" and got["stack"] == "local"
     assert got["mode"] == "drive (the baseline's frontmatter)"
-    assert got["depth"] == "full (the baseline's depth field)"
+    assert "depth" not in got
     assert got["drive confirmation"] == "not needed (local stack, no recorded target)"
     # an instrumentation report lands: the newest reports span both kinds
     repo.write(
@@ -1640,7 +1624,6 @@ def test_baseline_resolves_the_newest_report_and_asks_when_the_kinds_span(repo):
     assert proc.returncode == 0, proc.stderr
     assert got["verifies"] == f"{INS}/2026-08-09-1000-app-python.md"
     assert got["mode"] == "drive (an instrumentation baseline)"
-    assert got["depth"].startswith("full (an instrumentation baseline")
     assert got["environment"].startswith("none (an instrumentation report carries no")
 
 
@@ -1744,17 +1727,6 @@ def test_baseline_asks_when_the_chain_cannot_answer(repo):
     assert (
         proc.returncode == 3
     )  # the own protocol resolves, the mode still walks nowhere
-
-
-def test_baseline_depth_follows_the_field_then_the_defaults_then_the_argument(repo):
-    text = BASELINE.replace("depth: full\n", "")
-    stored(repo, "2026-08-08-1000-checkout-sweep.md", text)
-    proc = run(repo, "baseline", "--repo", str(repo.root))
-    assert lines_of(proc)["depth"].startswith(
-        "quick (the baseline predates the depth field"
-    )
-    proc = run(repo, "baseline", "--repo", str(repo.root), "--depth", "full")
-    assert lines_of(proc)["depth"] == "full (the argument)"
 
 
 def test_baseline_says_when_a_drive_needs_the_users_confirmation(repo):

@@ -140,9 +140,8 @@ Across all of them:
 Observes a running service through its telemetry and writes the
 plan-ready report under `.odd/observe-run-reports/`. Arguments:
 **service name(s)**, **stack** (default: the configured one),
-**mode** (`drive` / `observe` / `post-hoc`), **depth** (`quick` /
-`full`), **benchmark**, **window**, **focus**, and **baseline
-expectations**. The deployment environment is never an argument: the
+**mode** (`drive` / `observe` / `post-hoc`), **benchmark**, **window**,
+**focus**, and **baseline expectations**. The deployment environment is never an argument: the
 agent detects it from the telemetry.
 
 > The target stack's CLI must be installed, configured and connected
@@ -227,19 +226,11 @@ window "the last 30 days": answered directly with the query as
 evidence, no report written.
 
 ```text
-/odd-observe quick check that orders answers on /health
+/odd-observe check that orders answers on /health
 ```
 
-"orders" is the service, "quick check" the `quick` depth: a
-one-question mission answered in minutes with the signals it needs,
-"/health" the focus.
-
-```text
-/odd-observe full audit of checkout before the SDD wave
-```
-
-"checkout" is the service, "full audit" the `full` depth: the whole
-protocol runs.
+"orders" is the service, "/health" the focus: the whole protocol
+runs, its findings ranked around that endpoint.
 
 ```text
 /odd-observe drive 30 chat requests against assistant, focus on tokens and cost - price <model> at <in>/<out> USD per million tokens, the spend is fine
@@ -263,7 +254,6 @@ Across all of them:
   run is wiped; when the service's port is already served by
   something the run did not start, the run leaves it alone and drives
   its own instance on a free port, and the report says so;
-- with no depth word the prompt asks, `quick` recommended;
 - a stored benchmark is never combined with `post-hoc`.
 
 ## /odd-verify
@@ -328,7 +318,7 @@ prompt stops and says so.
 instrumentation report as the baseline: the mission turns into
 presence rulings - each planned signal closed, present but
 unattributed (nothing proves which process emitted it), or still
-missing - and replays at `full`, its rulings spanning every signal.
+missing - its rulings spanning every signal.
 
 ```text
 /odd-verify re-measure my last checkout report - nothing changed, is it stable?
@@ -338,13 +328,6 @@ missing - and replays at `full`, its rulings spanning every signal.
 you framed it: the prompt checks the code state and, when it agrees,
 stores the run as `remeasure-<run_name>.md`, never as a verification.
 
-```text
-/odd-verify full verify of my last orders report
-```
-
-"my last orders report" is the baseline, "full verify" the depth,
-overriding the baseline report's.
-
 Across all of them:
 
 - a `drive` replay on a remote stack asks you first, every time, and
@@ -352,10 +335,7 @@ Across all of them:
 - when nothing changed in the code since the report, the run is
   stored as a re-measure whatever the wording; when the code state
   contradicts how you framed the mission, or a changed directory has
-  never been ruled runtime or not, the prompt asks;
-- "full verify" / "quick check" sets the depth; otherwise it is the
-  baseline report's, `quick` for a report written before the field,
-  and the prompt says which before dispatching.
+  never been ruled runtime or not, the prompt asks.
 
 ## /odd-status
 

@@ -124,17 +124,6 @@ the report.
   minutes spent waiting belong to the run record's `Watch:` line.
 - **Focus** — performance, errors, correctness, cost/cardinality, a named
   endpoint, or a full sweep (default: full sweep).
-- **Depth** — `quick` or `full`: how far the mission goes, the second
-  axis next to `mode` (who generates the traffic) — the two compose.
-  `full` is the whole protocol below; `quick` is the bounded version
-  the **Depth** section defines. Default when the mission block is
-  silent: `full`. The callers resolve it: `/odd-observe` from the
-  user's phrasing (asking only when it carries no signal), `/odd-verify`
-  from the baseline's `depth` frontmatter (`quick` when an observation
-  baseline predates the field, stated as defaulted; `full` for an
-  instrumentation baseline, whose presence rulings span every signal).
-  The existing `focus` is the intermediate dial and applies at both
-  depths.
 - **Preflight** — optional: the `Preflight:` handoff block the caller's
   `backend-configuration` `## Check` closed with (stack, backend,
   reference read, CLI and context, target values, connection proof
@@ -340,17 +329,14 @@ run record.
    decide: a script running them concurrently answers in seconds what
    spelling them out call by call costs in minutes, and its synthesis is
    what the later steps read. Absent such a script, probe each signal
-   yourself (at `quick` depth, for the signals the mission queries — the
-   Depth section — the others are neither probed nor reported absent):
+   yourself:
    - **traces** — a search scoped to the service returns traces;
    - **metrics** — the service's own series/dimensions exist (discovery,
      not liveness probes: on push-based pipelines an absent scrape-style
      `up` series proves nothing);
    - **logs** — a stream or index carries the service.
 
-   If **no** signal carries a named service, stop (at `quick` depth,
-   only after probing the unqueried signals once — the Depth section):
-   report which signals are
+   If **no** signal carries a named service, stop: report which signals are
    absent, whether the process is reachable at all — and on the local
    stack, whether the service's configured export endpoint matches the
    effective ports (`odd_config_get`): a divergence is the likely cause,
@@ -419,63 +405,6 @@ run record.
    the detected one as a new baseline. A baseline carrying no
    environment (an instrumentation report has none by design) skips the
    check — record the detected environment fresh.
-
-## Depth
-
-`full` is everything this file says. `quick` bounds it — a one-question
-mission answered under five minutes on the local stack (a target, not
-a contract), never a cheaper way to write a full report:
-
-- **Signals** — always: traces, plus the metrics the per-operation
-  table comes from — the span-derived ones when the backend derives
-  them, otherwise the service's own, and from the spans themselves when
-  neither exists, said in section 1. Then whatever the focus touches
-  (`errors` → the logs too; a profile question → the profiles). The
-  others are **not queried**: section 5 says
-  `not queried (quick): logs, profiles` — a statement about the
-  mission, never a gap of the service — and, on a backend that cannot
-  serve a signal, `not served: profiles` next to it; the service
-  preflight (Setup step 3) covers the queried signals only.
-- **Stops and the environment are never ruled on the subset.** Before
-  a "no telemetry" stop (Setup step 3) or an `unknown` environment
-  (Setup step 4), probe the unqueried signals once: a service silent
-  on traces but alive on metrics or logs is reported as such ("no
-  traces in the window; metrics present, not analyzed (quick) — rerun
-  at `full` to rule the service silent"), never handed to the
-  `otel-instrumentation-expert` agent off an unprobed subset — and
-  `environment` is a durable frontmatter value the recall matches on,
-  so it is detected on every signal, at both depths.
-- **Exemplars** — one trace per operation: the worst-duration one,
-  through the bounded search below (one p99 predicate, one fallback
-  list); a p50 or error exemplar only when the question is about it.
-- **Cross-confirmation** — only for the anomalies you report as
-  `confirmed`; the rest stay single-signal, marked `suspected` with
-  the probe that would confirm them, and that is the expected shape
-  at this depth.
-- **Report** — the seven headings stay (the recall reads by section
-  number), and section 8 with them on a custom stack, complete at
-  both depths. Sections 1, 2 and 7 are complete. Section 3 is the ranked
-  table only, no detail per row — a verify or re-measure keeps its
-  baseline-ruling table above it whole, one row per baseline finding,
-  `not ruled (quick)` where the queried signals could not rule. Sections 4 and 6 are one line each;
-  section 5 is its `not queried (quick)` line, then one bullet per gap
-  the queried signals showed. Section 7 carries the checks this run
-  measured, and only those: a quick report is a legal baseline for a
-  later verify, on exactly what it measured.
-- **Verify at quick depth** — rule on every check, anomaly and gap of
-  the baseline that the queried signals can rule; every other item
-  reads `not ruled (quick)`, and the headline counts them
-  (`N of M checks ruled`). Never guess a ruling from an unqueried
-  signal. The other way round — a `full` replay of a `quick`
-  baseline — rules every check the baseline carries and says the
-  baseline's coverage was quick: the check count is the baseline's,
-  not the protocol's.
-
-Everything else — the clean base, the flush wait, the discover-first
-rule, evidence over adjectives, the no-secrets rule, the frontmatter
-— is identical at both depths. `depth` is a frontmatter field: the
-persistence skill records it, the recall reads it (a full mission never
-takes a quick report as its baseline without saying so).
 
 ## Investigation
 
@@ -673,8 +602,7 @@ Then go from aggregates to explanations:
 
 - **Exemplars** — for each operation that matters, fetch three traces: one
   p50-representative, the worst-duration one, and an error one if errors
-  exist (at `quick` depth, the worst-duration one only — the Depth
-  section). When the backend's reference ships this whole step as a
+  exist. When the backend's reference ships this whole step as a
   script — one that ranks a service's operations from the window's
   traces, picks their p50 and worst exemplars, fetches them concurrently and
   summarises them — that invocation is the step, searches and fetches
@@ -754,9 +682,7 @@ Then go from aggregates to explanations:
 - **Cross-signal** — a slow trace names the span, the span's window narrows
   the metric query, the trace ID filters the logs. Every anomaly ends up
   either cross-confirmed in a second signal or explicitly labeled
-  single-signal (at `quick` depth, only the anomalies you report as
-  `confirmed` are cross-confirmed; the others are `suspected` by
-  construction).
+  single-signal.
 
 ## When `gen_ai.*` spans exist in the window
 
@@ -814,12 +740,6 @@ rest of section 2.
   loop; content on span attributes where the mission said it must stay
   off is a finding for section 3, not a gap.
 
-At `quick` depth the per-model table comes from the traces the run
-already reads; the agent-loop reading runs only when the focus asks for
-it, and when it does not, section 5's not-queried statement names it
-with the signals — `not queried (quick): ..., the agent loop` — a
-statement about the mission, never a gap of the service.
-
 ## What the run reports about a custom stack
 
 A custom stack is authored and fixed by one prompt,
@@ -861,15 +781,14 @@ The report file is the persistence script's: `odd-memory`'s
 flag surface included, in its `## The script owns the format` — read
 that section, never `--help` (it answers nothing the section does not)
 — and run it with the run's values (the services, the stack, the
-detected environment, the mode, the depth, the window, the run name,
+detected environment, the mode, the window, the run name,
 the replayed report, the identity, and `--custom-stack` when the
 handoff names a custom stack). It prints the path of the file it
 wrote, then the file's body: the title, a `<fill>` for the one-line
 headline, then the seven headings — eight on a custom stack — each
 followed by a `<fill>`. Write that body, filled, to a **draft file of
-your own** with your file tool — the sections in this order (at
-`quick` depth, in the collapsed shape the Depth section gives sections
-3 to 6; section 8 complete at both depths), every `<fill>` replaced,
+your own** with your file tool — the sections in this order, every
+`<fill>` replaced,
 the headings kept — never open, read or
 edit the report file itself, never rewrite its frontmatter — then run
 the reference's `persist --body <draft>` on the path: it writes the
@@ -884,7 +803,6 @@ What each of the sections carries is stated once, in that
 reference's `## The body` — `new` prints it after the skeleton, so it
 is read there, at report time, never earlier and never from the file:
 the Investigation above is what fills them,
-the Depth section is what collapses sections 3 to 6 at `quick` depth,
 and the section above is what fills section 8 on a custom stack.
 
 ## Rules
@@ -917,9 +835,6 @@ and the section above is what fills section 8 on a custom stack.
   finding against the baseline, never a value in your report.
 - Every anomaly is either cross-confirmed in a second signal or explicitly
   labeled single-signal.
-- The depth bounds how far you look, never how honestly you report:
-  a quick report says what it did not query and did not rule, in the
-  words the Depth section fixes, so nobody mistakes it for a full one.
 - A load generator's own telemetry is never a named service: when k6's
   OpenTelemetry output lands in the store (`service_name="k6"` on the
   local stack), it is a bonus signal to cross-confirm the target's
@@ -942,10 +857,7 @@ and the section above is what fills section 8 on a custom stack.
   step 5) — never once per query, never once per request batch.
 - Before returning the report, self-check: every named service was
   preflighted; all four signals were queried or their absence recorded in
-  section 5 — at `quick` depth, queried or listed as
-  `not queried (quick)` there; the depth appears in section 1 and in
-  the frontmatter, and a quick verify counts the items it did not rule;
-  in a verify or re-measure, section 3 opens with one ruling row per
+  section 5; in a verify or re-measure, section 3 opens with one ruling row per
   baseline finding, none missing, each keyed by the baseline's own id,
   and this run's own findings carry new identifiers;
   every table row and every finding carries its query and

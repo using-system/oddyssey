@@ -20,7 +20,7 @@ section and table parsing from here, so the file format is written and
 read by one module.
 
     odd_report.py new --service S [--service S ...] --stack S --env E
-                      --mode M --depth D --window START/END | --from START --to END
+                      --mode M --window START/END | --from START --to END
                       --run-name SLUG
                       (prints the path, then the skeleton to fill)
                       [--verifies FILE] [--workload W] [--instance K=V ...]
@@ -35,8 +35,8 @@ read by one module.
     odd_report.py show PATH
     odd_report.py persist PATH [--body DRAFT] [--no-commit]
     odd_report.py baseline [TARGET] [--service S ...] [--stack S] [--env E]
-                           [--depth D] [--own-protocol] [--repo PATH]
-                           (a replay's baseline, mode and depth; exit 3 with an
+                           [--own-protocol] [--repo PATH]
+                           (a replay's baseline and mode; exit 3 with an
                            ``ask:`` line when only the user can settle it)
     odd_report.py boundary PATH [--runtime NAME ...] [--non-runtime NAME ...] [--repo PATH]
                            (verification, re-measure or undecidable - exit 3)
@@ -74,7 +74,6 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 REPORT_FILE_RE = re.compile(r"\d{4}-\d{2}-\d{2}-\d{4}-[a-z0-9][a-z0-9-]*\.md")
 OBSERVATION_MODES = ("drive", "observe", "post-hoc", "verify", "re-measure")
 REPLAY_MODES = ("verify", "re-measure")
-DEPTHS = ("quick", "full")
 PREFIXES = {"verify": "verify-", "re-measure": "remeasure-"}
 SUBJECTS = {
     "verify": "verification report",
@@ -204,7 +203,6 @@ FIELD_ORDER = (
     "stack",
     "environment",
     "mode",
-    "depth",
     "window",
     "run_name",
     "date",
@@ -217,12 +215,11 @@ FIELD_ORDER = (
     "process_restarted",
     "stack_friction",
 )
-VERDICTS = ("fixed", "still present", "worse", "not ruled (quick)")
-FATES = ("filled", "still missing", "new", "not ruled (quick)")
+VERDICTS = ("fixed", "still present", "worse")
+FATES = ("filled", "still missing", "new")
 RULING_HEADER = ["#", "Baseline finding", "Verdict", "Evidence"]
 PLACEHOLDER = "<fill>"
 PLACEHOLDER_RE = re.compile(r"<fill\b[^>]*>")
-LEGACY_PREFIX = "depth absent (predates"
 MAX_FINDING_TITLE = 80
 MAX_ROWS = 10  # the synthesis's cap per table, the rest behind "+N more"
 MAX_LINE = 200
@@ -244,22 +241,18 @@ BASELINE_LABEL_RE = re.compile(
     r"^\W*(?:recalled baseline|previous report|baseline report|baseline)\b",
     re.IGNORECASE,
 )
-BASELINE_NOTE_RE = re.compile(
-    r"provisional|baseline .*dropped|newer quick report skipped", re.IGNORECASE
-)
+BASELINE_NOTE_RE = re.compile(r"provisional|baseline .*dropped", re.IGNORECASE)
 DELTA_RE = re.compile(
     r"^\W*deltas?\b|against the (?:recalled )?baseline|vs\.? (?:the )?baseline"
     r"|^\W*[^:—]{2,80}(?::|—)\s*\**(?:improved|regressed|unchanged|new)\b",
     re.IGNORECASE,
 )
-NOT_QUERIED_RE = re.compile(r"^\W*not queried\b", re.IGNORECASE)
 NONE_RE = re.compile(r"^\W*none\b", re.IGNORECASE)
 GAP_SPLIT = " — "
 SEVERE_RE = re.compile(r"\b(?:high|critical)\b", re.IGNORECASE)
 CONFIRMED_RE = re.compile(r"^\W*confirmed", re.IGNORECASE)
 PASS_RE = re.compile(r"\bpass", re.IGNORECASE)
 FAIL_RE = re.compile(r"\bfail", re.IGNORECASE)
-NOT_RULED_RE = re.compile(r"not ruled", re.IGNORECASE)
 
 
 class Refusal(Exception):
@@ -280,7 +273,7 @@ def split_top_level(text: str, sep: str = ",") -> list[str]:
     the beginning of an item or right after a mapping colon - so an
     apostrophe inside a bare word is just a character.
     """
-    parts, buf, depth, quote = [], [], 0, None
+    parts, buf, nesting, quote = [], [], 0, None
     for ch in text:
         if quote:
             buf.append(ch)
@@ -290,10 +283,10 @@ def split_top_level(text: str, sep: str = ",") -> list[str]:
         if ch in ("'", '"') and scalar_can_start(buf):
             quote = ch
         elif ch in "[{":
-            depth += 1
+            nesting += 1
         elif ch in "]}":
-            depth -= 1
-        if ch == sep and depth == 0:
+            nesting -= 1
+        if ch == sep and nesting == 0:
             parts.append("".join(buf))
             buf = []
         else:
@@ -1108,15 +1101,8 @@ def read_report(path: Path, kind: str) -> dict:
     }
 
 
-def check_report(
-    report: dict, stored_names: set[str], root: Path, written_now: bool = False
-) -> list[str]:
-    """What the report lacks against the memory contract's frontmatter.
-
-    ``written_now`` is the write-time reading: ``depth`` is required. The
-    status reads a stored report without it as a legacy file that
-    predates the field (the problem starts with ``LEGACY_PREFIX``).
-    """
+def check_report(report: dict, stored_names: set[str], root: Path) -> list[str]:
+    """What the report lacks against the memory contract's frontmatter."""
     problems: list[str] = []
     name = Path(report.get("path") or report["name"]).name
     match = REPORT_NAME_RE.match(name)
@@ -1152,15 +1138,6 @@ def check_report(
         mode = values.get("mode")
         if mode is not None and mode not in OBSERVATION_MODES:
             problems.append(f"mode {mode!r} is not one of {list(OBSERVATION_MODES)}")
-        depth = fm.get("depth")
-        if depth is None:
-            problems.append(
-                "depth absent"
-                if written_now
-                else "depth absent (predates the field: reads as full)"
-            )
-        elif str(depth) not in DEPTHS:
-            problems.append(f"depth {str(depth)!r} is not one of {list(DEPTHS)}")
         window = values.get("window")
         if window is not None:
             wm = WINDOW_RE.match(window)
@@ -1483,7 +1460,7 @@ def check_rulings(sections: list[dict], baseline: list[dict]) -> list[str]:
     return problems
 
 
-def check_file(path: Path, written_now: bool = False, body: bool = False) -> list[str]:
+def check_file(path: Path, body: bool = False) -> list[str]:
     """The report's problems: the hook's frontmatter and filename rules, and
     with ``body`` the write-time body rules. An empty list is a report the
     contract accepts; a file that is no report is a refusal."""
@@ -1503,7 +1480,7 @@ def check_file(path: Path, written_now: bool = False, body: bool = False) -> lis
         else set()
     )
     root = path.parents[2]
-    problems = check_report(report, stored, root, written_now=written_now)
+    problems = check_report(report, stored, root)
     if body:
         problems.extend(check_body(report, root))
     return problems
@@ -1545,7 +1522,7 @@ def gap_bullets(baseline: list[dict]) -> list[tuple[str, str]]:
         return []
     found = []
     for item in items(current["lines"]):
-        if not item.startswith("- ") or NOT_QUERIED_RE.match(item[2:]):
+        if not item.startswith("- "):
             continue
         parts = item[2:].split(GAP_SPLIT)
         if len(parts) >= 3:
@@ -1644,7 +1621,6 @@ def new_instrumentation_report(args: argparse.Namespace) -> tuple[Path, str, lis
         ("--service", args.service),
         ("--env", args.env),
         ("--mode", args.mode),
-        ("--depth", args.depth),
         ("--window", args.window),
         ("--from/--to", args.start or args.end),
         ("--verifies", args.verifies),
@@ -1746,8 +1722,6 @@ def new_report(args: argparse.Namespace) -> tuple[Path, str, list[str]]:
         raise Refusal(
             f"--mode is one of {', '.join(OBSERVATION_MODES)}, not {args.mode!r}"
         )
-    if args.depth is not None and args.depth not in DEPTHS:
-        raise Refusal(f"--depth is one of {', '.join(DEPTHS)}, not {args.depth!r}")
     # the two instants a query script printed (--from START --to END) are
     # the window as recorded, pasted as they are: never recomputed by hand
     if args.window and (args.start or args.end):
@@ -1783,7 +1757,6 @@ def new_report(args: argparse.Namespace) -> tuple[Path, str, list[str]]:
     baseline_sections: list[dict] | None = None
     baseline_kind = None
     run_name = args.run_name
-    depth = args.depth
     if replay:
         target = baseline_path(root, args.verifies)
         if not target.is_file():
@@ -1800,25 +1773,8 @@ def new_report(args: argparse.Namespace) -> tuple[Path, str, list[str]]:
             if not run_name:
                 raise Refusal("the baseline carries no run_name; pass --run-name")
             notes.append(f"run_name {run_name} inherited from the baseline")
-        if depth is None:
-            if baseline_kind == "instrumentation":
-                depth = "full"
-                notes.append(
-                    "depth full: an instrumentation baseline replays every signal"
-                )
-            elif base_fm.get("depth") is None:
-                depth = "quick"
-                notes.append(
-                    "depth quick: the baseline predates the field (it ran full; a "
-                    "replay of it is quick unless the caller says full)"
-                )
-            else:
-                depth = str(base_fm["depth"])
-                notes.append(f"depth {depth} inherited from the baseline")
         if baseline_kind == "observation":
             baseline_sections = raw_sections(base["body"])
-    if depth is None:
-        raise Refusal("--depth is required (quick or full)")
     if run_name is None:
         raise Refusal("--run-name is required")
     if not SLUG_RE.match(run_name):
@@ -1851,7 +1807,6 @@ def new_report(args: argparse.Namespace) -> tuple[Path, str, list[str]]:
         "stack": args.stack,
         "environment": args.env,
         "mode": args.mode,
-        "depth": depth,
         "window": args.window,
         "run_name": run_name,
         "date": date,
@@ -2076,7 +2031,6 @@ def synthesis_data(text: str, kind: str | None = None) -> dict:
         ],
         "mode": mode,
         "replay": replay,
-        "quick": str(fm.get("depth")) == "quick",
         "baseline_lines": [],
         "baseline_name": None,
         "no_baseline": False,
@@ -2084,7 +2038,6 @@ def synthesis_data(text: str, kind: str | None = None) -> dict:
         "checks": [],
         "rulings": [],
         "findings": [],
-        "not_queried": None,
         "gaps": [],
         "decisions": [],
         "decisions_none": None,
@@ -2158,15 +2111,7 @@ def synthesis_data(text: str, kind: str | None = None) -> dict:
     five = section(sections, 5)
     if five is not None:
         for item in items(five["lines"]):
-            if NOT_QUERIED_RE.match(item) and data["not_queried"] is None:
-                data["not_queried"] = item
-            elif (
-                item.startswith("- ")
-                and NOT_QUERIED_RE.match(item[2:])
-                and data["not_queried"] is None
-            ):
-                data["not_queried"] = item[2:]
-            elif item.startswith("- "):
+            if item.startswith("- "):
                 data["gaps"].append(item[2:])
     six = section(sections, 6)
     if six is not None:
@@ -2263,10 +2208,8 @@ def synthesis_text(data: dict) -> str:
         else ["(no findings table in section 3)"]
     )
     out.append("--- section 5: telemetry gaps")
-    if data["not_queried"]:
-        out.append(data["not_queried"])
     out += [f"- {g}" for g in data["gaps"]]
-    if not data["not_queried"] and not data["gaps"]:
+    if not data["gaps"]:
         out.append("(no gap bullet in section 5)")
     out.append("--- section 6: open decisions")
     if data["decisions"]:
@@ -2300,7 +2243,7 @@ def locate(path: Path) -> tuple[Path | None, str]:
     return root, rel.as_posix()
 
 
-# --- a replay's preflight: the baseline, the mode, the depth, the boundary -----------
+# --- a replay's preflight: the baseline, the mode, the boundary ----------------------
 
 
 def stored_reports(root: Path) -> list[dict]:
@@ -2540,20 +2483,6 @@ def walk_mode(root: Path, baseline: dict) -> tuple[str, str]:
         current, hops = nxt, hops + 1
 
 
-def replay_depth(baseline: dict, override: str | None) -> tuple[str, str]:
-    if override:
-        return override, "the argument"
-    if baseline["kind"] == "instrumentation":
-        return "full", "an instrumentation baseline replays every signal"
-    depth = baseline["frontmatter"].get("depth")
-    if depth is None:
-        return "quick", (
-            "the baseline predates the depth field (it ran full); say `full verify` "
-            "to replay at the protocol it ran"
-        )
-    return str(depth), "the baseline's depth field"
-
-
 def recorded_target(body: str) -> str | None:
     """The record's base URL, when it recorded one (``n/a`` is none)."""
     record = scenario_record(body) or ""
@@ -2575,7 +2504,6 @@ def baseline_facts(root: Path, args: argparse.Namespace) -> dict:
     resolved = resolve_report(root, args.target, args.service, args.stack, args.env)
     baseline, how = hop_to_baseline(root, resolved, args.own_protocol)
     mode, mode_why = walk_mode(root, baseline)
-    depth, depth_why = replay_depth(baseline, args.depth)
     fm = baseline["frontmatter"]
     sections = raw_sections(baseline["body"])
     benchmarks = [m["path"] for m in benchmark_mentions(sections, baseline["body"])]
@@ -2606,8 +2534,6 @@ def baseline_facts(root: Path, args: argparse.Namespace) -> dict:
         ),
         "mode": mode,
         "mode_why": mode_why,
-        "depth": depth,
-        "depth_why": depth_why,
         "revision": fm.get("revision"),
         "benchmarks": benchmarks,
         "target": target,
@@ -2631,7 +2557,6 @@ def render_baseline(facts: dict) -> str:
             else str(env or "none")
         ),
         f"mode: {facts['mode']} ({facts['mode_why']})",
-        f"depth: {facts['depth']} ({facts['depth_why']})",
         f"revision: {facts['revision'] or 'none'}",
         f"benchmark: {', '.join(facts['benchmarks']) or 'none named'}",
         f"target: {facts['target'] or 'not recorded'}",
@@ -2924,21 +2849,10 @@ def plural(count: int, noun: str, nouns: str | None = None) -> str:
     return f"{count} {noun if count == 1 else (nouns or noun + 's')}"
 
 
-def verdict_counts(rows: list[list[str]]) -> tuple[int, int, int]:
+def verdict_counts(rows: list[list[str]]) -> tuple[int, int]:
     passed = sum(bool(PASS_RE.search(r[3])) and not FAIL_RE.search(r[3]) for r in rows)
     failed = sum(bool(FAIL_RE.search(r[3])) for r in rows)
-    unruled = sum(bool(NOT_RULED_RE.search(r[3])) for r in rows)
-    return passed, failed, unruled
-
-
-def not_queried_summary(line: str | None) -> str | None:
-    if not line:
-        return None
-    match = re.match(r"^\W*not queried \([^)]*\):\s*([^—.;]+)", line, re.IGNORECASE)
-    if not match:
-        return "some signals not queried"
-    names = match.group(1).strip().rstrip(",")
-    return f"{names} not queried"
+    return passed, failed
 
 
 def dominant_approach(approaches: dict) -> str:
@@ -3042,21 +2956,19 @@ def render_headline(data: dict) -> str:
     gaps = len(data["gaps"])
     mode = data["mode"]
     if mode == "verify":
-        passed, failed, unruled = verdict_counts(data["checks"])
+        passed, failed = verdict_counts(data["checks"])
         total = len(data["checks"])
         if total:
             text = f"{'FAIL' if failed else 'PASS'} — {passed}/{total} checks passed"
             if failed:
                 text = f"FAIL — {failed}/{total} checks red"
-            if unruled:
-                text += f", {unruled} not ruled (quick)"
         else:
             text = (
                 f"verify — {plural(len(data['rulings']), 'baseline finding')} ruled, "
                 "no check table"
             )
     elif mode == "re-measure":
-        passed, failed, unruled = verdict_counts(data["checks"])
+        passed, failed = verdict_counts(data["checks"])
         total = len(data["checks"])
         text = (
             f"{'drift' if failed else 'no drift'} — {passed}/{total} checks within range"
@@ -3072,9 +2984,6 @@ def render_headline(data: dict) -> str:
             text += f", vs baseline {data['baseline_name']}"
         elif data["no_baseline"]:
             text += ", no previous report"
-    if data["quick"]:
-        summary = not_queried_summary(data["not_queried"])
-        text = f"quick — {text}" + (f", {summary}" if summary else "")
     return f"**{text}**"
 
 
@@ -3092,7 +3001,6 @@ def render_show(data: dict, rel: str, commit: str | None) -> str:
         ("services", ", ".join(as_list(fm.get("services")))),
         ("stack", fm.get("stack")),
         ("mode", fm.get("mode")),
-        ("depth", fm.get("depth") or "full"),
         ("window", fm.get("window")),
         ("environment", fm.get("environment")),
     ]
@@ -3137,15 +3045,13 @@ def render_show(data: dict, rel: str, commit: str | None) -> str:
         ]
         out += table_lines(["Severity", "Confidence", "Finding"], rows, MAX_ROWS)
         out.append("")
-    if data["not_queried"]:
-        out.append(cap(data["not_queried"], MAX_LINE)[0])
     if data["gaps"]:
         out.append("Telemetry gaps:")
         for gap in data["gaps"][:MAX_ROWS]:
             out.append(f"- {gap_line(gap)}")
         if len(data["gaps"]) > MAX_ROWS:
             out.append(f"+{len(data['gaps']) - MAX_ROWS} more in the report")
-    if data["not_queried"] or data["gaps"]:
+    if data["gaps"]:
         out.append("")
     count = len(data["decisions"])
     out.append(f"Decisions the spec must settle: {count}")
@@ -3181,11 +3087,9 @@ def render_show(data: dict, rel: str, commit: str | None) -> str:
 def next_action(data: dict) -> str:
     mode = data["mode"]
     if mode == "verify":
-        _, failed, unruled = verdict_counts(data["checks"])
+        _, failed = verdict_counts(data["checks"])
         if failed:
             return "back to the fix plan - the red checks name what did not land; replay the protocol with /odd-verify once it does."
-        if unruled:
-            return "replay the protocol with /odd-verify at full depth to rule what this quick run left unruled."
         return "nothing left to verify from this replay; the next observation when the loop's cadence is due."
     if mode == "re-measure":
         return "no fix was under test; build the fix plan from the baseline report, then replay its protocol with /odd-verify."
@@ -3225,8 +3129,8 @@ def splice_body(path: Path, draft: Path) -> list[str]:
     counted = recount_friction(path)
     if counted is not None:
         notes.append(f"{FRICTION_KEY}: {counted} (section {FRICTION_NUMBER} recounted)")
-    frontmatter_problems = check_file(path, written_now=True)
-    problems = check_file(path, written_now=True, body=True)
+    frontmatter_problems = check_file(path)
+    problems = check_file(path, body=True)
     if problems:
         # the file keeps what new wrote - a replay's pre-filled rulings and
         # gaps included - and the draft is what the run fixes; a problem of
@@ -3249,7 +3153,7 @@ def persist(
     """The return value's lines (stdout) and the notes (stderr)."""
     spliced = splice_body(path, body) if body is not None else []
     # a spliced draft was checked as it landed; a file persisted as it is is checked here
-    problems = [] if body is not None else check_file(path, written_now=True, body=True)
+    problems = [] if body is not None else check_file(path, body=True)
     if problems:
         raise Refusal(
             "the report does not follow the memory contract - fix it before "
@@ -3368,11 +3272,6 @@ def main(argv: list[str] | None = None) -> int:
         help="drive | observe | post-hoc | verify | re-measure",
     )
     p.add_argument(
-        "--depth",
-        metavar="DEPTH",
-        help="quick | full (a replay inherits the baseline's)",
-    )
-    p.add_argument(
         "--window",
         metavar="START/END",
         help="<start>/<end> in UTC (YYYY-MM-DDTHH:MM:SSZ)",
@@ -3446,14 +3345,13 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser(
         "baseline",
-        help="a replay's baseline, verifies value, mode and depth (exit 3: ask)",
+        help="a replay's baseline, verifies value and mode (exit 3: ask)",
     )
     p.add_argument("target", nargs="?", help="a report path, or enough of a run name")
     p.add_argument("--repo", default=".", help="a path inside the repository")
     p.add_argument("--service", action="append", default=[], help="repeatable")
     p.add_argument("--stack")
     p.add_argument("--env", help="the deployment environment the baseline ran on")
-    p.add_argument("--depth", choices=DEPTHS, help="the argument's depth, which wins")
     p.add_argument(
         "--own-protocol",
         action="store_true",
@@ -3528,7 +3426,7 @@ def main(argv: list[str] | None = None) -> int:
         if not path.is_file():
             raise Refusal(f"no such file: {path}")
         if args.command == "check":
-            problems = check_file(path, written_now=True, body=True)
+            problems = check_file(path, body=True)
             for problem in problems:
                 print(f"{path.name}: {problem}", file=sys.stderr)
             if problems:

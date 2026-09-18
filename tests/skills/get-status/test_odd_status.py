@@ -120,7 +120,6 @@ def observation(
         f"stack: {stack}",
         f"environment: {environment}",
         f"mode: {mode}",
-        "depth: full",
         f"window: {date}T10:00:00Z/{date}T10:05:00Z",
         f"run_name: {run_name}",
         f"date: {date}",
@@ -1000,9 +999,9 @@ def test_bullets_beyond_the_bullet_cap_are_dropped_and_counted(repo):
 
 
 def test_the_prose_before_the_bullets_is_capped_on_its_own(repo):
-    lead = "Not queried (quick): profiles - " + "x" * 2000
+    lead = "The probes this run opened with - " + "x" * 2000
     section = bulleted_gaps(repo, f"{lead}\n\n{gap_bullets(2)}")
-    assert section["text"].startswith("Not queried (quick): profiles - x")
+    assert section["text"].startswith("The probes this run opened with - x")
     assert section["text"].endswith(gap_bullets(2))  # the bullets survive its cut
     assert section["text_truncated"] is True
     assert section["text_prose_cut"] is True  # the lead, not a gap
@@ -1010,7 +1009,7 @@ def test_the_prose_before_the_bullets_is_capped_on_its_own(repo):
 
 
 def test_the_lift_keeps_the_spacing_of_a_section_it_does_not_cut(repo):
-    written = f"Not queried (full): none.\n\n{gap_bullets(2, length=60)}"
+    written = f"All four signals queried.\n\n{gap_bullets(2, length=60)}"
     section = bulleted_gaps(repo, written)
     assert section["text"] == written  # blank lines and all, verbatim
     assert section["text_truncated"] is False
@@ -1307,9 +1306,7 @@ def test_ledger_latest_row_wins_and_bad_rows_are_reported_not_dropped(repo):
 def test_ledger_finds_a_finding_named_only_in_prose_even_past_the_text_cap(
     repo, padding
 ):
-    prose = (
-        "y" * padding + " Finding **F7** is real, the table was collapsed (quick).\n"
-    )
+    prose = "y" * padding + " Finding **F7** is real, the table was collapsed.\n"
     body = (
         DEFAULT_BODY.split("## 3.")[0]
         + "## 3. Anomalies and probable causes\n\n"
@@ -1571,13 +1568,12 @@ def test_invariant_is_clean_for_a_conforming_store(repo):
     )
     repo.commit("docs(odd): report")
     result = facts(repo)
-    assert result["invariant"] == {"checked": 1, "violations": [], "legacy": []}
+    assert result["invariant"] == {"checked": 1, "violations": []}
 
 
 def test_invariant_flags_missing_and_malformed_frontmatter_fields(repo):
     text = (
         observation()
-        .replace("depth: full\n", "")
         .replace(
             "window: 2026-08-10T10:00:00Z/2026-08-10T10:05:00Z",
             "window: 10:00 to 10:05",
@@ -1587,25 +1583,21 @@ def test_invariant_flags_missing_and_malformed_frontmatter_fields(repo):
     repo.write(".odd/observe-run-reports/2026-08-10-1000-checkout-sweep.md", text)
     repo.commit("docs(odd): report")
     problems = _violations(facts(repo))["2026-08-10-1000-checkout-sweep.md"]
-    assert any(p.startswith("depth absent") for p in problems)
     assert any(p.startswith("window") for p in problems)
     assert any(p.startswith("mode") for p in problems)
     assert facts(repo)["invariant"]["checked"] == 1
 
 
-def test_invariant_lists_a_report_predating_depth_as_legacy_not_violation(repo):
-    # The contract reads a report without depth as full: nothing can ever
-    # change an append-only file, so it is a note, not a violation.
+@pytest.mark.parametrize("value", ["quick", "full", "deep", ""])
+def test_invariant_ignores_a_depth_field_whatever_its_value(repo, value):
+    # An older report may carry a depth field: nothing can ever change an
+    # append-only file, and the field is neither required nor read.
     repo.write(
         ".odd/observe-run-reports/2026-08-10-1000-checkout-sweep.md",
-        observation().replace("depth: full\n", ""),
+        observation().replace("mode: drive\n", f"mode: drive\ndepth: {value}\n"),
     )
     repo.commit("docs(odd): report")
-    result = facts(repo)["invariant"]
-    assert result["violations"] == []
-    assert result["legacy"] == [
-        ".odd/observe-run-reports/2026-08-10-1000-checkout-sweep.md"
-    ]
+    assert facts(repo)["invariant"] == {"checked": 1, "violations": []}
 
 
 def test_invariant_resolves_a_bare_verifies_against_observation_reports_only(repo):

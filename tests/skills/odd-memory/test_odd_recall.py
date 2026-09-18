@@ -80,7 +80,7 @@ def observation(
     stack="local",
     environment="local",
     mode="drive",
-    depth="full",
+    depth=None,
     run_name="a",
     date="2026-08-10",
     extra="",
@@ -91,7 +91,7 @@ def observation(
         f"stack: {stack}",
         f"environment: {environment}",
         f"mode: {mode}",
-        *([f"depth: {depth}"] if depth else []),
+        *([f"depth: {depth}"] if depth is not None else []),
         f"window: {date}T10:00:00Z/{date}T10:05:00Z",
         f"run_name: {run_name}",
         f"date: {date}",
@@ -188,7 +188,6 @@ def test_recall_lists_the_matches_newest_first_with_the_frontmatter_columns(repo
             "local",
             "local",
             "verify",
-            "full",
             "2026-08-10-1000-a.md",
             "-",
             "-",
@@ -200,7 +199,6 @@ def test_recall_lists_the_matches_newest_first_with_the_frontmatter_columns(repo
             "local",
             "prod",
             "drive",
-            "full",
             "-",
             "peak-hour",
             "github.com/example-org/checkout",
@@ -212,7 +210,6 @@ def test_recall_lists_the_matches_newest_first_with_the_frontmatter_columns(repo
             "local",
             "local",
             "drive",
-            "full",
             "-",
             "-",
             "-",
@@ -230,7 +227,7 @@ def test_a_per_service_repository_map_prints_as_service_equals_repository(repo):
         ),
     )
     repo.commit("docs(odd): report")
-    assert lines(run(repo))[0][9] == (
+    assert lines(run(repo))[0][8] == (
         "checkout=github.com/example-org/checkout,payment=gitlab.com/example-group/payment,cart=-"
     )
 
@@ -269,7 +266,9 @@ def test_an_unknown_environment_matches_only_another_unknown(repo):
     assert len(lines(run(repo))) == 2
 
 
-def test_a_full_mission_skips_a_newer_quick_report_and_names_it(repo):
+def test_a_depth_field_on_a_stored_report_is_ignored(repo):
+    # older reports may carry the field, with any value: none of them is
+    # matched, skipped or flagged on it, and the listing has no column for it
     repo.write(f"{OBS}/2026-08-10-1000-a.md", observation(run_name="a"))
     repo.write(
         f"{OBS}/2026-08-11-1000-q.md",
@@ -277,18 +276,21 @@ def test_a_full_mission_skips_a_newer_quick_report_and_names_it(repo):
     )
     repo.write(
         f"{OBS}/2026-08-09-1000-old.md",
-        observation(run_name="old", date="2026-08-09", depth=""),
+        observation(run_name="old", date="2026-08-09", depth="deep"),
+    )
+    repo.write(
+        f"{OBS}/2026-08-08-1000-older.md",
+        observation(run_name="older", date="2026-08-08", depth=""),
     )
     repo.commit("docs(odd): reports")
-    proc = run(repo, "--depth", "full")
+    proc = run(repo)
     assert [l[0] for l in lines(proc)] == [
+        "2026-08-11-1000-q.md",
         "2026-08-10-1000-a.md",
         "2026-08-09-1000-old.md",
+        "2026-08-08-1000-older.md",
     ]
-    assert proc.stderr.strip() == "newer quick report skipped: 2026-08-11-1000-q.md"
-    assert [l[6] for l in lines(proc)] == ["full", "-"]  # depth absent reads as full
-    proc = run(repo, "--depth", "quick")
-    assert next(l[0] for l in lines(proc)) == "2026-08-11-1000-q.md"
+    assert all(len(l) == 9 for l in lines(proc))  # no column for the field
     assert proc.stderr == ""
 
 
@@ -309,7 +311,6 @@ def test_instrumentation_reports_match_when_the_project_covers_the_scope(repo):
             "instrumentation",
             "myrepo/src",
             "local",
-            "-",
             "-",
             "-",
             "-",
@@ -571,10 +572,9 @@ def test_a_defective_directory_does_not_swallow_what_the_scope_missed(repo):
 def test_the_report_flags_are_refused_on_the_benchmark_kind(repo):
     benchmarks(repo)
     for args, named in (
-        (("--stack", "local"), "--stack, --env, --mode and --depth"),
-        (("--env", "prod"), "--stack, --env, --mode and --depth"),
-        (("--mode", "drive"), "--stack, --env, --mode and --depth"),
-        (("--depth", "full"), "--stack, --env, --mode and --depth"),
+        (("--stack", "local"), "--stack, --env and --mode"),
+        (("--env", "prod"), "--stack, --env and --mode"),
+        (("--mode", "drive"), "--stack, --env and --mode"),
         (("--project", "x"), "--project applies to instrumentation reports only"),
     ):
         proc = run(repo, "--kind", "benchmark", *args)
@@ -638,40 +638,6 @@ def test_a_flagged_report_outside_the_scope_is_still_reported(repo):
     assert "not matched, flagged: 2026-08-10-1000-a.md: stack absent" in proc.stderr
 
 
-def test_no_full_match_says_so_instead_of_a_misleading_skip(repo):
-    repo.write(f"{OBS}/2026-08-10-1000-a.md", observation(depth="quick"))
-    repo.write(
-        f"{OBS}/2026-08-11-1000-b.md",
-        observation(run_name="b", date="2026-08-11", depth="quick"),
-    )
-    repo.commit("docs(odd): reports")
-    proc = run(repo, "--depth", "full")
-    assert proc.stdout == ""
-    assert (
-        "no full match; 2 quick report(s) skipped: 2026-08-11-1000-b.md, 2026-08-10-1000-a.md"
-        in proc.stderr
-    )
-    assert "newer quick" not in proc.stderr
-
-
-def test_an_empty_or_null_depth_reads_as_full(repo):
-    repo.write(
-        f"{OBS}/2026-08-10-1000-a.md",
-        observation(depth="").replace("mode: drive", "mode: drive\ndepth:"),
-    )
-    repo.write(
-        f"{OBS}/2026-08-11-1000-b.md",
-        observation(run_name="b", date="2026-08-11", depth="null"),
-    )
-    repo.commit("docs(odd): reports")
-    proc = run(repo, "--depth", "full")
-    assert [l[0] for l in lines(proc)] == [
-        "2026-08-11-1000-b.md",
-        "2026-08-10-1000-a.md",
-    ]
-    assert proc.stderr == ""
-
-
 def test_flags_of_the_other_kind_are_refused(repo):
     store(repo)
     for args in (("--kind", "instrumentation", "--service", "x"), ("--project", "x")):
@@ -694,7 +660,7 @@ def test_an_unreadable_report_is_reported_and_the_rest_listed(repo):
 
 VARIANTS = {
     "well-formed": observation(),
-    "no depth (legacy, not a violation)": observation(depth=""),
+    "a depth field, ignored": observation(depth="deep"),
     "bad mode": observation(mode="drove"),
     "no window": observation().replace("window: ", "when: "),
     "bad window": observation().replace("T10:05:00Z", "T09:00:00Z"),
@@ -708,11 +674,7 @@ VARIANTS = {
     ),
     "empty services": observation(services="[]"),
     "no frontmatter": "## 1. Mission\n",
-    "bad depth": observation(depth="deep"),
-    "empty depth value": observation(depth="").replace(
-        "mode: drive", "mode: drive\ndepth:"
-    ),
-    "null depth": observation(depth="null"),
+    "empty depth value": observation(depth=""),
     "null verifies on a drive report": observation(extra="verifies: null"),
     "scalar services": observation(services="checkout"),
     "quoted services with a comma": observation(services='["a, b", checkout]'),
@@ -732,11 +694,7 @@ def test_the_recall_check_agrees_with_get_status_invariant(
     repo.write(rel, VARIANTS[variant])
     repo.commit("docs(odd): report")
     parsed = odd_status.parse_report(repo.root, rel, "observation")
-    expected = [
-        p
-        for p in odd_status.check_report(parsed, {"2026-08-10-1000-a.md"}, repo.root)
-        if not p.startswith(odd_status.LEGACY_PREFIX)
-    ]
+    expected = odd_status.check_report(parsed, {"2026-08-10-1000-a.md"}, repo.root)
     report = recall.read_report(repo.root / rel, "observation")
     problems = recall.check(report, {"2026-08-10-1000-a.md"}, repo.root)
     assert sorted(problems) == sorted(expected), variant
@@ -761,11 +719,7 @@ def test_the_filename_check_agrees_with_get_status(repo, recall, odd_status, nam
     repo.commit("docs(odd): report")
     parsed = odd_status.parse_report(repo.root, rel, "observation")
     stored = {name, "2026-08-10-1000-a.md"}
-    expected = [
-        p
-        for p in odd_status.check_report(parsed, stored, repo.root)
-        if not p.startswith(odd_status.LEGACY_PREFIX)
-    ]
+    expected = odd_status.check_report(parsed, stored, repo.root)
     problems = recall.check(
         recall.read_report(repo.root / rel, "observation"), stored, repo.root
     )
@@ -776,7 +730,7 @@ def test_the_filename_check_agrees_with_get_status(repo, recall, odd_status, nam
 
 
 def test_usage_errors_and_a_missing_repository_are_one_stderr_line(repo, tmp_path):
-    for args in (("--depth", "deep"), ("--kind", "plan")):
+    for args in (("--nope", "deep"), ("--kind", "plan")):
         proc = run(repo, *args)
         assert proc.returncode == 2 and proc.stdout == ""
         assert len(proc.stderr.strip().splitlines()) == 1, args
