@@ -56,199 +56,50 @@ design.
 
 </details>
 
-**Rank** is the answer to the question in the title, in one column. It
-is a judgement on **three axes together — findings, cost and duration** —
-and it is decided rather than computed. **Cost and duration weigh
-heavily**: a run nobody can afford, or nobody will wait for, is not a
-usable answer however much it finds. The findings are what stop that from
-collapsing into "cheapest wins" — a model that reports little, or reports
-wrong, does not rise on being quick. Ranking on findings alone would
-put a 67-minute run first; ranking on duration alone would reward
-whichever model gives up soonest; ranking on cost alone would reward the
-one that barely looks. Adding or updating a model re-sorts the whole
-table, never just inserts a line, and the pull request that does it
-argues the placement on those three axes.
+**How to read the table**
 
-A row measured under an earlier revision of the protocol is marked ⚠︎ and
-its placement is provisional until it is re-run; a row the maintainer
-stops maintaining is removed rather than left to age. What a revision is
-worth was settled once: `qwen/qwen3.8-27b` scored 25 of 26 when it was
-allowed to read the application before observing it, and **15 of 15** on
-the same scenario once it was not. Ten of its findings came from the
-code, not from the telemetry.
+- **Rank** weighs findings, cost and duration together. It is decided in each row's pull request, never computed: findings alone would rank a 67-minute run first, duration alone rewards whoever gives up soonest, cost alone rewards whoever barely looks. Adding a model re-sorts the whole table.
+- **Confirmed / reported** is the grade: how many of the findings the model reported held up when checked against the telemetry it cited and the code it accused. 3 / 3 beats 4 / 12. Anomalies and telemetry gaps both count; a restatement counts once; a row bundling several defects counts once per defect.
+- **Telemetry / Perf / Behavior** splits the reported findings by kind.
+- **$/confirmed** is what one trustworthy finding costs.
+- **CLI** is the coding-agent CLI the mission ran in; its version is in the row's pull request. Model and CLI identify a row; the oddyssey version does not, a new run replaces the row.
+- **Signals**: how many of metrics, traces, logs and profiles the run queried. Not part of the grade, the context to read it in.
+- **Preflight / Drive / Observation**: the drive is the scenario's fixed two minutes; a long preflight is a model that is lost, a long observation a model that is thorough. **Turns** and **median turn** separate groping (many short turns) from slow answering (few long ones).
+- **Input / Output / Cache / Cost** come from the CLI's own session store after the run, whole session tree included. Input is the whole prompt processed, cached share included (cache is that share); output includes reasoning; cost is the provider's billed figure, cross-checked against its list prices.
 
-**How the reported count is arrived at.** A report splits its findings
-between an anomalies section and a telemetry-gaps section, and the two
-are not used the same way by every model: absent database spans are an
-anomaly for two of these rows and a gap for another. So both sections
-count, an entry that restates one already counted does not count twice,
-and a row that bundles defects with different root causes and different
-fixes counts once per defect. Without that, the denominator would measure
-how a model organises a document.
-
-**Confirmed / reported** is the grade. The denominator is how many
-findings the model reported; the numerator is how many of them held up
-when each was checked back against the telemetry it cited and the code it
-accused. A model that reports three findings and gets three right scores
-`3 / 3`; a model that reports twelve and gets four right scores `4 / 12`
-— and the second is the worse report, however long it is. A finding the
-report itself labels uncertain still counts when its numbers check out:
-grading honesty down would only teach models to hide it.
-
-**CLI** is the coding-agent CLI the mission ran in — `opencode`,
-`claude` or `copilot`; its version is in each run's pull request, since
-two runs of one model under different CLI versions are not the same
-measurement. The cost is the model vendor's API list price under all
-three: a subscription, a premium request or an AI credit changes the
-bill, not the row.
-Model and CLI together identify a row: the same model driven through two
-CLIs is two rows. The oddyssey version is not part of that identity — a
-new run of a model on the same CLI replaces its row, whatever version the
-old row was measured under.
-
-**Signals** is how many of the four — metrics, traces, logs, profiles —
-the run actually queried. It is not part of the grade; it is what the
-grade should be read against. A ratio earned across two signals and one
-earned across four are not the same achievement, and the column is the
-only thing that shows it.
-
-**$/confirmed** is cost divided by confirmed findings — what one
-trustworthy finding costs with this model. It is the column that actually
-answers the question in the title, because cost and duration alone reward
-whichever model gives up soonest.
-
-**Telemetry / Perf / Behavior** breaks the reported findings into the
-three kinds, in that order. A run can score well and still have looked at
-one kind of problem only; the ratio does not say which.
-
-**Preflight / Drive / Observation** split the total because the three are
-not interchangeable. The drive is fixed by the scenario; the preflight is
-how long the model takes to orient itself; the observation is the work.
-A model whose total is dominated by observation is thorough, one whose
-preflight runs long is lost. And **Turns** with **Median turn** separate
-the two ways of being slow: many small turns means the model is groping,
-few long ones means it is simply slow to answer.
-
-### What the numbers mean
-
-The four token and cost columns come from opencode's own session store,
-read after the run exits — never from the model's account of itself,
-which is written mid-run and cannot include its own last turns. They sum
-the whole session tree: opencode dispatches the observation to a
-subagent, and that subagent is usually the larger half of the bill.
-
-- **Input** is the whole prompt processed — uncached tokens plus what was
-  written to and read from cache. The provider's raw `input` counter is
-  not used on its own: under prompt caching it holds only the residue
-  that missed the cache entirely, which can be a few hundred tokens for a
-  run that processed millions, and which differs so much between
-  providers that two rows would not compare.
-- **Cache** is the cached share of Input, so the two columns overlap by
-  design. It is what explains a multi-million-token run costing a couple
-  of dollars.
-- **Output** includes reasoning tokens, which are billed as output.
-- **Cost** is the provider's own billed figure, cross-checked against its
-  published per-token prices before it is written down.
-
-The table carries no history: one row per model and CLI, always its
-latest run.
+A row measured under an earlier revision of the protocol is marked ⚠︎ and provisional until re-run. The table keeps no history: one row per model and CLI, its latest run.
 
 ## How a row is produced
 
 ```text
 /launch-llms-benchmark opencode anthropic/claude-sonnet-5
 /launch-llms-benchmark claude anthropic/claude-haiku-4.5
-/launch-llms-benchmark opencode google/gemini-3.7-flash
 /launch-llms-benchmark copilot openai/gpt-5.6-luna
 ```
 
-The CLI and the model id are the only arguments — `opencode`
-for any model OpenRouter serves, `claude` for Anthropic's models through
-Claude Code's headless mode, `copilot` for the models GitHub Copilot
-CLI serves; the model always written in the same
-`vendor/name` form, so one model's rows line up. The credentials are
-prerequisites you set up once and the command never asks for: an
-OpenRouter provider configured in opencode, a Claude Code login and
-the package installed at user scope for it, or a Copilot CLI login, and
-an `OPENAI_API_KEY` in
-`docker-compose/llms-benchmark/.env` for the demo agent's own model calls
-(see `.env.example` next to it).
+The CLI and the model id, in `vendor/name` form, are the only arguments. Prerequisites, set up once: an OpenRouter provider in opencode, a Claude Code login with the package installed at user scope, or a Copilot CLI login; and `OPENAI_API_KEY` in `docker-compose/llms-benchmark/.env` for the demo agent's own model calls (`.env.example` next to it).
 
-That command runs the whole protocol and comes back with a pull request
-adding or replacing the row. What it does:
-
-1. Cleans what the run must not read — any observation report of the
-   three services, the leftovers of a previous run, the local oddyssey
-   stack's data (reset, so the window holds this run's traffic and
-   nothing else) — then recreates the demo stack
-   (`docker-compose/llms-benchmark/`) against the local stack and waits
-   for the three services to answer.
-2. Drives the model through the CLI you named — **opencode** on
-   OpenRouter, or **claude** — at **medium** reasoning effort — headless,
-   one session.
-3. Gives it one mission — a single `/odd-observe` invocation naming the
-   three services, the stored scenario `benchmark/llmbench-store-load/`
-   and the **local** stack — states that the scenario's
-   paid model calls are accepted, and asks for every kind of
-   anomaly, not only the slow ones: performance, outright errors, wrong
-   behavior, and telemetry that is missing or lying. Each of the three is
-   named on purpose. The services, so the run never guesses its scope
-   from what happens to be running. The scenario, so every row comes from
-   the same replayed traffic. The stack, so no row is observed against a
-   backend the others were not.
-4. Grades the report finding by finding, on evidence: the cited query is
-   re-run, the accused line is opened. Both hold, or the finding does not
-   count. Telemetry gaps are findings like any other.
-5. Opens the run's issue, then the results PR from a clean `main`,
-   carrying the row and the per-finding rulings — and nothing else.
-
-The scenario itself is two minutes; the run around it is dominated by
-the model's own observation.
+The command cleans everything a run must not read (stored reports of the three services, leftovers, the local stack's data), recreates the demo stack, drives the model headless at medium effort through one `/odd-observe` mission naming the three services, the stored scenario and the local stack, grades the report finding by finding on evidence, and opens the pull request carrying the row and the rulings.
 
 ## The stack under observation
 
 A small store assistant, three services, deliberately imperfect:
 
 | Component | Service | What it is |
-| [`src/api`](src/api) | `llmbench-api` | FastAPI over a seeded SQLite catalog — products and orders |
+| --- | --- | --- |
+| [`src/api`](src/api) | `llmbench-api` | FastAPI over a seeded SQLite catalog: products and orders |
 | [`src/mcp`](src/mcp) | `llmbench-mcp` | An MCP server whose four tools call the API |
 | [`src/agent`](src/agent) | `llmbench-agent` | A pydantic-ai agent calling those tools, and a model through OpenRouter |
 
-All three export the four signals — traces, metrics and logs over OTLP,
-profiles to Pyroscope — so every one of them is observable, and the
-agent's model calls carry the `gen_ai` semantic conventions and their
-token usage.
+All three export traces, metrics and logs over OTLP and profiles to Pyroscope; the agent's model calls carry the `gen_ai` conventions and their token usage.
 
 ## The scenario
 
-[`benchmark/llmbench-store-load/`](benchmark/llmbench-store-load), a k6
-benchmark authored through `/odd-instrument-bench`. Two minutes, two
-scenarios: five virtual users walking a shopper's conversation with the
-catalog — browse, search, open a product, read the stats, order, read it
-back — both straight at the API and through the four MCP tools; and one
-customer question to the agent every fifteen seconds.
-
-That second rate is a hard ceiling. Every one of its eight (sometimes
-nine) iterations is a real, paid model call, on every run, for every
-model ever tested.
+[`benchmark/llmbench-store-load/`](benchmark/llmbench-store-load/), a k6 benchmark: two minutes, five virtual users walking a shopper's path through the catalog, straight at the API and through the MCP tools, plus one customer question to the agent every fifteen seconds. Each of those eight or nine questions is a real, paid model call.
 
 ## There is no answer key
 
-The application's defects are written down nowhere in this repository.
-Not in a comment, not in this README, not in the benchmark manifest, not
-in an issue.
-
-That is not an oversight, it is the design. The model being graded runs
-as a coding agent **inside this repository**: anything the tree carries
-is one search away from it, and a graded run that found the list would be
-measuring reading comprehension, not observation. It is also why the
-observation reports these runs produce are never committed — a stored
-report names what it found, and the next model to be benchmarked could
-read it.
-
-So the grade is not "how many of the N did you find". It is "of what you
-claimed, how much was true" — which is the question that matters about an
-observation report anyway.
+The application's defects are written down nowhere in this repository, and the reports the runs produce are never committed: the graded model runs inside this repository, and anything the tree carries is one search away. The grade is not "how many of N did you find" but "of what you claimed, how much was true".
 
 ## Running the stack by hand
 
@@ -263,5 +114,4 @@ curl -s localhost:8012/ask -H 'content-type: application/json' \
   -d '{"question":"I need a quiet coffee grinder under 100 euros."}'
 ```
 
-The local oddyssey stack must be up first (`odd_stack_up`) — that is
-where the telemetry lands.
+The local oddyssey stack must be up first (`odd_stack_up`): that is where the telemetry lands.
