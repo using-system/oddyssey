@@ -244,7 +244,19 @@ Steps:
    and answers 400 to say it is up — and retry the probes until all three
    answer: `Up` is printed before the process listens.
 
-6. **Run the mission.** Record the UTC timestamp **before** launching —
+6. **Run the mission — twice.** Every model on every CLI is run twice,
+   the second run only after step 9's teardown and step 5's cleaning
+   and recreation have been done again in full (a second run that reads
+   the first's report, scratch or traffic measures nothing), and each
+   run is read (step 7) and graded (step 8) on its own. The row in the
+   table is the **better of the two**: the run with more confirmed
+   findings; on a tie, the cheaper; on a tie again, the shorter. The
+   other run is not discarded: the pull request carries both runs'
+   figures and says which one the row is. Two attempts are also the
+   ceiling for a run that never produces a turn or declines to drive
+   (step 8): a decline counts as one of the two.
+
+   For each run: record the UTC timestamp **before** launching —
    step 7 needs it to identify the session. Then one headless run, from
    the repository root, on the work branch.
 
@@ -876,7 +888,9 @@ Steps:
    grading honesty down would only teach models to hide it.
 
    The row's grade is `confirmed / reported`. Record, for your own PR
-   body, one line per finding with the ruling and why.
+   body, one line per finding with the ruling and why - for both runs,
+   each under its own heading, the one the row is taken from named
+   first (step 6's rule: more confirmed, then cheaper, then shorter).
 
 9. **Tear down, put the tree back, then leave the branch behind.**
    - `docker compose -f docker-compose/llms-benchmark/docker-compose.yml down -v`,
@@ -996,8 +1010,9 @@ Steps:
     score perfectly and still have looked at one kind of problem only —
     the first run's `7/7` was performance and nothing else.
 
-    The PR body carries the per-finding rulings from step 8, so the ratio
-    is auditable, and it names the CLI, its version and the effort flag
+    The PR body carries the per-finding rulings from step 8 for both
+    runs, so the ratio is auditable and the choice between the two is
+    too, and it names the CLI, its version and the effort flag
     used. It also notes three things the table has no column for: how
     many source files the run read **before** the drive, whether it drove
     any traffic of its own outside the stored scenario, and whether its
