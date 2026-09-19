@@ -613,25 +613,30 @@ def add_targeting(
     metrics_log_group: bool = False,
     required_groups: bool = True,
 ):
+    # The flags carry the resolved stack_config entry's values - the
+    # entry the preflight resolved for the configured stack and
+    # environment, named on the handoff's Target: line.
     ap.add_argument(
         "--profile",
         required=True,
-        help="the aws CLI profile (stack_config.cloudwatch.profile)",
+        help="the aws CLI profile (the resolved stack_config entry's profile)",
     )
     ap.add_argument(
-        "--region", required=True, help="the region (stack_config.cloudwatch.region)"
+        "--region",
+        required=True,
+        help="the region (the resolved stack_config entry's region)",
     )
     if log_group:
         ap.add_argument(
             "--log-group",
             required=required_groups,
-            help="the application logs group (stack_config.cloudwatch.log_group)",
+            help="the application logs group (the resolved entry's log_group)",
         )
     if metrics_log_group:
         ap.add_argument(
             "--metrics-log-group",
             required=required_groups,
-            help="the EMF group (stack_config.cloudwatch.metrics_log_group)",
+            help="the EMF group (the resolved entry's metrics_log_group)",
         )
 
 

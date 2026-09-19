@@ -11,6 +11,21 @@ each backend's reference under the
 skill; this page restates it, never extends it. Naming a stack in an
 `/odd-observe` mission switches the configuration too.
 
+A remote backend's values can be persisted per deployment environment,
+and a mission pointed at one: `persist ... for <stack> in <environment>`
+writes that environment's entry of the stack (`prod-cloudwatch` next
+to `cloudwatch`, the same fields), `target <environment>` makes the
+missions read it - the stack's plain entry where no such entry exists -
+and `/odd-observe checkout on cloudwatch in prod` targets it in passing.
+The agent still detects the environment from the telemetry and stops
+when the two diverge.
+
+```text
+/odd-config persist log group "/ecs/checkout-prod" for cloudwatch in prod
+/odd-config target prod
+/odd-config clear the environment
+```
+
 A backend outside that list is a **custom stack**: a directory in
 your repository, `.odd/observability-stacks/<name>/`, holding a guide
 with the same sections as a built-in reference and the query scripts
@@ -105,6 +120,7 @@ oddyssey.
 ```text
 /odd-config switch to cloudwatch, profile "myteam", region "eu-central-1", log group "/ecs/checkout"
 /odd-config switch to cloudwatch, profile "myteam", region "eu-central-1", log group "/ecs/checkout", metrics log group "/ecs/checkout-metrics", xray group "checkout"
+/odd-config switch to cloudwatch in prod, profile "myteam-prod", region "eu-central-1", log group "/ecs/checkout-prod"
 ```
 
 **Persists**: `region`, `profile`, `log_group`, and optionally

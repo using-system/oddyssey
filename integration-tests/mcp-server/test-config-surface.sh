@@ -3,7 +3,10 @@
 # through every allowed value, a rejected partial writes nothing, the
 # stack_config contract holds through a real MCP client (merge, null
 # deletion of a key and of a whole entry), a custom stack declared by
-# the caller (#228) is accepted, validated and removed, and the tolerant read lists
+# the caller (#228) is accepted, validated and removed, an
+# environment-prefixed stack_config key merges and deletes next to the
+# stack's plain one while the environment field selects the effective
+# entry (#618), and the tolerant read lists
 # hand-edited invalid values in invalid_ignored instead of crashing,
 # and the read carries the installed oddyssey-mcp version (#395).
 # Pure configuration - no stack container is booted, reset, or wiped.
@@ -144,6 +147,87 @@ assert_result_contains "$workdir/sc-cloudwatch.json" '"log_group": "/oddyssey-pl
 assert_result_contains "$workdir/sc-cloudwatch.json" '"metrics_log_group": "/oddyssey-playground/metrics"'
 mcp_call odd_config_set 'config={"stack_config":{"cloudwatch":null}}' > /dev/null
 
+step "an environment-prefixed entry merges next to the stack's plain one (#618)"
+mcp_call odd_config_set \
+  'config={"stack":"cloudwatch","stack_config":{"cloudwatch":{"region":"eu-west-1"},"prod-cloudwatch":{"log_group":"/example/prod-logs"}}}' \
+  > "$workdir/env-seed.json"
+assert_result_contains "$workdir/env-seed.json" '"prod-cloudwatch"'
+assert_result_contains "$workdir/env-seed.json" '"log_group": "/example/prod-logs"'
+# A second partial on the prefixed key merges into it and leaves the plain
+# entry alone; a dashed environment before a dashed stack lands too.
+mcp_call odd_config_set \
+  'config={"stack_config":{"prod-cloudwatch":{"region":"eu-central-1"},"pre-prod-azure-monitor":{"workspace":"00000000-0000-0000-0000-000000000000"}}}' \
+  > "$workdir/env-merge.json"
+jq -e '.content[0].text | fromjson | .config.stack_config["prod-cloudwatch"] == {"log_group":"/example/prod-logs","region":"eu-central-1"}' \
+  "$workdir/env-merge.json" > /dev/null \
+  || { echo "ASSERTION FAILED: prefixed entry did not merge per key" >&2; cat "$workdir/env-merge.json" >&2; exit 1; }
+jq -e '.content[0].text | fromjson | .config.stack_config.cloudwatch == {"region":"eu-west-1"}' \
+  "$workdir/env-merge.json" > /dev/null \
+  || { echo "ASSERTION FAILED: plain entry changed under a prefixed write" >&2; cat "$workdir/env-merge.json" >&2; exit 1; }
+assert_result_contains "$workdir/env-merge.json" '"pre-prod-azure-monitor"'
+
+step "without an environment the effective entry is the stack's plain one (#618)"
+mcp_call odd_config_get > "$workdir/env-none.json"
+jq -e '.content[0].text | fromjson | .environment == null and .effective == {"stack":"cloudwatch","environment":null,"stack_config_key":"cloudwatch","stack_config":{"region":"eu-west-1"}}' \
+  "$workdir/env-none.json" > /dev/null \
+  || { echo "ASSERTION FAILED: effective is not the plain entry" >&2; cat "$workdir/env-none.json" >&2; exit 1; }
+
+step "the environment selects the prefixed entry whole - no merge (#618)"
+mcp_call odd_config_set 'config={"environment":"prod"}' > "$workdir/env-set.json"
+assert_result_contains "$workdir/env-set.json" '"environment": "prod"'
+mcp_call odd_config_get > "$workdir/env-prod.json"
+jq -e '.content[0].text | fromjson | .environment == "prod" and .effective == {"stack":"cloudwatch","environment":"prod","stack_config_key":"prod-cloudwatch","stack_config":{"log_group":"/example/prod-logs","region":"eu-central-1"}}' \
+  "$workdir/env-prod.json" > /dev/null \
+  || { echo "ASSERTION FAILED: effective is not the prod entry" >&2; cat "$workdir/env-prod.json" >&2; exit 1; }
+
+step "an environment with no prefixed entry falls back to the plain one (#618)"
+mcp_call odd_config_set 'config={"environment":"dev"}' > /dev/null
+mcp_call odd_config_get > "$workdir/env-dev.json"
+jq -e '.content[0].text | fromjson | .effective.environment == "dev" and .effective.stack_config_key == "cloudwatch" and .effective.stack_config == {"region":"eu-west-1"}' \
+  "$workdir/env-dev.json" > /dev/null \
+  || { echo "ASSERTION FAILED: fallback to the plain entry did not apply" >&2; cat "$workdir/env-dev.json" >&2; exit 1; }
+
+step "an invalid prefix is rejected and writes nothing (#618)"
+for key in "unknown-cloudwatch" "prod-nagios" "Prod-cloudwatch" "prod-local"; do
+  mcp_call odd_config_set "config={\"stack_config\":{\"$key\":{}}}" > "$workdir/env-bad-key.json" || true
+  grep -q "stack_config keys" "$workdir/env-bad-key.json" \
+    || { echo "ASSERTION FAILED: key $key was not rejected" >&2; cat "$workdir/env-bad-key.json" >&2; exit 1; }
+done
+mcp_call odd_config_set 'config={"stack_config":{"prod-cloudwatch":{"workspace":"x"}}}' > "$workdir/env-bad-field.json" || true
+grep -q "accepts only" "$workdir/env-bad-field.json" \
+  || { echo "ASSERTION FAILED: a field outside the stack's list was not rejected on a prefixed key" >&2; cat "$workdir/env-bad-field.json" >&2; exit 1; }
+mcp_call odd_config_set 'config={"environment":"Prod"}' > "$workdir/env-bad-value.json" || true
+grep -q "environment must be" "$workdir/env-bad-value.json" \
+  || { echo "ASSERTION FAILED: an invalid environment was not rejected" >&2; cat "$workdir/env-bad-value.json" >&2; exit 1; }
+mcp_call odd_config_get > "$workdir/after-env-bad.json"
+jq -e '.content[0].text | fromjson | .environment == "dev" and (.stack_config | keys) == ["cloudwatch","pre-prod-azure-monitor","prod-cloudwatch"] and (.stack_config["prod-cloudwatch"] | has("workspace") | not)' \
+  "$workdir/after-env-bad.json" > /dev/null \
+  || { echo "ASSERTION FAILED: a rejected partial was written anyway" >&2; cat "$workdir/after-env-bad.json" >&2; exit 1; }
+
+step "a custom name that reads as <environment>-<known stack> is refused (#618)"
+mcp_call odd_config_set 'config={"custom":{"prod-cloudwatch":{"stack_config_fields":["log_group"]}}}' > "$workdir/env-custom.json" || true
+grep -q "reads as the" "$workdir/env-custom.json" \
+  || { echo "ASSERTION FAILED: custom name prod-cloudwatch was not refused" >&2; cat "$workdir/env-custom.json" >&2; exit 1; }
+
+step "null deletes a key and an entry under a prefixed key, and clears the environment (#618)"
+mcp_call odd_config_set 'config={"stack_config":{"prod-cloudwatch":{"region":null}}}' > "$workdir/env-del-key.json"
+jq -e '.content[0].text | fromjson | .config.stack_config["prod-cloudwatch"] == {"log_group":"/example/prod-logs"}' \
+  "$workdir/env-del-key.json" > /dev/null \
+  || { echo "ASSERTION FAILED: null key deletion on a prefixed entry" >&2; cat "$workdir/env-del-key.json" >&2; exit 1; }
+mcp_call odd_config_set \
+  'config={"environment":null,"stack":"local","stack_config":{"prod-cloudwatch":null,"pre-prod-azure-monitor":null,"cloudwatch":null}}' \
+  > "$workdir/env-clear.json"
+jq -e '.content[0].text | fromjson | .config.environment == null and .config.stack_config == {} and .config.effective.stack_config_key == "local"' \
+  "$workdir/env-clear.json" > /dev/null \
+  || { echo "ASSERTION FAILED: clearing the environment and the prefixed entries" >&2; cat "$workdir/env-clear.json" >&2; exit 1; }
+
+step "on the local stack the environment is inert (#618)"
+mcp_call odd_config_set 'config={"environment":"prod"}' > "$workdir/env-local.json"
+jq -e '.content[0].text | fromjson | .config.environment == "prod" and .config.effective == {"stack":"local","environment":null,"stack_config_key":"local","stack_config":{}}' \
+  "$workdir/env-local.json" > /dev/null \
+  || { echo "ASSERTION FAILED: the environment selected something on the local stack" >&2; cat "$workdir/env-local.json" >&2; exit 1; }
+mcp_call odd_config_set 'config={"environment":null}' > /dev/null
+
 step "a non-scalar stack_config value is rejected and writes nothing"
 mcp_call odd_config_set \
   'config={"stack_config":{"grafana":{"bad":["a","list"]}}}' > "$workdir/sc-bad.json" || true
@@ -211,16 +295,17 @@ jq -e '.content[0].text | contains("seq") | not' "$workdir/custom-remove.json" >
 step "hand-edited invalid values degrade to defaults, listed in invalid_ignored"
 mkdir -p "$(dirname "$CONFIG_FILE")"
 printf '%s' \
-  '{"stack":"narnia","local":{"grafana_port":"high"},"custom":{"seq":{"stack_config_fields":"base_url"}},"stack_config":{"notastack":{},"azure-monitor":{"tenant":"11111111-1111-1111-1111-111111111111"}}}' \
+  '{"stack":"narnia","environment":"Prod","local":{"grafana_port":"high"},"custom":{"seq":{"stack_config_fields":"base_url"}},"stack_config":{"notastack":{},"prod-nagios":{},"azure-monitor":{"tenant":"11111111-1111-1111-1111-111111111111"}}}' \
   > "$CONFIG_FILE"
 mcp_call odd_config_get > "$workdir/tolerant.json"
 assert_result_contains "$workdir/tolerant.json" '"stack": "local"'
+assert_result_contains "$workdir/tolerant.json" '"environment": null'
 assert_result_contains "$workdir/tolerant.json" '"grafana_port": 3000'
 jq -e '.content[0].text | fromjson | .stack_config["azure-monitor"] | has("tenant") | not' \
   "$workdir/tolerant.json" > /dev/null \
   || { echo "ASSERTION FAILED: undocumented key tenant was surfaced as effective config" >&2; cat "$workdir/tolerant.json" >&2; exit 1; }
 assert_result_contains "$workdir/tolerant.json" '"custom": {}'
-for flagged in "custom.seq" "stack" "local.grafana_port" "stack_config.notastack" "stack_config.azure-monitor.tenant"; do
+for flagged in "custom.seq" "stack" "environment" "local.grafana_port" "stack_config.notastack" "stack_config.prod-nagios" "stack_config.azure-monitor.tenant"; do
   jq -e --arg name "$flagged" \
     '.content[0].text | fromjson | .invalid_ignored | index($name)' \
     "$workdir/tolerant.json" > /dev/null \

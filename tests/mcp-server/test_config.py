@@ -12,6 +12,7 @@ def test_load_returns_defaults_when_file_is_missing(tmp_path):
 
     assert result == {
         "stack": "local",
+        "environment": None,
         "local": {
             "grafana_port": 3000,
             "otlp_grpc_port": 4317,
@@ -20,6 +21,12 @@ def test_load_returns_defaults_when_file_is_missing(tmp_path):
         },
         "stack_config": {},
         "custom": {},
+        "effective": {
+            "stack": "local",
+            "environment": None,
+            "stack_config_key": "local",
+            "stack_config": {},
+        },
     }
 
 
@@ -722,3 +729,411 @@ def test_load_carries_no_version(tmp_path):
     # The version is not configuration: load stays the file's effective
     # shape, odd_config_get adds the installed version next to it.
     assert "version" not in config.load(tmp_path / "config.json")
+
+
+# --- Environment-scoped stack_config (issue #618) ------------------------
+#
+# A stack_config key is <stack> or <environment>-<stack>, parsed by suffix
+# (longest known stack wins); an optional global "environment" selects the
+# effective entry - the one whose key resolves to (environment, stack),
+# else the stack's plain one, never a merge of the two.
+
+
+def _cw(path, **entries):
+    return config.save({"stack_config": entries}, path)
+
+
+def test_save_accepts_an_environment_prefixed_key_with_the_stacks_fields(tmp_path):
+    path = tmp_path / "config.json"
+    result = _cw(
+        path,
+        **{
+            "prod-cloudwatch": {
+                "log_group": "/example/prod-logs",
+                "region": "eu-west-1",
+            }
+        },
+    )
+    assert result["stack_config"]["prod-cloudwatch"] == {
+        "log_group": "/example/prod-logs",
+        "region": "eu-west-1",
+    }
+    # Stored under the literal key, next to the plain one.
+    assert "prod-cloudwatch" in json.loads(path.read_text())["stack_config"]
+    assert "invalid_ignored" not in result
+
+
+@pytest.mark.parametrize(
+    ("key", "environment", "stack"),
+    [
+        ("dev-azure-monitor", "dev", "azure-monitor"),
+        ("pre-prod-cloudwatch", "pre-prod", "cloudwatch"),
+        ("pre-prod-azure-monitor", "pre-prod", "azure-monitor"),
+        ("eu1-cloudwatch", "eu1", "cloudwatch"),
+    ],
+)
+def test_key_parse_is_by_suffix_dashed_environment_and_dashed_stack(
+    tmp_path, key, environment, stack
+):
+    # A dashed environment before a dashed stack has one parse: the
+    # longest known stack is the suffix, the rest is the environment.
+    assert config.resolve_stack_config_key(key, {}) == (environment, stack)
+    path = tmp_path / "config.json"
+    field = "region" if stack == "cloudwatch" else "workspace"
+    result = _cw(path, **{key: {field: "value"}})
+    assert result["stack_config"][key] == {field: "value"}
+
+
+def test_key_parse_prefers_the_longest_known_stack(tmp_path):
+    # A custom stack "monitor" next to the built-in "azure-monitor": the
+    # key dev-azure-monitor is dev + azure-monitor, never dev-azure +
+    # monitor - the longest known stack wins.
+    path = tmp_path / "config.json"
+    config.save(_declare("monitor", ("workspace",)), path)
+    custom = config.load(path)["custom"]
+    assert config.resolve_stack_config_key("dev-azure-monitor", custom) == (
+        "dev",
+        "azure-monitor",
+    )
+    assert config.resolve_stack_config_key("dev-monitor", custom) == ("dev", "monitor")
+
+
+def test_plain_keys_still_resolve_to_the_stack_alone():
+    assert config.resolve_stack_config_key("cloudwatch", {}) == (None, "cloudwatch")
+    assert config.resolve_stack_config_key("local", {}) == (None, "local")
+    assert config.resolve_stack_config_key("seq", {"seq": {}}) == (None, "seq")
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "prod-nagios",  # the suffix is no known stack
+        "Prod-cloudwatch",  # not kebab-case
+        "prod--cloudwatch",  # an empty segment - "prod-" is no environment
+        "-cloudwatch",  # an empty environment
+        "1prod-cloudwatch",  # must start with a letter
+        "prod_eu-cloudwatch",  # underscore
+        "unknown-cloudwatch",  # the sentinel is not an environment
+        "prod-local",  # local takes no prefix
+        "cloudwatch-",  # no stack suffix
+    ],
+)
+def test_save_rejects_an_unresolvable_key_and_writes_nothing(tmp_path, key):
+    path = tmp_path / "config.json"
+    with pytest.raises(ValueError, match="stack_config keys") as info:
+        _cw(path, **{key: {}})
+    # The error states the valid forms, so the caller corrects in one turn.
+    assert "<environment>-<stack>" in str(info.value)
+    assert not path.exists()
+
+
+def test_unresolvable_keys_do_not_parse():
+    for key in ("prod-nagios", "unknown-cloudwatch", "prod-local", "Prod-cloudwatch"):
+        assert config.resolve_stack_config_key(key, {}) is None
+
+
+def test_prefixed_entry_accepts_the_stacks_fields_only(tmp_path):
+    # The whitelist is per stack, never per environment.
+    path = tmp_path / "config.json"
+    with pytest.raises(ValueError, match=r"stack_config.prod-cloudwatch accepts only"):
+        _cw(path, **{"prod-cloudwatch": {"workspace": "x"}})
+    with pytest.raises(ValueError, match="does not persist any fields"):
+        _cw(path, **{"prod-grafana": {"context": "x"}})
+    assert not path.exists()
+    # A declared custom stack's list applies to its prefixed entries too.
+    config.save(_declare(fields=("base_url",)), path)
+    result = _cw(path, **{"prod-seq": {"base_url": "http://seq.example.test:5341"}})
+    assert result["stack_config"]["prod-seq"] == {
+        "base_url": "http://seq.example.test:5341"
+    }
+    with pytest.raises(ValueError, match=r"stack_config.prod-seq accepts only"):
+        _cw(path, **{"prod-seq": {"api_key": "x"}})
+
+
+def test_prefixed_entries_merge_and_delete_per_key(tmp_path):
+    path = tmp_path / "config.json"
+    _cw(path, cloudwatch={"region": "eu-west-1"})
+    _cw(path, **{"prod-cloudwatch": {"log_group": "/example/prod-logs"}})
+    result = _cw(path, **{"prod-cloudwatch": {"region": "eu-central-1"}})
+    assert result["stack_config"] == {
+        "cloudwatch": {"region": "eu-west-1"},
+        "prod-cloudwatch": {
+            "log_group": "/example/prod-logs",
+            "region": "eu-central-1",
+        },
+    }
+    result = _cw(path, **{"prod-cloudwatch": {"log_group": None}})
+    assert result["stack_config"]["prod-cloudwatch"] == {"region": "eu-central-1"}
+    result = _cw(path, **{"prod-cloudwatch": None})
+    assert result["stack_config"] == {"cloudwatch": {"region": "eu-west-1"}}
+
+
+def test_save_null_entry_cleans_up_an_unresolvable_key(tmp_path):
+    # The entry deletion is accepted for any name (#228) - a prefixed key
+    # left by a removed declaration or a hand edit is cleaned up the same way.
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"stack_config": {"prod-nagios": {"url": "x"}}}))
+    assert config.load(path)["invalid_ignored"] == ["stack_config.prod-nagios"]
+    result = _cw(path, **{"prod-nagios": None})
+    assert result["stack_config"] == {}
+    assert "invalid_ignored" not in result
+
+
+def test_load_reads_prefixed_keys_against_the_stacks_whitelist(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps(
+            {
+                "stack_config": {
+                    "prod-cloudwatch": {
+                        "log_group": "/example/prod-logs",
+                        "tenant": "t",
+                    },
+                    "prod-nagios": {"url": "x"},
+                    "unknown-cloudwatch": {"region": "eu-west-1"},
+                    "prod-local": {"GF_LOG_LEVEL": "debug"},
+                }
+            }
+        )
+    )
+    result = config.load(path)
+    assert result["stack_config"] == {
+        "prod-cloudwatch": {"log_group": "/example/prod-logs"}
+    }
+    assert result["invalid_ignored"] == [
+        "stack_config.prod-cloudwatch.tenant",
+        "stack_config.prod-nagios",
+        "stack_config.unknown-cloudwatch",
+        "stack_config.prod-local",
+    ]
+
+
+def test_save_refuses_a_custom_name_that_parses_as_environment_and_stack(tmp_path):
+    # A name like prod-cloudwatch would make the key readable two ways;
+    # the declaration is refused next to the "never a built-in" rule.
+    path = tmp_path / "config.json"
+    with pytest.raises(ValueError, match="custom.prod-cloudwatch"):
+        config.save(_declare("prod-cloudwatch", ("log_group",)), path)
+    with pytest.raises(ValueError, match="custom.dev-azure-monitor"):
+        config.save(_declare("dev-azure-monitor"), path)
+    assert not path.exists()
+    # Against a declared custom stack too, in the same call or a later one.
+    config.save(_declare("seq"), path)
+    with pytest.raises(ValueError, match="custom.prod-seq"):
+        config.save(_declare("prod-seq"), path)
+    with pytest.raises(ValueError, match="custom.prod-uptrace"):
+        config.save(
+            {
+                "custom": {
+                    "uptrace": {"stack_config_fields": []},
+                    "prod-uptrace": {"stack_config_fields": []},
+                }
+            },
+            path,
+        )
+    assert config.load(path)["custom"] == {"seq": {"stack_config_fields": ["base_url"]}}
+
+
+def test_save_refuses_a_declaration_that_makes_another_name_prefixed(tmp_path):
+    # The other direction: prod-seq was a fine custom name while no stack
+    # "seq" existed; declaring "seq" would make it read as prod + seq.
+    path = tmp_path / "config.json"
+    config.save(_declare("prod-seq"), path)
+    with pytest.raises(ValueError, match="custom.seq") as info:
+        config.save(_declare("seq"), path)
+    assert "prod-seq" in str(info.value)
+    assert config.load(path)["custom"] == {
+        "prod-seq": {"stack_config_fields": ["base_url"]}
+    }
+    # Removing the prefixed one in the same call clears the way.
+    result = config.save(
+        {"custom": {"prod-seq": None, "seq": {"stack_config_fields": ["base_url"]}}},
+        path,
+    )
+    assert result["custom"] == {"seq": {"stack_config_fields": ["base_url"]}}
+
+
+def test_a_custom_name_ending_in_local_is_not_prefixed():
+    # local takes no prefix, so "seq-local" has one parse: itself.
+    assert config.resolve_stack_config_key("seq-local", {"seq-local": {}}) == (
+        None,
+        "seq-local",
+    )
+
+
+def test_load_drops_a_stored_custom_declaration_that_parses_as_prefixed(tmp_path):
+    # The one backward-compatibility exception: an older file declaring
+    # prod-cloudwatch as a custom stack finds the declaration flagged, and
+    # its entry re-read as cloudwatch's prod entry - the keys matching
+    # cloudwatch's whitelist kept, the others flagged too.
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps(
+            {
+                "stack": "prod-cloudwatch",
+                "custom": {
+                    "prod-cloudwatch": {
+                        "stack_config_fields": ["log_group", "base_url"]
+                    },
+                    "seq": {"stack_config_fields": ["base_url"]},
+                    "prod-seq": {"stack_config_fields": ["base_url"]},
+                },
+                "stack_config": {
+                    "prod-cloudwatch": {
+                        "log_group": "/example/prod-logs",
+                        "base_url": "u",
+                    }
+                },
+            }
+        )
+    )
+    result = config.load(path)
+    assert result["stack"] == "local"
+    assert result["custom"] == {"seq": {"stack_config_fields": ["base_url"]}}
+    assert result["stack_config"] == {
+        "prod-cloudwatch": {"log_group": "/example/prod-logs"}
+    }
+    assert result["invalid_ignored"] == [
+        "custom.prod-cloudwatch",
+        "custom.prod-seq",
+        "stack",
+        "stack_config.prod-cloudwatch.base_url",
+    ]
+
+
+def test_environment_is_absent_by_default(tmp_path):
+    result = config.load(tmp_path / "config.json")
+    assert result["environment"] is None
+    assert result["effective"]["environment"] is None
+
+
+def test_save_persists_and_clears_the_environment(tmp_path):
+    path = tmp_path / "config.json"
+    result = config.save({"environment": "prod"}, path)
+    assert result["environment"] == "prod"
+    assert json.loads(path.read_text())["environment"] == "prod"
+    result = config.save({"environment": "pre-prod"}, path)
+    assert result["environment"] == "pre-prod"
+    result = config.save({"environment": None}, path)
+    assert result["environment"] is None
+    assert "environment" not in json.loads(path.read_text())
+
+
+@pytest.mark.parametrize(
+    "value", ["Prod", "unknown", "prod-", "-prod", "prod_eu", "1prod", "", 3, ["prod"]]
+)
+def test_save_rejects_an_invalid_environment_and_writes_nothing(tmp_path, value):
+    path = tmp_path / "config.json"
+    with pytest.raises(ValueError, match="environment"):
+        config.save({"environment": value}, path)
+    assert not path.exists()
+
+
+def test_load_tolerates_an_invalid_stored_environment(tmp_path):
+    path = tmp_path / "config.json"
+    for bad in ("Prod", "unknown", 3):
+        path.write_text(json.dumps({"stack": "cloudwatch", "environment": bad}))
+        result = config.load(path)
+        assert result["environment"] is None
+        assert result["invalid_ignored"] == ["environment"]
+        assert result["effective"]["stack_config_key"] == "cloudwatch"
+
+
+def test_effective_is_the_plain_entry_without_an_environment(tmp_path):
+    path = tmp_path / "config.json"
+    config.save({"stack": "cloudwatch"}, path)
+    result = _cw(
+        path,
+        cloudwatch={"region": "eu-west-1"},
+        **{"prod-cloudwatch": {"log_group": "/example/prod-logs"}},
+    )
+    assert result["effective"] == {
+        "stack": "cloudwatch",
+        "environment": None,
+        "stack_config_key": "cloudwatch",
+        "stack_config": {"region": "eu-west-1"},
+    }
+
+
+def test_effective_selects_the_environments_entry_whole(tmp_path):
+    # Two CloudWatch configurations are two whole entries: no layered merge.
+    path = tmp_path / "config.json"
+    config.save({"stack": "cloudwatch", "environment": "prod"}, path)
+    result = _cw(
+        path,
+        cloudwatch={"region": "eu-west-1", "profile": "example-dev"},
+        **{"prod-cloudwatch": {"log_group": "/example/prod-logs"}},
+    )
+    assert result["effective"] == {
+        "stack": "cloudwatch",
+        "environment": "prod",
+        "stack_config_key": "prod-cloudwatch",
+        "stack_config": {"log_group": "/example/prod-logs"},
+    }
+
+
+def test_effective_falls_back_to_the_plain_entry(tmp_path):
+    path = tmp_path / "config.json"
+    config.save({"stack": "cloudwatch", "environment": "dev"}, path)
+    result = _cw(path, cloudwatch={"region": "eu-west-1"})
+    assert result["effective"] == {
+        "stack": "cloudwatch",
+        "environment": "dev",
+        "stack_config_key": "cloudwatch",
+        "stack_config": {"region": "eu-west-1"},
+    }
+    # Nothing persisted at all: the plain key, an empty entry.
+    config.save({"stack": "datadog"}, path)
+    assert config.load(path)["effective"] == {
+        "stack": "datadog",
+        "environment": "dev",
+        "stack_config_key": "datadog",
+        "stack_config": {},
+    }
+
+
+def test_effective_resolves_a_custom_stacks_pair(tmp_path):
+    path = tmp_path / "config.json"
+    config.save({"stack": "seq", "environment": "prod", **_declare()}, path)
+    result = _cw(path, **{"prod-seq": {"base_url": "http://seq.example.test:5341"}})
+    assert result["effective"]["stack_config_key"] == "prod-seq"
+    assert result["effective"]["stack_config"] == {
+        "base_url": "http://seq.example.test:5341"
+    }
+
+
+def test_environment_is_inert_on_the_local_stack(tmp_path):
+    # The local stack is the local environment by construction: the field
+    # persists (it applies again after a switch) but selects nothing.
+    path = tmp_path / "config.json"
+    config.save({"environment": "prod"}, path)
+    result = _cw(path, local={"GF_LOG_LEVEL": "debug"})
+    assert result["environment"] == "prod"
+    assert result["effective"] == {
+        "stack": "local",
+        "environment": None,
+        "stack_config_key": "local",
+        "stack_config": {"GF_LOG_LEVEL": "debug"},
+    }
+
+
+def test_effective_reads_the_loaded_entry_not_the_file(tmp_path):
+    # A prefixed entry whose keys were all dropped on load is the effective
+    # entry all the same - present but empty, like a plain one.
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps(
+            {
+                "stack": "cloudwatch",
+                "environment": "prod",
+                "stack_config": {
+                    "cloudwatch": {"region": "eu-west-1"},
+                    "prod-cloudwatch": {"tenant": "t"},
+                },
+            }
+        )
+    )
+    result = config.load(path)
+    assert result["effective"]["stack_config_key"] == "prod-cloudwatch"
+    assert result["effective"]["stack_config"] == {}
+    assert result["invalid_ignored"] == ["stack_config.prod-cloudwatch.tenant"]

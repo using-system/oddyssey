@@ -56,7 +56,10 @@ agents like any other, never by the preflight or the switch.
     for a switch to this stack.
 - **`## What to persist`** — read by the switch only:
   - **`### What stack_config holds`**: the field list the switch persists
-    for this stack (never a credential);
+    for this stack (never a credential) — per stack, never per
+    environment: a `stack_config` key is `<stack>` or
+    `<environment>-<stack>` (`local` takes no prefix), and a prefixed
+    entry accepts exactly the stack's fields — said here once;
   - **`### Where each value comes from`**: the command or console path
     that yields each field;
   - **`### What to ask the user`**: what the switch asks when a field

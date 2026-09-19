@@ -1,6 +1,6 @@
 ---
 description: Observe a running service through its telemetry (local stack or remote backend) and get the plan-ready observation report
-argument-hint: "<service(s)> [on <stack>] [drive | observe | post-hoc] [run <benchmark>] [window] [focus] [expectations]"
+argument-hint: "<service(s)> [on <stack>] [in <environment>] [drive | observe | post-hoc] [run <benchmark>] [window] [focus] [expectations]"
 ---
 
 Invoke the `observe-run` agent. It owns the whole method and the report
@@ -32,8 +32,13 @@ backend's own configuration.
    no row is a custom stack's name when `.odd/observability-stacks/<name>/guide.md`
    exists in the observed repository - `<name>` is the directory's name, the
    phrasing lowercased and kebab-cased ("my stack seq" is `seq`). A
-   phrasing on neither is a deployment-environment expectation ("on
-   prod"), never a switch - see below; when it reads as a stack's name
+   phrasing on neither is a deployment environment ("on prod", "in
+   prod"), never a stack switch: it is persisted the way a named stack
+   is - `odd_config_set {"environment": "<name>"}`, kebab-case; on the
+   local stack the field is inert, persist nothing there - so the next
+   run starts from it and the preflight resolves that environment's
+   entry; and it stays an expectation for the detection - see below.
+   When it reads as a stack's name
    rather than a location word, list that directory and ask before
    reading it as an environment (a misspelled custom name is not an
    environment). A named stack is persisted so the next run starts
@@ -100,10 +105,13 @@ file is not read here:
   arguments name one.
 - The deployment environment is not a mission field: the agent detects
   it from the telemetry (`deployment.environment.name`) and records it -
-  never pass one, never guess one here. When the arguments name one
-  ("on prod", "on uat"), it is neither the stack nor a mission input:
-  carry it into the baseline expectations, so the agent compares it
-  against the environment it detects and flags a divergence.
+  never pass one as a field, never guess one here. When the arguments
+  name one ("on prod", "in uat"), it is neither the stack nor a mission
+  input: step 1 persisted it, the preflight handoff carries it (the
+  `environment=` of its `Preflight:` line), and the agent compares the
+  environment it detects against it, stopping hard on a divergence -
+  carry it into the baseline expectations too, as the expectation it
+  is.
 - If no service name can be determined - no argument names one and no
   benchmark manifest supplies one - and the ask is an observation
   mission, ask for it before invoking the agent. A service-less
