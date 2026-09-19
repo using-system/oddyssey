@@ -15,7 +15,7 @@ One row per model and CLI, always its latest run.
 
 | Rank | Model | CLI | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **#1** | `z-ai/glm-5.3` | opencode | 1.12.0 | 18 / 19 | 12 / 4 / 3 | 12m23s | $1.98 | $0.110 |
+| **#1** | `z-ai/glm-5.3` | opencode | 1.13.0 | 17 / 19 | 9 / 4 / 4 | 19m44s | $1.39 | $0.082 |
 | **#2** | `deepseek/deepseek-v4.1-flash` | opencode | 1.13.0 | **16 / 16** | 10 / 3 / 3 | 29m05s | $0.16 | $0.010 |
 | **#3** | `z-ai/glm-5.3-flashx` | opencode | 1.12.0 | 12 / 14 | 3 / 6 / 3 | 16m02s | $0.42 | $0.035 |
 | **#4** | `openai/gpt-5.6-luna` | copilot | 1.12.0 | 6 / 7 | 3 / 3 / 1 | **7m02s** | **$0.10** | **$0.016** |
@@ -35,7 +35,7 @@ One row per model and CLI, always its latest run.
 
 | Model | CLI | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `z-ai/glm-5.3` | opencode | 1.12.0 | 1m28s | 2m01s | 8m54s | 46 | 6.1s | 4.2M | 139k | 4.0M | 4/4 |
+| `z-ai/glm-5.3` | opencode | 1.13.0 | 3m17s | 2m02s | 14m25s | 44 | 9.4s | 4.4M | 121k | 4.0M | 4/4 |
 | `deepseek/deepseek-v4.1-flash` | opencode | 1.13.0 | 5m59s | 2m02s | 21m04s | 73 | 11.9s | 8.0M | 94k | 7.4M | 4/4 |
 | `z-ai/glm-5.3-flashx` | opencode | 1.12.0 | 3m32s | 2m02s | 10m28s | 39 | 13.8s | 3.2M | 84k | 3.0M | 4/4 |
 | `openai/gpt-5.6-luna` | copilot | 1.12.0 | 1m03s | 2m01s | 3m58s | 38 | 3.2s | 2.5M | 15k | 2.5M | 4/4 |
