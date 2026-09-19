@@ -2,7 +2,7 @@
 """Run a study's samples in order, each on its lab branch, and journal them.
 
     python3 run_samples.py --lab <clone> --fake-home <dir> --out <study dir> \\
-      --cli opencode --model google/gemini-3.7-flash --phase whole \\
+      --cli opencode --model deepseek/deepseek-v4.1-flash --phase whole \\
       base1=lab-main:mission.txt after1=lab-after:mission.txt \\
       after2=lab-after:mission.txt base2=lab-main:mission.txt
 
@@ -231,7 +231,7 @@ def main() -> int:
         metavar="DIR",
         help="the CLI's scratch directory to clear before each sample (none by default)",
     )
-    ap.add_argument("--model", default="google/gemini-3.7-flash")
+    ap.add_argument("--model", default="deepseek/deepseek-v4.1-flash")
     ap.add_argument(
         "--phase",
         default="whole",

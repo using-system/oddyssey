@@ -47,9 +47,9 @@ the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
   phase durations, its turn count and its **median turn**. Read it from
   `origin/main`, never from the working tree.
 - **A model whose median turn is small**, as the canonical
-  `vendor/name` id (`google/gemini-3.7-flash`,
-  `anthropic/claude-haiku-4.5`, `openai/gpt-5.6-sol`): the scripts hand
-  each CLI its own form. The published median is the instrument's
+  `vendor/name` id - default `deepseek/deepseek-v4.1-flash`; others
+  `google/gemini-3.7-flash`, `anthropic/claude-haiku-4.5`,
+  `openai/gpt-5.6-sol`: the scripts hand each CLI its own form. The published median is the instrument's
   precision: a model at 3 s per turn measures the harness, one at 20 s
   measures the provider. Prefer the fastest row in the table for that
   CLI, whatever its findings score — this is not a quality test.
@@ -126,7 +126,8 @@ the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
    taken another.
 
    Its whole surface, so `--help` has nothing to add: `--cli` (default
-   `opencode`), `--model`, `--tag`, `--phase`, one of `--prompt` /
+   `opencode`), `--model` (default `deepseek/deepseek-v4.1-flash`),
+   `--tag`, `--phase`, one of `--prompt` /
    `--prompt-file`, `--out`, plus `--end-pattern` (a regular expression
    over the run's own lines — opencode's log, claude's transcripts,
    copilot's events — for a mission with no k6 drive to mark the

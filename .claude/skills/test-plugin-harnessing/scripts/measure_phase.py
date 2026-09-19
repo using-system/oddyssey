@@ -18,7 +18,7 @@ number:
 - a run that dies looks exactly like a run that thinks, so the watch
   fails loudly instead of returning a fast, wrong time.
 
-    measure_phase.py --cli opencode --model google/gemini-3.7-flash --tag g1 \
+    measure_phase.py --cli opencode --model deepseek/deepseek-v4.1-flash --tag d1 \
         --phase preflight --prompt-file mission.txt --out /tmp/study
 
 The model is the canonical `vendor/name` id whatever the CLI; each CLI is
@@ -308,7 +308,11 @@ def main() -> int:
         default="opencode",
         help="the CLI the run is driven by (default opencode)",
     )
-    ap.add_argument("--model", required=True, help="the canonical vendor/name model id")
+    ap.add_argument(
+        "--model",
+        default="deepseek/deepseek-v4.1-flash",
+        help="the canonical vendor/name model id (default deepseek/deepseek-v4.1-flash)",
+    )
     ap.add_argument("--tag", required=True, help="names this measurement's files")
     ap.add_argument(
         "--phase",
