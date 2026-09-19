@@ -26,7 +26,7 @@ only.
 To update an existing install to the latest release:
 
 ```bash
-uvx --from 'apm-cli==0.30.0' apm update --global --target claude 'using-system/oddyssey#>=1.0.0'
+uvx --from 'apm-cli==0.30.0' apm update --global --target claude using-system/oddyssey
 ```
 
 It shows the update plan and asks for confirmation (`--yes` to skip,
