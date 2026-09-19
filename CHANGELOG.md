@@ -1,3 +1,29 @@
+## [1.13.0] - 2026-09-19
+
+### 🚀 Features
+
+- *(harness)* One observation depth - drop quick, drop the depth field, older reports' depth ignored (#620)
+- *(mcp)* Environment-scoped stack_config - env-stack keys next to stack keys, an optional environment field selects the effective entry (#621)
+- *(mcp)* Grafana persists the gcx context the runs use - stack_config.grafana.context, proved by the one config check (#622)
+- *(bench)* Launch-llms-benchmark runs each model twice and keeps the better run for the table (#634)
+
+### 🐛 Bug Fixes
+
+- *(ci)* Pin every job's runs-on to ubuntu-26.04 - the ubuntu-latest label migrates to Ubuntu 26.04 from 2026-10-19 (#616)
+
+### 📚 Documentation
+
+- *(agents)* A separate reviewer sub-agent checks every branch before its PR, fixes loop back until green (#611)
+- *(odd)* Verify oddyssey-mcp after the environment-scoped stack_config and the grafana context - clear the loop's warning (#624)
+- *(readme)* The APM install and update commands install the latest 1.x release (#626)
+- *(readme)* The APM commands install and update to the latest release (#627)
+- *(readme)* The APM update command names the package, the release range stays in the manifest (#628)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(ci)* Odd-status job on oddyssey-actions v1.3.0 - one minimum oddyssey version checked by every setup, the verdict read from the package only (#613)
+- *(bench)* Llms-benchmark row for z-ai/glm-5.3-flashx on opencode (#630)
+- *(harness)* Test-plugin-harnessing defaults to deepseek/deepseek-v4.1-flash (#632)
 ## [1.12.2] - 2026-09-17
 
 ### 🚀 Features

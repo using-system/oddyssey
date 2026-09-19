@@ -98,7 +98,7 @@ recalled by name, each ledger is one file; their references own that:
   with the mission's scope as flags — the kind's reference says which.
   **The invocation may travel with the mission**: a caller's preflight
   that already resolved the scope writes it into the mission block as
-  `Recall: python3 <this skill's directory>/scripts/odd_recall.py --repo <path> --service <name> [--service <name> ...] --stack <stack> --depth <depth>`
+  `Recall: python3 <this skill's directory>/scripts/odd_recall.py --repo <path> --service <name> [--service <name> ...] --stack <stack>`
   (the observation form — one `--service` per name, `--env` left for
   the agent to append once it has detected the environment; a benchmark
   is recalled by `--kind benchmark --service <name>` alone, an
@@ -106,7 +106,7 @@ recalled by name, each ledger is one file; their references own that:
   and the agent runs that line as is — never re-derived, never a flag
   guessed. The whole surface is `--repo`, `--kind <observation |
   instrumentation | benchmark>` (default `observation`), `--service`,
-  `--stack`, `--env`, `--depth`, `--mode` (repeatable) and `--project`
+  `--stack`, `--env`, `--mode` (repeatable) and `--project`
   — nothing else: `--help` has nothing to add and the file has nothing
   to read. The script reads every stored frontmatter (a benchmark's manifest) in
   Python and prints the matches newest first, one line each; a
@@ -125,8 +125,8 @@ recalled by name, each ledger is one file; their references own that:
   whole** — the kind's reference names the sections a mission needs,
   and the command that prints them when it ships one.
 - A replay's baseline is not recalled but resolved — the report the
-  caller named or the newest, its one-hop source, the mode and the
-  depth to replay, and whether the code changed since it — by the
+  caller named or the newest, its one-hop source, the mode to replay,
+  and whether the code changed since it — by the
   report script's `baseline` and `boundary` commands, stated in the
   observation reference's `## Resolving a replay`; the caller runs
   them before the dispatch and the mission block carries their lines.

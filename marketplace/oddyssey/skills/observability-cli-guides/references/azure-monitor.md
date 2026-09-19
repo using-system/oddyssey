@@ -66,8 +66,9 @@ preflight handoff carries (the `package-layout` skill's
 `--help` has nothing to add and the files have nothing to read. A run that lacks a shape of the
 work records it in its report's `## 8. Stack friction`, never a wrapper.
 
-Common to every script: the targeting values come from
-`stack_config.azure-monitor` and are passed as flags - `--app
+Common to every script: the targeting values come from the
+`stack_config` entry the preflight resolved (the handoff's `Target:`
+line names the key and carries the values) and are passed as flags - `--app
 <app_insights_app>` (the component's appId GUID, never with `-g` beside
 it, never with `--subscription`: the data plane needs neither),
 `--workspace <workspace>` (the Log Analytics customer ID GUID),
@@ -544,8 +545,11 @@ From `az account show` (the CLI's own context, printed by `check`): the
 active subscription (name and id), the tenant id, the identity's type;
 never `user.name` (a login name), never a token.
 
-From `stack_config.azure-monitor` (persisted through
-`odd_config_set`, read with `odd_config_get`), shown next to its field:
+From the `stack_config` entry the preflight resolved - for the
+configured pair `odd_config_get`'s `effective.stack_config`, its
+`effective.stack_config_key` naming it: `<environment>-azure-monitor`
+when one is persisted for the configured environment, `azure-monitor`
+otherwise - shown next to its field:
 
 - `subscription` - the subscription the missions query, when pinned
   separately from the CLI's active one; say it plainly when it differs
@@ -560,7 +564,7 @@ From `stack_config.azure-monitor` (persisted through
   takes), not its resource name.
 
 A field the user did not persist reads "not persisted - the mission will
-ask"; an empty `stack_config.azure-monitor` (`{}`) is all four
+ask"; an empty resolved entry (`{}`) is all four
 unset, a valid state. `app_insights_app` unset is the one exception to
 that neutral wording - a **named degradation**:
 

@@ -106,7 +106,8 @@ queries will hit.
   partial or masked value. See the setup section earlier in this file
   for the priority order between the three and for the site list.
 
-`stack_config.datadog` is expected **empty** — the CLI session already
+The `stack_config` entry the preflight resolved (`datadog`, or an
+`<environment>-datadog` entry) is expected **empty** — the CLI session already
 names the site and org. Present-and-empty (`{}`) or missing both
 display as "nothing persisted — the Pup session is the source".
 

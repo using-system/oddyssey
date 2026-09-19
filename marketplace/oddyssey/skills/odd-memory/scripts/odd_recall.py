@@ -13,7 +13,7 @@ odd_report.py beside this file, and no other skill's script.
 stdout carries the matches only, one per line, tab-separated. A report
 kind prints
 
-    filename  kind  services|project  stack  environment  mode  depth  verifies  workload  repository
+    filename  kind  services|project  stack  environment  mode  verifies  workload  repository
 
 (``-`` for an absent value; a plan carries its ``project`` in the third
 column and ``-`` in the observation-only ones). A benchmark is a
@@ -29,15 +29,15 @@ a name dropped from it would read as free.
 
 stderr carries what is not a match: a report the memory contract's
 frontmatter checks flag, or a benchmark whose manifest a recall cannot
-read (listed all the same, never skipped silently), a newer quick
-report a full mission skips, a scope matching nothing and what exists
-instead, an absent store. Exit 0 in every one of those cases - a first
+read (listed all the same, never skipped silently), a scope matching
+nothing and what exists instead, an absent store. Exit 0 in every one
+of those cases - a first
 run is normal; 2 on a usage error or outside a git repository.
 
     python3 odd_recall.py [--repo PATH]
                           [--kind observation|instrumentation|benchmark]
                           [--service S ...] [--stack S] [--env E]
-                          [--depth quick|full] [--mode M ...] [--project P]
+                          [--mode M ...] [--project P]
 """
 
 from __future__ import annotations
@@ -54,8 +54,6 @@ sys.dont_write_bytecode = True  # never leave bytecode in the package
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from odd_report import (
     DATE_RE,
-    DEPTHS,
-    LEGACY_PREFIX,
     as_list,
     check_report,
     parse_value,
@@ -77,7 +75,6 @@ COLUMNS = (
     "stack",
     "environment",
     "mode",
-    "depth",
     "verifies",
     "workload",
     "repository",
@@ -102,13 +99,8 @@ def git_root(path: Path) -> Path:
 
 def check(report: dict, stored_names: set[str], root: Path) -> list[str]:
     """What the report lacks against the frontmatter contract - the checks
-    get-status's memory invariant makes, minus the legacy note on an absent
-    depth (it reads as full, and nothing can change an append-only file)."""
-    return [
-        p
-        for p in check_report(report, stored_names, root)
-        if not p.startswith(LEGACY_PREFIX)
-    ]
+    get-status's memory invariant makes."""
+    return check_report(report, stored_names, root)
 
 
 # --- the frontmatter, read as the contract writes it ---------------------------------
@@ -160,7 +152,6 @@ def line_of(report: dict) -> str:
             cell(fm.get("stack")),
             "-" if plan else cell(fm.get("environment")),
             "-" if plan else cell(fm.get("mode")),
-            "-" if plan else cell(fm.get("depth")),
             "-" if plan else cell(fm.get("verifies")),
             "-" if plan else cell(fm.get("workload")),
             cell(fm.get("repository")),
@@ -175,7 +166,6 @@ def describe(scope: dict) -> str:
         ("stack", scope["stack"]),
         ("environment", scope["environment"]),
         ("mode", ", ".join(scope["modes"])),
-        ("depth", scope["depth"]),
         ("project", scope["project"]),
     ):
         if value:
@@ -197,23 +187,6 @@ def recall(root: Path, kind: str, scope: dict) -> tuple[list[str], list[str]]:
     # field the scope matches on must never hide the report silently
     problems = {r["name"]: check(r, stored, root) for r in reports}
     matched = [r for r in reports if matches(r, scope)]
-    if kind == "observation" and scope["depth"] == "full":
-        kept, skipped = [], []
-        for r in matched:
-            depth = r["frontmatter"].get("depth")
-            if depth is not None and str(depth) != "full":
-                if not kept:  # ahead of the baseline: name the skip
-                    skipped.append(r["name"])
-                continue
-            kept.append(r)
-        if kept:
-            err.extend(f"newer quick report skipped: {name}" for name in skipped)
-        elif skipped:
-            err.append(
-                f"no full match; {len(skipped)} quick report(s) skipped: "
-                + ", ".join(skipped)
-            )
-        matched = kept
     matched_names = {r["name"] for r in matched}
     for r in matched:
         out.append(line_of(r))
@@ -478,30 +451,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--env", help="the detected environment; omit while provisional"
     )
-    parser.add_argument("--depth", choices=DEPTHS, help="the mission's depth")
     parser.add_argument("--mode", action="append", default=[], help="repeatable")
     parser.add_argument(
         "--project", help="the scope a plan must cover (instrumentation)"
     )
     args = parser.parse_args(argv)
-    if args.kind == "instrumentation" and (
-        args.service or args.env or args.mode or args.depth
-    ):
-        parser.error(
-            "--service, --env, --mode and --depth apply to observation reports only"
-        )
+    if args.kind == "instrumentation" and (args.service or args.env or args.mode):
+        parser.error("--service, --env and --mode apply to observation reports only")
     if args.kind != "instrumentation" and args.project:
         parser.error("--project applies to instrumentation reports only")
-    if args.kind == "benchmark" and (args.stack or args.env or args.mode or args.depth):
+    if args.kind == "benchmark" and (args.stack or args.env or args.mode):
         parser.error(
-            "--stack, --env, --mode and --depth apply to the report kinds only;"
+            "--stack, --env and --mode apply to the report kinds only;"
             " a benchmark is recalled by --service and by name"
         )
     scope = {
         "services": args.service,
         "stack": args.stack,
         "environment": args.env,
-        "depth": args.depth,
         "modes": args.mode,
         "project": args.project,
     }
