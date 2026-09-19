@@ -46,7 +46,6 @@ sys.path.insert(0, str(_ODD_MEMORY_SCRIPTS))
 import odd_report
 from odd_report import (
     LEDGER_PATH,
-    LEGACY_PREFIX,
     MAX_FINDING_TITLE,
     MEMORY_PATHS,
     OBSERVATION_MODES,
@@ -551,23 +550,16 @@ def load_ledger(root: Path, reports: list[dict]) -> dict:
 
 
 def check_invariant(root: Path, reports: list[dict]) -> dict:
-    """Every stored report checked; a report whose only problem is a field
-    it predates is listed as legacy, not as a violation - the contract reads
-    it as full, and nothing can ever change an append-only file."""
+    """Every stored report checked against the contract's frontmatter."""
     stored = {Path(r["path"]).name for r in reports if r["kind"] == "observation"}
     violations = []
-    legacy = []
     for report in reports:
         problems = check_report(report, stored, root)
-        if not problems:
-            continue
-        if all(p.startswith(LEGACY_PREFIX) for p in problems):
-            legacy.append(report["path"])
-            continue
-        violations.append(
-            {"path": report["path"], "kind": report["kind"], "problems": problems}
-        )
-    return {"checked": len(reports), "violations": violations, "legacy": legacy}
+        if problems:
+            violations.append(
+                {"path": report["path"], "kind": report["kind"], "problems": problems}
+            )
+    return {"checked": len(reports), "violations": violations}
 
 
 # --- the fact sheet -----------------------------------------------------------

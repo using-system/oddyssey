@@ -104,8 +104,7 @@ renderings of the same rules:
 
 **Judgment needed** lists everything the rules deferred: a ruling
 whose wording states no state or two, verifications that disagree, a
-verification stating no verdict, a quick verification that ruled only
-part of its items, a boundary the files cannot settle (tree entries
+verification stating no verdict, a boundary the files cannot settle (tree entries
 the anchor cannot classify, an entry present on one side only, a
 commit-date boundary with commits since), a ruling on an id its chain
 does not define (the same finding, or a homonym) unless the decisions
@@ -114,8 +113,7 @@ judgment, persisted — or its own chain already ruled it (a regression
 claimed from outside stays listed), a verification that
 states a verdict yet keys none of its rulings by a finding of its
 chain (with the hint, never the guess, when its keys are the
-baseline's ids with an `F` added or dropped), a quick report's
-gaps section opening with its not-queried list, a section not lifted
+baseline's ids with an `F` added or dropped), a section not lifted
 (a gap's text shown up to the cap is a note under the gaps table,
 never a deferral), an unreadable report, a malformed frontmatter value,
 a skipped ledger row — except a classification row naming an entry
@@ -202,14 +200,10 @@ status.
    must not split a chain — but the row's evidence states it whenever
    the last report names another repository than the store's, or the
    store holds reports of several. Per lineage: last
-   observation (date, `stack`, `environment`, mode, `depth` — `full`
-   when the frontmatter has none — `workload` when present), last
-   verification (`mode: verify` reports — their `verifies` value names
-   what they replayed) with its verdict from the report body — a
-   `depth: quick` verification renders its coverage
-   (`PASS (quick, 3 of 5 ruled)`) and satisfies "verified" only for
-   the items it ruled, never for the service as a whole; a
-   verification's presence rulings satisfy "verified" only for the
+   observation (date, `stack`, `environment`, mode, `workload` when
+   present), last verification (`mode: verify` reports — their
+   `verifies` value names what they replayed) with its verdict from the
+   report body — a verification's presence rulings satisfy "verified" only for the
    items ruled `closed`, `present, unattributed` closes nothing — and
    the chain as the files tell it:
    observed -> fixed -> verified. A `mode: re-measure` report is an
@@ -279,8 +273,7 @@ status.
    verification's rulings, and the decisions ledger: open,
    fixed-and-verified, regressed, or declined, with severity — the
    burn-down of the loop's backlog. A finding no verification ever ruled
-   on stays open, whatever a commit message claims — `not ruled (quick)`
-   in a quick verification is not a ruling — unless the
+   on stays open, whatever a commit message claims, unless the
    decisions ledger declines it.
    Cross-reference every finding against `.odd/decisions.md` on the key
    that ledger uses: `<exact report filename> / <finding ID as the
@@ -299,10 +292,7 @@ status.
 4. **Trends.** For operations appearing in the per-operation summary
    table of two or more reports of the same service, stack, environment
    and `workload`: p50/p95/p99 and error rate across runs — improved /
-   regressed / stable, with the stored numbers. Depth does not break
-   comparability: section 2's numbers come from the same source at
-   both depths, so a quick and a full run of the same scenario compare
-   on the operations both carry. Comparability is
+   regressed / stable, with the stored numbers. Comparability is
    stricter than the frontmatter: reports whose `workload` differs are
    incomparable, and for drive-mode reports (and verifications or
    re-measures replaying one) so are runs whose recorded scenario or
@@ -318,10 +308,7 @@ status.
 5. **Open telemetry gaps.** Gaps recorded in report bodies and not
    closed by a later verification ruling or instrumentation report —
    `closed` is the only closing ruling; a planned item ruled
-   `present, unattributed` stays open. A
-   quick report's `not queried (quick): ...` list is a statement about
-   that mission, never a gap — do not count it; and a gap a quick
-   verification lists as `not ruled (quick)` stays open, not closed.
+   `present, unattributed` stays open.
    When gaps dominate a service's picture, the recommendation below
    should say instrument, not observe.
 6. **Next recommended action** — the maturity principle operationalized,
@@ -344,7 +331,7 @@ in `.odd/`, in the shape the `odd-memory` contract fixes — and the
 script checks it after the fact, over **every** stored report and
 decision, filtered status or not. Per report: the filename convention,
 the frontmatter fields the kind requires (`services`, `stack`,
-`environment`, `mode`, `depth`, `window` as `start/end` UTC,
+`environment`, `mode`, `window` as `start/end` UTC,
 `run_name` and `date` matching the filename; `project` for a plan),
 and a `verifies` that names a stored file when the mode is a replay.
 Per decision row: a report that exists and a finding it carries; per
@@ -359,12 +346,7 @@ A violation is **never a failure**: the store is append-only, so a
 report is never edited to repair it — a new run supersedes it — and a
 ruling row is appended, never rewritten. The status is where a
 reader learns that a decision points at nothing, or a classification
-at no entry; the remedy is the next run, or a new row. A report whose
-only gap is a field it predates (`depth`, read as `full` the way the
-loop state already renders it) is not a violation: the fact sheet
-lists it under
-`legacy`, and the section names it in a note next to the counts,
-since nothing can ever change it.
+at no entry; the remedy is the next run, or a new row.
 
 ## A filter that matches nothing is still a status
 

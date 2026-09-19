@@ -45,15 +45,13 @@ NEGATED_REGRESSION_RE = re.compile(
     re.IGNORECASE,
 )
 OPEN_RE = re.compile(
-    r"still (present|missing|there)|not ruled|unattributed|\bopen\b|unchanged|carried"
+    r"still (present|missing|there)|unattributed|\bopen\b|unchanged|carried"
     r"|\bfail(?:ed)?\b",
     re.IGNORECASE,
 )
-NOT_RULED_RE = re.compile(r"not ruled", re.IGNORECASE)
 STRONG_OPEN_RE = re.compile(
-    r"still (present|missing|there)|not ruled|unattributed", re.IGNORECASE
+    r"still (present|missing|there)|unattributed", re.IGNORECASE
 )
-QUICK_COVERAGE_RE = re.compile(r"\(quick,\s*(\d+) of (\d+) ruled\)", re.IGNORECASE)
 F_PREFIX_RE = re.compile(r"^F(?=\S)", re.IGNORECASE)
 COUNTED_VERDICT_RE = re.compile(r"verdict:?\**\s*(\d+)\s*/\s*(\d+)", re.IGNORECASE)
 MEASURE_RE = re.compile(
@@ -71,12 +69,7 @@ PACKAGING_FILE_RE = re.compile(
 NO_GAP_RE = re.compile(
     r"^\**(no (?:`[^`]*` )?handoff|gaps do not dominate|no gap)", re.IGNORECASE
 )
-NOT_QUERIED_RE = re.compile(r"^\**Not queried \([^)]*\)", re.IGNORECASE)
-NOT_QUERIED_NONE_RE = re.compile(
-    r"^\**Not queried \([^)]*\):\**\s*\**none\b", re.IGNORECASE
-)
 GAP_STATE_RE = re.compile(r"state|status|fate|ruling", re.IGNORECASE)
-MIXED_GAPS = "gaps mixed into the not-queried list - see Judgment needed"
 # a gap's fate, the way a legacy one-paragraph section 5 wrote it after the gap
 FATE_MARKER_RE = re.compile(
     r"\s—\s\**(?:still missing|still the case|filled|new)\**(?=[\s,.;:)]|$)",
@@ -146,10 +139,6 @@ def is_verify(report: dict) -> bool:
     return mode_of(report) == "verify"
 
 
-def is_quick(report: dict) -> bool:
-    return str(report["frontmatter"].get("depth")).lower() == "quick"
-
-
 def readable(facts: dict) -> list[dict]:
     return [r for r in facts["reports"] if "unreadable" not in r]
 
@@ -181,17 +170,6 @@ def rulings_of(report: dict) -> list[dict]:
     return [f for f in report.get("findings", []) if f["ruling"]]
 
 
-def quick_coverage(report: dict) -> tuple[int, int] | None:
-    """(ruled, total) for a quick verification, from its own rows."""
-    if not is_quick(report):
-        return None
-    rulings = rulings_of(report)
-    if not rulings:
-        return None
-    not_ruled = sum(NOT_RULED_RE.search(r["ruling"]) is not None for r in rulings)
-    return len(rulings) - not_ruled, len(rulings)
-
-
 def verdict_label(report: dict) -> str:
     """A verification's verdict: its own word first, else its rulings counted."""
     verdict_text = " ".join(report.get("verdict_lines") or [])
@@ -210,25 +188,15 @@ def verdict_label(report: dict) -> str:
             passed, total = int(counted.group(1)), int(counted.group(2))
             label = f"{'PASS' if passed >= total else 'FAIL'} ({passed}/{total})"
         if label:
-            coverage = QUICK_COVERAGE_RE.search(text)
-            if coverage:
-                label += f" (quick, {coverage.group(1)} of {coverage.group(2)} ruled)"
             break
     if label is None:
-        rulings = [
-            r for r in rulings_of(report) if not NOT_RULED_RE.search(r["ruling"])
-        ]
+        rulings = rulings_of(report)
         if not rulings:
             return "no verdict stated"
         closed = sum(
             classify_ruling(r["ruling"]) == "fixed-and-verified" for r in rulings
         )
         label = f"{closed} of {len(rulings)} rulings closed"
-    coverage = quick_coverage(report)
-    if coverage and "(quick" not in label:
-        label += f" (quick, {coverage[0]} of {coverage[1]} ruled)"
-    elif is_quick(report) and "(quick" not in label:
-        label += " (quick)"
     return label
 
 
@@ -771,19 +739,10 @@ def screen_lines(facts: dict) -> list[str]:
     )
     head = facts["head"] or {}
     repositories = repositories_of(facts)
-    invariant = facts.get("invariant") or {
-        "checked": 0,
-        "violations": [],
-        "legacy": [],
-    }
+    invariant = facts.get("invariant") or {"checked": 0, "violations": []}
     violations = invariant["violations"]
-    legacy = invariant.get("legacy", [])
     if not violations and not skipped and not skipped_classes:
-        status = (
-            f"clean ({invariant['checked']} of {invariant['checked']}"
-            + (f"; {len(legacy)} predate `depth`, read as full" if legacy else "")
-            + ")"
-        )
+        status = f"clean ({invariant['checked']} of {invariant['checked']})"
     else:
         problems = (
             [f"{Path(v['path']).name} - {p}" for v in violations for p in v["problems"]]
@@ -801,7 +760,6 @@ def screen_lines(facts: dict) -> list[str]:
         status = (
             f"{plural(len(violations), 'violation')}, "
             f"{plural(len(skipped) + len(skipped_classes), 'ledger row')} skipped"
-            + (f", {len(legacy)} predate `depth`" if legacy else "")
             + ": "
             + "; ".join(problems)
         )
@@ -1111,25 +1069,6 @@ def boundary(report: dict) -> dict:
     return {"changed": None, "evidence": "no boundary: the report is not committed"}
 
 
-def unruled_by_quick(report: dict, by_name: dict[str, dict]) -> tuple[str, int] | None:
-    """(baseline, count) of a baseline's findings a quick verification left unruled."""
-    if not (is_verify(report) and is_quick(report)):
-        return None
-    targets = targets_of(report, by_name)
-    if not targets:
-        return None
-    base = targets[0]
-    # a row reading ``not ruled (quick)`` is the contract's way of saying the
-    # finding was left unruled: it names the finding, it does not rule it
-    ruled = {
-        row["id"]
-        for row in rulings_of(report)
-        if not NOT_RULED_RE.search(row["ruling"])
-    }
-    unruled = [f for f in own_findings(base) if f["id"] not in ruled]
-    return (name_of(base), len(unruled)) if unruled else None
-
-
 def parse_day(text: str | None) -> date | None:
     try:
         return date.fromisoformat(str(text)[:10])
@@ -1193,7 +1132,6 @@ def recommendations(
         else (parse_day(today) or datetime.now(timezone.utc).date())
     )
     by_target = verifications_of(facts)
-    by_name = {name_of(r): r for r in readable(facts)}
     out = []
     for label, line in lineages(facts).items():
         last = line[-1]
@@ -1225,18 +1163,10 @@ def recommendations(
         if is_verify(last):
             evidence.append(f"verdict {verdict_label(last)}")
         evidence.append(bound["evidence"])
-        unruled = unruled_by_quick(last, by_name)
         unread = unread_baseline_rulings(last, facts, ruled)
-        if unruled or unread:
+        if unread:
             action = "judgment needed"
-            if unruled:
-                evidence.append(
-                    f"{unruled[1]} finding(s) of {unruled[0]} unruled by the quick "
-                    "verification: verified only for the items it ruled, never for "
-                    "the service"
-                )
-            if unread:
-                evidence.append(unread)
+            evidence.append(unread)
         elif bound["changed"] is None:
             action = "judgment needed"
         elif bound["changed"]:
@@ -1273,17 +1203,17 @@ def gap_section(report: dict) -> dict | None:
 
 def top_level_chars(text: str) -> Iterator[tuple[int, str]]:
     """The characters of ``text`` outside backticks and parentheses, with their index."""
-    depth, quoted = 0, False
+    nesting, quoted = 0, False
     for i, ch in enumerate(text):
         if ch == "`":
             quoted = not quoted
         elif quoted:
             continue
         elif ch == "(":
-            depth += 1
+            nesting += 1
         elif ch == ")":
-            depth = max(depth - 1, 0)
-        elif depth == 0:
+            nesting = max(nesting - 1, 0)
+        elif nesting == 0:
             yield i, ch
 
 
@@ -1376,19 +1306,6 @@ def gap_items(section: dict) -> list[str]:
     return gap_items_by_shape(section)[0]
 
 
-def is_not_queried_item(item: str) -> bool:
-    """A not-queried item hides its gaps - unless the list it opens with is ``none``."""
-    return (
-        NOT_QUERIED_RE.match(item) is not None
-        and NOT_QUERIED_NONE_RE.match(item) is None
-    )
-
-
-def is_not_queried_none(item: str) -> bool:
-    """The ``Not queried (<depth>): none`` statement on its own: never a gap."""
-    return NOT_QUERIED_NONE_RE.match(item) is not None and "`" not in item
-
-
 def is_no_gap_statement(item: str) -> bool:
     """A no-gap / no-handoff statement on its own - one carrying a query or a
     fate marker may name a gap after its opening words, and settles nothing."""
@@ -1405,23 +1322,6 @@ def newest_observations(facts: dict) -> dict[str, dict]:
         observations = [r for r in line if r["kind"] == "observation"]
         if observations:
             out[label] = observations[-1]
-    return out
-
-
-def mixed_not_queried(facts: dict) -> list[str]:
-    """Reports whose gaps section opens an item with its not-queried list:
-    the item is not a gap, and the gaps it carries cannot be told apart -
-    unless the section states it carries none."""
-    out = []
-    for newest in newest_observations(facts).values():
-        section = gap_section(newest)
-        if section is None or section["text"] is None:
-            continue
-        items = gap_items(section)
-        if any(is_no_gap_statement(item) for item in items):
-            continue
-        if any(is_not_queried_item(item) for item in items):
-            out.append(name_of(newest))
     return out
 
 
@@ -1454,11 +1354,6 @@ def lift_losses(facts: dict) -> dict[str, dict]:
 def gap_rows(facts: dict) -> list[dict]:
     """The newest observation of each lineage, its telemetry-gaps section as recorded.
 
-    A ``Not queried (<depth>)`` item is a statement about that mission,
-    never a gap, at either depth: a ``none`` list on its own is skipped,
-    a list of signals is dropped whole and deferred - unless the section
-    states it carries no gap.
-
     ``truncated`` says the lift took something from the section's text -
     what it took is the lift's to state (``lift_losses``); ``cut`` carries
     an item's whole length when the row caps it, else 0; ``paragraph``
@@ -1480,23 +1375,12 @@ def gap_rows(facts: dict) -> list[dict]:
                 }
             )
             continue
-        quick = is_quick(newest)
-        before = len(rows)
-        dropped = no_gap = False
         items, structured = gap_items_by_shape(section)
         paragraph = len(items) == 1 and not structured
         for item in items:
-            if not item or is_not_queried_none(item):
-                continue
-            if NO_GAP_RE.match(item):
-                no_gap = no_gap or is_no_gap_statement(item)
-                continue
-            if is_not_queried_item(item):
-                dropped = True
+            if not item or NO_GAP_RE.match(item):
                 continue
             gap, capped = cap(item, MAX_GAP_LENGTH)
-            if quick:
-                gap = f"(quick report) {gap}"
             rows.append(
                 {
                     "lineage": label,
@@ -1505,17 +1389,6 @@ def gap_rows(facts: dict) -> list[dict]:
                     "truncated": bool(section["text_truncated"]),
                     "cut": len(item) if capped else 0,
                     "paragraph": paragraph,
-                }
-            )
-        if dropped and not no_gap and len(rows) == before:
-            rows.append(
-                {
-                    "lineage": label,
-                    "gap": f"{'(quick report) ' if quick else ''}{MIXED_GAPS}",
-                    "recorded_by": name_of(newest),
-                    "truncated": False,
-                    "cut": 0,
-                    "paragraph": False,
                 }
             )
     return rows
@@ -1609,17 +1482,12 @@ def inventory_lines(facts: dict) -> list[str]:
 
 def invariant_section(facts: dict) -> list[str]:
     """The memory invariant: never a failure - the store is append-only."""
-    invariant = facts.get("invariant") or {
-        "checked": 0,
-        "violations": [],
-        "legacy": [],
-    }
+    invariant = facts.get("invariant") or {"checked": 0, "violations": []}
     ledger = facts["ledger"]
     skipped = [r for r in ledger["rows"] if r["status"] == "skipped"]
     classifications = facts.get("classifications") or {"present": False, "rows": []}
     skipped_classes = [r for r in classifications["rows"] if r["status"] == "skipped"]
     checked = invariant["checked"]
-    legacy = invariant.get("legacy", [])
     clean = checked - len(invariant["violations"])
     out = [
         "## Memory invariant",
@@ -1630,14 +1498,6 @@ def invariant_section(facts: dict) -> list[str]:
                 ""
                 if invariant["violations"]
                 else " - every stored report carries the contract's frontmatter"
-            )
-            + (
-                f"; {len(legacy)} predate the `depth` field and read as full"
-                f" ({', '.join(Path(p).name for p in legacy[:3])}"
-                + (f", +{len(legacy) - 3} more" if len(legacy) > 3 else "")
-                + ")"
-                if legacy
-                else ""
             )
         ),
         (
@@ -1715,10 +1575,7 @@ def state_rows(facts: dict) -> list[list[str]]:
         elif last_obs:
             fm = last_obs["frontmatter"]
             workload = f", workload {fm.get('workload')}" if fm.get("workload") else ""
-            last_obs_cell = (
-                f"{date_of(last_obs)} {fm.get('run_name')} ({mode_of(last_obs)}, "
-                f"depth {fm.get('depth') or 'full'}{workload})"
-            )
+            last_obs_cell = f"{date_of(last_obs)} {fm.get('run_name')} ({mode_of(last_obs)}{workload})"
         else:
             last_obs_cell = "none in observe mode"
         last_ver_cell = (
@@ -1819,12 +1676,6 @@ def render(
                 )
             elif label.startswith("no verdict stated"):
                 verdicts.append(f"{name_of(report)} states two verdicts {label[18:]}")
-            coverage = quick_coverage(report)
-            if coverage and coverage[0] < coverage[1]:
-                verdicts.append(
-                    f"quick verification {name_of(report)} ruled {coverage[0]} of "
-                    f"{coverage[1]}: verified only for those items, never for the service"
-                )
 
     rows = finding_rows(facts)
     problems, ruled_keys = apply_rulings(rows, ruled)
@@ -1888,11 +1739,6 @@ def render(
         cap_notes.append(
             f"{plural(count, 'gap')} of {name} shown up to {MAX_GAP_LENGTH} "
             "characters; the body carries the whole"
-        )
-    for name in mixed_not_queried(facts):
-        gap_notes.append(
-            f"section 5 of {name} mixes a not-queried list with its gaps: open the body "
-            "for the gaps it carries"
         )
     recs = recommendations(facts, today, ruled=ruled_keys)
     boundaries: list[str] = []
@@ -2045,8 +1891,6 @@ def full_sections(
         ]
         if cap_notes:
             out += [f"- {note}" for note in cap_notes] + [""]
-    elif mixed_not_queried(facts):
-        out += ["No gap listed by rule - see Judgment needed.", ""]
     else:
         out += ["No gap recorded.", ""]
 

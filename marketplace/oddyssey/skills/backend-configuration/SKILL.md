@@ -10,8 +10,10 @@ interactive auth (OAuth device codes and SSO browser logins stall
 subagents — observed). This skill resolves the configured stack, shows
 which instance the runs will hit, proves the CLI is connected, and
 guides the user when it is not (`## Check`); and it owns the write —
-the switch to another backend and the targeting values persisted for
-it (`## Switch`). A switch is a write, and a write deserves a preflight:
+the switch to another backend, the deployment environment the missions
+target, and the targeting values persisted for
+it — per environment when one is named or configured (`## Switch`). A
+switch is a write, and a write deserves a preflight:
 a stack persisted for a CLI that is not on the machine turns every
 later mission into the same discovery, so the switch checks the binary
 first, writes second, and ends in `## Check`'s proof.
@@ -89,12 +91,16 @@ the rest of this section is for.
 
 `odd_config_get` names the configured stack — a value
 `builtin-stacks.md` lists, or a custom stack whose declaration sits
-under `custom` in the same result. When the mission or the
-instructions name a different one, they win — whether the switch
+under `custom` in the same result — and the configured `environment`
+(null when none is set; inert on the local stack, which is the `local`
+environment by construction). When the mission or the
+instructions name a different one — a stack, an environment, or both
+— they win — whether the switch
 persists is the **caller's call**: `odd-observe` persists it with
 `odd_config_set` so the next run starts from it; `odd-verify` states
 the divergence and does not persist (the stored report is the contract
-it replays). Open the stack's row in `builtin-stacks.md` and, from it,
+it replays — its stack and its environment alike). Open the stack's
+row in `builtin-stacks.md` and, from it,
 the stack's reference file; a name on no row is a custom stack, its
 reference `.odd/observability-stacks/<name>/guide.md` in the observed
 repository (absent too: the error of `## Switch`'s step 1) — or, when
@@ -124,8 +130,17 @@ below — display, probe, guidance — assumes a binary that runs.
 
 Then follow the reference's `### Display` — it says exactly what to
 display for that backend and where each value comes from, including
-the persisted `stack_config` values from `odd_config_get` — that
-stack's entry only, never the other stacks' values. Show that
+the persisted `stack_config` values — the **effective entry** only,
+never another stack's or another environment's. For the configured
+pair, `odd_config_get`'s `effective` block resolves it:
+`stack_config_key` names the entry (`<environment>-<stack>` when one
+is persisted for the configured environment, the plain `<stack>`
+otherwise — whole, never a merge of the two) and its `stack_config` is
+the values; read them there, never composed from `stack_config` by
+hand. For a replay's other pair (`odd-verify`, step 1) `effective`
+does not apply: resolve the entry yourself from `stack_config` —
+`<environment>-<stack>` when that key is present, else `<stack>` — and
+say so in the display, next to the divergence. Show that
 configuration to the user **as-is, no confirmation needed** — it is
 informative: which instance, tenant, or site the queries are about to
 hit is exactly what a user wants to see before a run, and what catches a
@@ -174,10 +189,10 @@ re-proves the connection — it reads the reference's other sections
 only:
 
 ```text
-Preflight: stack=<stack>, backend=<backend, local, or "<name> (custom)">
+Preflight: stack=<stack>, environment=<the environment the pair resolved to - the configured one, or a replay's; "none" when unset>, backend=<backend, local, or "<name> (custom)">
 Reference: <repo-relative path of the reference file - for a linked guide, the link and the fetched copy's path>; read: CLI binary, Configuration display
 CLI: <binary> <version>[, at <path> when not on PATH]; context: <the isolated context's path, the named context, or "none" when the CLI carries no context>
-Target: <the Display's values on one line - URLs, ports, tenant/workspace/site names; never a credential>
+Target: entry=<the stack_config key step 2 resolved>; <the Display's values on one line - URLs, ports, tenant/workspace/site names; never a credential>
 Proof: <the probe command> -> <the real signal it returned>, at <UTC>
 Machine: <the last line step 0 printed, copied as printed - the CLIs and versions, what is running, the repo's branch and cleanliness, the benchmark's target service and base URLs>
 ```
@@ -190,7 +205,11 @@ The script prints the line; the caller copies it, never composes it.
 
 The `Target:` line carries what the Display showed — the real
 targeting values the agent's queries need — and nothing more: never a
-credential. The block is **conversation-scope**: a real tenant,
+credential. Its `entry=` names the `stack_config` key the values came
+from, and the `Preflight:` line's `environment=` the environment the
+agent compares its detection against: it reads both there and never
+re-reads the configuration for them. The block is
+**conversation-scope**: a real tenant,
 workspace, subscription or site name, a GUID, a login, a path under a
 home directory all identify a real environment, and the agent's report
 is a committed file — section 1 restates the stack and backend, never
@@ -287,6 +306,16 @@ run — `python3` missing, or an install that dropped the skill's
 `scripts/` — the switch stops there too, saying which of the two: an
 unchecked stack is not persisted, and the fix is the user's.
 
+An **environment switch** — "target prod", "clear the environment" —
+is a write of the `environment` field and nothing else:
+`odd_config_set {"environment": "<name>"}` (kebab-case, never
+`unknown`), or `{"environment": null}` to clear it. It selects which
+of the configured stack's entries the missions read (`## Check` step
+2's effective entry) and changes no `stack_config` value; on the local
+stack it is inert. A switch that names both ("switch to cloudwatch in
+prod") writes both fields in the one call. Like every path it ends at
+verification (step 5).
+
 The switch alone touches nothing else: it does not boot, reset, or stop
 the local stack container. A `stack_reset` block appears in the result
 **only** when the same call also changed a local host port, because a
@@ -313,8 +342,15 @@ server): a value under another name is rejected there, and the
 reference's `### What stack_config holds` is where the list is
 explained.
 
-Write with `odd_config_set {"stack_config": {"<stack>": {...}}}`. The
-payload is merged into that stack's entry and every other stack's entry
+Write with `odd_config_set {"stack_config": {"<stack>": {...}}}` — or,
+when the request names an environment ("... for <stack> in prod") or
+one is configured (`odd_config_get`'s `environment`; the local stack
+excepted, it takes no prefix), under the prefixed key:
+`{"stack_config": {"<environment>-<stack>": {...}}}`. The key carries
+the environment, the fields stay the stack's, and the entry is whole:
+what the missions read for that pair is that entry alone, never the
+plain one underneath it. The
+payload is merged into that entry and every other entry
 is left untouched, so a one-value correction is a one-value call. Values
 are flat scalars (string, number, boolean) and nothing else: identifiers,
 names, regions, GUIDs, group names. **Never a secret** — no password, no
@@ -328,7 +364,8 @@ A `stack_config` write never boots or resets the stack container.
 that key (deleting the last one leaves the present-but-empty entry —
 "not configured", the normal state), and
 `{"stack_config": {"<stack>": null}}` removes the stack's entry
-entirely. A deletion never boots or resets the container either, and it
+entirely — an environment's under its prefixed key, the same way. A
+deletion never boots or resets the container either, and it
 is the tool-surface answer to "clear the <value> for <stack>" — never
 hand-edit the file.
 
@@ -342,7 +379,9 @@ A **persist-only** request — targeting values named, no switch asked
 ("persist workspace `<guid>` for <stack>" while the configured stack is
 another) — enters the switch here and stands alone. Resolve the target
 stack (step 1) for validation only, so the values land in the right
-entry and are read against the right reference; **skip the switch
+entry — the environment's, when one is named or configured, under the
+prefixed key above — and are read against the right reference;
+**skip the switch
 persist** (step 3) entirely; write the values as above; end at
 verification (step 5) as every path does. The configured stack is
 left exactly as it was — naming a backend to persist values for is not

@@ -13,7 +13,7 @@ the next `odd_stack_reset` — when in doubt, record the number.
 ```bash
 python3 <this skill's directory>/scripts/odd_report.py new [--repo <observed repo>] \
   --service <name> [--service <name> ...] --stack <stack> --env <detected environment> \
-  --mode <drive|observe|post-hoc|verify|re-measure> --depth <quick|full> \
+  --mode <drive|observe|post-hoc|verify|re-measure> \
   --window <start>/<end> | --from <start> --to <end> --run-name <slug> \
   [--verifies <baseline>] [--workload <text>] [--instance <service>=<identity> ...] \
   [--process-restarted <true|false|service=true|false> ...] [--repository <value>] \
@@ -25,7 +25,7 @@ python3 <this skill's directory>/scripts/odd_report.py synthesis <path>
 python3 <this skill's directory>/scripts/odd_report.py show <path>
 python3 <this skill's directory>/scripts/odd_report.py baseline [--repo <path>] \
   [<report path | enough of a run name>] [--service <name>]... [--stack <stack>] \
-  [--env <environment>] [--depth <quick|full>] [--own-protocol]
+  [--env <environment>] [--own-protocol]
 python3 <this skill's directory>/scripts/odd_report.py boundary [--repo <observed repo>] \
   <baseline report path> [--runtime <entry>]... [--non-runtime <entry>]...
 ```
@@ -100,12 +100,10 @@ The frontmatter mirrors the run **as it executed**, defaults applied —
   `.odd/otel-instrumentation-reports/<file>` for an instrumentation
   baseline — and records `--mode verify` when a fix is under test,
   `--mode re-measure` when the code is unchanged since the baseline's
-  `revision`. The run name and the depth are inherited from the baseline
-  when the flags are omitted (`quick` when an observation baseline
-  predates the field; `full` for an instrumentation baseline); a replay
-  knowingly run on another stack says so in section 1.
-- `--depth` is how far the mission went (the agent's Depth section);
-  `--workload` when the input shaped the run (a different workload is a
+  `revision`. The run name is inherited from the baseline when the flag
+  is omitted; a replay knowingly run on another stack says so in
+  section 1.
+- `--workload` when the input shaped the run (a different workload is a
   new run, not a note); `--instance` and `--process-restarted` pin the
   process the numbers belong to (`run-scenario`'s `run-identity.md`) —
   cumulative queries in the protocol are qualified by that identity.
@@ -119,12 +117,11 @@ The frontmatter mirrors the run **as it executed**, defaults applied —
 Seven numbered sections — an eighth on a custom stack — read by
 number by the recall, the status and `show`. What each carries is the calling agent's judgment, stated here
 beside the format it fills and read at report time — its Investigation
-gathers the evidence, its Depth section collapses sections 3 to 6 at
-`quick` depth. Three shapes in it are the script's, never yours to
-vary: section 3's ruling table on a replay (`new` pre-fills it,
+gathers the evidence. Three shapes in it are the script's, never yours
+to vary: section 3's ruling table on a replay (`new` pre-fills it,
 `check` wants one row per baseline finding), section 5's
-`- <gap> — <fate> — <query>` bullets and its not-queried line, and
-section 2's `### GenAI` heading:
+`- <gap> — <fate> — <query>` bullets, and section 2's `### GenAI`
+heading:
 
 1. **Mission and run record** — the mission as understood (services,
    stack and backend, mode, window, focus, expectations) and every
@@ -233,8 +230,7 @@ section 2's `### GenAI` heading:
    is the key `.odd/decisions.md` names a finding by, and the only
    thing that ties your ruling to it. **Verdict** is `fixed`, `still
    present` or `worse` — a nuance goes after the word (`still present,
-   reduced`) — or `not ruled (quick)` for a baseline finding the
-   queried signals could not rule. A ruling written anywhere else — in
+   reduced`). A ruling written anywhere else — in
    prose, in a row of the ranked table, under an id you renumbered — is
    a ruling no reader can key to the baseline: the finding stays open
    in the loop's burn-down however plainly your report calls it fixed.
@@ -252,14 +248,14 @@ section 2's `### GenAI` heading:
    ~52 to ~2 per request") and the query that will prove it landed.
 5. **Telemetry gaps** — what the service should emit but does not: missing
    latency histograms, logs without trace IDs, absent database or
-   downstream spans, missing resource attributes. The `not queried
-   (<depth>)` statement, when the section carries one (the agent's Depth section),
-   is its own first line, never spliced into a gap; then one bullet per
-   gap — `- <gap> — <filled | still missing | new | not ruled (quick)>
-   — <discovery query>` — the fate ruled against the baseline (`new`
-   when no baseline carries the gap, `not ruled (quick)` when a quick
-   replay left it unqueried) and the discovery query that came back
-   empty as evidence; never several gaps in one paragraph. When gaps
+   downstream spans, missing resource attributes. One bullet per gap —
+   `- <gap> — <filled | still missing | new> — <discovery query>` — the
+   fate ruled against the baseline (`new` when no baseline carries the
+   gap) and the discovery query that came back empty as evidence; never
+   several gaps in one paragraph. A signal the backend cannot serve (a
+   backend fact, shipped by the reference's discovery script) is said as
+   `not served: <signal>` on its own line before the bullets — a
+   statement about the backend, never a gap of the service. When gaps
    dominate the picture, add a one-line handoff to the
    `otel-instrumentation-expert` agent.
 6. **Decisions the spec must settle** — the open questions telemetry cannot
@@ -355,9 +351,7 @@ verify`, a report it cannot read, a repository it cannot compare).
   for the original. The mode is the baseline's execution mode, or the
   first the `verifies` chain reaches - an instrumentation report at
   its end is `drive`; a chain reaching none is an `ask:` for the mode.
-  The depth: `--depth`, else the baseline's field, else `quick` for an
-  observation baseline that predates it and `full` for an
-  instrumentation one. A drive needs the user's confirmation when the
+  A drive needs the user's confirmation when the
   stack or the record's base URL is not local. Its `verifies` line is
   what the replay's `new --verifies` takes.
 - `boundary <baseline report>` decides **verification or
@@ -380,20 +374,18 @@ verify`, a report it cannot read, a repository it cannot compare).
 ## Recall: reading the memory
 
 1. `python3 <this skill's directory>/scripts/odd_recall.py --repo <path>
-   [--service <name>]... --stack <stack> --env <detected environment>
-   --depth <quick|full>` — `--service` repeated per service, `--mode` to
+   [--service <name>]... --stack <stack> --env <detected environment>`
+   — `--service` repeated per service, `--mode` to
    restrict to one mode, `--env` omitted while the environment is
    provisional. It lists `.odd/observe-run-reports/` newest first, one
    tab-separated line per match: filename, kind, services, stack,
-   environment, mode, depth, `verifies`, `workload`, `repository` (`-`
+   environment, mode, `verifies`, `workload`, `repository` (`-`
    when absent); a flagged report is named on stderr, matched or not.
 2. A report matches on intersecting `services`, the same `stack` and the
    detected `environment` (`unknown` matches only `unknown`, with a
    warning; a provisional environment matches on services and stack
    alone, pending re-confirmation). A differing `workload` is kept and
-   warned about. A `full` mission's baseline is the newest `full` (or
-   depth-less) match, the skipped newer quick ones named on stderr and
-   in section 1; a `quick` mission takes either depth.
+   warned about.
 3. The first line is the baseline, read **by section, never whole**:
    `read <path> --sections 1,2,3,7 --record` — section 1's scenario
    record and replay notes, section 2's numbers and deltas (its GenAI

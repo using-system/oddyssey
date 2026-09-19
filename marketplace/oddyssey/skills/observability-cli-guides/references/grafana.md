@@ -27,7 +27,7 @@ identical either way.
 | Topic | Link | What to do with it |
 | --- | --- | --- |
 | Install | [installation.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/sources/installation.md) | Quick-install script (`curl \| sh`), Homebrew (`brew install gcx`, or the `grafana/grafana/gcx` tap to build from source), prebuilt binaries, `go install github.com/grafana/gcx/cmd/gcx@latest`. Pick one method only — running two leaves two binaries on `PATH`; use `which -a gcx` to find duplicates. Homebrew installs avoid the macOS Gatekeeper `killed: 9` issue that manually downloaded binaries hit. |
-| Configure / contexts | [configuration.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/sources/configuration.md) | How `gcx` layers config (system → user `$HOME/.config/gcx/config.yaml` → repo `.gcx.yaml`), the four auth methods (OAuth, service-account token, basic auth, mTLS), and `gcx config set/check/view/list-contexts/use-context`. Use this to define a named context per Grafana instance (`stacks.<name>.grafana.server`, `.org-id` for on-prem, `.token`/`.user`+`.password`) and switch with `gcx config use-context`. Run `gcx config check` (optionally `--context <name>`) as a connectivity/auth gate. |
+| Configure / contexts | [configuration.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/sources/configuration.md) | How `gcx` layers config (system → user `$HOME/.config/gcx/config.yaml` → repo `.gcx.yaml`), the four auth methods (OAuth, service-account token, basic auth, mTLS), and `gcx config set/check/view/list-contexts/use-context`. Use this to define a named context per Grafana instance (`stacks.<name>.grafana.server`, `.org-id` for on-prem, `.token`/`.user`+`.password`) and switch with `gcx config use-context`. Run `gcx config check --context <name>` as a connectivity/auth gate. |
 | Configuration file schema | [reference/configuration](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/configuration/index.md) | Full annotated YAML schema: `stacks`, `cloud`, `contexts`, `contexts.<name>.datasources.<kind>` (default datasource UID per signal), `diagnostics`. Consult when hand-editing a config/`.gcx.yaml` file instead of using `gcx config set`, or to see exactly which fields a given auth method needs. |
 | Environment variables | [reference/environment-variables](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/environment-variables/index.md) | `GRAFANA_SERVER`, `GRAFANA_ORG_ID`, `GRAFANA_STACK_ID`, `GRAFANA_TOKEN`, `GRAFANA_USER`/`GRAFANA_PASSWORD`, `GRAFANA_TLS_*`, `GRAFANA_CLOUD_TOKEN`, `GCX_TELEMETRY`, `GCX_AUTO_APPROVE`. Use for CI/non-interactive runs — env vars override the selected context in memory and are never persisted. Minimum for a working call: `GRAFANA_SERVER` + `GRAFANA_ORG_ID` (on-prem) plus one credential var. |
 | `gcx login` | [gcx_login.md](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_login.md) | Interactive/non-interactive auth: `--oauth` (Cloud, browser-based, works in agent mode), `--token` (service-account token, Cloud or on-prem), `--cloud-token` (Cloud platform API), `--yes` to skip prompts. `gcx login prod --server https://<stack>.grafana.net` for Cloud; `gcx login local --server http://localhost:3000 --token <token>` for self-hosted/on-prem. |
@@ -43,20 +43,26 @@ Remote missions only: on the local stack the context is the
 python3 <Skills>/observability-cli-guides/scripts/grafana-context.py [--stack <context name>] [--json]
 ```
 
-Whole surface: `--stack` (default: the user's current context), `--json`.
+Whole surface: `--stack` (the context the preflight handoff's `context:`
+line names — the persisted `stack_config` `context` when the entry
+carries one; omitted otherwise, and the user's current context is the
+target), `--json`.
 Prints the `export GCX_CONFIG=…` line to put in front of every later
 call, the context, and the four datasource UIDs (marked when a UID is
 not a context default: gcx then resolves it from the stack). Exit 0 =
 proved with [`config check --context`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_config_check.md); exit 1 =
 the message names the fix, which is the user's, never the mission's.
 
-- Target is the user's current context (the usual case): the user's
+- Target is the user's current context (the usual case — no context
+  persisted, or the persisted one is the current one): the user's
   file is used in place, nothing copied, nothing written — a
   keychain-bound credential answers only from the file it was bound to,
   and no default is needed (verified 2026-09-08 on Cloud: four signals
-  answered with `loki` and `prometheus` the only defaults set). Fix on
+  answered with `loki` and `prometheus` the only defaults set;
+  re-verified 2026-09-19 with `--stack <the current context>`). Fix on
   exit 1: `gcx login <stack>`.
-- Target is another context: the user's file is copied to a session path
+- Target is another context (a persisted context that is not the
+  current one): the user's file is copied to a session path
   (one per stack and session), the copy gets that context and the
   default UID per signal from [`datasources list`](https://raw.githubusercontent.com/grafana/gcx/main/docs/reference/cli/gcx_datasources_list.md).
   Fix on exit 1 ("the keychain reference does not match this config
@@ -529,19 +535,27 @@ instrumentation gap; the series carrying one are
 `grafana` is a **remote** Grafana; the gcx context is what says which
 instance, so the display is the context, not an invented value.
 
+- The `stack_config` entry the preflight resolved (`grafana`, or an
+  `<environment>-grafana` entry) holds one field, `context`: show it
+  when set, "not persisted — the active context is used" otherwise
+  (present-and-empty `{}` and missing both read so, and both are a
+  normal state, not a gap).
 - `gcx config list-contexts` — every configured context, with the
   active one marked.
-- `gcx config view` — the active context's `grafana.server` (the
-  instance the queries will hit) and its `org-id` when set. Show the
-  server URL and org; never echo a token, password, or any other
-  credential field the view prints.
-
-`stack_config.grafana` is expected **empty** — the gcx context already
-names the instance, and duplicating it in the global configuration only
-creates a second truth to drift. Present-and-empty (`{}`) or missing
-both display as "nothing persisted — the gcx context is the source".
-If values are stored there anyway, show them as-is and say the gcx
-context still wins for targeting.
+- `gcx config view --context <context> --minify` — that context's
+  `grafana.server` (the instance the queries will hit) and its
+  `stack-id` or `org-id`; `<context>` is the persisted name, the
+  active context's otherwise. `--minify` is what restricts the output
+  to the one context: plain `gcx config view` dumps the whole file, and
+  `--context` alone does not restrict it (verified 2026-09-19 on 1.2.0
+  with two contexts). Show the server URL and the org or stack id;
+  never echo a token, password, or any other credential field (1.2.0
+  prints `**REDACTED**` in their place; never add `--raw`, which prints
+  them).
+- A `view` that exits 1 with `context not found` (verified 2026-09-19)
+  is the targeting failure met one step early: show the persisted
+  name, say gcx does not know that context, and take
+  `### Connection proof`'s targeting routing without running the proof.
 
 List any `invalid_ignored` dotted names `odd_config_get` returned as
 degradations: the stored value was invalid and was dropped.
@@ -550,14 +564,38 @@ not persisted — nothing silently took its place.
 
 ### Connection proof
 
-`gcx config check` (add `--context <name>` when proving a context other
-than the active one). Success on the active context = connected. No
-context configured for a remote instance is not automatically an
+**One call**: `gcx config check --context <context>` — the persisted
+`context` when set, the active context's name (the one
+`list-contexts` marks) otherwise. Always with `--context`: without it,
+`check` proves every configured context and exits 1 when any of them
+fails (verified 2026-09-19 on 1.2.0). Read in two parts:
+
+- **Targeting** — the context resolves. A name gcx does not know exits
+  1 with `context not found` (a `gcx.error` line; verified
+  2026-09-19): a wrong persisted value, never a "CLI not configured"
+  error — route to `backend-configuration`'s `## Switch` persist-only
+  path **once** for a corrected name; a corrected name that fails too
+  stops with the report, never a guess.
+- **Connectivity** — the instance answers. Exit 0 with `Connectivity:
+  online` = connected (verified 2026-09-19, on the active context and
+  on a context that was not the active one). Exit 1 with
+  `Configuration: valid` and a failed `Connectivity:` line is the
+  user's to fix — a network error names the server (verified
+  2026-09-19), an expired or rejected credential is `gcx login
+  <context>`, guided and never run on the user's behalf (that shape
+  unverified 2026-09-19). `Configuration:` failing names the missing
+  field of the context (a `stack-id` or `org-id`; verified
+  2026-09-19): the context's own setup, the user's to complete.
+
+Never two calls: the display shows, the proof proves. No context
+configured for a remote instance is not automatically an
 authentication problem: offer `odd_config_set {"stack": "local"}` first
 if the user meant the local stack.
 
 ### Change-request phrasing
 
+- "persist gcx context <name> for grafana"
+- "clear the grafana context"
 - "switch gcx to context <name>"
 - "change backend to local"
 
@@ -565,47 +603,46 @@ if the user meant the local stack.
 
 ### What stack_config holds
 
-**Nothing.** `stack_config.grafana` is expected to stay empty, and an
-empty entry is the correct final state of a switch to `grafana`, not an
-unfinished one.
+One field, `context`: the **name** of the gcx context the runs use —
+`{"stack_config": {"grafana": {"context": "<context>"}}}`, or under an
+`<environment>-grafana` entry. Absent, the runs use the user's active
+context, and an empty entry is a correct final state of a switch to
+`grafana`, not an unfinished one.
 
-The reason is that gcx is a **context-bearing** CLI: the active context
-already names the instance (`grafana.server`), the org (`org-id`) or
-Cloud stack, and the default datasource UID per signal. Copying any of
-that into the global configuration creates a second truth that drifts
-the first time the user runs `gcx config use-context` — and the gcx
-context wins for targeting regardless, so the copy would be wrong
-without being consulted.
+The name is a pointer to gcx's own truth, never a copy of it: the
+server (`grafana.server`), the org or Cloud stack id, the credential
+and the default datasource UID per signal stay in the context, read at
+use time. Copying any of them here would create a second truth that
+drifts, and the context wins for targeting regardless; a stale name
+fails loudly at the proof (`context not found`) instead of silently
+targeting the wrong instance.
 
 `grafana` always means a **remote** Grafana. The local stack is the
 separate `local` value, with its own reference.
 
 ### Where each value comes from
 
-From the gcx context, read at use time and never mirrored here:
+- `context` — `gcx config list-contexts`: the configured contexts, the
+  active one marked; the value is one of the names, as printed.
 
-- `gcx config list-contexts` — the configured contexts, active one
-  marked.
-- `gcx config view` — the active context's server URL, org, and
-  datasource defaults.
-
-Whichever credential the context uses (a service-account token, basic
-auth, OAuth, mTLS) lives in gcx's own configuration. It is referred to
-by name in any display and never written into `stack_config`.
+Everything else stays in gcx, read at use time and never mirrored here
+— `gcx config view --context <context> --minify` shows that context's
+server URL, org or stack id, and datasource defaults. Whichever
+credential the context uses (a service-account token, basic auth,
+OAuth, mTLS) lives in gcx's own configuration: referred to by name in
+any display, never written into `stack_config`.
 
 ### What to ask the user
 
-**Nothing about targeting.** Do not ask for the instance URL, the org,
-the stack id, or the datasource UIDs — asking implies they should be
-stored, and they should not be.
+Which context the runs should use — only when `gcx config
+list-contexts` shows several and none is persisted for the entry.
+"None, use the active context" is a valid answer that writes nothing.
+With one context, or one already persisted, ask nothing. If no context
+points at a remote instance at all, offer the alternative before
+anything else: the user may have meant the local stack, and that is
+`odd_config_set {"stack": "local"}`.
 
-The one thing worth raising, and only when the user has more than one
-context or none active, is which gcx context the runs should use — and
-the fix for that lives in gcx (`gcx config use-context <name>`), not in
-this configuration. If no context points at a remote instance at all,
-offer the alternative before anything else: the user may have meant the
-local stack, and that is `odd_config_set {"stack": "local"}`.
-
-Leave `stack_config.grafana` alone. If values are already stored there
-from an earlier run, do not add to them and say plainly that the gcx
-context is what the missions will target.
+Never the instance URL, the org, the stack id, or the datasource UIDs —
+asking implies they should be stored, and they should not be. Stray
+keys an earlier run or a hand edit left under the entry are listed in
+`invalid_ignored` and ignored: do not add to them.
