@@ -64,7 +64,11 @@ Steps:
      at user scope is the user's to do, once, and spending a run to
      discover it is missing is worse than refusing to start:
      - `opencode`: `opencode models openrouter` lists the model id you
-       were given (the package is installed in step 3);
+       were given - or, when the listing lags OpenRouter's catalog (it
+       did not carry `z-ai/glm-5.3-flashx` on 2026-09-19 while the
+       model ran), a smoke run answers with a `text` event:
+       `opencode run --model openrouter/<model> --format json "reply with the single word ok" < /dev/null`
+       (the package is installed in step 3);
      - `claude`: `claude --version` answers; the package is installed at
        **user scope** for Claude Code — `~/.claude/commands/odd-observe.md`,
        `~/.claude/agents/observe-run.md`, `~/.claude/skills/<the nine
