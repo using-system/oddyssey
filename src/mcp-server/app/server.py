@@ -163,8 +163,10 @@ def odd_config_set(config: dict) -> dict:
     name only. Each stack accepts only its own documented field set, for
     its prefixed entries too (e.g.
     azure-monitor: subscription, resource_group, workspace,
-    app_insights_app; grafana/datadog/dynatrace: none, their CLI
-    context carries targeting; a custom stack: its declared list) - an
+    app_insights_app; grafana: context - the name of the gcx context the
+    runs use, the user's active one when absent; datadog/dynatrace: none,
+    their CLI context carries targeting; a custom stack: its declared
+    list) - an
     undocumented key is rejected, writing nothing, EXCEPT as a null deletion, which is always accepted so a
     stray key can still be cleaned up. local is the one exception: its
     keys are otel-lgtm container env var names, an open set. null deletes:

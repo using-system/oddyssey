@@ -40,7 +40,10 @@ STACKS = (
 # every STACKS value must have an entry.
 STACK_CONFIG_FIELDS: dict[str, frozenset[str] | None] = {
     "local": None,
-    "grafana": frozenset(),
+    # The name of the gcx context the runs use (issue #619) - a pointer to
+    # gcx's own configuration, never a copy of what the context holds.
+    # Absent, the runs use the user's active context.
+    "grafana": frozenset({"context"}),
     "azure-monitor": frozenset(
         {"subscription", "resource_group", "workspace", "app_insights_app"}
     ),

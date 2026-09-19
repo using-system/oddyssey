@@ -67,8 +67,8 @@ the container's environment variables, managed by
 OSS); the local stack is `local`.
 
 **Connect**: `gcx login <name> --server https://<stack>.grafana.net`
-(Cloud) or `gcx config use-context <name>` for an existing context;
-`gcx config check` proves it.
+(Cloud) creates a context; `gcx config check --context <name>` proves
+it.
 
 **Resource required**: a Grafana instance whose datasources (Loki,
 Tempo, Prometheus, Pyroscope) already receive your telemetry.
@@ -77,8 +77,13 @@ Tempo, Prometheus, Pyroscope) already receive your telemetry.
 /odd-config switch to grafana
 ```
 
-**Persists**: nothing — gcx's active context already names the
-instance, org, and datasources.
+**Persists**: `context` — the name of the gcx context the runs use;
+absent, the active context is used. The instance, org, and datasources
+stay in gcx.
+
+```text
+/odd-config persist gcx context <name> for grafana
+```
 
 ## azure-monitor
 
