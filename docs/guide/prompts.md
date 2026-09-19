@@ -502,6 +502,14 @@ for that stack, without switching to it.
 without switching.
 
 ```text
+/odd-config persist gcx context grafana-prod for grafana
+```
+
+"persist gcx context ... for grafana" names which of the configured gcx
+contexts the runs use, without switching; cleared, the active context
+is used.
+
+```text
 /odd-config target prod
 ```
 

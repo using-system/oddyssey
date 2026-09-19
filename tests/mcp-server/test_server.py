@@ -249,6 +249,7 @@ def test_config_set_description_states_the_stack_config_field_whitelist():
     tools = {t.name: t for t in asyncio.run(server.mcp.list_tools())}
     description = tools["odd_config_set"].description
     assert "app_insights_app" in description
+    assert "grafana: context" in description
     assert "documented field set" in description
 
 

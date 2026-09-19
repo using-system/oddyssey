@@ -376,12 +376,24 @@ def test_save_rejects_undocumented_key_for_a_documented_stack(tmp_path):
 
 
 def test_save_rejects_any_key_for_a_stack_with_no_documented_fields(tmp_path):
-    # grafana/datadog/dynatrace persist nothing (their CLI context
+    # datadog/dynatrace persist nothing (their CLI session or context
     # carries targeting) - any key is unknown for them.
     path = tmp_path / "config.json"
-    with pytest.raises(ValueError, match="stack_config"):
-        config.save({"stack_config": {"grafana": {"context": "prod"}}}, path)
+    with pytest.raises(ValueError, match="does not persist any fields"):
+        config.save({"stack_config": {"datadog": {"context": "prod"}}}, path)
     assert not path.exists()
+
+
+def test_save_accepts_the_grafana_context_and_rejects_another_key(tmp_path):
+    # grafana persists one field (issue #619): the name of the gcx context
+    # the runs use - a pointer to gcx's own truth, never a copy of it.
+    # Absent, the runs use the active context; any other key is unknown.
+    path = tmp_path / "config.json"
+    result = config.save({"stack_config": {"grafana": {"context": "prod"}}}, path)
+    assert result["stack_config"]["grafana"] == {"context": "prod"}
+    with pytest.raises(ValueError, match=r"stack_config.grafana accepts only"):
+        config.save({"stack_config": {"grafana": {"server": "https://x"}}}, path)
+    assert config.load(path)["stack_config"]["grafana"] == {"context": "prod"}
 
 
 def test_save_allows_arbitrary_keys_for_the_local_stack(tmp_path):
@@ -527,7 +539,7 @@ def test_save_rejects_a_malformed_declaration(tmp_path, declaration):
 
 def test_save_accepts_an_empty_field_list(tmp_path):
     # A custom stack whose query surface carries its own targeting (a CLI
-    # context) persists nothing, like the context-bearing built-ins.
+    # session) persists nothing, like datadog and dynatrace.
     path = tmp_path / "config.json"
     result = config.save(_declare(fields=()), path)
     assert result["custom"] == {"seq": {"stack_config_fields": []}}
@@ -838,8 +850,11 @@ def test_prefixed_entry_accepts_the_stacks_fields_only(tmp_path):
     with pytest.raises(ValueError, match=r"stack_config.prod-cloudwatch accepts only"):
         _cw(path, **{"prod-cloudwatch": {"workspace": "x"}})
     with pytest.raises(ValueError, match="does not persist any fields"):
-        _cw(path, **{"prod-grafana": {"context": "x"}})
+        _cw(path, **{"prod-datadog": {"context": "x"}})
     assert not path.exists()
+    # grafana's one field lands under its prefixed entries too (issue #619).
+    result = _cw(path, **{"prod-grafana": {"context": "x"}})
+    assert result["stack_config"]["prod-grafana"] == {"context": "x"}
     # A declared custom stack's list applies to its prefixed entries too.
     config.save(_declare(fields=("base_url",)), path)
     result = _cw(path, **{"prod-seq": {"base_url": "http://seq.example.test:5341"}})

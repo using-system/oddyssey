@@ -6,7 +6,8 @@
 # the caller (#228) is accepted, validated and removed, an
 # environment-prefixed stack_config key merges and deletes next to the
 # stack's plain one while the environment field selects the effective
-# entry (#618), and the tolerant read lists
+# entry (#618), grafana persists its gcx context name and nothing else
+# (#619), and the tolerant read lists
 # hand-edited invalid values in invalid_ignored instead of crashing,
 # and the read carries the installed oddyssey-mcp version (#395).
 # Pure configuration - no stack container is booted, reset, or wiped.
@@ -127,10 +128,23 @@ jq -e '.content[0].text | contains("tenant") | not' "$workdir/after-unknown-key.
 
 step "a stack with no documented fields rejects every key (#196)"
 mcp_call odd_config_set \
-  'config={"stack_config":{"grafana":{"note":"fake-instance"}}}' \
+  'config={"stack_config":{"datadog":{"note":"fake-instance"}}}' \
   > "$workdir/sc-no-fields.json" || true
 grep -q "does not persist any fields" "$workdir/sc-no-fields.json" \
-  || { echo "ASSERTION FAILED: grafana key was not rejected" >&2; cat "$workdir/sc-no-fields.json" >&2; exit 1; }
+  || { echo "ASSERTION FAILED: datadog key was not rejected" >&2; cat "$workdir/sc-no-fields.json" >&2; exit 1; }
+
+step "grafana persists the gcx context the runs use, and nothing else (#619)"
+mcp_call odd_config_set \
+  'config={"stack_config":{"grafana":{"context":"example-context"}}}' > "$workdir/sc-grafana.json"
+assert_result_contains "$workdir/sc-grafana.json" '"context": "example-context"'
+mcp_call odd_config_set \
+  'config={"stack_config":{"grafana":{"server":"https://example.test"}}}' \
+  > "$workdir/sc-grafana-bad.json" || true
+grep -q "accepts only" "$workdir/sc-grafana-bad.json" \
+  || { echo "ASSERTION FAILED: a grafana key other than context was not rejected" >&2; cat "$workdir/sc-grafana-bad.json" >&2; exit 1; }
+mcp_call odd_config_set 'config={"stack_config":{"grafana":null}}' > "$workdir/sc-grafana-clear.json"
+jq -e '.content[0].text | contains("example-context") | not' "$workdir/sc-grafana-clear.json" > /dev/null \
+  || { echo "ASSERTION FAILED: the grafana entry was not cleared" >&2; cat "$workdir/sc-grafana-clear.json" >&2; exit 1; }
 
 step "the local stack still accepts arbitrary container env var keys (#196)"
 mcp_call odd_config_set \
