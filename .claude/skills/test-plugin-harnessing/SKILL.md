@@ -47,9 +47,9 @@ the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
   phase durations, its turn count and its **median turn**. Read it from
   `origin/main`, never from the working tree.
 - **A model whose median turn is small**, as the canonical
-  `vendor/name` id - default `deepseek/deepseek-v4.1-flash`; others
-  `google/gemini-3.7-flash`, `anthropic/claude-haiku-4.5`,
-  `openai/gpt-5.6-sol`: the scripts hand each CLI its own form. The published median is the instrument's
+  `vendor/name` id - default `openai/gpt-5.6-luna` on `copilot`; others
+  `deepseek/deepseek-v4.1-flash`, `google/gemini-3.7-flash`,
+  `anthropic/claude-haiku-4.5`: the scripts hand each CLI its own form. The published median is the instrument's
   precision: a model at 3 s per turn measures the harness, one at 20 s
   measures the provider. Prefer the fastest row in the table for that
   CLI, whatever its findings score — this is not a quality test.
@@ -126,7 +126,7 @@ the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
    taken another.
 
    Its whole surface, so `--help` has nothing to add: `--cli` (default
-   `opencode`), `--model` (default `deepseek/deepseek-v4.1-flash`),
+   `copilot`), `--model` (default `openai/gpt-5.6-luna`),
    `--tag`, `--phase`, one of `--prompt` /
    `--prompt-file`, `--out`, plus `--end-pattern` (a regular expression
    over the run's own lines — opencode's log, claude's transcripts,
@@ -171,8 +171,9 @@ the path of `/odd-observe`, `/odd-verify` or `/odd-status`.
    rewritten `opencode.json` — a lab dirty in any other way is refused
    before the launch), the fake user scope is synced from the branch's
    deploy and checked identical (`--scope <lab path>:<fake-home path>`,
-   repeatable; opencode's two pairs are the default, the other CLIs
-   state theirs), `--scratch <dir>` is cleared when given (the CLI's
+   repeatable; copilot syncs nothing - its deploy lives in the clone -
+   opencode's two pairs are known to the script, claude states its
+   own), `--scratch <dir>` is cleared when given (the CLI's
    scratch directory; nothing outside the study is touched otherwise),
    the measurement above is launched (once more when it exits non-zero
    within 30 s — a launch that died measured nothing; `SAMPLE

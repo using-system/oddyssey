@@ -359,11 +359,11 @@ def main() -> int:
     cli, run_id, stdout, usage = args.cli, args.run_id, args.stdout, args.usage
     if args.record:
         record = json.loads(Path(args.record).read_text())
-        cli = cli or record.get("cli") or "opencode"
+        cli = cli or record.get("cli") or "copilot"
         run_id = run_id or record.get("run_id")
         stdout = stdout or record.get("stdout")
         usage = usage or record.get("usage")
-    cli = cli or "opencode"
+    cli = cli or "copilot"
     if not run_id:
         print("no run id - pass --run-id or --record", file=sys.stderr)
         return 1

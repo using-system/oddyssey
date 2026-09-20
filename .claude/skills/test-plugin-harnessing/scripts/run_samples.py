@@ -2,7 +2,7 @@
 """Run a study's samples in order, each on its lab branch, and journal them.
 
     python3 run_samples.py --lab <clone> --fake-home <dir> --out <study dir> \\
-      --cli opencode --model deepseek/deepseek-v4.1-flash --phase whole \\
+      --cli copilot --model openai/gpt-5.6-luna --phase whole \\
       base1=lab-main:mission.txt after1=lab-after:mission.txt \\
       after2=lab-after:mission.txt base2=lab-main:mission.txt
 
@@ -47,10 +47,13 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 RELAUNCH_WITHIN = 30  # seconds: a run gone before this measured nothing
 
-# what the opencode deploy in the lab writes, and where the fake user scope
-# expects it (launch-llms-benchmark step 3 states the scopes per CLI); the
-# other CLIs' scopes are passed as --scope <lab path>:<fake-home path>
+# what a CLI's deploy in the lab writes, and where the fake user scope
+# expects it (launch-llms-benchmark step 3 states the scopes per CLI):
+# copilot reads the deploy in the clone and syncs nothing, opencode also
+# reads the user scope; claude's scopes are passed as
+# --scope <lab path>:<fake-home path>
 DEFAULT_SCOPES = {
+    "copilot": [],
     "opencode": [
         (".agents/skills", ".claude/skills"),
         (".opencode/agents", ".claude/agents"),
@@ -218,20 +221,20 @@ def main() -> int:
     ap.add_argument("--lab", required=True, help="the lab clone the runs launch in")
     ap.add_argument("--fake-home", required=True, help="the HOME the runs see")
     ap.add_argument("--out", required=True, help="the study directory")
-    ap.add_argument("--cli", default="opencode", choices=CLIS)
+    ap.add_argument("--cli", default="copilot", choices=CLIS)
     ap.add_argument(
         "--scope",
         action="append",
         metavar="LAB_PATH:HOME_PATH",
         help="a deployed directory to sync into the fake home, both paths relative "
-        "(repeatable; the opencode pairs are the default, the other CLIs need theirs stated)",
+        "(repeatable; copilot syncs nothing, opencode's pairs are known, claude states its own)",
     )
     ap.add_argument(
         "--scratch",
         metavar="DIR",
         help="the CLI's scratch directory to clear before each sample (none by default)",
     )
-    ap.add_argument("--model", default="deepseek/deepseek-v4.1-flash")
+    ap.add_argument("--model", default="openai/gpt-5.6-luna")
     ap.add_argument(
         "--phase",
         default="whole",
@@ -275,6 +278,7 @@ def main() -> int:
             raise SystemExit(f"no such mission file: {mission}")
     check_pair_order(samples)
     scopes = list(DEFAULT_SCOPES.get(args.cli, []))
+    known = args.cli in DEFAULT_SCOPES
     for pair in args.scope or []:
         if ":" not in pair:
             raise SystemExit(f"--scope takes <lab path>:<fake-home path>, got {pair!r}")
@@ -286,7 +290,7 @@ def main() -> int:
                     f"never absolute, never through ..: got {pair!r}"
                 )
         scopes.append((src, dst))
-    if not scopes:
+    if not scopes and not known:
         raise SystemExit(f"--cli {args.cli} needs its --scope pairs stated")
     branches = git(lab, "branch", "--format=%(refname:short)").splitlines()
     tips: dict[str, str] = {}

@@ -18,7 +18,7 @@ number:
 - a run that dies looks exactly like a run that thinks, so the watch
   fails loudly instead of returning a fast, wrong time.
 
-    measure_phase.py --cli opencode --model deepseek/deepseek-v4.1-flash --tag d1 \
+    measure_phase.py --cli copilot --model openai/gpt-5.6-luna --tag l1 \
         --phase preflight --prompt-file mission.txt --out /tmp/study
 
 The model is the canonical `vendor/name` id whatever the CLI; each CLI is
@@ -305,13 +305,13 @@ def main() -> int:
     ap.add_argument(
         "--cli",
         choices=CLIS,
-        default="opencode",
-        help="the CLI the run is driven by (default opencode)",
+        default="copilot",
+        help="the CLI the run is driven by (default copilot)",
     )
     ap.add_argument(
         "--model",
-        default="deepseek/deepseek-v4.1-flash",
-        help="the canonical vendor/name model id (default deepseek/deepseek-v4.1-flash)",
+        default="openai/gpt-5.6-luna",
+        help="the canonical vendor/name model id (default openai/gpt-5.6-luna)",
     )
     ap.add_argument("--tag", required=True, help="names this measurement's files")
     ap.add_argument(
