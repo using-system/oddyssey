@@ -3,7 +3,7 @@
 Environment variables are the container's **only** configuration surface,
 and `odd_stack_up` / `odd_stack_reset` (`env` parameter) are how they
 reach it. This catalog is built from the pinned image's own tag —
-**`grafana/otel-lgtm:0.33.0`** (its README and `docker/run-*.sh`
+**`grafana/otel-lgtm:0.33.1`** (its README and `docker/run-*.sh`
 scripts) — and must be re-validated on every pin bump; when the pin and
 this file disagree, trust the tag.
 
@@ -117,6 +117,10 @@ what breaks it is changing `GF_SECURITY_ADMIN_USER` /
 
 - `LGTM_SHUTDOWN_TIMEOUT_SECONDS` — grace period (default 5 s) before
   still-running components are forcefully stopped on SIGTERM/SIGINT.
+- `LGTM_READY_FILE` — path of the marker `run-all.sh` writes once every
+  component is up (default `/tmp/ready`); the image's own `HEALTHCHECK`
+  waits for it before probing the components. Nothing here reads it:
+  `odd_stack_up` judges readiness with its own probes.
 - `OTEL_COLLECTOR_DEBUG_EXPORTER=true` — adds the collector's debug
   exporter, printing received telemetry to the component logs (pair with
   `ENABLE_LOGS_OTELCOL=true`).

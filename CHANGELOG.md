@@ -1,3 +1,15 @@
+## [1.13.1] - 2026-09-20
+
+### 📚 Documentation
+
+- *(bench)* Re-run every llms-benchmark row under oddyssey 1.13.0 (#637)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(ci)* Odd-status job on oddyssey-actions v1.3.2 - the verdict recomputed by the package's own script on the checkout, downloads retried on a connection reset (#639)
+- *(mcp)* Bump the local stack image to grafana/otel-lgtm 0.33.1 - Pyroscope 2.3.1, the image's healthcheck waits for the stack's ready marker (#641)
+- *(apm)* The package and marketplace descriptions repeat the repository's description (#643)
+- *(apm)* Bump apm-cli to 0.31.0 - the pin in the install commands, the CI workflows, the marketplace build and the harness kit (#645)
 ## [1.13.0] - 2026-09-19
 
 ### 🚀 Features

@@ -1,5 +1,5 @@
 name: oddyssey
-version: 1.13.0
+version: 1.13.1
 license: MIT
 description: "CLI toolbox for Observability-Driven Development (ODD): coding agents observe local runs on an OpenTelemetry/Grafana stack - or remote ones on any OpenTelemetry backend - and feed the next spec-driven improvement loop."
 displayName: Oddyssey
@@ -27,7 +27,7 @@ dependencies:
       args:
         - "--refresh-package"
         - "oddyssey-mcp"
-        - "oddyssey-mcp==1.13.0"
+        - "oddyssey-mcp==1.13.1"
 
 # `apm pack` compiles this block into the native marketplace manifests
 # (.claude-plugin/marketplace.json for Claude Code / Copilot CLI / Kimi
@@ -45,5 +45,5 @@ marketplace:
     - name: oddyssey
       description: "CLI toolbox for Observability-Driven Development (ODD): coding agents observe local runs on an OpenTelemetry/Grafana stack - or remote ones on any OpenTelemetry backend - and feed the next spec-driven improvement loop."
       source: ./marketplace/oddyssey
-      version: 1.13.0
+      version: 1.13.1
       category: Observability

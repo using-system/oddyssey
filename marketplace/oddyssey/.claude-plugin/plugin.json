@@ -1,7 +1,7 @@
 {
   "name": "oddyssey",
-  "version": "1.13.0",
-  "description": "Observability-Driven Development for CLI coding agents",
+  "version": "1.13.1",
+  "description": "CLI toolbox for Observability-Driven Development (ODD): coding agents observe local runs on an OpenTelemetry/Grafana stack - or remote ones on any OpenTelemetry backend - and feed the next spec-driven improvement loop.",
   "author": {
     "name": "using-system",
     "url": "https://github.com/using-system"
