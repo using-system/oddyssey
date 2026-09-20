@@ -561,6 +561,17 @@ Steps:
      result must equal it, and the transcript is
      `~/.claude/projects/<project>/<that id>.jsonl`. Anything else, stop
      and say so.
+   - **the observation must have run on the benchmarked model.** The
+     root session may dispatch `observe-run` through the Agent tool with
+     a `model` of its own choosing — on 2026-09-20 a `claude-sonnet-5`
+     root passed `model: 'opus'` on one run of two, and the subagent's
+     89 requests, 90 % of the spend and the whole report were opus-5's.
+     Read `modelUsage`'s keys: the benchmarked model's key, the
+     `claude-haiku-4-5` background key, and nothing else carrying spend.
+     A run whose report was written by another model measured that
+     model: it is no row for this one, whatever it found — record it as
+     void in the pull request with its cost, and the other run is the
+     row (or re-run when it was the only one).
    - reconstruct the cost from the transcripts, root and
      `subagents/*.jsonl` together, at Anthropic's published list prices
      for the model: an `assistant` line is written once per content
