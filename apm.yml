@@ -1,7 +1,7 @@
 name: oddyssey
 version: 1.13.0
 license: MIT
-description: Observability-Driven Development for CLI coding agents
+description: "CLI toolbox for Observability-Driven Development (ODD): coding agents observe local runs on an OpenTelemetry/Grafana stack - or remote ones on any OpenTelemetry backend - and feed the next spec-driven improvement loop."
 displayName: Oddyssey
 keywords:
   - claude-code
@@ -43,7 +43,7 @@ marketplace:
     codex: {}
   packages:
     - name: oddyssey
-      description: "Observability-Driven Development for CLI coding agents: OTel expert agent, run-observation agent, verification pass, local Grafana stack via MCP"
+      description: "CLI toolbox for Observability-Driven Development (ODD): coding agents observe local runs on an OpenTelemetry/Grafana stack - or remote ones on any OpenTelemetry backend - and feed the next spec-driven improvement loop."
       source: ./marketplace/oddyssey
       version: 1.13.0
       category: Observability
