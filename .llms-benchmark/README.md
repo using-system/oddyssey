@@ -27,7 +27,7 @@ One row per model and CLI, always its latest run.
 | **#10** | `anthropic/claude-fable-5.1` | claude | 1.12.0 | **17 / 17** | 10 / 5 / 2 | 17m08s | $7.55 | $0.444 |
 | **#11** | `z-ai/glm-5.3-flash` | opencode | 1.12.0 | 13 / 14 | 7 / 4 / 2 | 66m43s | $0.24 | $0.018 |
 | **#12** | `qwen/qwen3.8-27b` | opencode | 1.12.0 | 14 / 16 | 10 / 3 / 3 | 43m52s | $2.09 | $0.150 |
-| **#13** | `qwen/qwen3.8-max-0902` | opencode | 1.12.0 | **14 / 14** | 8 / 3 / 3 | 66m09s | $2.88 | $0.206 |
+| **#13** | `qwen/qwen3.8-max-0902` | opencode | 1.13.0 | 15 / 16 | 8 / 4 / 3 | 30m25s | $1.50 | $0.100 |
 | **#14** | `anthropic/claude-sonnet-5` | claude | 1.13.0 | **6 / 6** | 2 / 3 / 1 | 13m55s | $3.37 | $0.561 |
 
 <details>
@@ -47,7 +47,7 @@ One row per model and CLI, always its latest run.
 | `anthropic/claude-fable-5.1` | claude | 1.12.0 | 2m52s | 2m02s | 12m14s | 36 | 3.6s | 3.6M | 60k | 3.6M | 4/4 |
 | `z-ai/glm-5.3-flash` | opencode | 1.12.0 | 11m45s | 2m00s | 52m58s | 46 | 48.1s | 4.0M | 115k | 2.5M | 4/4 |
 | `qwen/qwen3.8-27b` | opencode | 1.12.0 | 10m51s | 2m01s | 31m00s | 80 | 24.8s | 11.5M | 121k | 10.7M | 4/4 |
-| `qwen/qwen3.8-max-0902` | opencode | 1.12.0 | 9m00s | 2m02s | 55m07s | 47 | 51.1s | 5.5M | 153k | 5.2M | 4/4 |
+| `qwen/qwen3.8-max-0902` | opencode | 1.13.0 | 4m04s | 2m01s | 24m20s | 34 | 22.5s | 2.8M | 67k | 2.5M | 4/4 |
 | `anthropic/claude-sonnet-5` | claude | 1.13.0 | 2m36s | 2m02s | 9m17s | 84 | 2.0s | 10.6M | 52k | 10.6M | 4/4 |
 
 Token counts are rounded; the exact figures are in each run's pull
