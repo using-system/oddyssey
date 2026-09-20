@@ -256,6 +256,19 @@ Steps:
    ceiling for a run that never produces a turn or declines to drive
    (step 8): a decline counts as one of the two.
 
+   **A second run that is already worse than the first is stopped, not
+   finished.** Watch it against the first run's figures: once it has
+   been running longer than the first run's whole duration and its
+   report is not written yet, or its drive has not started by the time
+   the first run had finished, kill it by its PID — it can no longer
+   beat the first on duration, its cost is already spent for nothing,
+   and the twenty-to-forty minutes it still needs are better given to
+   the next model. The row is the first run; the pull request records
+   the second's launch time, the phase it was stopped in and its spend
+   to that point. Decided on 2026-09-20 by the maintainer after the
+   second run of one model passed the first's 29-minute total with its
+   report still being generated, at 49 minutes.
+
    For each run: record the UTC timestamp **before** launching —
    step 7 needs it to identify the session. Then one headless run, from
    the repository root, on the work branch.
@@ -378,10 +391,11 @@ Steps:
    opencode it is not**: `opencode run` stores the argument wrapped in
    one more pair of escaped quotes than it was given (verified on
    2026-09-14 with a smoke argument: `"x"` passed, `"\"x\""` stored, after
-   decoding), so the argument to pass is the same 683-character string
+   decoding), so the argument to pass is the same 669-character string
    as under the other two CLIs, and the store's form passed verbatim
    reaches the run double-wrapped (one run of 2026-09-12 did, at 693
-   characters).
+   characters, when the mission still named a depth and was 683 long —
+   #620 dropped the depth phrase, and every run since is 669).
 
    Add exactly three things to that line and nothing else: that the
    services' sources are under `.llms-benchmark/src/`; that you want
@@ -547,6 +561,17 @@ Steps:
      result must equal it, and the transcript is
      `~/.claude/projects/<project>/<that id>.jsonl`. Anything else, stop
      and say so.
+   - **the observation must have run on the benchmarked model.** The
+     root session may dispatch `observe-run` through the Agent tool with
+     a `model` of its own choosing — on 2026-09-20 a `claude-sonnet-5`
+     root passed `model: 'opus'` on one run of two, and the subagent's
+     89 requests, 90 % of the spend and the whole report were opus-5's.
+     Read `modelUsage`'s keys: the benchmarked model's key, the
+     `claude-haiku-4-5` background key, and nothing else carrying spend.
+     A run whose report was written by another model measured that
+     model: it is no row for this one, whatever it found — record it as
+     void in the pull request with its cost, and the other run is the
+     row (or re-run when it was the only one).
    - reconstruct the cost from the transcripts, root and
      `subagents/*.jsonl` together, at Anthropic's published list prices
      for the model: an `assistant` line is written once per content

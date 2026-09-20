@@ -315,6 +315,14 @@ def test_a_missing_scope_source_is_refused_and_scratch_is_cleared_only_when_name
         lab, kit, out, f"s4=lab-main:{kit['mission']}", extra=("--cli", "claude")
     )
     assert p.returncode == 1 and "--scope" in p.stderr
+    # copilot reads the deploy in the clone: no user-scope pair to sync, nothing refused
+    p = run_samples(
+        lab, kit, out, f"s5=lab-main:{kit['mission']}", extra=("--cli", "copilot")
+    )
+    assert p.returncode == 0, p.stderr + p.stdout
+    assert "--cli copilot" in " ".join(
+        json.loads((out / "s5.record.json").read_text())["argv"]
+    )
 
 
 def test_a_sample_spec_needs_all_three_parts():
