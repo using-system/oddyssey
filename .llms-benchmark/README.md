@@ -60,7 +60,7 @@ design.
 
 - **Rank** weighs findings, cost and duration together. It is decided in each row's pull request, never computed: findings alone would rank a 67-minute run first, duration alone rewards whoever gives up soonest, cost alone rewards whoever barely looks. Adding a model re-sorts the whole table.
 - **Confirmed / reported** is the grade: how many of the findings the model reported held up when checked against the telemetry it cited and the code it accused. 3 / 3 beats 4 / 12. Anomalies and telemetry gaps both count; a restatement counts once; a row bundling several defects counts once per defect.
-- **Telemetry / Perf / Behavior** splits the reported findings by kind.
+- **Telemetry / Perf / Behavior** splits the confirmed findings by kind.
 - **$/confirmed** is what one trustworthy finding costs.
 - **CLI** is the coding-agent CLI the mission ran in; its version is in the row's pull request. Model and CLI identify a row; the oddyssey version does not, a new run replaces the row.
 - **Signals**: how many of metrics, traces, logs and profiles the run queried. Not part of the grade, the context to read it in.
