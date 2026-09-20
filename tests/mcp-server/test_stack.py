@@ -27,7 +27,7 @@ def test_run_args_build_the_pinned_container():
 
     assert args[:2] == ["docker", "run"]
     assert args[-1] == IMAGE
-    assert IMAGE == "grafana/otel-lgtm:0.33.0"
+    assert IMAGE == "grafana/otel-lgtm:0.33.1"
     assert CONTAINER_NAME in args
     for mapping in ("3000:3000", "4317:4317", "4318:4318", "4040:4040"):
         assert mapping in args
@@ -176,7 +176,7 @@ def _raw_container(env=None, image_id="sha256:cafe", **identity):
         "State": {"StartedAt": identity.get("started", "2026-08-29T08:12:04.5Z")},
         "Image": image_id,
         "Config": {
-            "Image": identity.get("image", "grafana/otel-lgtm:0.33.0"),
+            "Image": identity.get("image", "grafana/otel-lgtm:0.33.1"),
             "Env": env if env is not None else ["PATH=/usr/bin"],
         },
     }
@@ -217,7 +217,7 @@ def test_stack_status_carries_container_identity(monkeypatch):
 
     status = stack_status(transport=httpx.MockTransport(handler))
     assert status["running"] is True
-    assert status["image"] == "grafana/otel-lgtm:0.33.0"
+    assert status["image"] == "grafana/otel-lgtm:0.33.1"
     assert status["created"] == "2026-08-29T08:12:03.1Z"
     assert status["started"] == "2026-08-29T08:12:04.5Z"
     assert status["env"] == {"GF_LOG_LEVEL": "debug"}
@@ -1783,7 +1783,7 @@ def test_stack_status_asks_docker_once_when_the_pin_vouches_for_the_image(monkey
 
     monkeypatch.setattr(stack, "_docker", fake_docker)
     status = stack_status(transport=httpx.MockTransport(lambda r: httpx.Response(200)))
-    assert status["image"] == "grafana/otel-lgtm:0.33.0"
+    assert status["image"] == "grafana/otel-lgtm:0.33.1"
     assert status["created"] == "2026-09-16T08:00:00.0Z"
     assert status["env"] == {"GF_LOG_LEVEL": "debug"}
     assert calls == [("inspect", stack.CONTAINER_NAME, stack.IMAGE)]
@@ -1854,12 +1854,12 @@ def test_stack_status_keeps_the_container_when_the_pinned_image_is_absent(monkey
             stdout=json.dumps(
                 [_raw_container(env=["PATH=/usr/bin", "GF_LOG_LEVEL=debug"])]
             ),
-            stderr="No such object: grafana/otel-lgtm:0.33.0",
+            stderr="No such object: grafana/otel-lgtm:0.33.1",
         )
 
     monkeypatch.setattr(stack, "_docker", fake_docker)
     status = stack_status(transport=httpx.MockTransport(lambda r: httpx.Response(200)))
-    assert status["image"] == "grafana/otel-lgtm:0.33.0"
+    assert status["image"] == "grafana/otel-lgtm:0.33.1"
     assert status["env"] == {"GF_LOG_LEVEL": "debug"}
     assert [c[0] for c in calls] == ["inspect", "image"]
 
