@@ -146,7 +146,7 @@ Steps:
    - the package, for the opencode target, **into the repository**
      (opencode's user scope takes no MCP server, so `--global` fails
      there):
-     `uvx --from 'apm-cli==0.30.0' apm install --target opencode`
+     `uvx --from 'apm-cli==0.31.0' apm install --target opencode`
      from the repository root. Record `git status --porcelain` **before**
      this command: it deploys files into the working tree — `.opencode/`,
      `.agents/skills/`, `opencode.json`, and an edit to `.gitignore` —
@@ -166,7 +166,7 @@ Steps:
    For `copilot`:
    - `copilot update`, then record `copilot --version`.
    - the package, for the copilot target, **into the repository**:
-     `uvx --from 'apm-cli==0.30.0' apm install --target copilot`
+     `uvx --from 'apm-cli==0.31.0' apm install --target copilot`
      from the repository root. Record `git status --porcelain` **before**
      it: it deploys `.github/prompts/`, `.github/agents/`,
      `.github/hooks/`, `.github/mcp.json`, `.agents/skills/` and an edit
