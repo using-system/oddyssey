@@ -22,7 +22,7 @@ One row per model and CLI, always its latest run.
 | **#5** | `google/gemini-3.7-flash` | opencode | 1.13.0 | 8 / 9 | 4 / 3 / 1 | 10m17s | $1.08 | $0.135 |
 | **#6** | `openai/gpt-5.6-terra` | copilot | 1.12.0 | 14 / 15 | 11 / 3 / 1 | 14m50s | $2.47 | $0.176 |
 | **#7** | `openai/gpt-5.6-sol` | copilot | 1.12.0 | 11 / 12 | 8 / 3 / 1 | 9m39s | $3.12 | $0.284 |
-| **#8** | `google/gemini-3.8-flash` | opencode | 1.12.0 | **10 / 10** | 5 / 4 / 1 | 14m59s | $1.96 | $0.196 |
+| **#8** | `google/gemini-3.8-flash` | opencode | 1.13.0 | **12 / 12** | 6 / 4 / 2 | 20m39s | $2.29 | $0.191 |
 | **#9** | `anthropic/claude-opus-5` | claude | 1.12.0 | 18 / 19 | 12 / 6 / 1 | 21m55s | $6.33 | $0.352 |
 | **#10** | `anthropic/claude-fable-5.1` | claude | 1.12.0 | **17 / 17** | 10 / 5 / 2 | 17m08s | $7.55 | $0.444 |
 | **#11** | `z-ai/glm-5.3-flash` | opencode | 1.12.0 | 13 / 14 | 7 / 4 / 2 | 66m43s | $0.24 | $0.018 |
@@ -42,7 +42,7 @@ One row per model and CLI, always its latest run.
 | `google/gemini-3.7-flash` | opencode | 1.13.0 | 2m24s | 2m02s | 5m51s | 90 | 4.3s | 6.5M | 32k | 5.8M | 4/4 |
 | `openai/gpt-5.6-terra` | copilot | 1.12.0 | 1m39s | 2m00s | 11m11s | 64 | 3.9s | 6.5M | 54k | 6.5M | 4/4 |
 | `openai/gpt-5.6-sol` | copilot | 1.12.0 | 1m38s | 2m00s | 6m01s | 53 | 4.6s | 3.9M | 22k | 3.8M | 4/4 |
-| `google/gemini-3.8-flash` | opencode | 1.12.0 | 4m26s | 2m02s | 8m31s | 135 | 3.1s | 10.7M | 33k | 9.2M | 4/4 |
+| `google/gemini-3.8-flash` | opencode | 1.13.0 | 9m58s | 2m03s | 8m38s | 148 | 4.4s | 12.8M | 59k | 11.1M | 4/4 |
 | `anthropic/claude-opus-5` | claude | 1.12.0 | 3m36s | 2m00s | 16m19s | 57 | 8.6s | 6.3M | 59k | 6.3M | 4/4 |
 | `anthropic/claude-fable-5.1` | claude | 1.12.0 | 2m52s | 2m02s | 12m14s | 36 | 3.6s | 3.6M | 60k | 3.6M | 4/4 |
 | `z-ai/glm-5.3-flash` | opencode | 1.12.0 | 11m45s | 2m00s | 52m58s | 46 | 48.1s | 4.0M | 115k | 2.5M | 4/4 |
