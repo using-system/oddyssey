@@ -5,7 +5,8 @@
 #   marketplace/oddyssey/             (the materialized plugin the manifests
 #                                      point at: agents, commands, skills,
 #                                      plugin.json, .claude-plugin/plugin.json,
-#                                      .mcp.json, mcp.json, com.github.copilot/)
+#                                      .mcp.json, mcp.json, com.github.copilot/,
+#                                      LICENSE, SECURITY.md)
 # Everything it writes is GENERATED - never edit those files by hand.
 # Run by the release workflow after the version bumps, so the artifacts
 # always carry the released version and the matching oddyssey-mcp pin.
@@ -149,6 +150,18 @@ if [ -f marketplace/oddyssey/hooks/hooks.json ]; then
     fi
   done
 fi
+
+# Claude Code's default, declared for the plugin scanners that want it
+# explicit: the plugin's own plugin.json is the authority. On every entry,
+# where Claude Code reads it, and at the root, where the HOL scanner looks
+# (Claude Code ignores it there).
+jq '. + {strict: true} | .plugins |= map(. + {strict: true})' .claude-plugin/marketplace.json \
+  > "$TMP/marketplace.json"
+cp "$TMP/marketplace.json" .claude-plugin/marketplace.json
+
+# A scanner reads the plugin directory as a repository of its own: carry
+# the repository's license and security policy into it.
+cp LICENSE SECURITY.md marketplace/oddyssey/
 
 cat > marketplace/README.md <<'EOF'
 # GENERATED - do not edit
