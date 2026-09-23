@@ -1499,9 +1499,10 @@ def test_the_credential_rule_tells_a_value_from_its_wiring(report):
     )
     for text in wiring:
         assert report.credential_in(text) is None, text
+    # the values a secret scanner would match are assembled at run time
     values = (
         "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.abcdefgh",
-        "token: ghp_16C7e42F292c6912E7710c838347Ae178B4a",
+        "token: " + "ghp_" + "16C7e42F292c6912E7710c838347Ae178B4a",
         "InstrumentationKey=0a1b2c3d-0000-4000-8000-000000000001",
         "--query instrumentationKey",
         "api_key=sk-abcdefghijklmnopqrstuvwxyz0123",
@@ -1514,8 +1515,8 @@ def test_the_credential_rule_tells_a_value_from_its_wiring(report):
         "`api_key: eyJrIjoiT0tTcE1tYVYifQ==`",
         "**token: Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MA==**",
         "| check | q | `api_key: eyJrIjoiT0tTcE1tYVYifQ==` | id |",
-        'api_key: "eyJrIjoiT0tTcE1tYVYifQ=="',
-        "token: 'ghp_16C7e42F292c6912E7710c838347Ae178B4a'",
+        'api_key: "' + "eyJrIjoiT0tTcE1tYVYifQ==" + '"',
+        "token: '" + "ghp_" + "16C7e42F292c6912E7710c838347Ae178B4a'",
     )
     for text in values:
         assert report.credential_in(text), text
