@@ -1,6 +1,6 @@
 ---
 description: Benchmark one LLM on the llms-benchmark demo stack - drive it through a coding-agent CLI (opencode, claude or copilot) on the stored scenario, grade the observation report it produced, and propose its row of the results table
-argument-hint: "<opencode | claude | copilot> <vendor/model>"
+argument-hint: "<opencode | claude | copilot> <vendor/model> [effort, default medium]"
 ---
 
 Run the whole llms-benchmark protocol for one model on one CLI, end to
@@ -20,9 +20,14 @@ the same way you would grade a colleague's incident report.
   `opencode`, `claude` or `copilot`; the **model** to benchmark, as its
   canonical `vendor/name` id, the OpenRouter form
   (`anthropic/claude-sonnet-5`, `openai/gpt-5-mini`,
-  `google/gemini-3.5-flash-lite`, ...). Those are the only two inputs.
-  Ask for whichever is missing and stop until you have both. Model and
-  CLI identify the row: the same model on two CLIs is two rows.
+  `google/gemini-3.5-flash-lite`, ...); optionally, the **effort** the
+  CLI runs the model at — `low`, `medium`, `high`, or any other level
+  the CLI's effort flag accepts — **`medium` when omitted**, the level
+  every row was measured at before this argument existed. Those are the
+  only three inputs. Ask for the CLI or the model when missing and stop
+  until you have both; never ask for the effort. Model, effort and CLI
+  identify the row: the same model on two CLIs, or at two efforts, is
+  two rows.
 - The model id is written the same way whatever the CLI, so the two
   rows of one model line up. Each CLI is handed its own form of it:
   `opencode` takes it as `openrouter/<model>`; `claude` takes Anthropic
@@ -32,8 +37,9 @@ the same way you would grade a colleague's incident report.
   dashes; `claude --help` on `--model` names the accepted forms);
   `copilot` takes the bare name its model picker lists —
   `openai/gpt-5.6-luna` is `gpt-5.6-luna` (the vendor prefix dropped,
-  nothing else changed). A model the CLI cannot run is a preflight
-  failure, not a row.
+  nothing else changed). A model the CLI cannot run, or cannot run at
+  the requested effort, is a preflight failure, not a row. Below,
+  `<effort>` is that argument, passed verbatim to the CLI's flag.
 
 **Never ask for an API key, and never handle one.** Every credential this
 protocol needs — the OpenRouter provider in opencode, the Claude Code
@@ -67,7 +73,7 @@ Steps:
        were given - or, when the listing lags OpenRouter's catalog (it
        did not carry `z-ai/glm-5.3-flashx` on 2026-09-19 while the
        model ran), a smoke run answers with a `text` event:
-       `opencode run --model openrouter/<model> --format json "reply with the single word ok" < /dev/null`
+       `opencode run --model openrouter/<model> --variant <effort> --format json "reply with the single word ok" < /dev/null`
        (the package is installed in step 3);
      - `claude`: `claude --version` answers; the package is installed at
        **user scope** for Claude Code — `~/.claude/commands/odd-observe.md`,
@@ -81,7 +87,7 @@ Steps:
        configuration (`~/.claude.json`, `mcpServers` carries `oddyssey` —
        the name only, never its contents); and a smoke run answers with a
        result naming the model:
-       `claude -p "Reply with the single word ok" --model <anthropic id> --output-format json < /dev/null`
+       `claude -p "Reply with the single word ok" --model <anthropic id> --effort <effort> --output-format json < /dev/null`
        must print a `type: result` JSON whose `modelUsage` carries the
        model's canonical id. Since Claude Code 2.1.270 a second key,
        `claude-haiku-4-5`, sits beside it on every run — a background
@@ -95,7 +101,7 @@ Steps:
        (`~/.copilot/config.json` carries a non-empty `loggedInUsers` —
        the host and login, nothing else lives there); and a smoke run
        answers with a usage file naming the model:
-       `copilot -p "Reply with the single word ok" --model <name> --allow-all-tools --usage-output-file <scratch>/usage.json < /dev/null`
+       `copilot -p "Reply with the single word ok" --model <name> --effort <effort> --allow-all-tools --usage-output-file <scratch>/usage.json < /dev/null`
        must leave a `usage.json` whose `modelMetrics` has one key, the
        model's name. Run it from a scratch directory too — it leaves a
        session under `~/.copilot/session-state/`. Nothing is installed
@@ -107,7 +113,7 @@ Steps:
      presence, never its value, and never print it. The file is
      gitignored; `.env.example` next to it says what goes in.
 
-2. **Create the work branch**: `bench/<cli>-<model-slug>-<YYYYMMDD-HHMM>`,
+2. **Create the work branch**: `bench/<cli>-<model-slug>-<effort>-<YYYYMMDD-HHMM>`,
    where `<model-slug>` is the model id with `/` and `.` replaced by
    `-`. Everything the run installs, configures, and produces happens on
    this branch, and none of it is what ships.
@@ -182,10 +188,11 @@ Steps:
 4. **Select the model.** Nothing to configure: the provider is already
    set up (preflight), and the model and effort are passed on the command
    line in step 6, never persisted into a config file — `opencode`:
-   `--model openrouter/<model> --variant medium`; `claude`:
-   `--model <anthropic id> --effort medium`; `copilot`:
-   `--model <name> --effort medium`. The three flags name the same
-   effort level; that is what makes two rows of one model comparable.
+   `--model openrouter/<model> --variant <effort>`; `claude`:
+   `--model <anthropic id> --effort <effort>`; `copilot`:
+   `--model <name> --effort <effort>`. The three flags name the same
+   effort level; that is what makes two rows of one model at one effort
+   comparable across CLIs.
 
 5. **Clean what the next run must not read — then recreate the demo
    stack, never reuse a running one.** Before every run, whatever the
@@ -276,7 +283,7 @@ Steps:
    `opencode`:
 
    ```
-   caffeinate -i opencode run --model openrouter/<model> --variant medium \
+   caffeinate -i opencode run --model openrouter/<model> --variant <effort> \
      --format json --auto --title "llms-benchmark <model>" \
      "<the mission prompt below>" < /dev/null
    ```
@@ -289,7 +296,7 @@ Steps:
    caffeinate -i env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ID \
      -u CLAUDE_CODE_MESSAGING_SOCKET -u CLAUDE_CODE_MESSAGING_TOKEN -u CLAUDE_PID \
      CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 \
-     claude -p "<the mission prompt below>" --model <anthropic id> --effort medium \
+     claude -p "<the mission prompt below>" --model <anthropic id> --effort <effort> \
      --permission-mode bypassPermissions --output-format json \
      --session-id "$SID" < /dev/null > <scratch>/run.json 2> <scratch>/run.err
    ```
@@ -298,12 +305,21 @@ Steps:
 
    ```
    SID=$(uuidgen | tr 'A-Z' 'a-z')
-   caffeinate -i copilot -p "<the mission prompt below>" --model <name> --effort medium \
+   caffeinate -i env COPILOT_TASK_WAIT_TIMEOUT_SECONDS=7200 \
+     copilot -p "<the mission prompt below>" --model <name> --effort <effort> \
      --allow-all --no-ask-user --additional-mcp-config @.github/mcp.json \
      --session-id "$SID" --output-format json --usage-output-file <scratch>/usage.json \
      < /dev/null > <scratch>/run.jsonl 2> <scratch>/run.err
    ```
 
+   `COPILOT_TASK_WAIT_TIMEOUT_SECONDS=7200` lifts prompt mode's 600 s
+   wait on background tasks: a root that dispatches `observe-run` with
+   `mode: background` and ends its turn has its subagent cancelled
+   600 s later, report unwritten (`session.warning`
+   `background_task_wait_timeout`, `subagent.completed` with
+   `cancelled: true`) - the first `openai/gpt-6-luna` run of
+   2026-09-24 lost its whole observation to it, ten minutes in. That
+   run is void, not a row.
    `--allow-all` is this CLI's headless auto mode (tools, paths and
    URLs); `--no-ask-user` removes the tool a run would otherwise use to
    ask a question nobody answers; `--additional-mcp-config @.github/mcp.json`
@@ -985,34 +1001,37 @@ Steps:
       create one naming the model and the protocol revision, then the PR
       that closes it. This is a step, not a fallback.
     - From `main`, freshly pulled, create
-      `docs/llms-benchmark-<cli>-<model-slug>` and make **one** change:
+      `docs/llms-benchmark-<cli>-<model-slug>-<effort>` and make **one** change:
       the row in the results tables of `.llms-benchmark/README.md`.
       `## Results` holds the two tables below. **A row is identified by
-      model and CLI together.** The pair is not in the table yet →
-      append the row; already there → replace that row in place. The
-      same model driven through two CLIs is two rows
-      (`google/gemini-3.7-flash` under `opencode` and under another CLI
-      both appear); the oddyssey version is not part of the key — a new
-      run of the same model and CLI overwrites the row, whatever version
-      the old one carried. The table carries no history: one row per
-      model and CLI, always the latest run.
+      model, effort and CLI together.** The triple is not in the table
+      yet → append the row; already there → replace that row in place.
+      The same model driven through two CLIs, or at two efforts, is two
+      rows (`google/gemini-3.7-flash` under `opencode` and under another
+      CLI both appear); the oddyssey version is not part of the key — a
+      new run of the same model, effort and CLI overwrites the row,
+      whatever version the old one carried. The table carries no
+      history: one row per model, effort and CLI, always the latest
+      run.
 
-    **Two tables, not one.** Seventeen columns scroll the model name off
+    **Two tables, not one.** Eighteen columns scroll the model name off
     the screen and the rows stop being readable, and GitHub keeps no CSS
     to pin a column. So:
 
-    - a **headline table** of nine columns — rank, model, CLI, oddyssey
+    - a **headline table** of ten columns — rank, model, effort, CLI, oddyssey
       version, `confirmed / reported`, the findings by kind under a
       single `Telemetry / Perf / Behavior` header written `X / X / X`,
       total duration, cost, and cost per confirmed finding. It fits
-      without scrolling and answers the question on its own. The CLI
+      without scrolling and answers the question on its own. The effort
+      column is the `<effort>` argument as passed to the CLI's flag
+      (`medium` by default), right after the model it qualifies. The CLI
       column names the coding-agent CLI the mission ran in — the `<cli>`
       argument, `opencode`, `claude` or `copilot`, with no version: the version
       belongs in the pull request, where the row's exact figures already
       live. The oddyssey version sits right after it because it says
       which protocol a row was taken under, which a reader needs before
       any number to its right means anything;
-    - a **detail table** inside a `<details>` block — model, CLI,
+    - a **detail table** inside a `<details>` block — model, effort, CLI,
       oddyssey version, the three phase durations, turns, median turn
       latency, input / output / cache tokens, and signals. Round the
       token counts (`30.0M`, `79k`): the
@@ -1038,7 +1057,7 @@ Steps:
     The PR body carries the per-finding rulings from step 8 for both
     runs, so the ratio is auditable and the choice between the two is
     too, and it names the CLI, its version and the effort flag
-    used. It also notes three things the table has no column for: how
+    used, with the effort level. It also notes three things the table has no column for: how
     many source files the run read **before** the drive, whether it drove
     any traffic of its own outside the stored scenario, and whether its
     report carries a replayable verification protocol.
