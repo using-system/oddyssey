@@ -27,23 +27,19 @@ One row per model, effort and CLI, always its latest run.
 | **#9** | `anthropic/claude-opus-5.5` | medium | claude | 1.13.0 | 17 / 20 | 8 / 4 / 5 | 12m28s | $3.61 | $0.212 |
 | **#10** | `anthropic/claude-opus-5.5` | high | claude | 1.13.0 | 19 / 21 | 11 / 5 / 3 | 17m29s | $4.59 | $0.242 |
 | **#11** | `openai/gpt-6-luna` | medium | copilot | 1.13.0 | **11 / 11** | 6 / 3 / 2 | 25m34s | $0.18 | $0.016 |
-| **#12** | `openai/gpt-6-luna-pro` | medium | opencode | 1.13.0 | 11 / 13 | 6 / 2 / 3 | 25m46s | $0.59 | $0.053 |
-| **#13** | `deepseek/deepseek-v4.1-flash` | default | opencode | 1.13.0 | **16 / 16** | 10 / 3 / 3 | 29m05s | $0.16 | **$0.010** |
-| **#14** | `x-ai/grok-4.7` | medium | opencode | 1.13.0 | 10 / 14 | 5 / 4 / 1 | 16m32s | $1.99 | $0.199 |
-| **#15** | `openai/gpt-6-luna` | high | copilot | 1.13.0 | 10 / 15 | 7 / 3 / 0 | 25m07s | $0.18 | $0.018 |
-| **#16** | `google/gemini-3.8-flash` | medium | opencode | 1.13.0 | **12 / 12** | 6 / 4 / 2 | 20m39s | $2.29 | $0.191 |
-| **#17** | `z-ai/glm-5.3-prime` | high | opencode | 1.13.0 | 12 / 13 | 6 / 3 / 3 | 17m52s | $3.42 | $0.285 |
-| **#18** | `x-ai/grok-4.7` | high | opencode | 1.13.0 | 10 / 14 | 5 / 3 / 2 | 23m54s | $2.70 | $0.270 |
-| **#19** | `openai/gpt-6-sol-pro` | medium | opencode | 1.13.0 | **11 / 11** | 5 / 3 / 3 | 10m53s | $4.25 | $0.387 |
-| **#20** | `qwen/qwen3.8-max-0902` | medium | opencode | 1.13.0 | 15 / 16 | 8 / 4 / 3 | 30m25s | $1.50 | $0.100 |
-| **#21** | `anthropic/claude-opus-5` | medium | claude | 1.13.0 | **17 / 17** | 8 / 6 / 3 | 19m31s | $6.15 | $0.362 |
-| **#22** | `openai/gpt-6-sol-pro` | high | opencode | 1.13.0 | 14 / 15 | 8 / 3 / 3 | 19m03s | $7.34 | $0.525 |
-| **#23** | `anthropic/claude-fable-5.1` | medium | claude | 1.12.0 ⚠︎ | **17 / 17** | 10 / 5 / 2 | 17m08s | $7.55 | $0.444 |
-| **#24** | `z-ai/glm-5.3-flash` | default | opencode | 1.13.0 | 7 / 8 | 3 / 4 / 0 | 32m15s | **$0.10** | $0.014 |
-| **#25** | `anthropic/claude-sonnet-5` | medium | claude | 1.13.0 | **6 / 6** | 2 / 3 / 1 | 13m55s | $3.37 | $0.561 |
-| **#26** | `z-ai/glm-5.3-prime` | default | opencode | 1.13.0 | 7 / 8 | 4 / 3 / 0 | 23m09s | $4.73 | $0.675 |
-| **#27** | `qwen/qwen3.8-27b` | medium | opencode | 1.13.0 | **11 / 11** | 5 / 3 / 3 | 40m25s | $1.62 | $0.147 |
-| **#28** | `openai/gpt-6-luna-pro` | high | opencode | 1.13.0 | 10 / 11 | 6 / 3 / 1 | 70m27s | $1.32 | $0.132 |
+| **#12** | `deepseek/deepseek-v4.1-flash` | default | opencode | 1.13.0 | **16 / 16** | 10 / 3 / 3 | 29m05s | $0.16 | **$0.010** |
+| **#13** | `x-ai/grok-4.7` | medium | opencode | 1.13.0 | 10 / 14 | 5 / 4 / 1 | 16m32s | $1.99 | $0.199 |
+| **#14** | `openai/gpt-6-luna` | high | copilot | 1.13.0 | 10 / 15 | 7 / 3 / 0 | 25m07s | $0.18 | $0.018 |
+| **#15** | `google/gemini-3.8-flash` | medium | opencode | 1.13.0 | **12 / 12** | 6 / 4 / 2 | 20m39s | $2.29 | $0.191 |
+| **#16** | `z-ai/glm-5.3-prime` | high | opencode | 1.13.0 | 12 / 13 | 6 / 3 / 3 | 17m52s | $3.42 | $0.285 |
+| **#17** | `x-ai/grok-4.7` | high | opencode | 1.13.0 | 10 / 14 | 5 / 3 / 2 | 23m54s | $2.70 | $0.270 |
+| **#18** | `openai/gpt-6-sol-pro` | medium | opencode | 1.13.0 | **11 / 11** | 5 / 3 / 3 | 10m53s | $4.25 | $0.387 |
+| **#19** | `qwen/qwen3.8-max-0902` | medium | opencode | 1.13.0 | 15 / 16 | 8 / 4 / 3 | 30m25s | $1.50 | $0.100 |
+| **#20** | `anthropic/claude-opus-5` | medium | claude | 1.13.0 | **17 / 17** | 8 / 6 / 3 | 19m31s | $6.15 | $0.362 |
+| **#21** | `anthropic/claude-fable-5.1` | medium | claude | 1.12.0 ⚠︎ | **17 / 17** | 10 / 5 / 2 | 17m08s | $7.55 | $0.444 |
+| **#22** | `z-ai/glm-5.3-flash` | default | opencode | 1.13.0 | 7 / 8 | 3 / 4 / 0 | 32m15s | **$0.10** | $0.014 |
+| **#23** | `anthropic/claude-sonnet-5` | medium | claude | 1.13.0 | **6 / 6** | 2 / 3 / 1 | 13m55s | $3.37 | $0.561 |
+| **#24** | `qwen/qwen3.8-27b` | medium | opencode | 1.13.0 | **11 / 11** | 5 / 3 / 3 | 40m25s | $1.62 | $0.147 |
 
 <details>
 <summary>Run detail — phases, turns, tokens</summary>
@@ -61,7 +57,6 @@ One row per model, effort and CLI, always its latest run.
 | `anthropic/claude-opus-5.5` | medium | claude | 1.13.0 | 1m12s | 2m01s | 9m15s | 49 | 2.7s | 5.5M | 56k | 5.5M | 4/4 |
 | `anthropic/claude-opus-5.5` | high | claude | 1.13.0 | 2m17s | 2m19s | 12m53s | 63 | 2.5s | 7.5M | 82k | 7.5M | 4/4 |
 | `openai/gpt-6-luna` | medium | copilot | 1.13.0 | 1m03s | 2m01s | 22m30s | 64 | 7.6s | 7.7M | 138k | 7.7M | 4/4 |
-| `openai/gpt-6-luna-pro` | medium | opencode | 1.13.0 | 2m11s | 2m02s | 21m33s | 43 | 24.1s | 15.9M | 167k | 15.0M | 4/4 |
 | `deepseek/deepseek-v4.1-flash` | default | opencode | 1.13.0 | 5m59s | 2m02s | 21m04s | 73 | 11.9s | 8.0M | 94k | 7.4M | 4/4 |
 | `x-ai/grok-4.7` | medium | opencode | 1.13.0 | 3m55s | 2m02s | 10m35s | 43 | 7.6s | 3.3M | 57k | 2.9M | 4/4 |
 | `openai/gpt-6-luna` | high | copilot | 1.13.0 | 2m04s | 2m01s | 21m01s | 57 | 10.9s | 6.6M | 165k | 6.6M | 4/4 |
@@ -71,13 +66,10 @@ One row per model, effort and CLI, always its latest run.
 | `openai/gpt-6-sol-pro` | medium | opencode | 1.13.0 | 2m18s | 2m01s | 6m34s | 34 | 11.5s | 5.0M | 38k | 4.1M | 4/4 |
 | `qwen/qwen3.8-max-0902` | medium | opencode | 1.13.0 | 4m04s | 2m01s | 24m20s | 34 | 22.5s | 2.8M | 67k | 2.5M | 4/4 |
 | `anthropic/claude-opus-5` | medium | claude | 1.13.0 | 2m47s | 2m02s | 14m42s | 53 | 6.6s | 5.8M | 62k | 5.8M | 4/4 |
-| `openai/gpt-6-sol-pro` | high | opencode | 1.13.0 | 3m45s | 2m02s | 13m16s | 46 | 17.6s | 8.2M | 82k | 7.0M | 4/4 |
 | `anthropic/claude-fable-5.1` | medium | claude | 1.12.0 ⚠︎ | 2m52s | 2m02s | 12m14s | 36 | 3.6s | 3.6M | 60k | 3.6M | 4/4 |
 | `z-ai/glm-5.3-flash` | default | opencode | 1.13.0 | 6m42s | 2m03s | 23m30s | 34 | 22.3s | 2.3M | 74k | 1.8M | 4/4 |
 | `anthropic/claude-sonnet-5` | medium | claude | 1.13.0 | 2m36s | 2m02s | 9m17s | 84 | 2.0s | 10.6M | 52k | 10.6M | 4/4 |
-| `z-ai/glm-5.3-prime` | default | opencode | 1.13.0 | 4m41s | 2m01s | 16m27s | 49 | 17.7s | 5.3M | 125k | 5.0M | 4/4 |
 | `qwen/qwen3.8-27b` | medium | opencode | 1.13.0 | 3m49s | 2m00s | 34m36s | 48 | 16.6s | 5.9M | 133k | 3.7M | 4/4 |
-| `openai/gpt-6-luna-pro` | high | opencode | 1.13.0 | 8m27s | 2m02s | 59m58s | 70 | 40.9s | 28.0M | 505k | 25.6M | 4/4 |
 
 Token counts are rounded; the exact figures are in each run's pull
 request. Input includes the cached share, so Input and Cache overlap by
