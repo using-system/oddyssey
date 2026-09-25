@@ -74,7 +74,17 @@ Steps:
        did not carry `z-ai/glm-5.3-flashx` on 2026-09-19 while the
        model ran), a smoke run answers with a `text` event:
        `opencode run --model openrouter/<model> --variant <effort> --format json "reply with the single word ok" < /dev/null`
-       (the package is installed in step 3);
+       (the package is installed in step 3) - **and the model has a
+       variant at the requested effort**: `opencode run` accepts any
+       `--variant` name, an unknown one included, records it on every
+       message and sends no effort at all (verified on 2026-09-25 with
+       `--variant bogus`). Read the model's `variants` from
+       `opencode models openrouter --verbose`; when `<effort>` is not
+       among them, launch without `--variant` and write `default` in the
+       Effort column - the provider's default effort is what the model
+       ran at (the `z-ai/glm-5.3*` models and
+       `deepseek/deepseek-v4.1-flash` offer `low`, `high` and `max` only,
+       so every row of theirs measured at "medium" ran at `default`);
      - `claude`: `claude --version` answers; the package is installed at
        **user scope** for Claude Code — `~/.claude/commands/odd-observe.md`,
        `~/.claude/agents/observe-run.md`, `~/.claude/skills/<the nine
@@ -949,8 +959,9 @@ Steps:
      resets it before launching.
    - **delete the run's scratch directory under the system temp dir**
      (`$TMPDIR/opencode/`, and `/tmp/llmbench-*`, `/tmp/oddyssey-scratch/`,
-     `/tmp/oddyssey-scratchpad/`, `/private/tmp/odd-scratch/` or
-     `$TMPDIR/oddyssey/scratch/` for a `claude` run, `$TMPDIR/oddyssey/`,
+     `/tmp/oddyssey-scratchpad/`, `/private/tmp/odd-scratch/`,
+     `/tmp/odd-observe-scratch/` or `$TMPDIR/oddyssey/scratch/` for a
+     `claude` run, `$TMPDIR/oddyssey/`,
      `/tmp/oddyssey/` or `/tmp/oddyssey-observe/` for a `copilot` run —
      one run of that CLI wrote under each — and **`.odd/scratch/` inside
      the repository**, where one `copilot` run of 2026-09-14 put its
