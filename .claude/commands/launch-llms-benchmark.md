@@ -1025,15 +1025,15 @@ Steps:
       The table carries no history: one row per model, effort, CLI and
       provider, always the latest run.
 
-    **Two tables, not one.** Twenty-two columns scroll the model name off
+    **Two tables, not one.** Twenty-three columns scroll the model name off
     the screen and the rows stop being readable, and GitHub keeps no CSS
     to pin a column. So:
 
-    - a **headline table**, thirteen columns, exactly these headers:
+    - a **headline table**, fourteen columns, exactly these headers:
 
       ```text
-      | Rank | Model | Effort | CLI | Provider | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | Accuracy | $/confirmed | seconds/confirmed |
-      | **#1** | `z-ai/glm-5.3-flashx` | default | opencode | OpenRouter | 1.13.0 | 11 / 13 | 4 / 4 / 3 | 17m09s | $N.NN | 85% | $N.NNN | 94s |
+      | Rank | Model | Effort | CLI | Provider | oddyssey | Scoring | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | Accuracy | $/confirmed | seconds/confirmed |
+      | **#1** | `z-ai/glm-5.3-flashx` | default | opencode | OpenRouter | 1.13.0 | 64.0 | 11 / 13 | 4 / 4 / 3 | 17m09s | $N.NN | 85% | $N.NNN | 94s |
       ```
 
       (the two money cells are written here as patterns, never as a
@@ -1042,7 +1042,8 @@ Steps:
 
       It fits without scrolling and answers the question on its own.
       Each cell, left to right:
-      - **Rank** `**#N**`, renumbered from 1 after every re-sort;
+      - **Rank** `**#N**`, the position by Scoring, renumbered from 1
+        after every re-sort;
       - **Model** the canonical id in backticks;
       - **Effort** the level the CLI actually applied - the `<effort>`
         argument (`medium` by default), or `default` when the CLI has no
@@ -1056,6 +1057,7 @@ Steps:
         after them because a reader needs the protocol before any number
         to its right means anything; ` ⚠` after it marks a row measured
         under an earlier revision of the protocol;
+      - **Scoring** the row's score out of 100, one decimal (below);
       - **Confirmed / reported** `X / Y` from step 8;
       - **Telemetry / Perf / Behavior** the confirmed findings by kind,
         `X / X / X`, summing to X;
@@ -1068,9 +1070,10 @@ Steps:
         a whole second, `NNs`.
 
       **Bold**: Confirmed / reported on every perfect ratio (`**6 / 6**`);
-      in Total, Cost, Accuracy, $/confirmed and seconds/confirmed the
+      in Scoring, Total, Cost, Accuracy, $/confirmed and seconds/confirmed the
       best value of the table only, on every row that ties it - the
-      shortest, the cheapest, the highest, the cheapest, the fastest -
+      highest, the shortest, the cheapest, the highest, the cheapest, the
+      fastest -
       re-checked after each re-sort, since a new row can take it from
       another;
     - a **detail table** inside a `<details>` block, exactly these
@@ -1087,15 +1090,37 @@ Steps:
       request, and full precision here only costs width. The detail
       table lists the rows in the headline table's order.
 
-    **The rank is decided with the user, not computed.** It weighs three
-    axes together — findings, cost and duration — and none of them alone
-    survives as a rule: ranking on findings would put a 67-minute run
-    first, on duration would reward whichever model gives up soonest, on
-    cost would reward the one that barely looks. Propose a placement in
-    the PR and argue it on the three axes; adding or updating a model
-    **re-sorts the whole table**, it never just inserts a line. A row
-    measured under an earlier revision of the protocol is marked as such
-    and its placement is provisional until it is re-run.
+    **The rank is computed: the table is sorted by Scoring, highest
+    first, a tie going to the cheaper run.** Adding or updating a model
+    recomputes nothing but its own score - every bound is fixed - and
+    **re-sorts the whole table**, it never just inserts a line. Scoring is
+    out of 100, rounded to one decimal, the weighted sum of five axes each
+    scored 0-100 and clamped to that range:
+
+    - **$/confirmed**, weight 0.30: `100 * log(1.00 / c) / log(100)`, `c`
+      in USD - 0.01 USD scores 100, 0.10 USD 50, 1.00 USD and above 0;
+    - **seconds/confirmed**, weight 0.30: `100 * log(600 / s) / log(20)`,
+      `s` in seconds - 30 s scores 100, 600 s and above 0;
+    - **Total**, weight 0.20: `100 * log(3600 / T) / log(12)`, `T` the
+      total in seconds - 5 minutes scores 100, 60 minutes and above 0;
+    - **Accuracy**, weight 0.10: `100 * (a - 50) / 50`, `a` in percent -
+      50 % and below scores 0, 100 % scores 100;
+    - **Confirmed**, weight 0.10: `100 * n / 20`, `n` the confirmed
+      findings - 20 and above scores 100.
+
+    Compute it from the row's own cells as written - $/confirmed,
+    seconds/confirmed, Total, Accuracy and Confirmed - so any reader can
+    recompute it from the table. The
+    per-finding axes carry most of the score because they answer the
+    README's question - what one trustworthy finding costs in money and
+    in time; the total keeps a long run from winning on a low price
+    alone, and accuracy and volume keep a run that barely looks from
+    winning on its few findings. The bounds are fixed on purpose: a
+    score that depended on the table's best would move every other row
+    each time a model is added. A row measured under an earlier revision
+    of the protocol is marked as such and its placement is provisional
+    until it is re-run. Changing a weight or a bound re-scores every row
+    and is the maintainer's decision.
 
     Cost per confirmed finding is the column that answers the question in
     the README's title: cost and duration alone reward whichever model
