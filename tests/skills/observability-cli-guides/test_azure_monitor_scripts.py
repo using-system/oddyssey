@@ -420,7 +420,7 @@ def test_traces_dependencies_are_joined_on_operation_id(fake):
     assert "join kind=inner (requests" in result.stdout
 
 
-def test_traces_exemplars_carry_their_dependencies_and_logs(fake):
+def test_traces_exemplars_pick_a_p50_and_the_slowest_per_operation(fake):
     code, out = fake.json(
         "traces",
         "exemplars",
@@ -435,9 +435,19 @@ def test_traces_exemplars_carry_their_dependencies_and_logs(fake):
         *WINDOW,
     )
     assert code == 0
+    # one request per operation nearest its own p50
+    p50 = out["p50"]
+    assert len({r["name"] for r in p50}) == len(p50) == 5
+    checkout = p50[0]
+    assert checkout["name"] == "POST /orders/{order_id}/checkout"
+    assert abs(checkout["duration"] - checkout["p50"]) < 5
+    # the slowest are ranked per operation: every operation gets its two
     slow = out["slow"]
-    assert len(slow) == 2 and slow[0]["duration"] == 796.709
-    assert slow[0]["operation_Id"] == OPID
+    assert len(slow) == 10
+    assert all(
+        sum(r["name"] == name for r in slow) == 2 for name in {r["name"] for r in p50}
+    )
+    assert slow[0]["duration"] == 796.709 and slow[0]["operation_Id"] == OPID
     assert [d["name"] for d in slow[0]["dependencies"]] == ["POST", "payment.authorize"]
     failed = slow[1]
     assert failed["resultCode"] == "502"
@@ -448,8 +458,9 @@ def test_traces_exemplars_carry_their_dependencies_and_logs(fake):
         }
     ]
     assert [r["resultCode"] for r in out["failed_requests"]] == ["404", "404"]
-    assert "union dependencies, exceptions, traces" in out["commands"][2]
-    assert len(out["commands"]) == 3, (
+    assert "partition hint.strategy=native by odd_key" in out["commands"][1]
+    assert "union dependencies, exceptions, traces" in out["commands"][3]
+    assert len(out["commands"]) == 4, (
         "one union over the picked ids, never one call per exemplar"
     )
 

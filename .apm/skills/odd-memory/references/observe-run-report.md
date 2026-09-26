@@ -15,7 +15,7 @@ python3 <this skill's directory>/scripts/odd_report.py new [--repo <observed rep
   --service <name> [--service <name> ...] --stack <stack> --env <detected environment> \
   --mode <drive|observe|post-hoc|verify|re-measure> \
   --window <start>/<end> | --from <start> --to <end> --run-name <slug> \
-  [--verifies <baseline>] [--workload <text>] [--instance <service>=<identity> ...] \
+  [--verifies <baseline>] [--baseline <named report>] [--workload <text>] [--instance <service>=<identity> ...] \
   [--process-restarted <true|false|service=true|false> ...] [--repository <value>] \
   [--at <UTC instant>] [--no-revision] [--custom-stack]
 python3 <this skill's directory>/scripts/odd_report.py check <path>
@@ -41,7 +41,9 @@ instrumentation` is the other kind's, stated in its own reference.
   `-observe-<stack>` suffix in observe mode, the `verify-` and
   `remeasure-` prefixes, the next free ordinal when the path is taken),
   fills `date`, `revision`, `tree_anchor` and `repository` from the
-  repository itself, writes the frontmatter and the seven-section
+  repository itself, `baseline` outside a replay — the mission's named
+  baseline when it names one (`--baseline`), else the recall's first
+  line, or `none`, writes the frontmatter and the seven-section
   skeleton — eight with `--custom-stack`, the flag a mission passes
   when the handoff names a custom stack: the frontmatter then carries
   `stack_friction: 0` and the skeleton the `## 8. Stack friction`
@@ -278,7 +280,8 @@ heading:
    way: a check keyed more coarsely than the operations it rules can
    never be re-read per operation later. In a verify or re-measure, this
    table rules the baseline's **checks**, each under the key the baseline
-   gave it; a check key is never a finding id, and a check ruled here
+   gave it, as `| Check | Before | After | Verdict |` — a ruling
+   outside a Verdict column is one no script reads; a check key is never a finding id, and a check ruled here
    never stands in for section 3's ruling on a baseline finding — the two
    tables answer to different keys. A baseline check grouped more
    coarsely than the operations it rules — by the route alone, its verbs

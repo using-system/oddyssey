@@ -72,6 +72,9 @@ def flag(name):
 if a[:2] == ["metrics", "query"]:
     q = a[2]
     if "no_such" in q: out(fx("m_empty"))
+    if os.environ.get("FAKE_AGGREGATED") == "1" and "count by" in q and "__aggregation__" not in q:
+        # an Adaptive Metrics rule aggregates a series under the selector
+        print(open(os.path.join(F, "m_aggregated.json")).read()); sys.exit(1)
     if "sum by (" == q: err()
     if "--step" in a: out(fx("m_range"))
     if "histogram_quantile" in q: out(fx("m_hist"))
@@ -187,6 +190,7 @@ def fake_gcx(tmp_path, monkeypatch):
         "FAKE_T_EDGE",
         "FAKE_M_SERIES_ERR",
         "FAKE_L_ENV",
+        "FAKE_AGGREGATED",
     ):
         monkeypatch.delenv(var, raising=False)
     return log
@@ -521,18 +525,22 @@ def test_counter_reset_inside_the_window_withholds_the_delta(fake_gcx, monkeypat
     assert row["count_increase"] > 0
     text = run("grafana-metrics", "histogram", "h", *WIN).stdout
     assert "RESET" in text and "count=-" not in text and "sum=-" not in text
-    # the span-metrics counter behind `ops` is guarded the same way
+    # the span-metrics counter behind `ops` is guarded the same way, and
+    # falls back to its increase() instead of withholding the calls
     r = run("grafana-traces", "ops", "--service", "llmbench-api", *WIN, "--json")
-    ops = json.loads(r.stdout)["operations"]
+    o = json.loads(r.stdout)
+    ops = o["operations"]
     assert r.returncode == 0 and ops
     assert all(
-        e["span_calls"] is None and e.get("span_calls_reset") is True
+        e["span_calls"] is None
+        and e.get("span_calls_reset") is True
+        and e["span_calls_increase"] > 0
         for e in ops.values()
     )
-    assert (
-        "RESET"
-        in run("grafana-traces", "ops", "--service", "llmbench-api", *WIN).stdout
-    )
+    assert any("increase(traces_spanmetrics_calls_total" in c for c in o["commands"])
+    text = run("grafana-traces", "ops", "--service", "llmbench-api", *WIN).stdout
+    assert "RESET inside the window (calls = increase())" in text
+    assert "withheld" not in text
 
 
 def test_histogram_rows_sort_busiest_first_even_when_a_row_reset():
@@ -566,6 +574,37 @@ def test_metrics_labels_lists_values_and_names_from_verified_queries(fake_gcx):
     o = json.loads(r.stdout)
     assert r.returncode == 0 and o["label"] == "http_route"
     assert "count by (http_route) (last_over_time(" in o["commands"][0]
+
+
+def test_metrics_labels_skips_the_series_an_adaptive_rule_aggregated(
+    fake_gcx, monkeypatch
+):
+    monkeypatch.setenv("FAKE_AGGREGATED", "1")
+    r = run(
+        "grafana-metrics",
+        "labels",
+        "--match",
+        '{service_name="svc"}',
+        "--label",
+        "http_route",
+        *WIN,
+        "--json",
+    )
+    assert r.returncode == 0, r.stdout
+    o = json.loads(r.stdout)
+    assert o["values"] and not o["error"]
+    assert '{service_name="svc", __aggregation__=""}' in o["commands"][-1]
+    assert "Adaptive Metrics" in o["note"]
+    r = run(
+        "grafana-metrics",
+        "labels",
+        "--match",
+        '{service_name="svc"}',
+        "--label",
+        "http_route",
+        *WIN,
+    )
+    assert "Adaptive Metrics" in r.stdout
 
 
 def test_errors_are_one_per_fact_and_commands_fold_losslessly():

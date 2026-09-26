@@ -570,9 +570,9 @@ subscript: `CD=customDimensions; echo
 math expression: operand expected`, exit 1, so the CLI never runs, and
 `"tostring($CD[1])"` prints `tostring(c)`, one character of the scalar,
 where bash prints both as written — write `${CD}[...]`, or the literal
-name; no word starting with `=` — zsh looks up a command named `===` for
-`echo ====` and fails with `=== not found` where bash prints it — write
-`echo "----- $f"`.
+name; no separator line between reads — zsh runs `echo ====` as a
+command lookup, `=== not found`, and aborts the chain — read several
+ranges of one file as `sed -n 'A,Bp;C,Dp' <file>`.
 
 Then query per signal from what came back — keyed by **operation**,
 the smallest unit the service serves distinctly: on an HTTP server the

@@ -8,13 +8,13 @@
   "--analytics-query",
   "requests | where cloud_RoleName in ('orders-api') | where success == false | top 2 by timestamp desc | project timestamp, cloud_RoleName, name, duration, success, resultCode, operation_Id, id",
   "--start-time",
-  "2026-09-11T11:07:57Z",
+  "2026-09-11T11:05:27Z",
   "--end-time",
-  "2026-09-11T11:22:57Z",
+  "2026-09-11T11:20:27Z",
   "-o",
   "json"
  ],
  "code": 0,
- "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"timestamp\",\n          \"type\": \"datetime\"\n        },\n        {\n          \"name\": \"cloud_RoleName\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"name\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"duration\",\n          \"type\": \"real\"\n        },\n        {\n          \"name\": \"success\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"resultCode\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"operation_Id\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"id\",\n          \"type\": \"string\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"2026-09-11T11:22:15.2442219Z\",\n          \"orders-api\",\n          \"GET /orders/{order_id}\",\n          0.954,\n          \"False\",\n          \"404\",\n          \"8015164d4f2eb710f78badccf13027f2\",\n          \"c146aba9f2912773\"\n        ],\n        [\n          \"2026-09-11T11:22:09.3291453Z\",\n          \"orders-api\",\n          \"GET /orders/{order_id}\",\n          0.909,\n          \"False\",\n          \"404\",\n          \"4875678a59d063838e93a7d906aba956\",\n          \"77e90dd20d7aafe1\"\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"timestamp\",\n          \"type\": \"datetime\"\n        },\n        {\n          \"name\": \"cloud_RoleName\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"name\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"duration\",\n          \"type\": \"real\"\n        },\n        {\n          \"name\": \"success\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"resultCode\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"operation_Id\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"id\",\n          \"type\": \"string\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"2026-09-11T11:19:58.7637159Z\",\n          \"orders-api\",\n          \"GET /orders/{order_id}\",\n          0.896,\n          \"False\",\n          \"404\",\n          \"31ca424f368f565b68c332fb4f236c48\",\n          \"5cae9fbe91cc5abf\"\n        ],\n        [\n          \"2026-09-11T11:19:48.7022857Z\",\n          \"orders-api\",\n          \"GET /orders/{order_id}\",\n          1.084,\n          \"False\",\n          \"404\",\n          \"cdf11d86efff6370a1a08774c20b8c4c\",\n          \"dd3252eefe53f074\"\n        ]\n      ]\n    }\n  ]\n}\n",
  "stderr": ""
 }

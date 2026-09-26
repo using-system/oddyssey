@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "requests | where cloud_RoleName in ('orders-api') | extend odd_key = strcat(cloud_RoleName, '/', name) | partition hint.strategy=native by odd_key (top 2 by duration desc) | order by duration desc | project timestamp, cloud_RoleName, name, duration, success, resultCode, operation_Id, id",
+  "--start-time",
+  "2026-09-11T11:05:27Z",
+  "--end-time",
+  "2026-09-11T11:20:27Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"timestamp\",\n          \"type\": \"datetime\"\n        },\n        {\n          \"name\": \"cloud_RoleName\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"name\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"duration\",\n          \"type\": \"real\"\n        },\n        {\n          \"name\": \"success\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"resultCode\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"operation_Id\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"id\",\n          \"type\": \"string\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"2026-09-11T11:10:46.9523392Z\",\n          \"orders-api\",\n          \"POST /orders/{order_id}/checkout\",\n          796.709,\n          \"True\",\n          \"200\",\n          \"51fe548d6c6cdcdd8fa2a68820f34905\",\n          \"84192512f6ba130b\"\n        ],\n        [\n          \"2026-09-11T11:08:05.4425919Z\",\n          \"orders-api\",\n          \"POST /orders/{order_id}/checkout\",\n          790.852,\n          \"False\",\n          \"502\",\n          \"d460e57292ad08c472c14df9eee4ff82\",\n          \"f8c992d680666eb2\"\n        ],\n        [\n          \"2026-09-11T11:06:26.750922Z\",\n          \"orders-api\",\n          \"DELETE /orders/{order_id}\",\n          54.3,\n          \"False\",\n          \"500\",\n          \"7494d8b86da39ef807b0a5bc76b3730b\",\n          \"7fa00349870aa010\"\n        ],\n        [\n          \"2026-09-11T11:11:33.6719253Z\",\n          \"orders-api\",\n          \"DELETE /orders/{order_id}\",\n          52.629,\n          \"True\",\n          \"204\",\n          \"f37dfaa32ecf7f774b6179515c064edc\",\n          \"f3c59a650dc20dfb\"\n        ],\n        [\n          \"2026-09-11T11:08:12.8579144Z\",\n          \"orders-api\",\n          \"GET /orders/{order_id}\",\n          4.451,\n          \"True\",\n          \"200\",\n          \"634120ac7688bd25a454d71172733a14\",\n          \"0ed5e8034381c6bd\"\n        ],\n        [\n          \"2026-09-11T11:06:39.3875242Z\",\n          \"orders-api\",\n          \"GET /products\",\n          3.608,\n          \"True\",\n          \"200\",\n          \"8a658d9ffe4cf1169e3d2e86f49c70e1\",\n          \"3434d76768fd17c7\"\n        ],\n        [\n          \"2026-09-11T11:17:42.8673335Z\",\n          \"orders-api\",\n          \"GET /products\",\n          3.201,\n          \"True\",\n          \"200\",\n          \"297c633203270be51ebe0701459f5493\",\n          \"da056b805c99e8d3\"\n        ],\n        [\n          \"2026-09-11T11:13:46.205267Z\",\n          \"orders-api\",\n          \"POST /orders\",\n          2.979,\n          \"True\",\n          \"201\",\n          \"0ba4d75dd75457fa480dda6acb203fef\",\n          \"0ea70d9efb51f2bf\"\n        ],\n        [\n          \"2026-09-11T11:06:16.7861759Z\",\n          \"orders-api\",\n          \"POST /orders\",\n          2.805,\n          \"True\",\n          \"201\",\n          \"ccc38a8db02bbaf03c305d62e7b2d47c\",\n          \"7ba9e50bb80e645d\"\n        ],\n        [\n          \"2026-09-11T11:06:26.810381Z\",\n          \"orders-api\",\n          \"GET /orders/{order_id}\",\n          2.279,\n          \"True\",\n          \"200\",\n          \"f0633b94901c3ac17d8170cf85b015db\",\n          \"c5877ca1565f6e0e\"\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stderr": ""
+}
