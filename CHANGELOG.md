@@ -1,3 +1,21 @@
+## [1.13.2] - 2026-09-26
+
+### 🚀 Features
+
+- *(bench)* Effort, provider and scoring columns rank the llms-benchmark, with opus 5.5, fable 5.1, gpt-6, grok and glm-prime rows (#651)
+
+### 🐛 Bug Fixes
+
+- *(mcp)* Refuse the environment writes that resolve to a wrong or hidden entry (#660)
+- *(agent)* An environment hard stop persists nothing, and recall follows the status lineage (#661)
+- *(skill)* The report synthesis reads its baseline from the frontmatter, and three query scripts match their surface (#662)
+- *(skill)* Say which stack_config entry the runs read and prove it whole (#663)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(scan)* Answer the hol plugin scanner findings (#649)
+- *(github)* Remove the CODEOWNERS file (#653)
+- *(github)* Restore the CODEOWNERS file (#655)
 ## [1.13.1] - 2026-09-20
 
 ### 📚 Documentation

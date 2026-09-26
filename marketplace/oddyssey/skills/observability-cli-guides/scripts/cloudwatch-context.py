@@ -4,9 +4,10 @@
     cloudwatch-context.py check --profile <profile> --region <region> --log-group <log_group> --metrics-log-group <metrics_log_group>
     cloudwatch-context.py landing --profile <profile> --region <region> --log-group <log_group> --until 2026-09-11T12:30:00Z --service orders-api
 
-Whole surface - check: --profile, --region (both required), --log-group and
---metrics-log-group (each optional: given, the group is proved to resolve;
-omitted, that part is skipped and the output says so), --json. landing:
+Whole surface - check: --profile, --region (both required by the proof:
+either missing, the entry is incomplete - exit 3, nothing run), --log-group
+and --metrics-log-group (each optional: given, the group is proved to
+resolve; omitted, that part is skipped and the output says so), --json. landing:
 --profile, --region, --log-group (required), --metrics-log-group (optional,
 polled the same way as a lower bound only), --until (the RFC 3339 UTC
 instant the newest record must reach - the run's end), --service
@@ -15,7 +16,8 @@ far back the probe reads, default 15m), --every (seconds between polls,
 default 10), --cap (the bound, default 3m), --json. Exit codes - check: 0
 connected (identity and every group given), 1 an identity failure or a
 rights/network error (the message says what is yours to do), 3 a persisted
-group does not resolve (a wrong value: route to the switch), 2 aws refused
+group does not resolve or the profile or region is missing (route to the
+switch), 2 aws refused
 the command. landing: 0 landed, 1 the cap was reached (the last newest is
 in the output), 3/2 as check.
 
@@ -80,6 +82,19 @@ def _code(kind: str) -> int:
 def cmd_check(ns) -> tuple[int, dict]:
     register_targets(log_group=ns.log_group, metrics_log_group=ns.metrics_log_group)
     out: dict = {"identity": {}, "targeting": {}, "connected": False, "commands": []}
+    missing = [f for f in ("profile", "region") if not getattr(ns, f)]
+    if missing:
+        # an entry without them would run under whatever the CLI defaults
+        # to, possibly another account (#657): incomplete, not a usage error
+        for f in missing:
+            out["targeting"][f] = {
+                "ok": False,
+                "kind": "not-persisted",
+                "error": "MISSING - not persisted",
+                "diagnosis": f"the resolved entry is incomplete: route to the switch to persist {f} ({'default when that profile is the one' if f == 'profile' else 'the region the missions query'})",
+            }
+        out["failed"] = []
+        return 3, out
     results = []
     ident = run_aws(["sts", "get-caller-identity"], ns.profile, ns.region)
     results.append(ident)
@@ -165,7 +180,9 @@ def cmd_check(ns) -> tuple[int, dict]:
 def render_check(o: dict) -> str:
     out = []
     i = o["identity"]
-    if not i.get("ok"):
+    if not i:
+        pass  # an incomplete entry: nothing was run
+    elif not i.get("ok"):
         out.append(
             f"identity  NOT connected [{i.get('kind')}] {i.get('error')}\n          {i.get('diagnosis')}"
         )
@@ -181,6 +198,8 @@ def render_check(o: dict) -> str:
             out.append(
                 f"targeting {fld}: resolves (retention {t.get('retention_days') or 'never expires'} days, {t.get('stored_bytes')} bytes stored)"
             )
+        elif t["kind"] == "not-persisted":
+            out.append(f"targeting {fld}: {t['error']} - {t['diagnosis']}")
         else:
             out.append(
                 f"targeting {fld}: FAILED [{t['kind']}] {t['error']}\n          {t['diagnosis']}"
@@ -327,8 +346,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("check")
-    a.add_argument("--profile", required=True)
-    a.add_argument("--region", required=True)
+    a.add_argument("--profile")
+    a.add_argument("--region")
     a.add_argument("--log-group")
     a.add_argument("--metrics-log-group")
     a.add_argument("--json", action="store_true")

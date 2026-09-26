@@ -134,8 +134,10 @@ python3 <Skills>/observability-cli-guides/scripts/grafana-discover.py <svc> [<sv
 Per service: the metric names the store carries, how many traces carry a
 span of it and how many are **rooted** at it (with the root operations and
 their counts — an operation rooted elsewhere is not attributed to it), its
-exact log line count and severities, and whether a CPU profile exists —
-presence and absence with the same weight. Surface: service names
+exact log line count and severities, whether a CPU profile exists, and
+its `environment` off its log streams' and metric series'
+`deployment_environment_name` label — presence and absence with the same
+weight. Surface: service names
 (positional), a window, `--label-key` (the label a service is named by on
 metrics, logs and profiles — default `service_name`, the OTel resource
 convention; a scrape-based Prometheus names it `job`; traces are always
@@ -190,7 +192,9 @@ lists the distinct metric names behind one or more `--match` selectors
 not evidence of an absent metric). `labels` takes one `--match` selector
 and a window: with `--label <name>` it lists that label's values across
 the series the selector matches in the window (each with its series
-count), without it the label *names* those series carry. `instant` and
+count; on Grafana Cloud, the series an Adaptive Metrics rule aggregated
+left out and said so, verified 2026-09-26), without it the label *names*
+those series carry. `instant` and
 `range` take a raw PromQL expression for anything the first four do not
 shape — always with a selector or an aggregation, since a bare metric
 name lists every series it has; `instant` takes `--at` (default now),
@@ -228,8 +232,8 @@ Six subcommands, the whole surface above (`--since <duration>` replaces
 
 - `ops` — per operation of each service: rooted and containing trace
   counts, span-level p50/p95/p99 and calls (span metrics, settled,
-  bucket-interpolated; `RESET` and calls withheld when the counter fell
-  inside the window; absence said), trace-level p50/p95/max over the
+  bucket-interpolated; `RESET` and calls from `increase()` when the
+  counter fell inside the window, verified 2026-09-26; absence said), trace-level p50/p95/max over the
   rooted traces (integer ms), the worst containing trace. `--fetch` adds
   each operation's p50, worst-rooted and worst-containing exemplar with
   its summary. `--name` adds an operation the roots do not show.

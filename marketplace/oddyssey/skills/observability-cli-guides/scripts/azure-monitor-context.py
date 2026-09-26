@@ -1,28 +1,32 @@
 #!/usr/bin/env python3
 """The connection proof in two parts, and the bounded landing poll of a driven run.
 
-    azure-monitor-context.py check --app <app_insights_app> [--workspace <workspace>]
+    azure-monitor-context.py check --subscription <subscription> --resource-group <resource_group> --workspace <workspace> --app <app_insights_app>
     azure-monitor-context.py landing --app <app_insights_app> --identity <user agent> --expect 110 --from ... --to ...
 
-Whole surface - check: --app (the appId GUID; omitted, the targeting part is
-skipped and the output says the run is logs-only), --workspace (the customer
-ID GUID; given, it is proved the same way), --json. landing: --app, --identity
+Whole surface - check: --subscription, --resource-group, --workspace (the
+customer ID GUID), --app (the appId GUID) - each the resolved entry's value,
+each proved when given and named as skipped when not (no --app: the run is
+logs-only) - and --json. landing: --app, --identity
 (the run's user agent, matched on customDimensions['user_agent.original']),
 --expect N (the request count the poll waits for), a window (--from/--to or
 --since), --dimension (the customDimensions key the identity is matched on,
 default user_agent.original), --service (repeatable, scopes the count to
 cloud_RoleName), --every (seconds between polls, default 20), --cap (the
-bound, default 3m), --json. Exit codes - check: 0 connected (both parts),
-1 identity failure or a rights/network error (the message says what is
-yours to do), 3 the persisted value does not resolve (a wrong value: route
-to the switch), 2 az could not parse the command. landing: 0 landed, 1 the
+bound, default 3m), --json. Exit codes - check: 0 connected (identity and
+every part given, a workspace or a component among them), 1 identity
+failure or a rights/network error (the message says what is yours to do),
+3 a persisted value does not resolve, or neither a workspace nor a
+component is given (identity alone proves nothing the queries read): route
+to the switch, 2 az could not parse the command. landing: 0 landed, 1 the
 cap was reached (the last count is in the output), 3/2 as check.
 
 Identity is `az account show` (the local profile, no network: a stale token
 passes here and fails on the targeting part, which is why both run).
-Targeting is `print 1` against the component with the appId alone - never
--g beside it, never --subscription, the data plane needs neither - and,
-with --workspace, against the workspace. The count of the landing poll is
+Targeting is `az account show --subscription`, `az group exists`, and
+`print 1` against the workspace and the component with the appId alone -
+never -g beside it, never --subscription, the data plane needs neither -
+run together. The count of the landing poll is
 read in json at tables[0].rows[0][0]: `-o tsv` would print 1 whatever the
 value (the number of result rows).
 """
@@ -51,6 +55,7 @@ from azure_monitor_az import (
     render_commands,
     resolve_window,
     run_az,
+    run_many,
 )
 
 DIAGNOSIS = {
@@ -67,6 +72,12 @@ DIAGNOSIS = {
 def _last_minutes(n: int) -> tuple[str, str]:
     now = datetime.now(timezone.utc).replace(microsecond=0)
     return iso(now - timedelta(minutes=n)), iso(now)
+
+
+def _targeting_code(kind: str) -> int:
+    if kind in ("not-found", "not-an-appid", "not-a-workspace-id"):
+        return 3
+    return 2 if kind == "usage" else 1
 
 
 def cmd_check(ns) -> tuple[int, dict]:
@@ -92,56 +103,57 @@ def cmd_check(ns) -> tuple[int, dict]:
         "user_type": (d.get("user") or {}).get("type"),
         "state": d.get("state"),
     }
+    # One bounded call per persisted part, run together; a part not given is
+    # named as skipped (#657), never left out of the output.
+    frm, to = _last_minutes(5)
+    sub = ["--subscription", ns.subscription] if ns.subscription else []
+    parts = [
+        ("subscription", ns.subscription, ["account", "show", *sub]),
+        (
+            "resource_group",
+            ns.resource_group,
+            ["group", "exists", "--resource-group", ns.resource_group or "", *sub],
+        ),
+        ("workspace", ns.workspace, la_call(ns.workspace or "", "print 1", frm, to)),
+        ("component", ns.app, ai_call(ns.app or "", "print 1", frm, to)),
+    ]
+    given = [(name, call) for name, value, call in parts if value]
+    answers = dict(zip([n for n, _ in given], run_many([c for _, c in given])))
     code = 0
-    if not ns.app:
-        out["targeting"]["component"] = {
-            "ok": None,
-            "note": "no app_insights_app given: skipped, not failed - requests/dependencies/customMetrics/traces/exceptions are unavailable and the run is logs-only; distributed tracing is a telemetry gap",
-        }
-    else:
-        frm, to = _last_minutes(5)
-        r = run_az(ai_call(ns.app, "print 1", frm, to))
+    for name, value, _ in parts:
+        if not value:
+            note = "not persisted"
+            if name == "component":
+                note += " - no app_insights_app: requests/dependencies/customMetrics/traces/exceptions are unavailable and the run is logs-only; distributed tracing is a telemetry gap"
+            elif name == "subscription":
+                note += " - the CLI's active subscription is the one queried"
+            out["targeting"][name] = {"ok": None, "note": note}
+            continue
+        r = answers[name]
         results.append(r)
-        value = ai_rows(r.data)[0].get("print_0") if r.ok and ai_rows(r.data) else None
-        out["targeting"]["component"] = {
-            "ok": r.ok,
-            "value": value,
-            "error": r.error,
-            "kind": r.kind,
-            "diagnosis": ""
+        if r.ok and name == "resource_group" and r.data is not True:
+            r.ok, r.kind, r.error = False, "not-found", "az group exists answered false"
+        t: dict = {"ok": r.ok, "error": r.error, "kind": r.kind}
+        if r.ok and name == "component":
+            rows = ai_rows(r.data)
+            t["value"] = rows[0].get("print_0") if rows else None
+        if r.ok and name == "subscription":
+            t["differs_from_active"] = (r.data or {}).get("id") != d.get("id")
+        t["diagnosis"] = (
+            ""
             if r.ok
             else DIAGNOSIS.get(
                 r.kind,
                 "read the error: connection, proxy, throttling or service error - report it verbatim and retry; never rewrite it as a targeting failure",
-            ),
-        }
-        if not r.ok:
-            code = (
-                3
-                if r.kind in ("not-found", "not-an-appid")
-                else (2 if r.kind == "usage" else 1)
             )
-    if ns.workspace:
-        frm, to = _last_minutes(5)
-        r = run_az(la_call(ns.workspace, "print 1", frm, to))
-        results.append(r)
-        out["targeting"]["workspace"] = {
-            "ok": r.ok,
-            "error": r.error,
-            "kind": r.kind,
-            "diagnosis": ""
-            if r.ok
-            else DIAGNOSIS.get(
-                r.kind,
-                "read the error: the customer ID GUID (not the workspace name) is what -w takes; a connection or rights error says so",
-            ),
-        }
+        )
+        out["targeting"][name] = t
         if not r.ok and code == 0:
-            code = (
-                3
-                if r.kind in ("not-found", "not-a-workspace-id")
-                else (2 if r.kind == "usage" else 1)
-            )
+            code = _targeting_code(r.kind)
+    if code == 0 and not (ns.app or ns.workspace):
+        # identity alone proves nothing the queries read (#657)
+        code = 3
+        out["identity_only"] = True
     out["connected"] = code == 0
     out["commands"] = commands(results)
     out["failed"] = failures(results)
@@ -162,13 +174,25 @@ def render_check(o: dict) -> str:
     for part, t in o["targeting"].items():
         if t.get("ok") is None:
             out.append(f"targeting {part}: skipped - {t['note']}")
+        elif t["ok"] and part in ("subscription", "resource_group"):
+            differs = (
+                " - differs from the CLI's active one: the queries target the persisted one"
+                if t.get("differs_from_active")
+                else ""
+            )
+            out.append(f"targeting {part}: resolves{differs}")
         elif t["ok"]:
             out.append(f"targeting {part}: connected (print 1 answered)")
         else:
             out.append(
                 f"targeting {part}: FAILED [{t['kind']}] {t['error']}\n          {t['diagnosis']}"
             )
-    out.append("connected" if o["connected"] else "NOT connected")
+    if o.get("identity_only"):
+        out.append(
+            "NOT connected - identity only: the resolved entry persists neither a workspace nor an app_insights_app, so nothing the queries read is proven - route to the switch to persist them"
+        )
+    else:
+        out.append("connected" if o["connected"] else "NOT connected")
     out += render_commands(o)
     return "\n".join(out)
 
@@ -248,6 +272,8 @@ def main() -> int:
     a = sub.add_parser("check")
     a.add_argument("--app")
     a.add_argument("--workspace")
+    a.add_argument("--resource-group")
+    a.add_argument("--subscription")
     a.add_argument("--json", action="store_true")
     b = sub.add_parser("landing")
     b.add_argument("--app", required=True)

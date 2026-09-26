@@ -58,6 +58,7 @@ from odd_report import (
     check_report,
     parse_value,
     read_report,
+    recall_matches,
 )
 from odd_report import (
     git_root as _git_root,
@@ -109,26 +110,7 @@ def check(report: dict, stored_names: set[str], root: Path) -> list[str]:
 # --- the contract's checks, as the memory invariant applies them ---------------------
 
 
-# --- the matching rules, as the references state them --------------------------------
-
-
-def matches(report: dict, scope: dict) -> bool:
-    if "unreadable" in report:
-        return False
-    fm = report["frontmatter"]
-    if scope["stack"] and str(fm.get("stack")) != scope["stack"]:
-        return False
-    if report["kind"] == "instrumentation":
-        project = str(fm.get("project") or "")
-        target = scope["project"]
-        return not target or target == project or target.startswith(project + "/")
-    if scope["services"] and not (
-        set(scope["services"]) & set(as_list(fm.get("services")))
-    ):
-        return False
-    if scope["environment"] and str(fm.get("environment")) != scope["environment"]:
-        return False
-    return not scope["modes"] or str(fm.get("mode")) in scope["modes"]
+# --- the matching rules, as the references state them: recall_matches, in odd_report --
 
 
 def cell(value: Any) -> str:
@@ -186,7 +168,7 @@ def recall(root: Path, kind: str, scope: dict) -> tuple[list[str], list[str]]:
     # every stored report is checked, matched or not: a flaw in the very
     # field the scope matches on must never hide the report silently
     problems = {r["name"]: check(r, stored, root) for r in reports}
-    matched = [r for r in reports if matches(r, scope)]
+    matched = [r for r in reports if recall_matches(r, scope)]
     matched_names = {r["name"] for r in matched}
     for r in matched:
         out.append(line_of(r))

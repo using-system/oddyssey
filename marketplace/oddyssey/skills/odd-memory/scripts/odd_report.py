@@ -49,6 +49,7 @@ refusals; exit 2 on a refusal, nothing written.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -206,6 +207,7 @@ FIELD_ORDER = (
     "window",
     "run_name",
     "date",
+    "baseline",
     "verifies",
     "revision",
     "tree_anchor",
@@ -1179,6 +1181,42 @@ def check_report(report: dict, stored_names: set[str], root: Path) -> list[str]:
     return problems
 
 
+def recall_matches(report: dict, scope: dict) -> bool:
+    """The recall's matching rules (``odd_recall.py`` applies them too)."""
+    if "unreadable" in report:
+        return False
+    fm = report["frontmatter"]
+    if scope["stack"] and str(fm.get("stack")) != scope["stack"]:
+        return False
+    if report["kind"] == "instrumentation":
+        project = str(fm.get("project") or "")
+        target = scope["project"]
+        return not target or target == project or target.startswith(project + "/")
+    # the same service set: the lineage get-status keys a report by
+    if scope["services"] and set(scope["services"]) != set(as_list(fm.get("services"))):
+        return False
+    if scope["environment"] and str(fm.get("environment")) != scope["environment"]:
+        return False
+    return not scope["modes"] or str(fm.get("mode")) in scope["modes"]
+
+
+def recalled_baseline(root: Path, services: list[str], stack: str, env: str) -> str:
+    """The recall's first line - the baseline a run that is no replay
+    diffs against - or ``none``: the value of the ``baseline`` field."""
+    store = root / OBSERVATION_DIR
+    scope = {
+        "services": services,
+        "stack": stack,
+        "environment": env,
+        "modes": [],
+        "project": None,
+    }
+    for path in sorted(store.glob("*.md"), reverse=True) if store.is_dir() else []:
+        if recall_matches(read_report(path, "observation"), scope):
+            return path.name
+    return "none"
+
+
 def baseline_path(root: Path, verifies: str) -> Path:
     """Where a replay's baseline lives: a bare filename is a sibling
     observation report, a repo-relative path names the directory itself."""
@@ -1624,6 +1662,7 @@ def new_instrumentation_report(args: argparse.Namespace) -> tuple[Path, str, lis
         ("--window", args.window),
         ("--from/--to", args.start or args.end),
         ("--verifies", args.verifies),
+        ("--baseline", args.baseline),
         ("--workload", args.workload),
         ("--instance", args.instance),
         ("--process-restarted", args.process_restarted),
@@ -1741,6 +1780,8 @@ def new_report(args: argparse.Namespace) -> tuple[Path, str, list[str]]:
         raise Refusal(f"--verifies is required on a {args.mode} run")
     if args.verifies and not replay:
         raise Refusal("--verifies applies to a verify or re-measure run only")
+    if args.baseline and replay:
+        raise Refusal("a replay's baseline is its --verifies; --baseline is not taken")
 
     if args.no_revision:
         root = Path(args.repo).resolve()
@@ -1813,6 +1854,13 @@ def new_report(args: argparse.Namespace) -> tuple[Path, str, list[str]]:
     }
     if replay:
         fields["verifies"] = args.verifies
+    else:
+        if args.baseline:
+            if not (root / OBSERVATION_DIR / args.baseline).is_file():
+                raise Refusal(f"--baseline names no stored report: {args.baseline}")
+            fields["baseline"] = args.baseline
+        else:
+            fields["baseline"] = recalled_baseline(root, services, args.stack, args.env)
     if repo_root is not None:
         fields["revision"] = git(repo_root, "rev-parse", "--short", "HEAD")
         fields["tree_anchor"] = ls_tree(repo_root, "HEAD")
@@ -1918,6 +1966,16 @@ def pinned_packages(cell: str) -> list[str]:
     return [p.strip(" `*") for p in parts if p.strip() and re.search(r"\d", p)]
 
 
+def prose_baseline(line: str) -> tuple[str | None, bool]:
+    """A report predating the ``baseline`` field: the report its section 1
+    baseline line names, or none when that line's value opens with none."""
+    value = line.split(":", 1)[-1].lstrip("*` ")
+    if NONE_RE.match(value) or re.match(r"\W*no previous", value, re.IGNORECASE):
+        return None, True
+    match = REPORT_FILE_RE.search(line)
+    return (match.group(0), False) if match else (None, False)
+
+
 def instrumentation_data(fm: dict, text: str, sections: list[dict]) -> dict:
     data: dict[str, Any] = {
         "kind": "instrumentation",
@@ -1949,11 +2007,7 @@ def instrumentation_data(fm: dict, text: str, sections: list[dict]) -> dict:
         ]
         data["baseline_lines"] = found[:1]
         for line in found[:1]:
-            match = REPORT_FILE_RE.search(line)
-            if match:
-                data["baseline_name"] = match.group(0)
-            elif re.search(r"no previous", line, re.IGNORECASE):
-                data["no_baseline"] = True
+            data["baseline_name"], data["no_baseline"] = prose_baseline(line)
     two = section(sections, 2)
     if two is not None:
         table, _ = table_with(two["tables"], SUMMARY_PATTERNS)
@@ -2055,16 +2109,12 @@ def synthesis_data(text: str, kind: str | None = None) -> dict:
         ]
         notes = [i for i in listed if BASELINE_NOTE_RE.search(i) and i not in found[:1]]
         data["baseline_lines"] = found[:1] + notes
-        for line in data["baseline_lines"]:
-            match = REPORT_FILE_RE.search(line)
-            if match and data["baseline_name"] is None:
-                data["baseline_name"] = match.group(0)
-        if (
-            found
-            and data["baseline_name"] is None
-            and re.search(r"no previous", found[0], re.IGNORECASE)
-        ):
-            data["no_baseline"] = True
+        if found and "baseline" not in fm:
+            data["baseline_name"], data["no_baseline"] = prose_baseline(found[0])
+    if "baseline" in fm:
+        named = str(fm["baseline"])
+        data["baseline_name"] = None if named == "none" else named
+        data["no_baseline"] = named == "none"
     two = section(sections, 2)
     if two is not None and not replay:
         data["deltas"] = [i for i in items(two["lines"]) if DELTA_RE.search(i)][:20]
@@ -2500,6 +2550,50 @@ def is_local_target(url: str) -> bool:
     return host.lower() in LOCAL_HOSTS
 
 
+def resolved_entry(stack: str, environment: str | None) -> str:
+    """The stack_config entry the replay's pair resolves to, read off the
+    global configuration the MCP server writes - `<environment>-<stack>`
+    when present, else the plain `<stack>` said as a degradation (#657);
+    the local stack takes no environment entry."""
+    if not stack or stack == "local":
+        return stack or "none"
+    try:
+        config = json.loads((Path.home() / ".oddyssey" / "config.json").read_text())
+        keys = config.get("stack_config") or {}
+        known = set(config.get("custom") or {})
+    except (OSError, ValueError, AttributeError):
+        keys, known = {}, set()
+    try:  # the built-in stacks, from the table the server's STACKS mirrors
+        table = (
+            Path(__file__).resolve().parents[2]
+            / "observability-cli-guides/references/builtin-stacks.md"
+        ).read_text()
+        known |= set(re.findall(r"^\| `([a-z0-9-]+)` \|", table, re.MULTILINE))
+    except OSError:
+        pass
+    named = f"{environment}-{stack}" if environment else None
+    # the server's parse-back rule (#656): the key is the pair's only when
+    # it is no known stack itself and its longest known suffix is the stack
+    suffix = max(
+        (k for k in known - {"local"} if named and named.endswith("-" + k)),
+        key=len,
+        default=stack,
+    )
+    if named and named in keys and named not in known and suffix == stack:
+        return named
+    if not named:
+        return stack if stack in keys else f"none (no {stack} entry)"
+    if stack in keys:
+        return (
+            f"{stack} (no {named} entry - the replay reads the plain entry, "
+            "whose environment is unverified)"
+        )
+    return (
+        f"none (no {named} nor {stack} entry - the replay reads the CLI's own "
+        "active context, whose environment is unverified)"
+    )
+
+
 def baseline_facts(root: Path, args: argparse.Namespace) -> dict:
     resolved = resolve_report(root, args.target, args.service, args.stack, args.env)
     baseline, how = hop_to_baseline(root, resolved, args.own_protocol)
@@ -2532,6 +2626,10 @@ def baseline_facts(root: Path, args: argparse.Namespace) -> dict:
         "environment": (
             None if baseline["kind"] == "instrumentation" else fm.get("environment")
         ),
+        "entry": resolved_entry(
+            stack,
+            None if baseline["kind"] == "instrumentation" else fm.get("environment"),
+        ),
         "mode": mode,
         "mode_why": mode_why,
         "revision": fm.get("revision"),
@@ -2556,6 +2654,7 @@ def render_baseline(facts: dict) -> str:
             if facts["kind"] == "instrumentation"
             else str(env or "none")
         ),
+        f"entry: {facts['entry']}",
         f"mode: {facts['mode']} ({facts['mode_why']})",
         f"revision: {facts['revision'] or 'none'}",
         f"benchmark: {', '.join(facts['benchmarks']) or 'none named'}",
@@ -2970,11 +3069,17 @@ def render_headline(data: dict) -> str:
     elif mode == "re-measure":
         passed, failed = verdict_counts(data["checks"])
         total = len(data["checks"])
-        text = (
-            f"{'drift' if failed else 'no drift'} — {passed}/{total} checks within range"
-            if total
-            else f"re-measure — {plural(len(data['findings']), 'finding')} re-measured"
-        )
+        if total:
+            text = f"{'drift' if failed else 'no drift'} — {passed}/{total} checks within range"
+        elif data["rulings"]:
+            text = (
+                f"re-measure — {plural(len(data['rulings']), 'baseline finding')} "
+                "ruled, no check table"
+            )
+        else:
+            text = (
+                f"re-measure — {plural(len(data['findings']), 'finding')} re-measured"
+            )
     else:
         text = (
             f"{plural(len(findings), 'anomaly', 'anomalies')} ({high} high, "
@@ -3291,6 +3396,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--run-name", help="the slug (a replay inherits the baseline's)")
     p.add_argument(
         "--verifies", help="the replayed report: a filename, or a repo-relative path"
+    )
+    p.add_argument(
+        "--baseline", help="the report the mission named as the baseline (a filename)"
     )
     p.add_argument("--workload")
     p.add_argument(

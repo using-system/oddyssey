@@ -139,7 +139,12 @@ def classify(stderr: str, code: int) -> tuple[str, str]:
                 "persist the workspace's customer ID"
             ),
         )
-    if code == 3 or "ApplicationNotFoundError" in text or "ResourceNotFound" in text:
+    if (
+        code == 3
+        or "ApplicationNotFoundError" in text
+        or "ResourceNotFound" in text
+        or re.search(r"Subscription '.*' not found", text)
+    ):
         return "not-found", msg or "the resource does not exist (exit 3)"
     if "AADSTS" in text or "az login" in text or "re-authenticate" in text.lower():
         return (
