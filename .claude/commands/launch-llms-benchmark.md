@@ -1025,14 +1025,16 @@ Steps:
       history: one row per model, effort and CLI, always the latest
       run.
 
-    **Two tables, not one.** Eighteen columns scroll the model name off
+    **Two tables, not one.** Nineteen columns scroll the model name off
     the screen and the rows stop being readable, and GitHub keeps no CSS
     to pin a column. So:
 
-    - a **headline table** of ten columns — rank, model, effort, CLI, oddyssey
+    - a **headline table** of eleven columns — rank, model, effort, CLI, oddyssey
       version, `confirmed / reported`, the findings by kind under a
       single `Telemetry / Perf / Behavior` header written `X / X / X`,
-      total duration, cost, and cost per confirmed finding. It fits
+      total duration, cost, cost per confirmed finding and seconds per
+      confirmed finding (the total duration divided by the confirmed
+      findings). It fits
       without scrolling and answers the question on its own. The effort
       column is the `<effort>` argument as passed to the CLI's flag
       (`medium` by default), right after the model it qualifies. The CLI
