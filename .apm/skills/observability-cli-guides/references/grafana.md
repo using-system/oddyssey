@@ -134,8 +134,10 @@ python3 <Skills>/observability-cli-guides/scripts/grafana-discover.py <svc> [<sv
 Per service: the metric names the store carries, how many traces carry a
 span of it and how many are **rooted** at it (with the root operations and
 their counts — an operation rooted elsewhere is not attributed to it), its
-exact log line count and severities, and whether a CPU profile exists —
-presence and absence with the same weight. Surface: service names
+exact log line count and severities, whether a CPU profile exists, and
+its `environment` off its log streams' and metric series'
+`deployment_environment_name` label — presence and absence with the same
+weight. Surface: service names
 (positional), a window, `--label-key` (the label a service is named by on
 metrics, logs and profiles — default `service_name`, the OTel resource
 convention; a scrape-based Prometheus names it `job`; traces are always

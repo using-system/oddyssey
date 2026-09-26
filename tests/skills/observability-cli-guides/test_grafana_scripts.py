@@ -80,7 +80,9 @@ if a[:2] == ["metrics", "query"]:
         for r in d["data"]["result"]:
             r["value"][1] = str(float(r["value"][1]) * 0.5)
     out(d)
-if a[:2] == ["metrics", "series"]: out(fx("m_series"))
+if a[:2] == ["metrics", "series"]:
+    if os.environ.get("FAKE_M_SERIES_ERR") == "1": err()
+    out(fx("m_series"))
 if a[:2] == ["traces", "query"]:
     if "nope" in a[2]: out(fx("t_empty"))
     q = fx("t_query")
@@ -142,7 +144,11 @@ if a[:2] == ["logs", "query"]:
         span = (t0 - f0).total_seconds()
         vals = [{"timestamp": str(int((f0.timestamp() + span * (i + 0.5) / lim) * 1e9)), "line": f"line at +{span * (i + 0.5) / lim:.3f}s", "structuredMetadata": {"severity_text": "INFO"}} for i in range(lim)]
         out({"status": "success", "data": {"resultType": "streams", "result": [{"stream": {"service_name": "svc"}, "values": vals}]}})
-    out(fx("l_query"))
+    d = fx("l_query")
+    if os.environ.get("FAKE_L_ENV"):
+        # a second stream of the service, under another environment
+        d["data"]["result"].append({**d["data"]["result"][0], "stream": {**d["data"]["result"][0]["stream"], "deployment_environment_name": os.environ["FAKE_L_ENV"]}})
+    out(d)
 if a[:2] == ["profiles", "list-profile-types"]: out(fx("p_types"))
 if a[:2] == ["profiles", "labels"]: out({"names": ["llmbench-api", "llmbench-mcp"]})
 if a[:2] == ["profiles", "query"]:
@@ -179,6 +185,8 @@ def fake_gcx(tmp_path, monkeypatch):
         "FAKE_T_RUN",
         "FAKE_T_LAG",
         "FAKE_T_EDGE",
+        "FAKE_M_SERIES_ERR",
+        "FAKE_L_ENV",
     ):
         monkeypatch.delenv(var, raising=False)
     return log
@@ -370,6 +378,49 @@ def test_discover_reports_presence_and_absence_and_attributes_roots_to_the_servi
     assert any(c.startswith('logs query {job="svc"}') for c in calls)
     assert any(c.startswith("profiles labels --label job") for c in calls)
     assert any('resource.service.name = "svc"' in c for c in calls)
+
+
+def test_discover_reads_the_environment_off_the_log_streams_and_metric_series(
+    fake_gcx,
+):
+    r = run("grafana-discover", "llmbench-api", *WIN, "--json")
+    api = json.loads(r.stdout)["services"]["llmbench-api"]
+    assert api["environment"] == "local"
+    assert api["environment_read_from"] == "logs, metrics"
+    assert (
+        "  environment local  read from: logs, metrics"
+        in run("grafana-discover", "llmbench-api", *WIN).stdout.splitlines()
+    )
+    # a store refusing the series query (a Grafana Cloud Adaptive Metrics
+    # aggregation): the Loki stream label still answers
+    r = run(
+        "grafana-discover",
+        "llmbench-api",
+        *WIN,
+        "--json",
+        env={"FAKE_M_SERIES_ERR": "1"},
+    )
+    api = json.loads(r.stdout)["services"]["llmbench-api"]
+    assert (api["environment"], api["environment_read_from"]) == ("local", "logs")
+    # several values over the window: all of them, never one picked
+    r = run(
+        "grafana-discover", "llmbench-api", *WIN, "--json", env={"FAKE_L_ENV": "dev"}
+    )
+    assert json.loads(r.stdout)["services"]["llmbench-api"]["environment"] == [
+        "dev",
+        "local",
+    ]
+    # no label anywhere: none, and what was looked at
+    r = run(
+        "grafana-discover",
+        "svc",
+        *WIN,
+        "--json",
+        env={"FAKE_LOG_SAT": "1", "FAKE_M_SERIES_ERR": "1"},
+    )
+    svc = json.loads(r.stdout)["services"]["svc"]
+    assert svc["environment"] is None
+    assert "deployment_environment_name" in svc["environment_read_from"]
 
 
 def test_metrics_subcommands_compose_the_documented_queries_and_print_them(fake_gcx):
