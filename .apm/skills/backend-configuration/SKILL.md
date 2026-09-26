@@ -309,10 +309,10 @@ unchecked stack is not persisted, and the fix is the user's.
 An **environment switch** — "target prod", "clear the environment" —
 is a write of the `environment` field and nothing else:
 `odd_config_set {"environment": "<name>"}` (kebab-case, never
-`unknown`), or `{"environment": null}` to clear it. It selects which
+`unknown` or `local`), or `{"environment": null}` to clear it. It selects which
 of the configured stack's entries the missions read (`## Check` step
-2's effective entry) and changes no `stack_config` value; on the local
-stack it is inert. A switch that names both ("switch to cloudwatch in
+2's effective entry) and changes no `stack_config` value; the local
+stack refuses it. A switch that names both ("switch to cloudwatch in
 prod") writes both fields in the one call. Like every path it ends at
 verification (step 5).
 

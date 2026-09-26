@@ -120,7 +120,8 @@ def odd_config_set(config: dict) -> dict:
     {"stack": "seq", "custom": {"seq": {"stack_config_fields":
     ["base_url"]}}}. A custom name is kebab-case, never a built-in one and
     never one that reads as <environment>-<known stack> (prod-cloudwatch,
-    or prod-seq once seq is declared - refused in both directions); its
+    or prod-seq once seq is declared - refused in both directions), and
+    never a built-in one ends in (monitor, for azure-monitor); its
     declaration lists the stack_config fields the stack's guide names (an
     empty list when it persists nothing), and a re-declaration replaces
     the list. The server never reads the stack's guide - the caller derives
@@ -153,7 +154,7 @@ def odd_config_set(config: dict) -> dict:
     deployment environment next to the stack's plain one, e.g.
     {"stack_config": {"prod-cloudwatch": {"log_group": "<log_group>"}}}: the
     environment is kebab-case (^[a-z]([a-z0-9-]*[a-z0-9])?$, never
-    "unknown"), the key is parsed by suffix (dev-azure-monitor is dev +
+    "unknown" or "local"), the key is parsed by suffix (dev-azure-monitor is dev +
     azure-monitor, pre-prod-cloudwatch is pre-prod + cloudwatch - the
     longest known stack wins), a key whose suffix is no known stack is
     rejected, and local takes no prefix. stack_config is merged per key
@@ -178,11 +179,13 @@ def odd_config_set(config: dict) -> dict:
     container either.
     environment selects, for the configured stack, which entry the missions
     read: {"environment": "prod"} persists it (the same pattern as a key's
-    prefix, "unknown" refused), {"environment": null} clears it; absent by
-    default. odd_config_get's effective block resolves the configured pair
-    - the <environment>-<stack> entry when one is persisted, else the
-    plain <stack> entry, whole, never merged. On the local stack the field
-    is inert (the environment is local by construction).
+    prefix, "unknown" and "local" refused), {"environment": null} clears
+    it; absent by default. odd_config_get's effective block resolves the
+    configured pair - the <environment>-<stack> entry when one is
+    persisted, else the plain <stack> entry, whole, never merged. The local
+    stack takes no environment (it is local by construction): the write
+    is refused there - switch the stack first, or in the same call - and a
+    switch to local clears the stored one.
     """
     ports_before = config_ops.load()["local"]
     # Read on the RAW partial, before save validates it: a malformed one

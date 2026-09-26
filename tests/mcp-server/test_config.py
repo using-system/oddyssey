@@ -797,17 +797,26 @@ def test_key_parse_is_by_suffix_dashed_environment_and_dashed_stack(
 
 
 def test_key_parse_prefers_the_longest_known_stack(tmp_path):
-    # A custom stack "monitor" next to the built-in "azure-monitor": the
-    # key dev-azure-monitor is dev + azure-monitor, never dev-azure +
-    # monitor - the longest known stack wins.
+    # A custom stack "unknown-seq" next to "seq" (its prefix is the
+    # sentinel, no environment, so both are declarable): the key
+    # dev-unknown-seq is dev + unknown-seq, never dev-unknown + seq - the
+    # longest known stack wins.
     path = tmp_path / "config.json"
-    config.save(_declare("monitor", ("workspace",)), path)
-    custom = config.load(path)["custom"]
-    assert config.resolve_stack_config_key("dev-azure-monitor", custom) == (
-        "dev",
-        "azure-monitor",
+    config.save(
+        {
+            "custom": {
+                "seq": {"stack_config_fields": ["base_url"]},
+                "unknown-seq": {"stack_config_fields": ["base_url"]},
+            }
+        },
+        path,
     )
-    assert config.resolve_stack_config_key("dev-monitor", custom) == ("dev", "monitor")
+    custom = config.load(path)["custom"]
+    assert config.resolve_stack_config_key("dev-unknown-seq", custom) == (
+        "dev",
+        "unknown-seq",
+    )
+    assert config.resolve_stack_config_key("dev-seq", custom) == ("dev", "seq")
 
 
 def test_plain_keys_still_resolve_to_the_stack_alone():
@@ -826,6 +835,7 @@ def test_plain_keys_still_resolve_to_the_stack_alone():
         "1prod-cloudwatch",  # must start with a letter
         "prod_eu-cloudwatch",  # underscore
         "unknown-cloudwatch",  # the sentinel is not an environment
+        "local-cloudwatch",  # local is the local stack's environment (#656)
         "prod-local",  # local takes no prefix
         "cloudwatch-",  # no stack suffix
     ],
@@ -840,7 +850,13 @@ def test_save_rejects_an_unresolvable_key_and_writes_nothing(tmp_path, key):
 
 
 def test_unresolvable_keys_do_not_parse():
-    for key in ("prod-nagios", "unknown-cloudwatch", "prod-local", "Prod-cloudwatch"):
+    for key in (
+        "prod-nagios",
+        "unknown-cloudwatch",
+        "local-cloudwatch",
+        "prod-local",
+        "Prod-cloudwatch",
+    ):
         assert config.resolve_stack_config_key(key, {}) is None
 
 
@@ -968,6 +984,43 @@ def test_save_refuses_a_declaration_that_makes_another_name_prefixed(tmp_path):
     assert result["custom"] == {"seq": {"stack_config_fields": ["base_url"]}}
 
 
+def test_save_refuses_a_custom_name_that_makes_a_builtin_prefixed(tmp_path):
+    # Issue #656: declaring "monitor" would make the built-in azure-monitor
+    # read as azure + monitor, and the pair (azure, monitor) would resolve
+    # to the built-in's entry.
+    path = tmp_path / "config.json"
+    with pytest.raises(ValueError, match="custom.monitor") as info:
+        config.save({"stack": "monitor", **_declare("monitor")}, path)
+    assert "azure-monitor" in str(info.value)
+    assert not path.exists()
+
+
+def test_effective_never_reads_a_known_stacks_own_entry(tmp_path):
+    # A hand-edited file declaring "monitor" (accepted before #656): the
+    # pair (azure, monitor) never resolves to the built-in azure-monitor's
+    # entry - it falls back to monitor's plain one.
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps(
+            {
+                "stack": "monitor",
+                "environment": "azure",
+                "custom": {"monitor": {"stack_config_fields": ["base_url"]}},
+                "stack_config": {
+                    "azure-monitor": {"workspace": "00000000-fake-ws"},
+                    "monitor": {"base_url": "http://monitor.example.test"},
+                },
+            }
+        )
+    )
+    assert config.load(path)["effective"] == {
+        "stack": "monitor",
+        "environment": "azure",
+        "stack_config_key": "monitor",
+        "stack_config": {"base_url": "http://monitor.example.test"},
+    }
+
+
 def test_a_custom_name_ending_in_local_is_not_prefixed():
     # local takes no prefix, so "seq-local" has one parse: itself.
     assert config.resolve_stack_config_key("seq-local", {"seq-local": {}}) == (
@@ -1024,7 +1077,7 @@ def test_environment_is_absent_by_default(tmp_path):
 
 def test_save_persists_and_clears_the_environment(tmp_path):
     path = tmp_path / "config.json"
-    result = config.save({"environment": "prod"}, path)
+    result = config.save({"stack": "cloudwatch", "environment": "prod"}, path)
     assert result["environment"] == "prod"
     assert json.loads(path.read_text())["environment"] == "prod"
     result = config.save({"environment": "pre-prod"}, path)
@@ -1035,18 +1088,19 @@ def test_save_persists_and_clears_the_environment(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "value", ["Prod", "unknown", "prod-", "-prod", "prod_eu", "1prod", "", 3, ["prod"]]
+    "value",
+    ["Prod", "unknown", "local", "prod-", "-prod", "prod_eu", "1prod", "", 3, ["prod"]],
 )
 def test_save_rejects_an_invalid_environment_and_writes_nothing(tmp_path, value):
     path = tmp_path / "config.json"
-    with pytest.raises(ValueError, match="environment"):
-        config.save({"environment": value}, path)
+    with pytest.raises(ValueError, match="environment must be"):
+        config.save({"stack": "cloudwatch", "environment": value}, path)
     assert not path.exists()
 
 
 def test_load_tolerates_an_invalid_stored_environment(tmp_path):
     path = tmp_path / "config.json"
-    for bad in ("Prod", "unknown", 3):
+    for bad in ("Prod", "unknown", "local", 3):
         path.write_text(json.dumps({"stack": "cloudwatch", "environment": bad}))
         result = config.load(path)
         assert result["environment"] is None
@@ -1117,19 +1171,52 @@ def test_effective_resolves_a_custom_stacks_pair(tmp_path):
     }
 
 
-def test_environment_is_inert_on_the_local_stack(tmp_path):
-    # The local stack is the local environment by construction: the field
-    # persists (it applies again after a switch) but selects nothing.
+def test_save_refuses_an_environment_on_the_local_stack(tmp_path):
+    # Issue #656: the local stack is the local environment by construction;
+    # a stored environment would stay invisible there and re-arm on the
+    # next remote switch.
     path = tmp_path / "config.json"
-    config.save({"environment": "prod"}, path)
-    result = _cw(path, local={"GF_LOG_LEVEL": "debug"})
-    assert result["environment"] == "prod"
-    assert result["effective"] == {
+    with pytest.raises(ValueError, match="local stack takes no environment"):
+        config.save({"environment": "prod"}, path)
+    assert not path.exists()
+    config.save({"stack": "cloudwatch"}, path)
+    with pytest.raises(ValueError, match="local stack takes no environment"):
+        config.save({"stack": "local", "environment": "prod"}, path)
+    assert config.load(path)["stack"] == "cloudwatch"
+
+
+def test_save_accepts_a_remote_switch_and_an_environment_from_local(tmp_path):
+    path = tmp_path / "config.json"
+    result = config.save({"stack": "cloudwatch", "environment": "prod"}, path)
+    assert result["effective"]["environment"] == "prod"
+
+
+def test_a_switch_to_local_clears_the_environment(tmp_path):
+    # The reverse of the refusal: an environment kept through a switch to
+    # local would be invisible there and re-armed by the next remote switch.
+    path = tmp_path / "config.json"
+    config.save({"stack": "cloudwatch", "environment": "prod"}, path)
+    result = config.save({"stack": "local"}, path)
+    assert result["environment"] is None
+    assert "environment" not in json.loads(path.read_text())
+    result = config.save({"stack": "cloudwatch"}, path)
+    assert result["effective"]["environment"] is None
+
+
+def test_environment_is_inert_on_the_local_stack(tmp_path):
+    # A file stored before #656 may still hold one: it selects nothing, and
+    # the next write on the local stack drops it.
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"environment": "prod"}))
+    assert config.load(path)["effective"] == {
         "stack": "local",
         "environment": None,
         "stack_config_key": "local",
-        "stack_config": {"GF_LOG_LEVEL": "debug"},
+        "stack_config": {},
     }
+    result = _cw(path, local={"GF_LOG_LEVEL": "debug"})
+    assert result["environment"] is None
+    assert result["effective"]["stack_config"] == {"GF_LOG_LEVEL": "debug"}
 
 
 def test_effective_reads_the_loaded_entry_not_the_file(tmp_path):
