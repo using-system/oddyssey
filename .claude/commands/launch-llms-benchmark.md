@@ -1029,32 +1029,63 @@ Steps:
     the screen and the rows stop being readable, and GitHub keeps no CSS
     to pin a column. So:
 
-    - a **headline table** of thirteen columns — rank, model, effort, CLI,
-      provider, oddyssey
-      version, `confirmed / reported`, the findings by kind under a
-      single `Telemetry / Perf / Behavior` header written `X / X / X`,
-      total duration, cost, accuracy (confirmed over reported, as a
-      percentage), cost per confirmed finding and seconds per
-      confirmed finding (the total duration divided by the confirmed
-      findings). It fits
-      without scrolling and answers the question on its own. The effort
-      column is the `<effort>` argument as passed to the CLI's flag
-      (`medium` by default), right after the model it qualifies. The CLI
-      column names the coding-agent CLI the mission ran in — the `<cli>`
-      argument, `opencode`, `claude` or `copilot`, with no version: the version
-      belongs in the pull request, where the row's exact figures already
-      live. The provider column follows it and names who served the model:
-      `OpenRouter` for opencode, `Anthropic` for claude, `Copilot`
-      for copilot. The oddyssey version sits right after it because it says
-      which protocol a row was taken under, which a reader needs before
-      any number to its right means anything;
-    - a **detail table** inside a `<details>` block — model, effort, CLI,
-      provider,
-      oddyssey version, the three phase durations, turns, median turn
-      latency, input / output / cache tokens, and signals. Round the
-      token counts (`30.0M`, `79k`): the
-      exact figures live in each run's pull request, and full precision
-      here only costs width.
+    - a **headline table**, thirteen columns, exactly these headers:
+
+      ```text
+      | Rank | Model | Effort | CLI | Provider | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | Accuracy | $/confirmed | seconds/confirmed |
+      | **#1** | `z-ai/glm-5.3-flashx` | default | opencode | OpenRouter | 1.13.0 | 11 / 13 | 4 / 4 / 3 | 17m09s | $N.NN | 85% | $N.NNN | 94s |
+      ```
+
+      (the two money cells are written here as patterns, never as a
+      dollar sign followed by a digit - see the end of step 10; in the
+      README they carry the figures: a dollar sign, then 0.33 and 0.030)
+
+      It fits without scrolling and answers the question on its own.
+      Each cell, left to right:
+      - **Rank** `**#N**`, renumbered from 1 after every re-sort;
+      - **Model** the canonical id in backticks;
+      - **Effort** the level the CLI actually applied - the `<effort>`
+        argument (`medium` by default), or `default` when the CLI has no
+        variant at that level for the model (step 1's opencode check);
+      - **CLI** `opencode`, `claude` or `copilot`, no version - the
+        version belongs in the pull request, where the row's exact
+        figures already live;
+      - **Provider** who served the model to that CLI: `OpenRouter` for
+        opencode, `Anthropic` for claude, `Copilot` for copilot;
+      - **oddyssey** the version the row was taken under (step 7), right
+        after them because a reader needs the protocol before any number
+        to its right means anything; ` ⚠︎` after it marks a row measured
+        under an earlier revision of the protocol;
+      - **Confirmed / reported** `X / Y` from step 8;
+      - **Telemetry / Perf / Behavior** the confirmed findings by kind,
+        `X / X / X`, summing to X;
+      - **Total** the run's wall clock, `NmSSs`;
+      - **Cost** step 7's figure, `$N.NN`;
+      - **Accuracy** confirmed over reported, rounded to a whole
+        percentage, `NN%`;
+      - **$/confirmed** Cost over confirmed, `$N.NNN`;
+      - **seconds/confirmed** Total in seconds over confirmed, rounded to
+        a whole second, `NNs`.
+
+      **Bold**: Confirmed / reported on every perfect ratio (`**6 / 6**`);
+      in Total, Cost, Accuracy, $/confirmed and seconds/confirmed the
+      best value of the table only, on every row that ties it - the
+      shortest, the cheapest, the highest, the cheapest, the fastest -
+      re-checked after each re-sort, since a new row can take it from
+      another;
+    - a **detail table** inside a `<details>` block, exactly these
+      headers, the first five cells as in the headline row:
+
+      ```text
+      | Model | Effort | CLI | Provider | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
+      | `z-ai/glm-5.3-flashx` | default | opencode | OpenRouter | 1.13.0 | 3m10s | 2m01s | 11m58s | 32 | 13.3s | 2.3M | 68k | 2.1M | 4/4 |
+      ```
+
+      the three phase durations, turns, median turn latency, input /
+      output / cache tokens and signals from step 7. Round the token
+      counts (`30.0M`, `79k`): the exact figures live in each run's pull
+      request, and full precision here only costs width. The detail
+      table lists the rows in the headline table's order.
 
     **The rank is decided with the user, not computed.** It weighs three
     axes together — findings, cost and duration — and none of them alone
