@@ -51,8 +51,10 @@ Steps:
 
 4. **Confirm before firing**: show verbatim the two commands about to
    run -
-   `git tag vX.Y.Z` and `git push origin vX.Y.Z` -
-   and state plainly that the push starts the whole release pipeline
+   `git -c tag.gpgsign=false tag vX.Y.Z` and `git push origin vX.Y.Z` -
+   (a lightweight tag, like every release tag; a `tag.gpgsign` git
+   setting would otherwise demand a tag message and fail) - and state
+   plainly that the push starts the whole release pipeline
    (release PR, CI, merge, GitHub release, then PyPI pending the
    environment approval). Only on explicit confirmation, run both
    commands.
