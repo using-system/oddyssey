@@ -2053,6 +2053,16 @@ def test_new_records_the_recalls_first_line_as_the_baseline(repo, report):
     assert frontmatter(report, new(repo))["baseline"] == newer
 
 
+def test_new_takes_a_baseline_of_the_same_service_set_only(repo, report):
+    same = stored(repo, "2026-08-07-1000-checkout-sweep.md")
+    stored(
+        repo,
+        "2026-08-08-1000-checkout-sweep.md",
+        BASELINE.replace("services: [checkout]", "services: [checkout, payment]"),
+    )
+    assert frontmatter(report, new(repo))["baseline"] == same
+
+
 def test_new_records_no_baseline_when_the_recall_finds_none(repo, report):
     stored(
         repo,
