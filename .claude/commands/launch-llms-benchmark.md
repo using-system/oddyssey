@@ -25,9 +25,9 @@ the same way you would grade a colleague's incident report.
   the CLI's effort flag accepts — **`medium` when omitted**, the level
   every row was measured at before this argument existed. Those are the
   only three inputs. Ask for the CLI or the model when missing and stop
-  until you have both; never ask for the effort. Model, effort and CLI
-  identify the row: the same model on two CLIs, or at two efforts, is
-  two rows.
+  until you have both; never ask for the effort. Model, effort, CLI and
+  provider identify the row: the same model on two CLIs, at two efforts,
+  or served by two providers, is two rows.
 - The model id is written the same way whatever the CLI, so the two
   rows of one model line up. Each CLI is handed its own form of it:
   `opencode` takes it as `openrouter/<model>`; `claude` takes Anthropic
@@ -1015,15 +1015,15 @@ Steps:
       `docs/llms-benchmark-<cli>-<model-slug>-<effort>` and make **one** change:
       the row in the results tables of `.llms-benchmark/README.md`.
       `## Results` holds the two tables below. **A row is identified by
-      model, effort and CLI together.** The triple is not in the table
-      yet → append the row; already there → replace that row in place.
-      The same model driven through two CLIs, or at two efforts, is two
-      rows (`google/gemini-3.7-flash` under `opencode` and under another
-      CLI both appear); the oddyssey version is not part of the key — a
-      new run of the same model, effort and CLI overwrites the row,
-      whatever version the old one carried. The table carries no
-      history: one row per model, effort and CLI, always the latest
-      run.
+      model, effort, CLI and provider together.** That key is not in the
+      table yet → append the row; already there → replace that row in
+      place. The same model driven through two CLIs, at two efforts, or
+      served by two providers, is two rows (`openai/gpt-6-luna` at
+      `medium` and at `high` both appear); the oddyssey version is not
+      part of the key — a new run of the same model, effort, CLI and
+      provider overwrites the row, whatever version the old one carried.
+      The table carries no history: one row per model, effort, CLI and
+      provider, always the latest run.
 
     **Two tables, not one.** Twenty-two columns scroll the model name off
     the screen and the rows stop being readable, and GitHub keeps no CSS

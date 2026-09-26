@@ -5,14 +5,14 @@ CLI you drive it through.
 
 Each model observes the same running stack through the same replayed
 traffic, and its report is graded on evidence. One model at one effort
-on one CLI, one run, one row: the same model under two CLIs, or at two
-efforts, is two rows, ranked against each other like any other pair. The
-protocol is fixed and the only variables are the model, its effort and
-the CLI.
+on one CLI through one provider, one run, one row: the same model under
+two CLIs, at two efforts or through two providers is two rows, ranked
+against each other like any other pair. The protocol is fixed and the
+only variables are the model, its effort, the CLI and the provider.
 
 ## Results
 
-One row per model, effort and CLI, always its latest run.
+One row per model, effort, CLI and provider, always its latest run.
 
 | Rank | Model | Effort | CLI | Provider | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | Accuracy | $/confirmed | seconds/confirmed |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -86,12 +86,12 @@ design.
 - **$/confirmed** is what one trustworthy finding costs.
 - **seconds/confirmed** is how long one trustworthy finding takes: the total duration divided by the confirmed findings.
 - **Effort** is the reasoning effort the CLI ran the model at (`low`, `medium`, `high`, ...), `medium` unless the run asked for another. `default` means the CLI offers the model no variant at the requested level, so the model ran at its provider's default effort.
-- **CLI** is the coding-agent CLI the mission ran in; its version is in the row's pull request. **Provider** is who served the model to that CLI: OpenRouter for opencode, Anthropic for claude, Copilot for copilot. Model, effort and CLI identify a row; the oddyssey version does not, a new run replaces the row.
+- **CLI** is the coding-agent CLI the mission ran in; its version is in the row's pull request. **Provider** is who served the model to that CLI: OpenRouter for opencode, Anthropic for claude, Copilot for copilot. Model, effort, CLI and provider identify a row; the oddyssey version does not, a new run replaces the row.
 - **Signals**: how many of metrics, traces, logs and profiles the run queried. Not part of the grade, the context to read it in.
 - **Preflight / Drive / Observation**: the drive is the scenario's fixed two minutes; a long preflight is a model that is lost, a long observation a model that is thorough. **Turns** and **median turn** separate groping (many short turns) from slow answering (few long ones).
 - **Input / Output / Cache / Cost** come from the CLI's own session store after the run, whole session tree included. Input is the whole prompt processed, cached share included (cache is that share); output includes reasoning; cost is the provider's billed figure, cross-checked against its list prices.
 
-A row measured under an earlier revision of the protocol is marked ⚠︎ and provisional until re-run. The table keeps no history: one row per model, effort and CLI, its latest run.
+A row measured under an earlier revision of the protocol is marked ⚠︎ and provisional until re-run. The table keeps no history: one row per model, effort, CLI and provider, its latest run.
 
 ## How a row is produced
 
