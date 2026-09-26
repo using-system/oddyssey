@@ -1,6 +1,6 @@
 ---
 description: Benchmark one LLM on the llms-benchmark demo stack - drive it through a coding-agent CLI (opencode, claude or copilot) on the stored scenario, grade the observation report it produced, and propose its row of the results table
-argument-hint: "<opencode | claude | copilot> <vendor/model>"
+argument-hint: "<opencode | claude | copilot> <vendor/model> [effort, default medium]"
 ---
 
 Run the whole llms-benchmark protocol for one model on one CLI, end to
@@ -20,9 +20,14 @@ the same way you would grade a colleague's incident report.
   `opencode`, `claude` or `copilot`; the **model** to benchmark, as its
   canonical `vendor/name` id, the OpenRouter form
   (`anthropic/claude-sonnet-5`, `openai/gpt-5-mini`,
-  `google/gemini-3.5-flash-lite`, ...). Those are the only two inputs.
-  Ask for whichever is missing and stop until you have both. Model and
-  CLI identify the row: the same model on two CLIs is two rows.
+  `google/gemini-3.5-flash-lite`, ...); optionally, the **effort** the
+  CLI runs the model at — `low`, `medium`, `high`, or any other level
+  the CLI's effort flag accepts — **`medium` when omitted**, the level
+  every row was measured at before this argument existed. Those are the
+  only three inputs. Ask for the CLI or the model when missing and stop
+  until you have both; never ask for the effort. Model, effort, CLI and
+  provider identify the row: the same model on two CLIs, at two efforts,
+  or served by two providers, is two rows.
 - The model id is written the same way whatever the CLI, so the two
   rows of one model line up. Each CLI is handed its own form of it:
   `opencode` takes it as `openrouter/<model>`; `claude` takes Anthropic
@@ -32,8 +37,9 @@ the same way you would grade a colleague's incident report.
   dashes; `claude --help` on `--model` names the accepted forms);
   `copilot` takes the bare name its model picker lists —
   `openai/gpt-5.6-luna` is `gpt-5.6-luna` (the vendor prefix dropped,
-  nothing else changed). A model the CLI cannot run is a preflight
-  failure, not a row.
+  nothing else changed). A model the CLI cannot run, or cannot run at
+  the requested effort, is a preflight failure, not a row. Below,
+  `<effort>` is that argument, passed verbatim to the CLI's flag.
 
 **Never ask for an API key, and never handle one.** Every credential this
 protocol needs — the OpenRouter provider in opencode, the Claude Code
@@ -67,8 +73,18 @@ Steps:
        were given - or, when the listing lags OpenRouter's catalog (it
        did not carry `z-ai/glm-5.3-flashx` on 2026-09-19 while the
        model ran), a smoke run answers with a `text` event:
-       `opencode run --model openrouter/<model> --format json "reply with the single word ok" < /dev/null`
-       (the package is installed in step 3);
+       `opencode run --model openrouter/<model> --variant <effort> --format json "reply with the single word ok" < /dev/null`
+       (the package is installed in step 3) - **and the model has a
+       variant at the requested effort**: `opencode run` accepts any
+       `--variant` name, an unknown one included, records it on every
+       message and sends no effort at all (verified on 2026-09-25 with
+       `--variant bogus`). Read the model's `variants` from
+       `opencode models openrouter --verbose`; when `<effort>` is not
+       among them, launch without `--variant` and write `default` in the
+       Effort column - the provider's default effort is what the model
+       ran at (the `z-ai/glm-5.3*` models and
+       `deepseek/deepseek-v4.1-flash` offer `low`, `high` and `max` only,
+       so every row of theirs measured at "medium" ran at `default`);
      - `claude`: `claude --version` answers; the package is installed at
        **user scope** for Claude Code — `~/.claude/commands/odd-observe.md`,
        `~/.claude/agents/observe-run.md`, `~/.claude/skills/<the nine
@@ -81,7 +97,7 @@ Steps:
        configuration (`~/.claude.json`, `mcpServers` carries `oddyssey` —
        the name only, never its contents); and a smoke run answers with a
        result naming the model:
-       `claude -p "Reply with the single word ok" --model <anthropic id> --output-format json < /dev/null`
+       `claude -p "Reply with the single word ok" --model <anthropic id> --effort <effort> --output-format json < /dev/null`
        must print a `type: result` JSON whose `modelUsage` carries the
        model's canonical id. Since Claude Code 2.1.270 a second key,
        `claude-haiku-4-5`, sits beside it on every run — a background
@@ -95,7 +111,7 @@ Steps:
        (`~/.copilot/config.json` carries a non-empty `loggedInUsers` —
        the host and login, nothing else lives there); and a smoke run
        answers with a usage file naming the model:
-       `copilot -p "Reply with the single word ok" --model <name> --allow-all-tools --usage-output-file <scratch>/usage.json < /dev/null`
+       `copilot -p "Reply with the single word ok" --model <name> --effort <effort> --allow-all-tools --usage-output-file <scratch>/usage.json < /dev/null`
        must leave a `usage.json` whose `modelMetrics` has one key, the
        model's name. Run it from a scratch directory too — it leaves a
        session under `~/.copilot/session-state/`. Nothing is installed
@@ -107,7 +123,7 @@ Steps:
      presence, never its value, and never print it. The file is
      gitignored; `.env.example` next to it says what goes in.
 
-2. **Create the work branch**: `bench/<cli>-<model-slug>-<YYYYMMDD-HHMM>`,
+2. **Create the work branch**: `bench/<cli>-<model-slug>-<effort>-<YYYYMMDD-HHMM>`,
    where `<model-slug>` is the model id with `/` and `.` replaced by
    `-`. Everything the run installs, configures, and produces happens on
    this branch, and none of it is what ships.
@@ -182,10 +198,11 @@ Steps:
 4. **Select the model.** Nothing to configure: the provider is already
    set up (preflight), and the model and effort are passed on the command
    line in step 6, never persisted into a config file — `opencode`:
-   `--model openrouter/<model> --variant medium`; `claude`:
-   `--model <anthropic id> --effort medium`; `copilot`:
-   `--model <name> --effort medium`. The three flags name the same
-   effort level; that is what makes two rows of one model comparable.
+   `--model openrouter/<model> --variant <effort>`; `claude`:
+   `--model <anthropic id> --effort <effort>`; `copilot`:
+   `--model <name> --effort <effort>`. The three flags name the same
+   effort level; that is what makes two rows of one model at one effort
+   comparable across CLIs.
 
 5. **Clean what the next run must not read — then recreate the demo
    stack, never reuse a running one.** Before every run, whatever the
@@ -276,7 +293,7 @@ Steps:
    `opencode`:
 
    ```
-   caffeinate -i opencode run --model openrouter/<model> --variant medium \
+   caffeinate -i opencode run --model openrouter/<model> --variant <effort> \
      --format json --auto --title "llms-benchmark <model>" \
      "<the mission prompt below>" < /dev/null
    ```
@@ -289,7 +306,7 @@ Steps:
    caffeinate -i env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ID \
      -u CLAUDE_CODE_MESSAGING_SOCKET -u CLAUDE_CODE_MESSAGING_TOKEN -u CLAUDE_PID \
      CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 \
-     claude -p "<the mission prompt below>" --model <anthropic id> --effort medium \
+     claude -p "<the mission prompt below>" --model <anthropic id> --effort <effort> \
      --permission-mode bypassPermissions --output-format json \
      --session-id "$SID" < /dev/null > <scratch>/run.json 2> <scratch>/run.err
    ```
@@ -298,12 +315,21 @@ Steps:
 
    ```
    SID=$(uuidgen | tr 'A-Z' 'a-z')
-   caffeinate -i copilot -p "<the mission prompt below>" --model <name> --effort medium \
+   caffeinate -i env COPILOT_TASK_WAIT_TIMEOUT_SECONDS=7200 \
+     copilot -p "<the mission prompt below>" --model <name> --effort <effort> \
      --allow-all --no-ask-user --additional-mcp-config @.github/mcp.json \
      --session-id "$SID" --output-format json --usage-output-file <scratch>/usage.json \
      < /dev/null > <scratch>/run.jsonl 2> <scratch>/run.err
    ```
 
+   `COPILOT_TASK_WAIT_TIMEOUT_SECONDS=7200` lifts prompt mode's 600 s
+   wait on background tasks: a root that dispatches `observe-run` with
+   `mode: background` and ends its turn has its subagent cancelled
+   600 s later, report unwritten (`session.warning`
+   `background_task_wait_timeout`, `subagent.completed` with
+   `cancelled: true`) - the first `openai/gpt-6-luna` run of
+   2026-09-24 lost its whole observation to it, ten minutes in. That
+   run is void, not a row.
    `--allow-all` is this CLI's headless auto mode (tools, paths and
    URLs); `--no-ask-user` removes the tool a run would otherwise use to
    ask a question nobody answers; `--additional-mcp-config @.github/mcp.json`
@@ -933,8 +959,9 @@ Steps:
      resets it before launching.
    - **delete the run's scratch directory under the system temp dir**
      (`$TMPDIR/opencode/`, and `/tmp/llmbench-*`, `/tmp/oddyssey-scratch/`,
-     `/tmp/oddyssey-scratchpad/`, `/private/tmp/odd-scratch/` or
-     `$TMPDIR/oddyssey/scratch/` for a `claude` run, `$TMPDIR/oddyssey/`,
+     `/tmp/oddyssey-scratchpad/`, `/private/tmp/odd-scratch/`,
+     `/tmp/odd-observe-scratch/` or `$TMPDIR/oddyssey/scratch/` for a
+     `claude` run, `$TMPDIR/oddyssey/`,
      `/tmp/oddyssey/` or `/tmp/oddyssey-observe/` for a `copilot` run —
      one run of that CLI wrote under each — and **`.odd/scratch/` inside
      the repository**, where one `copilot` run of 2026-09-14 put its
@@ -985,49 +1012,115 @@ Steps:
       create one naming the model and the protocol revision, then the PR
       that closes it. This is a step, not a fallback.
     - From `main`, freshly pulled, create
-      `docs/llms-benchmark-<cli>-<model-slug>` and make **one** change:
+      `docs/llms-benchmark-<cli>-<model-slug>-<effort>` and make **one** change:
       the row in the results tables of `.llms-benchmark/README.md`.
       `## Results` holds the two tables below. **A row is identified by
-      model and CLI together.** The pair is not in the table yet →
-      append the row; already there → replace that row in place. The
-      same model driven through two CLIs is two rows
-      (`google/gemini-3.7-flash` under `opencode` and under another CLI
-      both appear); the oddyssey version is not part of the key — a new
-      run of the same model and CLI overwrites the row, whatever version
-      the old one carried. The table carries no history: one row per
-      model and CLI, always the latest run.
+      model, effort, CLI and provider together.** That key is not in the
+      table yet → append the row; already there → replace that row in
+      place. The same model driven through two CLIs, at two efforts, or
+      served by two providers, is two rows (`openai/gpt-6-luna` at
+      `medium` and at `high` both appear); the oddyssey version is not
+      part of the key — a new run of the same model, effort, CLI and
+      provider overwrites the row, whatever version the old one carried.
+      The table carries no history: one row per model, effort, CLI and
+      provider, always the latest run.
 
-    **Two tables, not one.** Seventeen columns scroll the model name off
+    **Two tables, not one.** Twenty-three columns scroll the model name off
     the screen and the rows stop being readable, and GitHub keeps no CSS
     to pin a column. So:
 
-    - a **headline table** of nine columns — rank, model, CLI, oddyssey
-      version, `confirmed / reported`, the findings by kind under a
-      single `Telemetry / Perf / Behavior` header written `X / X / X`,
-      total duration, cost, and cost per confirmed finding. It fits
-      without scrolling and answers the question on its own. The CLI
-      column names the coding-agent CLI the mission ran in — the `<cli>`
-      argument, `opencode`, `claude` or `copilot`, with no version: the version
-      belongs in the pull request, where the row's exact figures already
-      live. The oddyssey version sits right after it because it says
-      which protocol a row was taken under, which a reader needs before
-      any number to its right means anything;
-    - a **detail table** inside a `<details>` block — model, CLI,
-      oddyssey version, the three phase durations, turns, median turn
-      latency, input / output / cache tokens, and signals. Round the
-      token counts (`30.0M`, `79k`): the
-      exact figures live in each run's pull request, and full precision
-      here only costs width.
+    - a **headline table**, fourteen columns, exactly these headers:
 
-    **The rank is decided with the user, not computed.** It weighs three
-    axes together — findings, cost and duration — and none of them alone
-    survives as a rule: ranking on findings would put a 67-minute run
-    first, on duration would reward whichever model gives up soonest, on
-    cost would reward the one that barely looks. Propose a placement in
-    the PR and argue it on the three axes; adding or updating a model
-    **re-sorts the whole table**, it never just inserts a line. A row
-    measured under an earlier revision of the protocol is marked as such
-    and its placement is provisional until it is re-run.
+      ```text
+      | Rank | Model | Effort | CLI | Provider | oddyssey | Scoring | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | Accuracy | $/confirmed | seconds/confirmed |
+      | **#1** | `z-ai/glm-5.3-flashx` | default | opencode | OpenRouter | 1.13.0 | 64.0 | 11 / 13 | 4 / 4 / 3 | 17m09s | $N.NN | 85% | $N.NNN | 94s |
+      ```
+
+      (the two money cells are written here as patterns, never as a
+      dollar sign followed by a digit - see the end of step 10; in the
+      README they carry the figures: a dollar sign, then 0.33 and 0.030)
+
+      It fits without scrolling and answers the question on its own.
+      Each cell, left to right:
+      - **Rank** `**#N**`, the position by Scoring, renumbered from 1
+        after every re-sort;
+      - **Model** the canonical id in backticks;
+      - **Effort** the level the CLI actually applied - the `<effort>`
+        argument (`medium` by default), or `default` when the CLI has no
+        variant at that level for the model (step 1's opencode check);
+      - **CLI** `opencode`, `claude` or `copilot`, no version - the
+        version belongs in the pull request, where the row's exact
+        figures already live;
+      - **Provider** who served the model to that CLI: `OpenRouter` for
+        opencode, `Anthropic` for claude, `Copilot` for copilot;
+      - **oddyssey** the version the row was taken under (step 7), right
+        after them because a reader needs the protocol before any number
+        to its right means anything; ` ⚠` after it marks a row measured
+        under an earlier revision of the protocol;
+      - **Scoring** the row's score out of 100, one decimal (below);
+      - **Confirmed / reported** `X / Y` from step 8;
+      - **Telemetry / Perf / Behavior** the confirmed findings by kind,
+        `X / X / X`, summing to X;
+      - **Total** the run's wall clock, `NmSSs`;
+      - **Cost** step 7's figure, `$N.NN`;
+      - **Accuracy** confirmed over reported, rounded to a whole
+        percentage, `NN%`;
+      - **$/confirmed** Cost over confirmed, `$N.NNN`;
+      - **seconds/confirmed** Total in seconds over confirmed, rounded to
+        a whole second, `NNs`.
+
+      **Bold**: Confirmed / reported on every perfect ratio (`**6 / 6**`);
+      in Scoring, Total, Cost, Accuracy, $/confirmed and seconds/confirmed the
+      best value of the table only, on every row that ties it - the
+      highest, the shortest, the cheapest, the highest, the cheapest, the
+      fastest -
+      re-checked after each re-sort, since a new row can take it from
+      another;
+    - a **detail table** inside a `<details>` block, exactly these
+      headers, the first five cells as in the headline row:
+
+      ```text
+      | Model | Effort | CLI | Provider | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
+      | `z-ai/glm-5.3-flashx` | default | opencode | OpenRouter | 1.13.0 | 3m10s | 2m01s | 11m58s | 32 | 13.3s | 2.3M | 68k | 2.1M | 4/4 |
+      ```
+
+      the three phase durations, turns, median turn latency, input /
+      output / cache tokens and signals from step 7. Round the token
+      counts (`30.0M`, `79k`): the exact figures live in each run's pull
+      request, and full precision here only costs width. The detail
+      table lists the rows in the headline table's order.
+
+    **The rank is computed: the table is sorted by Scoring, highest
+    first, a tie going to the cheaper run.** Adding or updating a model
+    recomputes nothing but its own score - every bound is fixed - and
+    **re-sorts the whole table**, it never just inserts a line. Scoring is
+    out of 100, rounded to one decimal, the weighted sum of five axes each
+    scored 0-100 and clamped to that range:
+
+    - **$/confirmed**, weight 0.30: `100 * log(1.00 / c) / log(100)`, `c`
+      in USD - 0.01 USD scores 100, 0.10 USD 50, 1.00 USD and above 0;
+    - **seconds/confirmed**, weight 0.30: `100 * log(600 / s) / log(20)`,
+      `s` in seconds - 30 s scores 100, 600 s and above 0;
+    - **Total**, weight 0.20: `100 * log(3600 / T) / log(12)`, `T` the
+      total in seconds - 5 minutes scores 100, 60 minutes and above 0;
+    - **Accuracy**, weight 0.10: `100 * (a - 50) / 50`, `a` in percent -
+      50 % and below scores 0, 100 % scores 100;
+    - **Confirmed**, weight 0.10: `100 * n / 20`, `n` the confirmed
+      findings - 20 and above scores 100.
+
+    Compute it from the row's own cells as written - $/confirmed,
+    seconds/confirmed, Total, Accuracy and Confirmed - so any reader can
+    recompute it from the table. The
+    per-finding axes carry most of the score because they answer the
+    README's question - what one trustworthy finding costs in money and
+    in time; the total keeps a long run from winning on a low price
+    alone, and accuracy and volume keep a run that barely looks from
+    winning on its few findings. The bounds are fixed on purpose: a
+    score that depended on the table's best would move every other row
+    each time a model is added. A row measured under an earlier revision
+    of the protocol is marked as such and its placement is provisional
+    until it is re-run. Changing a weight or a bound re-scores every row
+    and is the maintainer's decision.
 
     Cost per confirmed finding is the column that answers the question in
     the README's title: cost and duration alone reward whichever model
@@ -1038,7 +1131,7 @@ Steps:
     The PR body carries the per-finding rulings from step 8 for both
     runs, so the ratio is auditable and the choice between the two is
     too, and it names the CLI, its version and the effort flag
-    used. It also notes three things the table has no column for: how
+    used, with the effort level. It also notes three things the table has no column for: how
     many source files the run read **before** the drive, whether it drove
     any traffic of its own outside the stored scenario, and whether its
     report carries a replayable verification protocol.
