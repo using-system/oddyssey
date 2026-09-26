@@ -192,7 +192,9 @@ lists the distinct metric names behind one or more `--match` selectors
 not evidence of an absent metric). `labels` takes one `--match` selector
 and a window: with `--label <name>` it lists that label's values across
 the series the selector matches in the window (each with its series
-count), without it the label *names* those series carry. `instant` and
+count; on Grafana Cloud, the series an Adaptive Metrics rule aggregated
+left out and said so, verified 2026-09-26), without it the label *names*
+those series carry. `instant` and
 `range` take a raw PromQL expression for anything the first four do not
 shape — always with a selector or an aggregation, since a bare metric
 name lists every series it has; `instant` takes `--at` (default now),
