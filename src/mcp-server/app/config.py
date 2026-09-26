@@ -365,7 +365,8 @@ def _validate_custom(partial: dict, stored_custom: dict) -> dict:
                 f" <environment>-<stack>) - pick a name that ends in no known stack"
             )
         for builtin in STACKS:
-            if _split_prefixed(builtin, known | {name}) is not None:
+            split = _split_prefixed(builtin, known | {name})
+            if split is not None and split[1] == name:
                 raise ValueError(
                     f"custom.{name}: declaring {name!r} would make the built-in"
                     f" stack {builtin!r} read as its environment entry"

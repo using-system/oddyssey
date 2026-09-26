@@ -995,6 +995,17 @@ def test_save_refuses_a_custom_name_that_makes_a_builtin_prefixed(tmp_path):
     assert not path.exists()
 
 
+def test_a_stored_builtin_suffix_does_not_block_other_declarations(tmp_path):
+    # A "monitor" stored before #656 is kept by load; it must not make every
+    # later declaration fail, nor be blamed on the name being declared.
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps({"custom": {"monitor": {"stack_config_fields": ["base_url"]}}})
+    )
+    result = config.save(_declare("seq"), path)
+    assert set(result["custom"]) == {"monitor", "seq"}
+
+
 def test_effective_never_reads_a_known_stacks_own_entry(tmp_path):
     # A hand-edited file declaring "monitor" (accepted before #656): the
     # pair (azure, monitor) never resolves to the built-in azure-monitor's
