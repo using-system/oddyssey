@@ -2028,3 +2028,117 @@ def test_baseline_asks_on_the_newest_day_only_and_takes_a_dotted_path(repo):
         f"./{OBS}/2026-08-08-1000-checkout-sweep.md",
     )
     assert proc.returncode == 0 and "checkout-sweep" in lines_of(proc)["report"]
+
+
+# --- the synthesis: the baseline from a structured source, a replay's rulings ------
+
+
+def drafted(report, section_one: str, three: str = "", seven: str = "") -> str:
+    parts = ["# Observation report — checkout-sweep", "**Fine.**"]
+    for n, title in enumerate(report.SECTION_TITLES, 1):
+        text = {1: section_one, 3: three, 7: seven}.get(n) or f"text {n}"
+        parts.append(f"## {n}. {title}\n\n{text}")
+    return "\n\n".join(parts) + "\n"
+
+
+def test_new_records_the_recalls_first_line_as_the_baseline(repo, report):
+    older = stored(repo, "2026-08-07-1000-checkout-sweep.md")
+    newer = stored(repo, "2026-08-08-1000-checkout-sweep.md")
+    other_env = stored(
+        repo,
+        "2026-08-09-1000-checkout-sweep.md",
+        BASELINE.replace("environment: local", "environment: dev"),
+    )
+    assert other_env and older
+    assert frontmatter(report, new(repo))["baseline"] == newer
+
+
+def test_new_records_no_baseline_when_the_recall_finds_none(repo, report):
+    stored(
+        repo,
+        "2026-08-08-1000-checkout-sweep.md",
+        BASELINE.replace("environment: local", "environment: unknown"),
+    )
+    assert frontmatter(report, new(repo))["baseline"] == "none"
+
+
+def test_a_replay_names_its_baseline_in_verifies_alone(repo, report):
+    name = baseline(repo)
+    path = new(repo, "--mode", "verify", "--verifies", name, run_name=None)
+    assert "baseline" not in frontmatter(report, path)
+
+
+def test_show_never_names_a_baseline_the_recall_did_not_find(repo, report):
+    path = new(repo)
+    draft = repo.write(
+        "scratch/draft.md",
+        drafted(
+            report,
+            "- **Baseline recalled**: none. `odd_recall.py --env dev` -> no stored "
+            "report matches. The only report, `2026-08-01-1000-checkout-sweep.md`, "
+            "records `environment: unknown`.",
+        ),
+    )
+    proc = run(repo, "persist", str(path), "--body", str(draft))
+    assert proc.returncode == 0, proc.stderr
+    assert "no previous report" in proc.stdout and "vs baseline" not in proc.stdout
+    proc = run(repo, "show", str(path))
+    assert "baseline: none" in proc.stdout
+
+
+def test_a_legacy_report_whose_baseline_line_says_none_names_none(repo, report):
+    text = BASELINE.replace(
+        "- **Recalled baseline:** no previous report.",
+        "- **Baseline recalled**: none. The only report, "
+        "`2026-08-01-1000-checkout-sweep.md`, records `environment: unknown`.",
+    )
+    data = report.synthesis_data(text)
+    assert data["baseline_name"] is None and data["no_baseline"]
+    assert "vs baseline" not in report.render_headline(data)
+
+
+def test_a_re_measure_headline_counts_its_baseline_rulings(repo, report):
+    name = baseline(repo)
+    path = new(repo, "--mode", "re-measure", "--verifies", name, run_name=None)
+    three = (
+        "| # | Baseline finding | Verdict | Evidence |\n|---|---|---|---|\n"
+        "| F1 | N+1 | still present | trace abc |\n"
+        "| F2 | Missing db spans | still present | none |"
+    )
+    draft = repo.write("scratch/draft.md", drafted(report, "- baseline", three))
+    proc = run(repo, "persist", str(path), "--body", str(draft))
+    assert proc.returncode == 0, proc.stderr
+    assert "re-measure — 2 baseline findings ruled" in proc.stdout
+
+
+def test_the_body_contract_names_section_7s_verdict_column_and_synthesis_reads_it(
+    repo, report
+):
+    name = baseline(repo)
+    proc = run(
+        repo,
+        *NEW[:-4],
+        "--mode",
+        "re-measure",
+        "--window",
+        WINDOW,
+        "--verifies",
+        name,
+        "--repo",
+        str(repo.root),
+    )
+    assert proc.returncode == 0, proc.stderr
+    header = "| Check | Before | After | Verdict |"
+    assert header in proc.stdout.split(BODY_CONTRACT_MARK, 1)[1]
+    path = Path(proc.stdout.splitlines()[0])
+    three = (
+        "| # | Baseline finding | Verdict | Evidence |\n|---|---|---|---|\n"
+        "| F1 | N+1 | still present | a |\n| F2 | spans | still present | b |"
+    )
+    seven = (
+        f"{header}\n|---|---|---|---|\n| 1. p95 of GET /products | 9 ms | 9 ms | fail |"
+    )
+    draft = repo.write("scratch/draft.md", drafted(report, "- baseline", three, seven))
+    assert run(repo, "persist", str(path), "--body", str(draft)).returncode == 0
+    out = run(repo, "synthesis", str(path)).stdout
+    assert "| 1. p95 of GET /products | 9 ms | 9 ms | fail |" in out

@@ -41,7 +41,8 @@ instrumentation` is the other kind's, stated in its own reference.
   `-observe-<stack>` suffix in observe mode, the `verify-` and
   `remeasure-` prefixes, the next free ordinal when the path is taken),
   fills `date`, `revision`, `tree_anchor` and `repository` from the
-  repository itself, writes the frontmatter and the seven-section
+  repository itself, `baseline` outside a replay from the recall's
+  first line (`none` without one), writes the frontmatter and the seven-section
   skeleton — eight with `--custom-stack`, the flag a mission passes
   when the handoff names a custom stack: the frontmatter then carries
   `stack_friction: 0` and the skeleton the `## 8. Stack friction`
@@ -278,7 +279,8 @@ heading:
    way: a check keyed more coarsely than the operations it rules can
    never be re-read per operation later. In a verify or re-measure, this
    table rules the baseline's **checks**, each under the key the baseline
-   gave it; a check key is never a finding id, and a check ruled here
+   gave it, as `| Check | Before | After | Verdict |` — a ruling
+   outside a Verdict column is one no script reads; a check key is never a finding id, and a check ruled here
    never stands in for section 3's ruling on a baseline finding — the two
    tables answer to different keys. A baseline check grouped more
    coarsely than the operations it rules — by the route alone, its verbs
