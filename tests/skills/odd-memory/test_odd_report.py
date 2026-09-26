@@ -12,6 +12,7 @@ touches git builds a throwaway repository.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
@@ -1747,6 +1748,76 @@ def test_baseline_says_when_a_drive_needs_the_users_confirmation(repo):
     stored(repo, "2026-08-10-1000-checkout-sweep.md", mode="observe")
     got = lines_of(run(repo, "baseline", "--repo", str(repo.root)))
     assert got["drive confirmation"] == "not needed (mode observe)"
+
+
+def test_baseline_names_the_stack_config_entry_the_replay_s_pair_resolves_to(
+    repo, tmp_path
+):
+    """#657: the replay's pair is resolved by the script - the environment's
+    entry, else the plain one said as a degradation - never by hand."""
+    home = tmp_path / "home"
+    (home / ".oddyssey").mkdir(parents=True)
+    config = home / ".oddyssey" / "config.json"
+
+    def entry(stack_config: dict | None) -> str:
+        if stack_config is None:
+            config.unlink(missing_ok=True)
+        else:
+            config.write_text(
+                json.dumps({"stack": "local", "stack_config": stack_config})
+            )
+        proc = subprocess.run(
+            [sys.executable, str(SCRIPT), "baseline", "--repo", str(repo.root)],
+            capture_output=True,
+            text=True,
+            cwd=repo.root,
+            env={**os.environ, **GIT_ENV, "HOME": str(home)},
+            check=False,
+        )
+        assert proc.returncode == 0, proc.stderr
+        return lines_of(proc)["entry"]
+
+    stored(
+        repo,
+        "2026-08-08-1000-checkout-sweep.md",
+        stack="azure-monitor",
+        environment="dev",
+    )
+    assert entry({"dev-azure-monitor": {"workspace": "x"}, "azure-monitor": {}}) == (
+        "dev-azure-monitor"
+    )
+    assert entry({"azure-monitor": {"workspace": "x"}}) == (
+        "azure-monitor (no dev-azure-monitor entry - the replay reads the plain "
+        "entry, whose environment is unverified)"
+    )
+    assert entry(None) == (
+        "none (no dev-azure-monitor nor azure-monitor entry - the replay reads the "
+        "CLI's own active context, whose environment is unverified)"
+    )
+    # the server's parse-back rule (#656): a built-in's own entry is never
+    # another pair's - a custom "monitor" in "azure" does not read azure-monitor
+    config.write_text(
+        json.dumps(
+            {
+                "custom": {"monitor": {"stack_config_fields": []}},
+                "stack_config": {"azure-monitor": {}, "monitor": {}},
+            }
+        )
+    )
+    stored(
+        repo, "2026-08-08-1100-checkout-sweep.md", stack="monitor", environment="azure"
+    )
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT), "baseline", "--repo", str(repo.root)],
+        capture_output=True,
+        text=True,
+        cwd=repo.root,
+        env={**os.environ, **GIT_ENV, "HOME": str(home)},
+        check=False,
+    )
+    assert lines_of(proc)["entry"].startswith("monitor (no azure-monitor entry")
+    stored(repo, "2026-08-09-1000-checkout-sweep.md")  # local, environment local
+    assert entry({"local": {"GF_LOG_LEVEL": "debug"}}) == "local"
 
 
 def test_baseline_with_nothing_stored_says_so(repo):

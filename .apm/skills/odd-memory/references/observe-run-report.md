@@ -358,7 +358,8 @@ verify`, a report it cannot read, a repository it cannot compare).
   its end is `drive`; a chain reaching none is an `ask:` for the mode.
   A drive needs the user's confirmation when the
   stack or the record's base URL is not local. Its `verifies` line is
-  what the replay's `new --verifies` takes.
+  what the replay's `new --verifies` takes; its `entry:` line, the
+  `stack_config` entry the pair resolves to.
 - `boundary <baseline report>` decides **verification or
   re-measure**: the baseline's `tree_anchor` against `HEAD` of
   `--repo`, entry by entry; the tree at `revision` when there is no

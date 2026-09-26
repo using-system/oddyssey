@@ -479,7 +479,8 @@ custom stack is written by `/odd-instrument-stack`, never here.
 /odd-config
 ```
 
-No arguments: display, then the "Change backend?" choice.
+No arguments: display, then the "Change backend?" choice, naming the
+environments already persisted for the stack.
 
 ```text
 /odd-config switch to datadog

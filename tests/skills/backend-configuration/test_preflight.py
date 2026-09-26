@@ -309,3 +309,85 @@ def test_a_porcelain_entry_resolves_to_the_path_it_is_about(preflight, line, exp
     """A rename reported by its source would read as documentation when a
     file actually landed under the code."""
     assert preflight.porcelain_path(line) == expected
+
+
+def stub(bin_dir: Path, name: str, body: str) -> None:
+    bin_dir.mkdir(exist_ok=True)
+    path = bin_dir / name
+    path.write_text("#!/bin/sh\n" + body)
+    path.chmod(0o755)
+
+
+def test_a_failing_docker_ps_is_a_daemon_unreachable_not_nothing_running(
+    preflight, tmp_path, monkeypatch
+):
+    """#657: with the daemon down, `docker ps` fails and the empty listing read
+    as "running nothing" - a false fact the handoff copied."""
+    stub(
+        tmp_path / "bin",
+        "docker",
+        'echo "Cannot connect to the Docker daemon" >&2\nexit 1\n',
+    )
+    monkeypatch.setenv("PATH", str(tmp_path / "bin"))
+    assert preflight.containers(None) is None
+    report = {**FULL_REPORT, "containers": None}
+    assert "; docker daemon unreachable; " in preflight.machine_line(report)
+    assert "running" not in preflight.machine_line(report)
+    assert "  containers daemon unreachable" in preflight.render(report)
+
+
+def run_script(tmp_path: Path, config: dict | None, bin_dir: Path) -> dict:
+    home = tmp_path / "home"
+    (home / ".oddyssey").mkdir(parents=True, exist_ok=True)
+    if config is not None:
+        (home / ".oddyssey" / "config.json").write_text(json.dumps(config))
+    env = {**os.environ, "HOME": str(home), "PATH": str(bin_dir)}
+    p = subprocess.run(
+        [sys.executable, str(SCRIPT), "--root", str(tmp_path), "--json"],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    assert p.returncode == 0, p.stderr
+    return json.loads(p.stdout)
+
+
+def test_the_configured_stack_s_cli_is_probed_too(tmp_path):
+    """#657: the probe was fixed to gcx/k6/docker - the configured stack's own
+    CLI (its row of builtin-stacks.md) never reached the Machine line."""
+    bin_dir = tmp_path / "bin"
+    # `az version` prints a JSON object, `az --version` checks for updates
+    stub(
+        bin_dir,
+        "az",
+        'if [ "$1" = version ]; then echo \'{"azure-cli": "2.89.1", "extensions": {}}\'; '
+        "else sleep 5; fi\n",
+    )
+    report = run_script(tmp_path, {"stack": "azure-monitor"}, bin_dir)
+    assert report["clis"]["az"] == {"present": True, "version": "2.89.1"}
+    assert ", az 2.89.1;" in report["machine"]
+    # a CLI refusing `version` answers --version
+    stub(
+        bin_dir,
+        "aws",
+        'if [ "$1" = --version ]; then echo "aws-cli/2.36.37 Python/3.14.7"; '
+        "else exit 252; fi\n",
+    )
+    report = run_script(tmp_path, {"stack": "cloudwatch"}, bin_dir)
+    assert report["clis"]["aws"]["version"] == "aws-cli/2.36.37 Python/3.14.7"
+    assert ", aws 2.36.37;" in report["machine"]
+    (bin_dir / "aws").unlink()
+    report = run_script(tmp_path, {"stack": "cloudwatch"}, bin_dir)
+    assert report["clis"]["aws"] == {"present": False}
+
+
+def test_no_extra_cli_for_the_default_a_custom_or_no_configuration(tmp_path):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for config in (None, {"stack": "local"}, {"stack": "grafana"}, {"stack": "seq"}):
+        assert set(run_script(tmp_path, config, bin_dir)["clis"]) == {
+            "gcx",
+            "k6",
+            "docker",
+        }

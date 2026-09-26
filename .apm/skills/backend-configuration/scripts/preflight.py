@@ -10,7 +10,9 @@ handoff's `Machine:` line - copied into the mission block as printed.
 
 It deliberately does NOT resolve the stack or read the backend's
 configuration: those come from the MCP tools and the backend's own
-reference, which is the part of the preflight that is not mechanical.
+reference, which is the part of the preflight that is not mechanical. It
+reads the configured stack's name only, to probe that stack's CLI too (its
+row of the observability-cli-guides skill's builtin-stacks.md).
 
     preflight.py
     preflight.py --benchmark .odd/benchmarks/<name> --containers llmbench
@@ -37,6 +39,13 @@ CLIS = {
     "k6": ["k6", "version"],
     "docker": ["docker", "--version"],
 }
+CONFIG = Path.home() / ".oddyssey" / "config.json"
+BUILTIN_STACKS = (
+    Path(__file__).resolve().parents[2]
+    / "observability-cli-guides"
+    / "references"
+    / "builtin-stacks.md"
+)
 ODD_STORES = (
     ".odd/observe-run-reports",
     ".odd/otel-instrumentation-reports",
@@ -60,16 +69,38 @@ def run(args: list[str], cwd: Path | None = None, timeout: int = 20) -> str:
     return p.stdout.strip()
 
 
+def stack_cli() -> str | None:
+    """The configured stack's CLI - the first backticked name of its row's CLI
+    column in builtin-stacks.md - or None: no configuration, a custom stack,
+    or a CLI already probed."""
+    try:
+        stack = json.loads(CONFIG.read_text()).get("stack")
+        table = BUILTIN_STACKS.read_text()
+    except (OSError, ValueError, AttributeError):
+        return None
+    for line in table.splitlines():
+        cells = [c.strip() for c in line.split("|")]
+        if len(cells) > 4 and cells[1] == f"`{stack}`":
+            m = re.search(r"`([\w.-]+)`", cells[3])
+            if m and m.group(1) not in CLIS:
+                return m.group(1)
+    return None
+
+
 def cli(name: str) -> dict:
     """Present or absent, and the version string when present.
 
     A CLI that prints a JSON object (`gcx version` does) is reduced to its
-    `version` field: a raw `{...}` in the block reads as a corrupted tool
+    `version` field, else its first string value (`az version`): a raw `{...}` in the block reads as a corrupted tool
     result to a run, which then re-runs the script and reads its source.
     """
     if shutil.which(name) is None:
         return {"present": False}
-    out = (run(CLIS[name]) or "").strip()
+    # a stack's CLI: `version` first (`az --version` checks for updates over
+    # the network, two seconds), `--version` when it refuses (`aws`)
+    out = (run(CLIS.get(name, [name, "version"])) or "").strip()
+    if not out and name not in CLIS:
+        out = (run([name, "--version"]) or "").strip()
     if out.startswith("{"):
         try:
             parsed = json.loads(out)
@@ -77,6 +108,9 @@ def cli(name: str) -> dict:
             parsed = None
         if isinstance(parsed, dict) and parsed.get("version"):
             return {"present": True, "version": str(parsed["version"])}
+        if isinstance(parsed, dict):  # `az version`: {"azure-cli": "2.89.1", ...}
+            first = next((v for v in parsed.values() if isinstance(v, str)), "")
+            return {"present": True, "version": first}
     first = out.splitlines()
     return {"present": True, "version": first[0].strip() if first else ""}
 
@@ -102,10 +136,15 @@ def machine_line(report: dict) -> str:
         else f"{name} ABSENT"
         for name, value in report["clis"].items()
     )
-    running = ", ".join(c["name"] for c in report["containers"]) or "nothing"
+    if report["containers"] is None:
+        running = "docker daemon unreachable"
+    else:
+        running = "running " + (
+            ", ".join(c["name"] for c in report["containers"]) or "nothing"
+        )
     r = report["repo"]
     state = "clean" if r["clean"] else f"dirty ({r['dirty_paths']} paths)"
-    parts = [clis, f"running {running}", f"repo {r['branch']} {r['head']} {state}"]
+    parts = [clis, running, f"repo {r['branch']} {r['head']} {state}"]
     b = report.get("benchmark")
     if b:
         if not b["exists"]:
@@ -123,14 +162,24 @@ def report_json(report: dict) -> dict:
     return {**report, "machine": machine_line(report)}
 
 
-def containers(name_filter: str | None) -> list[dict]:
+def containers(name_filter: str | None) -> list[dict] | None:
+    """The running containers; None when `docker ps` fails - the daemon is
+    unreachable, which an empty list would misstate as nothing running."""
     if shutil.which("docker") is None:
         return []
     args = ["docker", "ps", "--format", "{{.Names}}\t{{.Status}}\t{{.Image}}"]
     if name_filter:
         args += ["--filter", f"name={name_filter}"]
+    try:
+        p = subprocess.run(
+            args, capture_output=True, text=True, timeout=20, check=False
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if p.returncode != 0:
+        return None
     rows = []
-    for line in (run(args) or "").splitlines():
+    for line in p.stdout.splitlines():
         parts = line.split("\t")
         if len(parts) == 3:
             rows.append({"name": parts[0], "status": parts[1], "image": parts[2]})
@@ -237,7 +286,9 @@ def render(report: dict) -> str:
         lines.append(f"             {path}")
     if r.get("dirty_truncated"):
         lines.append(f"             ... and {r['dirty_truncated']} more")
-    if report["containers"]:
+    if report["containers"] is None:
+        lines.append("  containers daemon unreachable")
+    elif report["containers"]:
         lines.append("  containers")
         for c in report["containers"]:
             lines.append(f"             {c['name']}  {c['status']}")
@@ -276,7 +327,9 @@ def main() -> int:
 
     root = Path(args.root).resolve()
     with ThreadPoolExecutor(max_workers=8) as pool:
-        f_clis = {name: pool.submit(cli, name) for name in CLIS}
+        extra = stack_cli()
+        names = [*CLIS, *([extra] if extra else [])]
+        f_clis = {name: pool.submit(cli, name) for name in names}
         f_containers = pool.submit(containers, args.containers)
         f_repo = pool.submit(repo, root)
         f_stores = pool.submit(stores, root)

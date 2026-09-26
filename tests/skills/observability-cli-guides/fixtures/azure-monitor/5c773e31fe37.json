@@ -1,0 +1,13 @@
+{
+ "args": [
+  "account",
+  "show",
+  "--subscription",
+  "Missing-Sub",
+  "-o",
+  "json"
+ ],
+ "code": 1,
+ "stdout": "",
+ "stderr": "ERROR: Subscription 'Missing-Sub' not found. Check the spelling and casing and try again.\n"
+}

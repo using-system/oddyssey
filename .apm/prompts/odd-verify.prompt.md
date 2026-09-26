@@ -44,10 +44,9 @@ this order:
    baseline's pair, never silently retargets the current one, and
    never rewrites the configuration: the divergence is stated, not
    persisted; the entry the replay reads is the report's pair's, which
-   step 3's `## Check` resolves itself when the pair is not the
-   configured one (`effective` answers for the configured pair only),
-   and says so. That `stack` may be a custom name - a value on no row of
-   `builtin-stacks.md`: step 3's `## Check` resolves it from
+   the `baseline` command's `entry:` line names (`effective` answers
+   for the configured pair only). That `stack` may be a custom name -
+   a value on no row of `builtin-stacks.md`: step 3's `## Check` resolves it from
    `.odd/observability-stacks/<name>/guide.md` in this clone and, when
    that directory is absent, stops with the `observability-stack`
    reference's error - carry that stop: the report's contract cannot
