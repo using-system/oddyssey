@@ -1044,7 +1044,7 @@ Steps:
       argument, `opencode`, `claude` or `copilot`, with no version: the version
       belongs in the pull request, where the row's exact figures already
       live. The provider column follows it and names who served the model:
-      `OpenRouter` for opencode, `Anthropic` for claude, `GitHub Copilot`
+      `OpenRouter` for opencode, `Anthropic` for claude, `Copilot`
       for copilot. The oddyssey version sits right after it because it says
       which protocol a row was taken under, which a reader needs before
       any number to its right means anything;
