@@ -152,7 +152,7 @@ these scripts do.
 ```bash
 python3 <Skills>/observability-cli-guides/scripts/azure-monitor-traces.py operations --app <app_insights_app> --service <svc> --from <start> --to <end>
 python3 <Skills>/observability-cli-guides/scripts/azure-monitor-traces.py dependencies --app <app_insights_app> --service <svc> --since 30m
-python3 <Skills>/observability-cli-guides/scripts/azure-monitor-traces.py exemplars --app <app_insights_app> --service <svc> --slow 3 --failed 3 --since 30m
+python3 <Skills>/observability-cli-guides/scripts/azure-monitor-traces.py exemplars --app <app_insights_app> --service <svc> --since 30m
 python3 <Skills>/observability-cli-guides/scripts/azure-monitor-traces.py trace <operation_Id> --app <app_insights_app> --from <start> --to <end>
 python3 <Skills>/observability-cli-guides/scripts/azure-monitor-traces.py watch --app <app_insights_app> --identity <the run's User-Agent prefix> --from <dispatch instant> --state <scratch>/<slug>-watch.json --length <the manifest's scheduled length> --expect <its scheduled request count> [--to <deadline>] [--bin 30s] [--ended-after 4] [--settle auto] [--every 5s] [--max 8m] [--service <svc>]... [--dimension <customDimensions key>]... [--json]
 ```
@@ -163,7 +163,7 @@ optional `--to`, the deadline), `--json`; `operations`,
 `dependencies`, `exemplars` and `watch` take `--service`; `operations` adds `--top`
 (rows, default 20) and `--bin <duration>` (adds the request count,
 failures and p95 per time bucket); `exemplars` adds `--operation <request
-name>` (repeatable), `--slow N` (the slowest requests, default 3),
+name>` (repeatable), `--slow N` (the slowest requests per operation, default 1),
 `--failed N` (the newest failed requests, default 3); `trace` takes the
 `operation_Id`; `watch` takes `--identity` (the prefix, matched with
 `startswith`), `--state` (its state file), `--length` (the manifest's
@@ -193,13 +193,16 @@ non-empty one wins; default `user_agent.original` then
   join leaves out - a client span whose request is outside the window).
   Verified 2026-09-11: seven joined rows (the load generator's client
   spans and the service's own outgoing calls), five in `all`.
-- `exemplars` - Output: `slow` and `failed_requests`, each request with
+- `exemplars` - Output: `p50` (per operation, the request nearest its
+  p50, with that `p50`), `slow` (ranked per operation) and
+  `failed_requests`, each request with
   `timestamp`, `name`, `duration`, `resultCode`, `operation_Id`, `id`
   and, from one union over the picked ids, its `dependencies`,
   `exceptions` and `logs` (the `traces` rows of warning level and above).
   Verified 2026-09-11: the slowest carried its `payment.authorize`
   dependency, a failed one its failed `storage.delete` and the warning
-  line explaining it.
+  line explaining it. Verified 2026-09-26: five operations, a `p50`
+  and two `slow` each.
 - `trace` - Output: `summary` (`root`, `duration_ms`, `spans`,
   `failed_spans`, `logs`, `exceptions`, `services`) and `nodes`
   (depth-first: `request`/`dependency` spans with `duration`, `success`,
@@ -534,8 +537,12 @@ A mission records profiles as a telemetry gap and moves on.
 ### Display
 
 ```bash
-python3 <Skills>/observability-cli-guides/scripts/azure-monitor-context.py check --app <app_insights_app> --workspace <workspace>
+python3 <Skills>/observability-cli-guides/scripts/azure-monitor-context.py check --subscription <subscription> --resource-group <resource_group> --workspace <workspace> --app <app_insights_app>
 ```
+
+Whole surface of `check`: the four flags above, each the resolved
+entry's value, omitted when not persisted (the output names it as
+skipped), and `--json`.
 
 Two sources, and every line says which one it came from - the CLI
 identity and the persisted targeting values are different facts and a
@@ -564,9 +571,9 @@ otherwise - shown next to its field:
   takes), not its resource name.
 
 A field the user did not persist reads "not persisted - the mission will
-ask"; an empty resolved entry (`{}`) is all four
-unset, a valid state. `app_insights_app` unset is the one exception to
-that neutral wording - a **named degradation**:
+ask"; an entry with neither `workspace` nor `app_insights_app` is the
+proof's `identity only` below. `app_insights_app` unset is the one
+exception to that neutral wording - a **named degradation**:
 
 > no Application Insights configured - `requests`/`dependencies`/
 > `customMetrics`/`traces`/`exceptions` and the Profiler are unavailable,
@@ -589,10 +596,16 @@ alone is not a connected verdict when `app_insights_app` is persisted:
   (never `-g` beside it, never `--subscription`: the data plane needs
   neither), and with `--workspace` the same against the workspace; about
   a second each. Skipped - not failed - when `--app` is not given.
+- `--subscription` is proved by `az account show --subscription`, and
+  `--resource-group` by `az group exists` (`false` is `not-found`); under
+  a second each, verified 2026-09-26.
 
 The exit code is the verdict, and the output carries the diagnosis:
 
 - **0** - connected (both parts). Verified 2026-09-11.
+- **3** with `NOT connected - identity only` - neither `--workspace` nor
+  `--app` given: nothing the queries read is proven; route to the
+  switch for the entry's values. Verified 2026-09-26.
 - **3** - the persisted value does not resolve: an unknown appId
   (`ApplicationNotFoundError`, az's exit 3) or a value that is not an
   appId GUID (`The Application Insight is not found. Please check the app
@@ -630,6 +643,7 @@ stated above, and the mission proceeds logs-only having said so.
 - "persist workspace <guid> for azure-monitor"
 - "persist app insights <name-or-guid> for azure-monitor"
 - "clear the workspace for azure-monitor"
+- "persist workspace <guid> for azure-monitor in prod", "target prod"
 
 ## What to persist
 

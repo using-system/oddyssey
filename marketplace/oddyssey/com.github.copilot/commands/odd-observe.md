@@ -123,7 +123,9 @@ file is not read here:
 
 Close the mission by running
 `python3 <Skills>/odd-memory/scripts/odd_report.py show <the stored path the agent's reply carries>`
-(its whole surface) and printing the rendering as the final answer,
+(its whole surface) and printing the rendering as the final answer -
+or, when the reply is an environment hard stop with no stored path,
+relaying the stop (both values, the queries, the remedies) instead -
 translated to the conversation's language - on a custom stack its
 stack-friction count and entries are part of the rendering, with the
 prompt that fixes them. The report file - not the synthesis - is the deliverable the

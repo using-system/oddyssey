@@ -402,7 +402,8 @@ run record.
    When the mission hands you a **baseline environment** to compare
    against (verify missions), or the preflight handoff carries a
    **configured** one (the `environment=` of its `Preflight:` line,
-   other than `none`), that comparison is yours: matching, carry
+   other than `none` — on a replay, the report's: the configured one
+   plays no part), that comparison is yours: matching, carry
    on; diverging, **stop hard** — no verdict is ever ruled across
    environments, and an entry persisted for one environment never
    answers for another. Name both values (baseline `prod`, detected
@@ -410,7 +411,9 @@ run record.
    recommend rerunning against the baseline's environment, or observing
    the detected one as a new baseline — for a configured one,
    retargeting the configuration, or observing the detected environment
-   as its own. A baseline carrying no
+   as its own. An environment hard stop — this one or step 4's split —
+   persists nothing: the reply carries both values, the query behind
+   each, and the remedies. A baseline carrying no
    environment (an instrumentation report has none by design) skips the
    check — record the detected environment fresh.
 
@@ -567,9 +570,9 @@ subscript: `CD=customDimensions; echo
 math expression: operand expected`, exit 1, so the CLI never runs, and
 `"tostring($CD[1])"` prints `tostring(c)`, one character of the scalar,
 where bash prints both as written — write `${CD}[...]`, or the literal
-name; no word starting with `=` — zsh looks up a command named `===` for
-`echo ====` and fails with `=== not found` where bash prints it — write
-`echo "----- $f"`.
+name; no separator line between reads — zsh runs `echo ====` as a
+command lookup, `=== not found`, and aborts the chain — read several
+ranges of one file as `sed -n 'A,Bp;C,Dp' <file>`.
 
 Then query per signal from what came back — keyed by **operation**,
 the smallest unit the service serves distinctly: on an HTTP server the
@@ -889,5 +892,6 @@ and the section above is what fills section 8 on a custom stack.
   report or says there was none) and the report was written and
   persisted by `odd-memory`'s report script (`new`, then
   `persist --body` with the filled draft), its `persist` output in the
-  reply; on a custom stack, section 8 carries the friction and the
-  reply carries nothing of the stack but the count `persist` printed.
+  reply — unless an environment hard stop ended the run; on a custom
+  stack, section 8 carries the friction and the reply carries nothing
+  of the stack but the count `persist` printed.

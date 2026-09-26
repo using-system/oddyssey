@@ -142,6 +142,19 @@ def cmd_names(ns) -> tuple[int, dict]:
     }
 
 
+AGGREGATED = "Can't query aggregated metric"
+
+
+def _unaggregated(match: str) -> str:
+    """The selector without the series an Adaptive Metrics rule aggregated."""
+    if match.rstrip().endswith("}"):
+        head = match.rstrip()[:-1]
+        return (
+            head + (", " if head.rstrip()[-1:] != "{" else "") + '__aggregation__=""}'
+        )
+    return match + '{__aggregation__=""}'
+
+
 def cmd_labels(ns) -> tuple[int, dict]:
     """A label's values (--label) or the label names behind a selector."""
     frm, to = resolve_window(ns)
@@ -152,6 +165,14 @@ def cmd_labels(ns) -> tuple[int, dict]:
         at, win = _settled(frm, to, "0s")
         expr = f"count by ({ns.label}) (last_over_time({ns.match}{win}))"
         r = run_gcx(["metrics", "query", expr, "--time", at])
+        cmds, note = [r.command], None
+        if not r.ok and AGGREGATED in (r.error or ""):
+            # Grafana Cloud refuses the whole selector when one series under
+            # it is aggregated: count the others, and say so
+            expr = f"count by ({ns.label}) (last_over_time({_unaggregated(ns.match)}{win}))"
+            r = run_gcx(["metrics", "query", expr, "--time", at])
+            cmds.append(r.command)
+            note = "an Adaptive Metrics rule aggregates series under the selector: counted without them"
         values: dict[str, int] = {}
         for x in prom_result(r.data) if r.ok else []:
             try:
@@ -163,7 +184,8 @@ def cmd_labels(ns) -> tuple[int, dict]:
             "error": r.error,
             "label": ns.label,
             "values": dict(sorted(values.items(), key=lambda kv: -kv[1])),
-            "commands": [r.command],
+            "note": note,
+            "commands": cmds,
         }
     r = run_gcx(["metrics", "series", ns.match, "--from", frm, "--to", to])
     names: dict[str, int] = {}
@@ -311,6 +333,8 @@ def render(o: dict) -> str:
         out += [f"{v or '(unset)'}  ({c} {unit})" for v, c in o["values"].items()] or [
             "(no series)"
         ]
+        if o.get("note"):
+            out.append(o["note"])
     elif isinstance(o.get("rows"), dict):
         cols = [
             c

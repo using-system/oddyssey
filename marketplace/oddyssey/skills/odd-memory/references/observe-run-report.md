@@ -15,7 +15,7 @@ python3 <this skill's directory>/scripts/odd_report.py new [--repo <observed rep
   --service <name> [--service <name> ...] --stack <stack> --env <detected environment> \
   --mode <drive|observe|post-hoc|verify|re-measure> \
   --window <start>/<end> | --from <start> --to <end> --run-name <slug> \
-  [--verifies <baseline>] [--workload <text>] [--instance <service>=<identity> ...] \
+  [--verifies <baseline>] [--baseline <named report>] [--workload <text>] [--instance <service>=<identity> ...] \
   [--process-restarted <true|false|service=true|false> ...] [--repository <value>] \
   [--at <UTC instant>] [--no-revision] [--custom-stack]
 python3 <this skill's directory>/scripts/odd_report.py check <path>
@@ -41,7 +41,9 @@ instrumentation` is the other kind's, stated in its own reference.
   `-observe-<stack>` suffix in observe mode, the `verify-` and
   `remeasure-` prefixes, the next free ordinal when the path is taken),
   fills `date`, `revision`, `tree_anchor` and `repository` from the
-  repository itself, writes the frontmatter and the seven-section
+  repository itself, `baseline` outside a replay — the mission's named
+  baseline when it names one (`--baseline`), else the recall's first
+  line, or `none`, writes the frontmatter and the seven-section
   skeleton — eight with `--custom-stack`, the flag a mission passes
   when the handoff names a custom stack: the frontmatter then carries
   `stack_friction: 0` and the skeleton the `## 8. Stack friction`
@@ -83,7 +85,9 @@ The frontmatter mirrors the run **as it executed**, defaults applied —
 - `--env` is **detected**, never asked: the `deployment.environment.name`
   the service's telemetry reports; `local` by construction on the local
   stack; `unknown` when the service emits none (stated, and a telemetry
-  gap). One observation, one environment.
+  gap). One observation, one environment: an environment hard stop
+  (a split, or a divergence from the baseline's or the configured one)
+  writes no report.
 - The window is the observed interval, pasted as a query script printed
   it (`--from <start> --to <end>`) or given as `--window <start>/<end>`
   — never an instant recomputed by hand: in drive mode the scenario's own start and
@@ -276,7 +280,8 @@ heading:
    way: a check keyed more coarsely than the operations it rules can
    never be re-read per operation later. In a verify or re-measure, this
    table rules the baseline's **checks**, each under the key the baseline
-   gave it; a check key is never a finding id, and a check ruled here
+   gave it, as `| Check | Before | After | Verdict |` — a ruling
+   outside a Verdict column is one no script reads; a check key is never a finding id, and a check ruled here
    never stands in for section 3's ruling on a baseline finding — the two
    tables answer to different keys. A baseline check grouped more
    coarsely than the operations it rules — by the route alone, its verbs
@@ -353,7 +358,8 @@ verify`, a report it cannot read, a repository it cannot compare).
   its end is `drive`; a chain reaching none is an `ask:` for the mode.
   A drive needs the user's confirmation when the
   stack or the record's base URL is not local. Its `verifies` line is
-  what the replay's `new --verifies` takes.
+  what the replay's `new --verifies` takes; its `entry:` line, the
+  `stack_config` entry the pair resolves to.
 - `boundary <baseline report>` decides **verification or
   re-measure**: the baseline's `tree_anchor` against `HEAD` of
   `--repo`, entry by entry; the tree at `revision` when there is no
@@ -381,7 +387,7 @@ verify`, a report it cannot read, a repository it cannot compare).
    tab-separated line per match: filename, kind, services, stack,
    environment, mode, `verifies`, `workload`, `repository` (`-`
    when absent); a flagged report is named on stderr, matched or not.
-2. A report matches on intersecting `services`, the same `stack` and the
+2. A report matches on the same `services` set, the same `stack` and the
    detected `environment` (`unknown` matches only `unknown`, with a
    warning; a provisional environment matches on services and stack
    alone, pending re-confirmation). A differing `workload` is kept and

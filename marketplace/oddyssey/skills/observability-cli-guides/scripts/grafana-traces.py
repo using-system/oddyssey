@@ -247,7 +247,30 @@ def _span_quantiles(keys, frm: str, to: str, settle: str) -> tuple[dict, list, b
         else:
             e["span_calls"] = None
         out[key] = e
-    return out, results, present
+    # a reset withholds the subtraction: the counter's increase() over the
+    # window, which counts across resets, stands in (as histogram and counter do)
+    reset = [k for k in keys if out[k].get("span_calls_reset")]
+    extra = run_many(
+        [
+            [
+                "metrics",
+                "query",
+                f'sum(increase(traces_spanmetrics_calls_total{{service="{s}", span_name="{n}"}}{win}))',
+                "--time",
+                at,
+            ]
+            for s, n in reset
+        ]
+    )
+    for key, r in zip(reset, extra):
+        res = prom_result(r.data) if r.ok else []
+        try:
+            out[key]["span_calls_increase"] = (
+                round(float(res[0]["value"][1])) if res else None
+            )
+        except (KeyError, IndexError, TypeError, ValueError):
+            out[key]["span_calls_increase"] = None
+    return out, results + list(extra), present
 
 
 def cmd_ops(ns) -> tuple[int, dict]:
@@ -1256,10 +1279,10 @@ def render(o: dict) -> str:
         )
         for k, e in o["operations"].items():
             out.append(
-                f"{k:44s} {_f(e['rooted_traces']):>6} {_f(e['containing_traces']):>7} {_f(e.get('span_p50_ms')):>8} {_f(e.get('span_p95_ms')):>7} {_f(e.get('span_p99_ms')):>7} {_f(e.get('span_calls')):>6} | "
+                f"{k:44s} {_f(e['rooted_traces']):>6} {_f(e['containing_traces']):>7} {_f(e.get('span_p50_ms')):>8} {_f(e.get('span_p95_ms')):>7} {_f(e.get('span_p99_ms')):>7} {_f(e.get('span_calls') if e.get('span_calls') is not None else e.get('span_calls_increase')):>6} | "
                 f"{_f(e['trace_p50_ms']):>9} {_f(e['trace_p95_ms']):>7} {_f(e['trace_max_ms']):>7} | {e['worst_containing_trace']} ({_f(e['worst_containing_ms'])} ms)"
                 f"{'  TRUNCATED' if e['truncated'] else ''}"
-                f"{'  RESET inside the window (calls withheld)' if e.get('span_calls_reset') else ''}"
+                f"{'  RESET inside the window (calls = increase())' if e.get('span_calls_reset') else ''}"
             )
         for s, nr in (o.get("never_rooted") or {}).items():
             out.append(
@@ -1271,7 +1294,7 @@ def render(o: dict) -> str:
                 )
             )
         out.append(
-            "  span p50/p95/p99 and calls: span metrics, settled (bucket-interpolated latency; calls = raw settled - raw start, withheld on a reset)"
+            "  span p50/p95/p99 and calls: span metrics, settled (bucket-interpolated latency; calls = raw settled - raw start, increase() on a reset)"
             + (
                 ""
                 if o.get("span_metrics_present")

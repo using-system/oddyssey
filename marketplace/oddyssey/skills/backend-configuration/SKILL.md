@@ -65,11 +65,13 @@ connection.
 python3 <this skill's directory>/scripts/preflight.py [--benchmark <dir>] [--containers <name>]
 ```
 
-Which CLIs are installed and at which version, what is running, the
-repository's branch and cleanliness, what each `.odd/` store holds, and
-a named benchmark's target service and base URLs — every question a
+Which CLIs are installed and at which version (the configured stack's
+among them), what is running (or that the Docker daemon is
+unreachable), the repository's branch and cleanliness, what each
+`.odd/` store holds, and a named benchmark's target service and base
+URLs — every question a
 preflight asks the machine rather than the user. It takes no judgment,
-so it takes no turns: one call, about a third of a second, instead of a
+so it takes no turns: one call instead of a
 shell command per question. Exit is always 0 — an absent CLI or a
 missing directory is an answer the steps below act on, not a failure.
 
@@ -138,9 +140,13 @@ is persisted for the configured environment, the plain `<stack>`
 otherwise — whole, never a merge of the two) and its `stack_config` is
 the values; read them there, never composed from `stack_config` by
 hand. For a replay's other pair (`odd-verify`, step 1) `effective`
-does not apply: resolve the entry yourself from `stack_config` —
-`<environment>-<stack>` when that key is present, else `<stack>` — and
-say so in the display, next to the divergence. Show that
+does not apply: the `baseline` command's `entry:` line names it — say
+so in the display, next to the divergence.
+An environment configured whose key is the plain `<stack>` (or none) is
+a **named degradation**, said as such: "no `<environment>-<stack>`
+entry - the runs read the plain entry (none: the CLI's active context),
+whose environment is unverified", with the offer `persist ... for
+<stack> in <environment>`. Show that
 configuration to the user **as-is, no confirmation needed** — it is
 informative: which instance, tenant, or site the queries are about to
 hit is exactly what a user wants to see before a run, and what catches a
@@ -309,11 +315,12 @@ unchecked stack is not persisted, and the fix is the user's.
 An **environment switch** — "target prod", "clear the environment" —
 is a write of the `environment` field and nothing else:
 `odd_config_set {"environment": "<name>"}` (kebab-case, never
-`unknown`), or `{"environment": null}` to clear it. It selects which
+`unknown` or `local`), or `{"environment": null}` to clear it. It selects which
 of the configured stack's entries the missions read (`## Check` step
-2's effective entry) and changes no `stack_config` value; on the local
-stack it is inert. A switch that names both ("switch to cloudwatch in
-prod") writes both fields in the one call. Like every path it ends at
+2's effective entry) and changes no `stack_config` value; the local
+stack refuses it, so on local write none and tell the user so. A
+switch that names both ("switch to cloudwatch in prod") writes both
+fields in the one call. Like every path it ends at
 verification (step 5).
 
 The switch alone touches nothing else: it does not boot, reset, or stop
@@ -349,7 +356,9 @@ excepted, it takes no prefix), under the prefixed key:
 `{"stack_config": {"<environment>-<stack>": {...}}}`. The key carries
 the environment, the fields stay the stack's, and the entry is whole:
 what the missions read for that pair is that entry alone, never the
-plain one underneath it. The
+plain one underneath it. Creating one, say so, and ask for the
+reference's other `What to persist` fields or offer to copy the plain
+entry's values into the same write. The
 payload is merged into that entry and every other entry
 is left untouched, so a one-value correction is a one-value call. Values
 are flat scalars (string, number, boolean) and nothing else: identifiers,

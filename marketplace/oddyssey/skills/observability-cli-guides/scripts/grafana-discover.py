@@ -4,7 +4,10 @@
 The queries are fixed by the inputs - service names and a window - so nothing
 here is for an agent to compose: per service it lists the metric names the
 store carries, the operations its traces are rooted at (with counts), its
-log line count and severities, and whether a CPU profile exists. Presence
+log line count and severities, whether a CPU profile exists, and its
+deployment environment - the deployment_environment_name label (falling back
+to deployment_environment) of its log streams and metric series, the log
+streams answering alone when the series query fails. Presence
 and absence are reported with the same weight, and every gcx command run is
 printed so the report can record it.
 
@@ -40,6 +43,27 @@ from grafana_gcx import (
     run_many,
     traces_list,
 )
+
+ENV_LABELS = ("deployment_environment_name", "deployment_environment")
+
+
+def environment(lines: list[dict], series: list[dict]) -> dict:
+    """The environment the service's own log streams and metric series carry."""
+    found: dict[str, set[str]] = {}
+    for source, label_sets in (
+        ("logs", [ln["stream"] for ln in lines]),
+        ("metrics", series),
+    ):
+        for labels in label_sets:
+            value = next((labels[k] for k in ENV_LABELS if labels.get(k)), None)
+            if value:
+                found.setdefault(source, set()).add(value)
+    envs = sorted(set().union(*found.values()))
+    return {
+        "environment": envs[0] if len(envs) == 1 else (envs or None),
+        "environment_read_from": ", ".join(sorted(found))
+        or "nothing (no deployment_environment_name nor deployment_environment label on its log streams or metric series)",
+    }
 
 
 def probe(services: list[str], frm: str, to: str, key: str = "service_name") -> dict:
@@ -113,6 +137,7 @@ def probe(services: list[str], frm: str, to: str, key: str = "service_name") -> 
             "truncated": log_truncated,
             "severity": sev,
         }
+        entry.update(environment(lines, prom_series(m.data) if m.ok else []))
         total, frames = flame_frames(p.data) if p.ok else (0, {})
         entry["profile_cpu"] = {
             "present": total > 0,
@@ -158,6 +183,15 @@ def render(r: dict) -> str:
             )
             + "  "
             + " ".join(f"{k}={v}" for k, v in sorted(lg["severity"].items()))
+        )
+        out.append(
+            "  environment "
+            + (
+                ", ".join(env)
+                if isinstance(env := e["environment"], list)
+                else env or "(none)"
+            )
+            + f"  read from: {e['environment_read_from']}"
         )
         pc = e["profile_cpu"]
         out.append(

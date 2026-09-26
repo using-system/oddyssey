@@ -610,12 +610,12 @@ report's stack-friction section.
 Two sources, labelled per line - the CLI's effective credentials and
 the persisted targeting values.
 
-**If the resolved entry persists `profile`, run every
-command below (display and connection proof alike) with `--profile
-<profile>`** - a bare call answers for whatever profile happens to
-resolve without a flag, which on an SSO setup with no `default` is
-routinely none at all, reporting a degradation on an account that is
-configured and working.
+**`profile` and `region` are required: run every command below
+(display and connection proof alike) with `--profile <profile>`** - an
+entry missing either is incomplete, the proof's exit 3 - and a bare
+call answers for whatever profile happens to resolve without a flag,
+which on an SSO setup with no `default` is routinely none at all, or
+another account.
 
 From the `aws` CLI:
 
@@ -655,9 +655,8 @@ otherwise - shown next to its key:
 - `xray` - the X-Ray group name the service graph reads (`--xray-group`),
   when persisted; the default group otherwise.
 
-Every field the user did not persist is listed as "not persisted - the
-mission will ask", and a present-but-empty resolved entry
-(`{}`) means exactly that for all of them: a valid state, not an error.
+Every other field the user did not persist is listed as "not persisted
+- the mission will ask": a valid state, not an error.
 Call out a persisted `region` that differs from the CLI's effective one
 - the query targets the persisted value.
 
@@ -674,7 +673,8 @@ Never echo: an access key, a session token, the SSO cache.
 python3 <Skills>/observability-cli-guides/scripts/cloudwatch-context.py check --profile <profile> --region <region> --log-group <log_group> --metrics-log-group <metrics_log_group>
 ```
 
-Whole surface: `--profile`, `--region` (required), `--log-group`,
+Whole surface: `--profile`, `--region` (required: either missing, exit
+3 - the entry is incomplete, nothing is run), `--log-group`,
 `--metrics-log-group` (each optional: given, proved to resolve;
 omitted, skipped and said so), `--json`. Two parts: **identity** - `aws
 sts get-caller-identity --profile <profile>` (needs no permission: a
@@ -726,8 +726,8 @@ information:
   under (`--profile <name>` / `AWS_PROFILE`). SSO setups routinely have
   **no `default` profile at all** - without this, `aws sts
   get-caller-identity` fails with `NoCredentials` even though the CLI is
-  configured and working under its named profile. Skip the field only
-  when a `default` profile truly resolves on its own.
+  configured and working under its named profile. The proof requires
+  it: persist `default` when that profile truly resolves on its own.
 - `log_group` - the CloudWatch Logs group the missions read for
   **application logs**. When the services follow a convention rather
   than one fixed group, store the **naming pattern** instead
