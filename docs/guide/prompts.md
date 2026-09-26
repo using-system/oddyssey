@@ -144,7 +144,8 @@ plan-ready report under `.odd/observe-run-reports/`. Arguments:
 **focus**, and **baseline expectations**. A deployment environment
 named in the arguments (`in prod`) is persisted like a named stack and
 selects the values persisted for it; the agent still detects the
-environment from the telemetry and stops when the two diverge.
+environment from the telemetry and stops, writing no report, when the
+two diverge.
 
 > The target stack's CLI must be installed, configured and connected
 > beforehand: the preflight proves it and fails fast — offering the

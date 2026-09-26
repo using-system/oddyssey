@@ -122,9 +122,8 @@ def matches(report: dict, scope: dict) -> bool:
         project = str(fm.get("project") or "")
         target = scope["project"]
         return not target or target == project or target.startswith(project + "/")
-    if scope["services"] and not (
-        set(scope["services"]) & set(as_list(fm.get("services")))
-    ):
+    # the same service set: the lineage get-status keys a report by
+    if scope["services"] and set(scope["services"]) != set(as_list(fm.get("services"))):
         return False
     if scope["environment"] and str(fm.get("environment")) != scope["environment"]:
         return False

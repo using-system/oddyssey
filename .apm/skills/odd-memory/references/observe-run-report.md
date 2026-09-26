@@ -83,7 +83,9 @@ The frontmatter mirrors the run **as it executed**, defaults applied —
 - `--env` is **detected**, never asked: the `deployment.environment.name`
   the service's telemetry reports; `local` by construction on the local
   stack; `unknown` when the service emits none (stated, and a telemetry
-  gap). One observation, one environment.
+  gap). One observation, one environment: an environment hard stop
+  (a split, or a divergence from the baseline's or the configured one)
+  writes no report.
 - The window is the observed interval, pasted as a query script printed
   it (`--from <start> --to <end>`) or given as `--window <start>/<end>`
   — never an instant recomputed by hand: in drive mode the scenario's own start and
@@ -381,7 +383,7 @@ verify`, a report it cannot read, a repository it cannot compare).
    tab-separated line per match: filename, kind, services, stack,
    environment, mode, `verifies`, `workload`, `repository` (`-`
    when absent); a flagged report is named on stderr, matched or not.
-2. A report matches on intersecting `services`, the same `stack` and the
+2. A report matches on the same `services` set, the same `stack` and the
    detected `environment` (`unknown` matches only `unknown`, with a
    warning; a provisional environment matches on services and stack
    alone, pending re-confirmation). A differing `workload` is kept and
