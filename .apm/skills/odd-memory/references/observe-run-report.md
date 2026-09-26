@@ -381,7 +381,7 @@ verify`, a report it cannot read, a repository it cannot compare).
    tab-separated line per match: filename, kind, services, stack,
    environment, mode, `verifies`, `workload`, `repository` (`-`
    when absent); a flagged report is named on stderr, matched or not.
-2. A report matches on intersecting `services`, the same `stack` and the
+2. A report matches on the same `services` set, the same `stack` and the
    detected `environment` (`unknown` matches only `unknown`, with a
    warning; a provisional environment matches on services and stack
    alone, pending re-confirmation). A differing `workload` is kept and

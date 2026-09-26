@@ -178,20 +178,20 @@ def store(repo: Repo) -> None:
 
 def test_recall_lists_the_matches_newest_first_with_the_frontmatter_columns(repo):
     store(repo)
-    proc = run(repo, "--service", "checkout")
+    proc = run(repo, "--service", "checkout", "--service", "payment")
     assert proc.returncode == 0, proc.stderr
+    assert lines(run(repo, "--service", "checkout"))[0] == [
+        "2026-08-12-1000-verify-a.md",
+        "observation",
+        "checkout",
+        "local",
+        "local",
+        "verify",
+        "2026-08-10-1000-a.md",
+        "-",
+        "-",
+    ]
     assert lines(proc) == [
-        [
-            "2026-08-12-1000-verify-a.md",
-            "observation",
-            "checkout",
-            "local",
-            "local",
-            "verify",
-            "2026-08-10-1000-a.md",
-            "-",
-            "-",
-        ],
         [
             "2026-08-11-1000-b.md",
             "observation",
@@ -202,17 +202,6 @@ def test_recall_lists_the_matches_newest_first_with_the_frontmatter_columns(repo
             "-",
             "peak-hour",
             "github.com/example-org/checkout",
-        ],
-        [
-            "2026-08-10-1000-a.md",
-            "observation",
-            "checkout",
-            "local",
-            "local",
-            "drive",
-            "-",
-            "-",
-            "-",
         ],
     ]
     assert proc.stderr == ""
@@ -232,20 +221,33 @@ def test_a_per_service_repository_map_prints_as_service_equals_repository(repo):
     )
 
 
-def test_services_intersect_and_stack_and_environment_filter(repo):
+def test_the_service_set_and_stack_and_environment_filter(repo):
+    # a report matches on the same service set - the lineage get-status keys
+    # by - never on a shared service: a baseline of another set sits in
+    # another row of the status than the run it answers
     store(repo)
     assert [l[0] for l in lines(run(repo, "--service", "payment"))] == [
         "2026-08-13-1000-c.md",
-        "2026-08-11-1000-b.md",
     ]
     assert [
-        l[0] for l in lines(run(repo, "--service", "payment", "--stack", "local"))
-    ] == ["2026-08-11-1000-b.md"]
+        l[0] for l in lines(run(repo, "--service", "checkout", "--env", "local"))
+    ] == ["2026-08-12-1000-verify-a.md", "2026-08-10-1000-a.md"]
     assert [
-        l[0] for l in lines(run(repo, "--service", "checkout", "--env", "prod"))
+        l[0]
+        for l in lines(
+            run(
+                repo,
+                "--service",
+                "payment",
+                "--service",
+                "checkout",
+                "--stack",
+                "local",
+            )
+        )
     ] == ["2026-08-11-1000-b.md"]
-    # two services: a report matches when it carries any of them
-    assert len(lines(run(repo, "--service", "checkout", "--service", "payment"))) == 4
+    assert lines(run(repo, "--service", "checkout", "--env", "prod")) == []
+    assert lines(run(repo, "--service", "checkout", "--service", "cart")) == []
     # no scope at all: the whole observation store
     assert len(lines(run(repo))) == 4
 
