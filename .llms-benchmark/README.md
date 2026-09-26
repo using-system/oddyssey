@@ -36,10 +36,11 @@ One row per model, effort and CLI, always its latest run.
 | **#18** | `openai/gpt-6-sol-pro` | medium | opencode | 1.13.0 | **11 / 11** | 5 / 3 / 3 | 10m53s | $4.25 | $0.387 |
 | **#19** | `qwen/qwen3.8-max-0902` | medium | opencode | 1.13.0 | 15 / 16 | 8 / 4 / 3 | 30m25s | $1.50 | $0.100 |
 | **#20** | `anthropic/claude-opus-5` | medium | claude | 1.13.0 | **17 / 17** | 8 / 6 / 3 | 19m31s | $6.15 | $0.362 |
-| **#21** | `anthropic/claude-fable-5.1` | medium | claude | 1.12.0 ⚠︎ | **17 / 17** | 10 / 5 / 2 | 17m08s | $7.55 | $0.444 |
-| **#22** | `z-ai/glm-5.3-flash` | default | opencode | 1.13.0 | 7 / 8 | 3 / 4 / 0 | 32m15s | **$0.10** | $0.014 |
-| **#23** | `anthropic/claude-sonnet-5` | medium | claude | 1.13.0 | **6 / 6** | 2 / 3 / 1 | 13m55s | $3.37 | $0.561 |
-| **#24** | `qwen/qwen3.8-27b` | medium | opencode | 1.13.0 | **11 / 11** | 5 / 3 / 3 | 40m25s | $1.62 | $0.147 |
+| **#21** | `anthropic/claude-fable-5.1` | medium | claude | 1.13.0 | 16 / 18 | 7 / 5 / 4 | 18m19s | $7.80 | $0.488 |
+| **#22** | `anthropic/claude-fable-5.1` | high | claude | 1.13.0 | 19 / 22 | 10 / 6 / 3 | 23m43s | $12.05 | $0.634 |
+| **#23** | `z-ai/glm-5.3-flash` | default | opencode | 1.13.0 | 7 / 8 | 3 / 4 / 0 | 32m15s | **$0.10** | $0.014 |
+| **#24** | `anthropic/claude-sonnet-5` | medium | claude | 1.13.0 | **6 / 6** | 2 / 3 / 1 | 13m55s | $3.37 | $0.561 |
+| **#25** | `qwen/qwen3.8-27b` | medium | opencode | 1.13.0 | **11 / 11** | 5 / 3 / 3 | 40m25s | $1.62 | $0.147 |
 
 <details>
 <summary>Run detail — phases, turns, tokens</summary>
@@ -66,7 +67,8 @@ One row per model, effort and CLI, always its latest run.
 | `openai/gpt-6-sol-pro` | medium | opencode | 1.13.0 | 2m18s | 2m01s | 6m34s | 34 | 11.5s | 5.0M | 38k | 4.1M | 4/4 |
 | `qwen/qwen3.8-max-0902` | medium | opencode | 1.13.0 | 4m04s | 2m01s | 24m20s | 34 | 22.5s | 2.8M | 67k | 2.5M | 4/4 |
 | `anthropic/claude-opus-5` | medium | claude | 1.13.0 | 2m47s | 2m02s | 14m42s | 53 | 6.6s | 5.8M | 62k | 5.8M | 4/4 |
-| `anthropic/claude-fable-5.1` | medium | claude | 1.12.0 ⚠︎ | 2m52s | 2m02s | 12m14s | 36 | 3.6s | 3.6M | 60k | 3.6M | 4/4 |
+| `anthropic/claude-fable-5.1` | medium | claude | 1.13.0 | 1m53s | 2m01s | 14m25s | 41 | 4.5s | 4.4M | 67k | 4.4M | 4/4 |
+| `anthropic/claude-fable-5.1` | high | claude | 1.13.0 | 3m24s | 2m02s | 18m17s | 31 | 5.3s | 3.4M | 95k | 3.4M | 4/4 |
 | `z-ai/glm-5.3-flash` | default | opencode | 1.13.0 | 6m42s | 2m03s | 23m30s | 34 | 22.3s | 2.3M | 74k | 1.8M | 4/4 |
 | `anthropic/claude-sonnet-5` | medium | claude | 1.13.0 | 2m36s | 2m02s | 9m17s | 84 | 2.0s | 10.6M | 52k | 10.6M | 4/4 |
 | `qwen/qwen3.8-27b` | medium | opencode | 1.13.0 | 3m49s | 2m00s | 34m36s | 48 | 16.6s | 5.9M | 133k | 3.7M | 4/4 |
