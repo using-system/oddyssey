@@ -437,3 +437,7 @@ def test_config_descriptions_state_the_environment_and_the_effective_entry():
     assert "stack_config_key" in get_description
     assert "<environment>-<stack>" in set_description
     assert '"environment": null' in set_description
+    # Issue #656: the refusals are stated where the write is described.
+    flat = " ".join(set_description.split())
+    assert "local stack takes no environment" in flat
+    assert "never a built-in one ends in" in flat

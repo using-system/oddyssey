@@ -71,8 +71,9 @@ DECLARATION_KEYS = frozenset({"stack_config_fields"})
 # a remote backend's targeting values differ per deployment environment,
 # so one stack may hold one entry per environment next to its plain one.
 # The environment is kebab-case with no trailing dash - stricter than
-# CUSTOM_NAME_RE - and never the sentinel the agents record when the
-# telemetry carries no environment. The key is parsed by suffix, the
+# CUSTOM_NAME_RE - never the sentinel the agents record when the
+# telemetry carries no environment, never "local" - the local stack's
+# environment by construction, which takes no other (#656). The key is parsed by suffix, the
 # longest known stack winning ("dev-azure-monitor" is dev + azure-monitor,
 # "pre-prod-cloudwatch" is pre-prod + cloudwatch); "local" takes no
 # prefix - the local stack is the local environment by construction. The
@@ -81,10 +82,11 @@ DECLARATION_KEYS = frozenset({"stack_config_fields"})
 # one: two whole entries, never a merge.
 ENVIRONMENT_RE = re.compile(r"^[a-z]([a-z0-9-]*[a-z0-9])?$")
 ENVIRONMENT_SENTINEL = "unknown"
+NOT_ENVIRONMENTS = frozenset({ENVIRONMENT_SENTINEL, "local"})
 KEY_FORMS = (
     "<stack> or <environment>-<stack> - <stack> a built-in or a declared custom"
     " stack, <environment> kebab-case (^[a-z]([a-z0-9-]*[a-z0-9])?$) and never"
-    f" {ENVIRONMENT_SENTINEL!r}; local takes no prefix"
+    f" {ENVIRONMENT_SENTINEL!r} or 'local'; local takes no prefix"
 )
 
 DEFAULTS = {
@@ -128,7 +130,7 @@ def _valid_environment(value: object) -> bool:
     return (
         isinstance(value, str)
         and ENVIRONMENT_RE.fullmatch(value) is not None
-        and value != ENVIRONMENT_SENTINEL
+        and value not in NOT_ENVIRONMENTS
     )
 
 
@@ -169,15 +171,24 @@ def _stack_config_key_allowed(stack: str, key: str, custom: dict) -> bool:
     return fields is None or key in fields
 
 
-def _effective_entry(stack: str, environment: str | None, stack_config: dict) -> dict:
+def _effective_entry(
+    stack: str, environment: str | None, stack_config: dict, custom: dict
+) -> dict:
     """The entry the configured pair resolves to: the environment's when
     one is persisted for it, the stack's plain one otherwise - whole, never
-    merged. On the local stack the environment is inert."""
+    merged. On the local stack the environment is inert. The composed key
+    must parse back to the pair: a known stack's own entry (a hand-edited
+    "monitor" next to azure-monitor, #656) is never another pair's."""
     if stack == "local":
         environment = None
     key = stack
-    if environment is not None and f"{environment}-{stack}" in stack_config:
-        key = f"{environment}-{stack}"
+    prefixed = f"{environment}-{stack}"
+    if (
+        environment is not None
+        and prefixed in stack_config
+        and resolve_stack_config_key(prefixed, custom) == (environment, stack)
+    ):
+        key = prefixed
     return {
         "stack": stack,
         "environment": environment,
@@ -218,15 +229,15 @@ def load(path: Path | None = None) -> dict:
     try:
         stored = json.loads(target.read_text())
     except FileNotFoundError:
-        effective["effective"] = _effective_entry("local", None, {})
+        effective["effective"] = _effective_entry("local", None, {}, {})
         return effective
     except (OSError, ValueError):
         effective["invalid_ignored"] = ["<file>"]
-        effective["effective"] = _effective_entry("local", None, {})
+        effective["effective"] = _effective_entry("local", None, {}, {})
         return effective
     if not isinstance(stored, dict):
         effective["invalid_ignored"] = ["<file>"]
-        effective["effective"] = _effective_entry("local", None, {})
+        effective["effective"] = _effective_entry("local", None, {}, {})
         return effective
 
     # Declarations first: the stack and the stack_config entries below are
@@ -306,7 +317,10 @@ def load(path: Path | None = None) -> dict:
     if invalid:
         effective["invalid_ignored"] = invalid
     effective["effective"] = _effective_entry(
-        effective["stack"], effective["environment"], effective["stack_config"]
+        effective["stack"],
+        effective["environment"],
+        effective["stack_config"],
+        effective["custom"],
     )
     return effective
 
@@ -340,7 +354,8 @@ def _validate_custom(partial: dict, stored_custom: dict) -> dict:
         # A name readable as <environment>-<known stack> would make a
         # stack_config key readable two ways (#618): refused in both
         # directions - the name itself, and a name that would turn an
-        # already-declared one into its environment entry.
+        # already-declared one, or a built-in (#656), into its
+        # environment entry.
         known = frozenset(STACKS) | frozenset(effective) - {name}
         parsed = _split_prefixed(name, known)
         if parsed is not None:
@@ -349,6 +364,15 @@ def _validate_custom(partial: dict, stored_custom: dict) -> dict:
                 f" entry of stack {parsed[1]!r} (stack_config keys are"
                 f" <environment>-<stack>) - pick a name that ends in no known stack"
             )
+        for builtin in STACKS:
+            split = _split_prefixed(builtin, known | {name})
+            if split is not None and split[1] == name:
+                raise ValueError(
+                    f"custom.{name}: declaring {name!r} would make the built-in"
+                    f" stack {builtin!r} read as its environment entry"
+                    f" (stack_config keys are <environment>-<stack>) - pick a"
+                    f" name that no built-in stack ends in"
+                )
         for other in sorted(effective):
             if other != name and _split_prefixed(other, known | {name}) is not None:
                 raise ValueError(
@@ -391,10 +415,18 @@ def save(partial: dict, path: Path | None = None) -> dict:
     ):
         raise ValueError(
             "environment must be a kebab-case name"
-            f" (^[a-z]([a-z0-9-]*[a-z0-9])?$), never {ENVIRONMENT_SENTINEL!r},"
-            f" or null to clear it, got {partial['environment']!r}"
+            f" (^[a-z]([a-z0-9-]*[a-z0-9])?$), never {ENVIRONMENT_SENTINEL!r}"
+            f" or 'local', or null to clear it, got {partial['environment']!r}"
         )
     effective_stack = partial.get("stack", before["stack"])
+    # The local stack is the local environment by construction (#656): an
+    # environment written there would stay invisible and re-arm on the
+    # next remote switch - refused, and a switch to local clears it (below).
+    if effective_stack == "local" and partial.get("environment") is not None:
+        raise ValueError(
+            "the local stack takes no environment - switch the stack first,"
+            " or in the same call"
+        )
     removed = {name for name, decl in partial.get("custom", {}).items() if decl is None}
     if effective_stack in removed:
         raise ValueError(
@@ -482,11 +514,10 @@ def save(partial: dict, path: Path | None = None) -> dict:
         stored = {}
     if "stack" in partial:
         stored["stack"] = partial["stack"]
-    if "environment" in partial:
-        if partial["environment"] is None:
-            stored.pop("environment", None)
-        else:
-            stored["environment"] = partial["environment"]
+    if effective_stack == "local" or partial.get("environment", "") is None:
+        stored.pop("environment", None)
+    elif "environment" in partial:
+        stored["environment"] = partial["environment"]
     if local_partial:
         stored_local = stored.get("local")
         stored["local"] = {

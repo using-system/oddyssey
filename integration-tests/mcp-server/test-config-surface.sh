@@ -6,7 +6,8 @@
 # the caller (#228) is accepted, validated and removed, an
 # environment-prefixed stack_config key merges and deletes next to the
 # stack's plain one while the environment field selects the effective
-# entry (#618), grafana persists its gcx context name and nothing else
+# entry (#618) and refuses an environment on the local stack (#656),
+# grafana persists its gcx context name and nothing else
 # (#619), and the tolerant read lists
 # hand-edited invalid values in invalid_ignored instead of crashing,
 # and the read carries the installed oddyssey-mcp version (#395).
@@ -202,7 +203,7 @@ jq -e '.content[0].text | fromjson | .effective.environment == "dev" and .effect
   || { echo "ASSERTION FAILED: fallback to the plain entry did not apply" >&2; cat "$workdir/env-dev.json" >&2; exit 1; }
 
 step "an invalid prefix is rejected and writes nothing (#618)"
-for key in "unknown-cloudwatch" "prod-nagios" "Prod-cloudwatch" "prod-local"; do
+for key in "unknown-cloudwatch" "local-cloudwatch" "prod-nagios" "Prod-cloudwatch" "prod-local"; do
   mcp_call odd_config_set "config={\"stack_config\":{\"$key\":{}}}" > "$workdir/env-bad-key.json" || true
   grep -q "stack_config keys" "$workdir/env-bad-key.json" \
     || { echo "ASSERTION FAILED: key $key was not rejected" >&2; cat "$workdir/env-bad-key.json" >&2; exit 1; }
@@ -210,9 +211,11 @@ done
 mcp_call odd_config_set 'config={"stack_config":{"prod-cloudwatch":{"workspace":"x"}}}' > "$workdir/env-bad-field.json" || true
 grep -q "accepts only" "$workdir/env-bad-field.json" \
   || { echo "ASSERTION FAILED: a field outside the stack's list was not rejected on a prefixed key" >&2; cat "$workdir/env-bad-field.json" >&2; exit 1; }
-mcp_call odd_config_set 'config={"environment":"Prod"}' > "$workdir/env-bad-value.json" || true
-grep -q "environment must be" "$workdir/env-bad-value.json" \
-  || { echo "ASSERTION FAILED: an invalid environment was not rejected" >&2; cat "$workdir/env-bad-value.json" >&2; exit 1; }
+for value in "Prod" "local"; do
+  mcp_call odd_config_set "config={\"environment\":\"$value\"}" > "$workdir/env-bad-value.json" || true
+  grep -q "environment must be" "$workdir/env-bad-value.json" \
+    || { echo "ASSERTION FAILED: environment $value was not rejected" >&2; cat "$workdir/env-bad-value.json" >&2; exit 1; }
+done
 mcp_call odd_config_get > "$workdir/after-env-bad.json"
 jq -e '.content[0].text | fromjson | .environment == "dev" and (.stack_config | keys) == ["cloudwatch","pre-prod-azure-monitor","prod-cloudwatch"] and (.stack_config["prod-cloudwatch"] | has("workspace") | not)' \
   "$workdir/after-env-bad.json" > /dev/null \
@@ -222,25 +225,32 @@ step "a custom name that reads as <environment>-<known stack> is refused (#618)"
 mcp_call odd_config_set 'config={"custom":{"prod-cloudwatch":{"stack_config_fields":["log_group"]}}}' > "$workdir/env-custom.json" || true
 grep -q "reads as the" "$workdir/env-custom.json" \
   || { echo "ASSERTION FAILED: custom name prod-cloudwatch was not refused" >&2; cat "$workdir/env-custom.json" >&2; exit 1; }
+# Nor one a built-in ends in: monitor would make azure-monitor read as azure + monitor (#656).
+mcp_call odd_config_set 'config={"custom":{"monitor":{"stack_config_fields":["base_url"]}}}' > "$workdir/env-custom-builtin.json" || true
+grep -q "would make the built-in stack 'azure-monitor'" "$workdir/env-custom-builtin.json" \
+  || { echo "ASSERTION FAILED: custom name monitor was not refused" >&2; cat "$workdir/env-custom-builtin.json" >&2; exit 1; }
 
-step "null deletes a key and an entry under a prefixed key, and clears the environment (#618)"
+step "null deletes a key and an entry under a prefixed key; a switch to local clears the environment (#618, #656)"
 mcp_call odd_config_set 'config={"stack_config":{"prod-cloudwatch":{"region":null}}}' > "$workdir/env-del-key.json"
 jq -e '.content[0].text | fromjson | .config.stack_config["prod-cloudwatch"] == {"log_group":"/example/prod-logs"}' \
   "$workdir/env-del-key.json" > /dev/null \
   || { echo "ASSERTION FAILED: null key deletion on a prefixed entry" >&2; cat "$workdir/env-del-key.json" >&2; exit 1; }
 mcp_call odd_config_set \
-  'config={"environment":null,"stack":"local","stack_config":{"prod-cloudwatch":null,"pre-prod-azure-monitor":null,"cloudwatch":null}}' \
+  'config={"stack":"local","stack_config":{"prod-cloudwatch":null,"pre-prod-azure-monitor":null,"cloudwatch":null}}' \
   > "$workdir/env-clear.json"
 jq -e '.content[0].text | fromjson | .config.environment == null and .config.stack_config == {} and .config.effective.stack_config_key == "local"' \
   "$workdir/env-clear.json" > /dev/null \
   || { echo "ASSERTION FAILED: clearing the environment and the prefixed entries" >&2; cat "$workdir/env-clear.json" >&2; exit 1; }
 
-step "on the local stack the environment is inert (#618)"
-mcp_call odd_config_set 'config={"environment":"prod"}' > "$workdir/env-local.json"
-jq -e '.content[0].text | fromjson | .config.environment == "prod" and .config.effective == {"stack":"local","environment":null,"stack_config_key":"local","stack_config":{}}' \
-  "$workdir/env-local.json" > /dev/null \
-  || { echo "ASSERTION FAILED: the environment selected something on the local stack" >&2; cat "$workdir/env-local.json" >&2; exit 1; }
-mcp_call odd_config_set 'config={"environment":null}' > /dev/null
+step "the local stack takes no environment; a remote switch in the same call does (#656)"
+mcp_call odd_config_set 'config={"environment":"prod"}' > "$workdir/env-local.json" || true
+grep -q "the local stack takes no environment" "$workdir/env-local.json" \
+  || { echo "ASSERTION FAILED: an environment was stored on the local stack" >&2; cat "$workdir/env-local.json" >&2; exit 1; }
+mcp_call odd_config_set 'config={"stack":"cloudwatch","environment":"prod"}' > "$workdir/env-remote.json"
+jq -e '.content[0].text | fromjson | .config.effective.stack == "cloudwatch" and .config.effective.environment == "prod"' \
+  "$workdir/env-remote.json" > /dev/null \
+  || { echo "ASSERTION FAILED: a remote switch with an environment was not accepted" >&2; cat "$workdir/env-remote.json" >&2; exit 1; }
+mcp_call odd_config_set 'config={"stack":"local"}' > /dev/null
 
 step "a non-scalar stack_config value is rejected and writes nothing"
 mcp_call odd_config_set \
