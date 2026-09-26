@@ -1054,7 +1054,7 @@ Steps:
         opencode, `Anthropic` for claude, `Copilot` for copilot;
       - **oddyssey** the version the row was taken under (step 7), right
         after them because a reader needs the protocol before any number
-        to its right means anything; ` ⚠︎` after it marks a row measured
+        to its right means anything; ` ⚠` after it marks a row measured
         under an earlier revision of the protocol;
       - **Confirmed / reported** `X / Y` from step 8;
       - **Telemetry / Perf / Behavior** the confirmed findings by kind,
