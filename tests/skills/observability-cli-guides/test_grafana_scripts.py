@@ -525,18 +525,22 @@ def test_counter_reset_inside_the_window_withholds_the_delta(fake_gcx, monkeypat
     assert row["count_increase"] > 0
     text = run("grafana-metrics", "histogram", "h", *WIN).stdout
     assert "RESET" in text and "count=-" not in text and "sum=-" not in text
-    # the span-metrics counter behind `ops` is guarded the same way
+    # the span-metrics counter behind `ops` is guarded the same way, and
+    # falls back to its increase() instead of withholding the calls
     r = run("grafana-traces", "ops", "--service", "llmbench-api", *WIN, "--json")
-    ops = json.loads(r.stdout)["operations"]
+    o = json.loads(r.stdout)
+    ops = o["operations"]
     assert r.returncode == 0 and ops
     assert all(
-        e["span_calls"] is None and e.get("span_calls_reset") is True
+        e["span_calls"] is None
+        and e.get("span_calls_reset") is True
+        and e["span_calls_increase"] > 0
         for e in ops.values()
     )
-    assert (
-        "RESET"
-        in run("grafana-traces", "ops", "--service", "llmbench-api", *WIN).stdout
-    )
+    assert any("increase(traces_spanmetrics_calls_total" in c for c in o["commands"])
+    text = run("grafana-traces", "ops", "--service", "llmbench-api", *WIN).stdout
+    assert "RESET inside the window (calls = increase())" in text
+    assert "withheld" not in text
 
 
 def test_histogram_rows_sort_busiest_first_even_when_a_row_reset():

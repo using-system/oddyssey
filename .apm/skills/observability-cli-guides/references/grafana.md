@@ -232,8 +232,8 @@ Six subcommands, the whole surface above (`--since <duration>` replaces
 
 - `ops` — per operation of each service: rooted and containing trace
   counts, span-level p50/p95/p99 and calls (span metrics, settled,
-  bucket-interpolated; `RESET` and calls withheld when the counter fell
-  inside the window; absence said), trace-level p50/p95/max over the
+  bucket-interpolated; `RESET` and calls from `increase()` when the
+  counter fell inside the window, verified 2026-09-26; absence said), trace-level p50/p95/max over the
   rooted traces (integer ms), the worst containing trace. `--fetch` adds
   each operation's p50, worst-rooted and worst-containing exemplar with
   its summary. `--name` adds an operation the roots do not show.
