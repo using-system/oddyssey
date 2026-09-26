@@ -71,7 +71,7 @@ unreachable), the repository's branch and cleanliness, what each
 `.odd/` store holds, and a named benchmark's target service and base
 URLs — every question a
 preflight asks the machine rather than the user. It takes no judgment,
-so it takes no turns: one call, about a third of a second, instead of a
+so it takes no turns: one call instead of a
 shell command per question. Exit is always 0 — an absent CLI or a
 missing directory is an answer the steps below act on, not a failure.
 
