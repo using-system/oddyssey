@@ -14,62 +14,62 @@ the CLI.
 
 One row per model, effort and CLI, always its latest run.
 
-| Rank | Model | Effort | CLI | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | $/confirmed | seconds/confirmed |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **#1** | `z-ai/glm-5.3-flashx` | default | opencode | 1.13.0 | 11 / 13 | 4 / 4 / 3 | 17m09s | $0.33 | $0.030 | 94s |
-| **#2** | `openai/gpt-5.6-luna` | medium | copilot | 1.13.0 | 7 / 8 | 3 / 2 / 2 | 6m29s | $0.11 | $0.016 | 56s |
-| **#3** | `openai/gpt-5.6-terra` | medium | copilot | 1.13.0 | 7 / 8 | 2 / 3 / 2 | **5m58s** | $0.88 | $0.126 | 51s |
-| **#4** | `openai/gpt-5.6-sol` | medium | copilot | 1.13.0 | 12 / 13 | 8 / 4 / 0 | 9m32s | $1.41 | $0.117 | 48s |
-| **#5** | `openai/gpt-6-sol` | high | copilot | 1.13.0 | 11 / 13 | 6 / 3 / 2 | 11m49s | $1.46 | $0.133 | 64s |
-| **#6** | `google/gemini-3.7-flash` | medium | opencode | 1.13.0 | 8 / 9 | 4 / 3 / 1 | 10m17s | $1.08 | $0.135 | 77s |
-| **#7** | `openai/gpt-6-sol` | medium | copilot | 1.13.0 | 8 / 10 | 5 / 2 / 1 | 10m23s | $1.29 | $0.161 | 78s |
-| **#8** | `z-ai/glm-5.3` | default | opencode | 1.13.0 | 17 / 19 | 9 / 4 / 4 | 19m44s | $1.39 | $0.082 | 70s |
-| **#9** | `anthropic/claude-opus-5.5` | medium | claude | 1.13.0 | 17 / 20 | 8 / 4 / 5 | 12m28s | $3.61 | $0.212 | **44s** |
-| **#10** | `anthropic/claude-opus-5.5` | high | claude | 1.13.0 | 19 / 21 | 11 / 5 / 3 | 17m29s | $4.59 | $0.242 | 55s |
-| **#11** | `openai/gpt-6-luna` | medium | copilot | 1.13.0 | **11 / 11** | 6 / 3 / 2 | 25m34s | $0.18 | $0.016 | 139s |
-| **#12** | `deepseek/deepseek-v4.1-flash` | default | opencode | 1.13.0 | **16 / 16** | 10 / 3 / 3 | 29m05s | $0.16 | **$0.010** | 109s |
-| **#13** | `x-ai/grok-4.7` | medium | opencode | 1.13.0 | 10 / 14 | 5 / 4 / 1 | 16m32s | $1.99 | $0.199 | 99s |
-| **#14** | `openai/gpt-6-luna` | high | copilot | 1.13.0 | 10 / 15 | 7 / 3 / 0 | 25m07s | $0.18 | $0.018 | 151s |
-| **#15** | `google/gemini-3.8-flash` | medium | opencode | 1.13.0 | **12 / 12** | 6 / 4 / 2 | 20m39s | $2.29 | $0.191 | 103s |
-| **#16** | `z-ai/glm-5.3-prime` | high | opencode | 1.13.0 | 12 / 13 | 6 / 3 / 3 | 17m52s | $3.42 | $0.285 | 89s |
-| **#17** | `x-ai/grok-4.7` | high | opencode | 1.13.0 | 10 / 14 | 5 / 3 / 2 | 23m54s | $2.70 | $0.270 | 143s |
-| **#18** | `qwen/qwen3.8-max-0902` | medium | opencode | 1.13.0 | 15 / 16 | 8 / 4 / 3 | 30m25s | $1.50 | $0.100 | 122s |
-| **#19** | `anthropic/claude-opus-5` | medium | claude | 1.13.0 | **17 / 17** | 8 / 6 / 3 | 19m31s | $6.15 | $0.362 | 69s |
-| **#20** | `anthropic/claude-fable-5.1` | medium | claude | 1.13.0 | 16 / 18 | 7 / 5 / 4 | 18m19s | $7.80 | $0.488 | 69s |
-| **#21** | `anthropic/claude-fable-5.1` | high | claude | 1.13.0 | 19 / 22 | 10 / 6 / 3 | 23m43s | $12.05 | $0.634 | 75s |
-| **#22** | `z-ai/glm-5.3-flash` | default | opencode | 1.13.0 | 7 / 8 | 3 / 4 / 0 | 32m15s | **$0.10** | $0.014 | 276s |
-| **#23** | `anthropic/claude-sonnet-5` | medium | claude | 1.13.0 | **6 / 6** | 2 / 3 / 1 | 13m55s | $3.37 | $0.561 | 139s |
-| **#24** | `qwen/qwen3.8-27b` | medium | opencode | 1.13.0 | **11 / 11** | 5 / 3 / 3 | 40m25s | $1.62 | $0.147 | 220s |
+| Rank | Model | Effort | CLI | Provider | oddyssey | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | Accuracy | $/confirmed | seconds/confirmed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **#1** | `z-ai/glm-5.3-flashx` | default | opencode | OpenRouter | 1.13.0 | 11 / 13 | 4 / 4 / 3 | 17m09s | $0.33 | 85% | $0.030 | 94s |
+| **#2** | `openai/gpt-5.6-luna` | medium | copilot | GitHub Copilot | 1.13.0 | 7 / 8 | 3 / 2 / 2 | 6m29s | $0.11 | 88% | $0.016 | 56s |
+| **#3** | `openai/gpt-5.6-terra` | medium | copilot | GitHub Copilot | 1.13.0 | 7 / 8 | 2 / 3 / 2 | **5m58s** | $0.88 | 88% | $0.126 | 51s |
+| **#4** | `openai/gpt-5.6-sol` | medium | copilot | GitHub Copilot | 1.13.0 | 12 / 13 | 8 / 4 / 0 | 9m32s | $1.41 | 92% | $0.117 | 48s |
+| **#5** | `openai/gpt-6-sol` | high | copilot | GitHub Copilot | 1.13.0 | 11 / 13 | 6 / 3 / 2 | 11m49s | $1.46 | 85% | $0.133 | 64s |
+| **#6** | `google/gemini-3.7-flash` | medium | opencode | OpenRouter | 1.13.0 | 8 / 9 | 4 / 3 / 1 | 10m17s | $1.08 | 89% | $0.135 | 77s |
+| **#7** | `openai/gpt-6-sol` | medium | copilot | GitHub Copilot | 1.13.0 | 8 / 10 | 5 / 2 / 1 | 10m23s | $1.29 | 80% | $0.161 | 78s |
+| **#8** | `z-ai/glm-5.3` | default | opencode | OpenRouter | 1.13.0 | 17 / 19 | 9 / 4 / 4 | 19m44s | $1.39 | 89% | $0.082 | 70s |
+| **#9** | `anthropic/claude-opus-5.5` | medium | claude | Anthropic | 1.13.0 | 17 / 20 | 8 / 4 / 5 | 12m28s | $3.61 | 85% | $0.212 | **44s** |
+| **#10** | `anthropic/claude-opus-5.5` | high | claude | Anthropic | 1.13.0 | 19 / 21 | 11 / 5 / 3 | 17m29s | $4.59 | 90% | $0.242 | 55s |
+| **#11** | `openai/gpt-6-luna` | medium | copilot | GitHub Copilot | 1.13.0 | **11 / 11** | 6 / 3 / 2 | 25m34s | $0.18 | **100%** | $0.016 | 139s |
+| **#12** | `deepseek/deepseek-v4.1-flash` | default | opencode | OpenRouter | 1.13.0 | **16 / 16** | 10 / 3 / 3 | 29m05s | $0.16 | **100%** | **$0.010** | 109s |
+| **#13** | `x-ai/grok-4.7` | medium | opencode | OpenRouter | 1.13.0 | 10 / 14 | 5 / 4 / 1 | 16m32s | $1.99 | 71% | $0.199 | 99s |
+| **#14** | `openai/gpt-6-luna` | high | copilot | GitHub Copilot | 1.13.0 | 10 / 15 | 7 / 3 / 0 | 25m07s | $0.18 | 67% | $0.018 | 151s |
+| **#15** | `google/gemini-3.8-flash` | medium | opencode | OpenRouter | 1.13.0 | **12 / 12** | 6 / 4 / 2 | 20m39s | $2.29 | **100%** | $0.191 | 103s |
+| **#16** | `z-ai/glm-5.3-prime` | high | opencode | OpenRouter | 1.13.0 | 12 / 13 | 6 / 3 / 3 | 17m52s | $3.42 | 92% | $0.285 | 89s |
+| **#17** | `x-ai/grok-4.7` | high | opencode | OpenRouter | 1.13.0 | 10 / 14 | 5 / 3 / 2 | 23m54s | $2.70 | 71% | $0.270 | 143s |
+| **#18** | `qwen/qwen3.8-max-0902` | medium | opencode | OpenRouter | 1.13.0 | 15 / 16 | 8 / 4 / 3 | 30m25s | $1.50 | 94% | $0.100 | 122s |
+| **#19** | `anthropic/claude-opus-5` | medium | claude | Anthropic | 1.13.0 | **17 / 17** | 8 / 6 / 3 | 19m31s | $6.15 | **100%** | $0.362 | 69s |
+| **#20** | `anthropic/claude-fable-5.1` | medium | claude | Anthropic | 1.13.0 | 16 / 18 | 7 / 5 / 4 | 18m19s | $7.80 | 89% | $0.488 | 69s |
+| **#21** | `anthropic/claude-fable-5.1` | high | claude | Anthropic | 1.13.0 | 19 / 22 | 10 / 6 / 3 | 23m43s | $12.05 | 86% | $0.634 | 75s |
+| **#22** | `z-ai/glm-5.3-flash` | default | opencode | OpenRouter | 1.13.0 | 7 / 8 | 3 / 4 / 0 | 32m15s | **$0.10** | 88% | $0.014 | 276s |
+| **#23** | `anthropic/claude-sonnet-5` | medium | claude | Anthropic | 1.13.0 | **6 / 6** | 2 / 3 / 1 | 13m55s | $3.37 | **100%** | $0.561 | 139s |
+| **#24** | `qwen/qwen3.8-27b` | medium | opencode | OpenRouter | 1.13.0 | **11 / 11** | 5 / 3 / 3 | 40m25s | $1.62 | **100%** | $0.147 | 220s |
 
 <details>
 <summary>Run detail — phases, turns, tokens</summary>
 
-| Model | Effort | CLI | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `z-ai/glm-5.3-flashx` | default | opencode | 1.13.0 | 3m10s | 2m01s | 11m58s | 32 | 13.3s | 2.3M | 68k | 2.1M | 4/4 |
-| `openai/gpt-5.6-luna` | medium | copilot | 1.13.0 | 1m02s | 2m01s | 3m26s | 38 | 2.8s | 2.9M | 17k | 2.9M | 4/4 |
-| `openai/gpt-5.6-terra` | medium | copilot | 1.13.0 | 0m36s | 2m01s | 3m21s | 26 | 3.2s | 2.4M | 13k | 2.4M | 4/4 |
-| `openai/gpt-5.6-sol` | medium | copilot | 1.13.0 | 1m21s | 2m00s | 6m11s | 48 | 4.2s | 3.7M | 28k | 3.5M | 4/4 |
-| `openai/gpt-6-sol` | high | copilot | 1.13.0 | 2m05s | 2m03s | 7m41s | 51 | 5.1s | 3.9M | 29k | 3.9M | 4/4 |
-| `google/gemini-3.7-flash` | medium | opencode | 1.13.0 | 2m24s | 2m02s | 5m51s | 90 | 4.3s | 6.5M | 32k | 5.8M | 4/4 |
-| `openai/gpt-6-sol` | medium | copilot | 1.13.0 | 1m38s | 2m03s | 6m42s | 44 | 5.9s | 3.3M | 24k | 3.3M | 4/4 |
-| `z-ai/glm-5.3` | default | opencode | 1.13.0 | 3m17s | 2m02s | 14m25s | 44 | 9.4s | 4.4M | 121k | 4.0M | 4/4 |
-| `anthropic/claude-opus-5.5` | medium | claude | 1.13.0 | 1m12s | 2m01s | 9m15s | 49 | 2.7s | 5.5M | 56k | 5.5M | 4/4 |
-| `anthropic/claude-opus-5.5` | high | claude | 1.13.0 | 2m17s | 2m19s | 12m53s | 63 | 2.5s | 7.5M | 82k | 7.5M | 4/4 |
-| `openai/gpt-6-luna` | medium | copilot | 1.13.0 | 1m03s | 2m01s | 22m30s | 64 | 7.6s | 7.7M | 138k | 7.7M | 4/4 |
-| `deepseek/deepseek-v4.1-flash` | default | opencode | 1.13.0 | 5m59s | 2m02s | 21m04s | 73 | 11.9s | 8.0M | 94k | 7.4M | 4/4 |
-| `x-ai/grok-4.7` | medium | opencode | 1.13.0 | 3m55s | 2m02s | 10m35s | 43 | 7.6s | 3.3M | 57k | 2.9M | 4/4 |
-| `openai/gpt-6-luna` | high | copilot | 1.13.0 | 2m04s | 2m01s | 21m01s | 57 | 10.9s | 6.6M | 165k | 6.6M | 4/4 |
-| `google/gemini-3.8-flash` | medium | opencode | 1.13.0 | 9m58s | 2m03s | 8m38s | 148 | 4.4s | 12.8M | 59k | 11.1M | 4/4 |
-| `z-ai/glm-5.3-prime` | high | opencode | 1.13.0 | 2m00s | 2m30s | 13m22s | 48 | 11.3s | 3.9M | 83k | 3.7M | 4/4 |
-| `x-ai/grok-4.7` | high | opencode | 1.13.0 | 4m32s | 2m02s | 17m20s | 41 | 14.5s | 3.7M | 86k | 3.1M | 4/4 |
-| `qwen/qwen3.8-max-0902` | medium | opencode | 1.13.0 | 4m04s | 2m01s | 24m20s | 34 | 22.5s | 2.8M | 67k | 2.5M | 4/4 |
-| `anthropic/claude-opus-5` | medium | claude | 1.13.0 | 2m47s | 2m02s | 14m42s | 53 | 6.6s | 5.8M | 62k | 5.8M | 4/4 |
-| `anthropic/claude-fable-5.1` | medium | claude | 1.13.0 | 1m53s | 2m01s | 14m25s | 41 | 4.5s | 4.4M | 67k | 4.4M | 4/4 |
-| `anthropic/claude-fable-5.1` | high | claude | 1.13.0 | 3m24s | 2m02s | 18m17s | 31 | 5.3s | 3.4M | 95k | 3.4M | 4/4 |
-| `z-ai/glm-5.3-flash` | default | opencode | 1.13.0 | 6m42s | 2m03s | 23m30s | 34 | 22.3s | 2.3M | 74k | 1.8M | 4/4 |
-| `anthropic/claude-sonnet-5` | medium | claude | 1.13.0 | 2m36s | 2m02s | 9m17s | 84 | 2.0s | 10.6M | 52k | 10.6M | 4/4 |
-| `qwen/qwen3.8-27b` | medium | opencode | 1.13.0 | 3m49s | 2m00s | 34m36s | 48 | 16.6s | 5.9M | 133k | 3.7M | 4/4 |
+| Model | Effort | CLI | Provider | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `z-ai/glm-5.3-flashx` | default | opencode | OpenRouter | 1.13.0 | 3m10s | 2m01s | 11m58s | 32 | 13.3s | 2.3M | 68k | 2.1M | 4/4 |
+| `openai/gpt-5.6-luna` | medium | copilot | GitHub Copilot | 1.13.0 | 1m02s | 2m01s | 3m26s | 38 | 2.8s | 2.9M | 17k | 2.9M | 4/4 |
+| `openai/gpt-5.6-terra` | medium | copilot | GitHub Copilot | 1.13.0 | 0m36s | 2m01s | 3m21s | 26 | 3.2s | 2.4M | 13k | 2.4M | 4/4 |
+| `openai/gpt-5.6-sol` | medium | copilot | GitHub Copilot | 1.13.0 | 1m21s | 2m00s | 6m11s | 48 | 4.2s | 3.7M | 28k | 3.5M | 4/4 |
+| `openai/gpt-6-sol` | high | copilot | GitHub Copilot | 1.13.0 | 2m05s | 2m03s | 7m41s | 51 | 5.1s | 3.9M | 29k | 3.9M | 4/4 |
+| `google/gemini-3.7-flash` | medium | opencode | OpenRouter | 1.13.0 | 2m24s | 2m02s | 5m51s | 90 | 4.3s | 6.5M | 32k | 5.8M | 4/4 |
+| `openai/gpt-6-sol` | medium | copilot | GitHub Copilot | 1.13.0 | 1m38s | 2m03s | 6m42s | 44 | 5.9s | 3.3M | 24k | 3.3M | 4/4 |
+| `z-ai/glm-5.3` | default | opencode | OpenRouter | 1.13.0 | 3m17s | 2m02s | 14m25s | 44 | 9.4s | 4.4M | 121k | 4.0M | 4/4 |
+| `anthropic/claude-opus-5.5` | medium | claude | Anthropic | 1.13.0 | 1m12s | 2m01s | 9m15s | 49 | 2.7s | 5.5M | 56k | 5.5M | 4/4 |
+| `anthropic/claude-opus-5.5` | high | claude | Anthropic | 1.13.0 | 2m17s | 2m19s | 12m53s | 63 | 2.5s | 7.5M | 82k | 7.5M | 4/4 |
+| `openai/gpt-6-luna` | medium | copilot | GitHub Copilot | 1.13.0 | 1m03s | 2m01s | 22m30s | 64 | 7.6s | 7.7M | 138k | 7.7M | 4/4 |
+| `deepseek/deepseek-v4.1-flash` | default | opencode | OpenRouter | 1.13.0 | 5m59s | 2m02s | 21m04s | 73 | 11.9s | 8.0M | 94k | 7.4M | 4/4 |
+| `x-ai/grok-4.7` | medium | opencode | OpenRouter | 1.13.0 | 3m55s | 2m02s | 10m35s | 43 | 7.6s | 3.3M | 57k | 2.9M | 4/4 |
+| `openai/gpt-6-luna` | high | copilot | GitHub Copilot | 1.13.0 | 2m04s | 2m01s | 21m01s | 57 | 10.9s | 6.6M | 165k | 6.6M | 4/4 |
+| `google/gemini-3.8-flash` | medium | opencode | OpenRouter | 1.13.0 | 9m58s | 2m03s | 8m38s | 148 | 4.4s | 12.8M | 59k | 11.1M | 4/4 |
+| `z-ai/glm-5.3-prime` | high | opencode | OpenRouter | 1.13.0 | 2m00s | 2m30s | 13m22s | 48 | 11.3s | 3.9M | 83k | 3.7M | 4/4 |
+| `x-ai/grok-4.7` | high | opencode | OpenRouter | 1.13.0 | 4m32s | 2m02s | 17m20s | 41 | 14.5s | 3.7M | 86k | 3.1M | 4/4 |
+| `qwen/qwen3.8-max-0902` | medium | opencode | OpenRouter | 1.13.0 | 4m04s | 2m01s | 24m20s | 34 | 22.5s | 2.8M | 67k | 2.5M | 4/4 |
+| `anthropic/claude-opus-5` | medium | claude | Anthropic | 1.13.0 | 2m47s | 2m02s | 14m42s | 53 | 6.6s | 5.8M | 62k | 5.8M | 4/4 |
+| `anthropic/claude-fable-5.1` | medium | claude | Anthropic | 1.13.0 | 1m53s | 2m01s | 14m25s | 41 | 4.5s | 4.4M | 67k | 4.4M | 4/4 |
+| `anthropic/claude-fable-5.1` | high | claude | Anthropic | 1.13.0 | 3m24s | 2m02s | 18m17s | 31 | 5.3s | 3.4M | 95k | 3.4M | 4/4 |
+| `z-ai/glm-5.3-flash` | default | opencode | OpenRouter | 1.13.0 | 6m42s | 2m03s | 23m30s | 34 | 22.3s | 2.3M | 74k | 1.8M | 4/4 |
+| `anthropic/claude-sonnet-5` | medium | claude | Anthropic | 1.13.0 | 2m36s | 2m02s | 9m17s | 84 | 2.0s | 10.6M | 52k | 10.6M | 4/4 |
+| `qwen/qwen3.8-27b` | medium | opencode | OpenRouter | 1.13.0 | 3m49s | 2m00s | 34m36s | 48 | 16.6s | 5.9M | 133k | 3.7M | 4/4 |
 
 Token counts are rounded; the exact figures are in each run's pull
 request. Input includes the cached share, so Input and Cache overlap by
@@ -82,10 +82,11 @@ design.
 - **Rank** weighs findings, cost and duration together, cost and duration the heavier since the 1.13.0 campaign. It is decided in each row's pull request, never computed: findings alone would rank a 67-minute run first, duration alone rewards whoever gives up soonest, cost alone rewards whoever barely looks. Adding a model re-sorts the whole table.
 - **Confirmed / reported** is the grade: how many of the findings the model reported held up when checked against the telemetry it cited and the code it accused. 3 / 3 beats 4 / 12. Anomalies and telemetry gaps both count; a restatement counts once; a row bundling several defects counts once per defect.
 - **Telemetry / Perf / Behavior** splits the confirmed findings by kind.
+- **Accuracy** is confirmed over reported, as a percentage: how much of what the model said held up.
 - **$/confirmed** is what one trustworthy finding costs.
 - **seconds/confirmed** is how long one trustworthy finding takes: the total duration divided by the confirmed findings.
 - **Effort** is the reasoning effort the CLI ran the model at (`low`, `medium`, `high`, ...), `medium` unless the run asked for another. `default` means the CLI offers the model no variant at the requested level, so the model ran at its provider's default effort.
-- **CLI** is the coding-agent CLI the mission ran in; its version is in the row's pull request. Model, effort and CLI identify a row; the oddyssey version does not, a new run replaces the row.
+- **CLI** is the coding-agent CLI the mission ran in; its version is in the row's pull request. **Provider** is who served the model to that CLI: OpenRouter for opencode, Anthropic for claude, GitHub Copilot for copilot. Model, effort and CLI identify a row; the oddyssey version does not, a new run replaces the row.
 - **Signals**: how many of metrics, traces, logs and profiles the run queried. Not part of the grade, the context to read it in.
 - **Preflight / Drive / Observation**: the drive is the scenario's fixed two minutes; a long preflight is a model that is lost, a long observation a model that is thorough. **Turns** and **median turn** separate groping (many short turns) from slow answering (few long ones).
 - **Input / Output / Cache / Cost** come from the CLI's own session store after the run, whole session tree included. Input is the whole prompt processed, cached share included (cache is that share); output includes reasoning; cost is the provider's billed figure, cross-checked against its list prices.

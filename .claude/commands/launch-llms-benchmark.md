@@ -1025,14 +1025,16 @@ Steps:
       history: one row per model, effort and CLI, always the latest
       run.
 
-    **Two tables, not one.** Nineteen columns scroll the model name off
+    **Two tables, not one.** Twenty-two columns scroll the model name off
     the screen and the rows stop being readable, and GitHub keeps no CSS
     to pin a column. So:
 
-    - a **headline table** of eleven columns — rank, model, effort, CLI, oddyssey
+    - a **headline table** of thirteen columns — rank, model, effort, CLI,
+      provider, oddyssey
       version, `confirmed / reported`, the findings by kind under a
       single `Telemetry / Perf / Behavior` header written `X / X / X`,
-      total duration, cost, cost per confirmed finding and seconds per
+      total duration, cost, accuracy (confirmed over reported, as a
+      percentage), cost per confirmed finding and seconds per
       confirmed finding (the total duration divided by the confirmed
       findings). It fits
       without scrolling and answers the question on its own. The effort
@@ -1041,10 +1043,13 @@ Steps:
       column names the coding-agent CLI the mission ran in — the `<cli>`
       argument, `opencode`, `claude` or `copilot`, with no version: the version
       belongs in the pull request, where the row's exact figures already
-      live. The oddyssey version sits right after it because it says
+      live. The provider column follows it and names who served the model:
+      `OpenRouter` for opencode, `Anthropic` for claude, `GitHub Copilot`
+      for copilot. The oddyssey version sits right after it because it says
       which protocol a row was taken under, which a reader needs before
       any number to its right means anything;
     - a **detail table** inside a `<details>` block — model, effort, CLI,
+      provider,
       oddyssey version, the three phase durations, turns, median turn
       latency, input / output / cache tokens, and signals. Round the
       token counts (`30.0M`, `79k`): the
