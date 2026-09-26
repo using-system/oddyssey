@@ -3,7 +3,7 @@ run-name: "release: ${{ github.ref_name }}"
 
 on:
   # One trigger, one act: pushing a version tag IS the release order.
-  #   git tag v1.7.0 && git push origin v1.7.0
+  #   git -c tag.gpgsign=false tag v1.7.0 && git push origin v1.7.0
   # The workflow then: computes the bumps for exactly that version,
   # opens the release PR with the oddyssey-release App (so pull_request
   # CI runs on it), waits for those checks, squash-merges it, re-points
