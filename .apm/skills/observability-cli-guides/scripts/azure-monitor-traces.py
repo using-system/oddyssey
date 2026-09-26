@@ -3,7 +3,7 @@
 
     azure-monitor-traces.py operations --app <app_insights_app> --service orders-api --from ... --to ...
     azure-monitor-traces.py dependencies --app <app_insights_app> --service orders-api --since 30m
-    azure-monitor-traces.py exemplars --app <app_insights_app> --service orders-api --slow 3 --failed 3 --since 30m
+    azure-monitor-traces.py exemplars --app <app_insights_app> --service orders-api --since 30m
     azure-monitor-traces.py trace <operation_Id> --app <app_insights_app> [--since 24h]
     azure-monitor-traces.py watch --app <app_insights_app> --identity odd-bench/<name> --from <dispatch instant> --state <scratch>/<slug>-watch.json [--to <deadline>]
 
@@ -13,9 +13,10 @@ Whole surface - every subcommand takes --app (the appId GUID), a window
 dependencies, exemplars and watch take --service (repeatable, a
 cloud_RoleName; none = every service). operations adds --top (rows, default
 20) and --bin (a duration: adds the request count, failures and p95 per
-time bucket). exemplars adds --operation (the request name, repeatable),
---slow N (the slowest requests, default 3), --failed N (the newest failed
-requests, default 3). trace takes the operation_Id. watch takes --identity
+time bucket). exemplars picks, per operation, the request nearest its p50
+and the slowest; it adds --operation (the request name, repeatable),
+--slow N (the slowest requests per operation, default 1), --failed N (the
+newest failed requests, default 3). trace takes the operation_Id. watch takes --identity
 (the run's User-Agent prefix, matched with startswith), --state (its state
 file; the same invocation again resumes it), --bin (default 30s),
 --ended-after (empty closed bins that end a started run with no schedule
@@ -334,7 +335,19 @@ def cmd_exemplars(ns) -> tuple[int, dict]:
     calls = [
         ai_call(
             ns.app,
-            f"requests {svc}{op}| top {ns.slow} by duration desc | project {EX_COLS}",
+            f"requests {svc}{op}| summarize p50=percentile(duration, 50) by cloud_RoleName, name"
+            f" | join kind=inner (requests {svc}{op}) on cloud_RoleName, name"
+            " | extend odd_gap = abs(duration - p50)"
+            " | summarize arg_min(odd_gap, timestamp, duration, success, resultCode, operation_Id, id, p50) by cloud_RoleName, name"
+            f" | order by p50 desc | project {EX_COLS}, p50",
+            frm,
+            to,
+        ),
+        ai_call(
+            ns.app,
+            f"requests {svc}{op}| extend odd_key = strcat(cloud_RoleName, '/', name)"
+            f" | partition hint.strategy=native by odd_key (top {ns.slow} by duration desc)"
+            f" | order by duration desc | project {EX_COLS}",
             frm,
             to,
         ),
@@ -346,9 +359,10 @@ def cmd_exemplars(ns) -> tuple[int, dict]:
         ),
     ]
     res = run_many(calls)
-    slow = ai_rows(res[0].data) if res[0].ok else []
-    failed = ai_rows(res[1].data) if res[1].ok else []
-    ids = list(dict.fromkeys([r["operation_Id"] for r in slow + failed]))
+    p50 = ai_rows(res[0].data) if res[0].ok else []
+    slow = ai_rows(res[1].data) if res[1].ok else []
+    failed = ai_rows(res[2].data) if res[2].ok else []
+    ids = list(dict.fromkeys([r["operation_Id"] for r in p50 + slow + failed]))
     detail: dict[str, dict] = {
         i: {"dependencies": [], "exceptions": [], "logs": []} for i in ids
     }
@@ -392,10 +406,11 @@ def cmd_exemplars(ns) -> tuple[int, dict]:
                         "message": row["message"],
                     }
                 )
-    for r in slow + failed:
+    for r in p50 + slow + failed:
         r.update(detail.get(r["operation_Id"], {}))
     out = {
         "window": [frm, to],
+        "p50": p50,
         "slow": slow,
         "failed_requests": failed,
         "failed": failures(res),
@@ -420,7 +435,14 @@ def _render_ex(r: dict) -> list[str]:
 
 
 def render_exemplars(o: dict) -> str:
-    out = [f"slowest requests, {o['window'][0]}..{o['window'][1]}:"]
+    out = [f"p50 request per operation, {o['window'][0]}..{o['window'][1]}:"]
+    for r in o["p50"]:
+        lines = _render_ex(r)
+        lines[0] += f"  (operation p50 {r['p50']:.4g} ms)"
+        out += lines
+    if not o["p50"]:
+        out.append("  (none)")
+    out.append("slowest requests per operation:")
     for r in o["slow"]:
         out += _render_ex(r)
     if not o["slow"]:
@@ -1039,7 +1061,7 @@ def main() -> int:
     c = sub.add_parser("exemplars")
     c.add_argument("--service", action="append")
     c.add_argument("--operation", action="append")
-    c.add_argument("--slow", type=int, default=3)
+    c.add_argument("--slow", type=int, default=1)
     c.add_argument("--failed", type=int, default=3)
     d = sub.add_parser("trace")
     d.add_argument("operation_id")

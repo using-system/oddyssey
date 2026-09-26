@@ -1,0 +1,20 @@
+{
+ "args": [
+  "monitor",
+  "app-insights",
+  "query",
+  "--app",
+  "aaaaaaaa-0000-0000-0000-00000000000a",
+  "--analytics-query",
+  "requests | where cloud_RoleName in ('orders-api') | summarize p50=percentile(duration, 50) by cloud_RoleName, name | join kind=inner (requests | where cloud_RoleName in ('orders-api') ) on cloud_RoleName, name | extend odd_gap = abs(duration - p50) | summarize arg_min(odd_gap, timestamp, duration, success, resultCode, operation_Id, id, p50) by cloud_RoleName, name | order by p50 desc | project timestamp, cloud_RoleName, name, duration, success, resultCode, operation_Id, id, p50",
+  "--start-time",
+  "2026-09-11T11:05:27Z",
+  "--end-time",
+  "2026-09-11T11:20:27Z",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "{\n  \"tables\": [\n    {\n      \"columns\": [\n        {\n          \"name\": \"timestamp\",\n          \"type\": \"datetime\"\n        },\n        {\n          \"name\": \"cloud_RoleName\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"name\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"duration\",\n          \"type\": \"real\"\n        },\n        {\n          \"name\": \"success\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"resultCode\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"operation_Id\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"id\",\n          \"type\": \"string\"\n        },\n        {\n          \"name\": \"p50\",\n          \"type\": \"real\"\n        }\n      ],\n      \"name\": \"PrimaryResult\",\n      \"rows\": [\n        [\n          \"2026-09-11T11:16:36.3828658Z\",\n          \"orders-api\",\n          \"POST /orders/{order_id}/checkout\",\n          550.777,\n          \"True\",\n          \"200\",\n          \"7d0c7db57c2c1649766e32f97c74614b\",\n          \"081b5ba8141a49fd\",\n          550.777\n        ],\n        [\n          \"2026-09-11T11:11:12.0080544Z\",\n          \"orders-api\",\n          \"DELETE /orders/{order_id}\",\n          51.401,\n          \"True\",\n          \"204\",\n          \"4f4c53fcfdc361ff94e6f1be8678f8cb\",\n          \"f56946242f99a941\",\n          51.401\n        ],\n        [\n          \"2026-09-11T11:10:49.9473165Z\",\n          \"orders-api\",\n          \"POST /orders\",\n          1.023,\n          \"True\",\n          \"201\",\n          \"85ee8c30955d03c3bcb331b53b3cc528\",\n          \"a29e3f67314ccc8b\",\n          1.0234444444444444\n        ],\n        [\n          \"2026-09-11T11:05:43.2542094Z\",\n          \"orders-api\",\n          \"GET /products\",\n          0.887,\n          \"True\",\n          \"200\",\n          \"68c20d7c133210ceea71fc01ac1c2801\",\n          \"cb2256cd133fce61\",\n          0.8866904761904763\n        ],\n        [\n          \"2026-09-11T11:18:56.3300895Z\",\n          \"orders-api\",\n          \"GET /orders/{order_id}\",\n          0.8,\n          \"True\",\n          \"200\",\n          \"c84a1aaccb19afdeb0da9689fc5997a9\",\n          \"157697b0597196e2\",\n          0.7995000000000001\n        ]\n      ]\n    }\n  ]\n}\n",
+ "stderr": ""
+}
