@@ -537,8 +537,12 @@ A mission records profiles as a telemetry gap and moves on.
 ### Display
 
 ```bash
-python3 <Skills>/observability-cli-guides/scripts/azure-monitor-context.py check --app <app_insights_app> --workspace <workspace>
+python3 <Skills>/observability-cli-guides/scripts/azure-monitor-context.py check --subscription <subscription> --resource-group <resource_group> --workspace <workspace> --app <app_insights_app>
 ```
+
+Whole surface of `check`: the four flags above, each the resolved
+entry's value, omitted when not persisted (the output names it as
+skipped), and `--json`.
 
 Two sources, and every line says which one it came from - the CLI
 identity and the persisted targeting values are different facts and a
@@ -567,9 +571,9 @@ otherwise - shown next to its field:
   takes), not its resource name.
 
 A field the user did not persist reads "not persisted - the mission will
-ask"; an empty resolved entry (`{}`) is all four
-unset, a valid state. `app_insights_app` unset is the one exception to
-that neutral wording - a **named degradation**:
+ask"; an entry with neither `workspace` nor `app_insights_app` is the
+proof's `identity only` below. `app_insights_app` unset is the one
+exception to that neutral wording - a **named degradation**:
 
 > no Application Insights configured - `requests`/`dependencies`/
 > `customMetrics`/`traces`/`exceptions` and the Profiler are unavailable,
@@ -592,10 +596,16 @@ alone is not a connected verdict when `app_insights_app` is persisted:
   (never `-g` beside it, never `--subscription`: the data plane needs
   neither), and with `--workspace` the same against the workspace; about
   a second each. Skipped - not failed - when `--app` is not given.
+- `--subscription` is proved by `az account show --subscription`, and
+  `--resource-group` by `az group exists` (`false` is `not-found`); under
+  a second each, verified 2026-09-26.
 
 The exit code is the verdict, and the output carries the diagnosis:
 
 - **0** - connected (both parts). Verified 2026-09-11.
+- **3** with `NOT connected - identity only` - neither `--workspace` nor
+  `--app` given: nothing the queries read is proven; route to the
+  switch for the entry's values. Verified 2026-09-26.
 - **3** - the persisted value does not resolve: an unknown appId
   (`ApplicationNotFoundError`, az's exit 3) or a value that is not an
   appId GUID (`The Application Insight is not found. Please check the app
@@ -633,6 +643,7 @@ stated above, and the mission proceeds logs-only having said so.
 - "persist workspace <guid> for azure-monitor"
 - "persist app insights <name-or-guid> for azure-monitor"
 - "clear the workspace for azure-monitor"
+- "persist workspace <guid> for azure-monitor in prod", "target prod"
 
 ## What to persist
 

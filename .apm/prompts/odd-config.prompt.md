@@ -73,7 +73,8 @@ With no arguments, in this order:
    the line "or `/odd-instrument-stack create a stack <name>` for a
    backend not listed" - and, on a remote stack, "or `target
    <environment>` to read the values persisted for another
-   environment". Anything the user
+   environment", naming the environments persisted for it (the
+   `<environment>-<stack>` keys of `stack_config`). Anything the user
    picks goes to the `backend-configuration` skill's `## Switch`, which
    owns the switch end to end: CLI presence preflight with a guided
    install offer, the contract check for a custom stack, the persisted

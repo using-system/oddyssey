@@ -803,6 +803,74 @@ def test_context_check_proves_identity_and_both_targets(fake):
     assert "--subscription" not in out["commands"][1]
 
 
+def test_context_check_proves_the_subscription_and_the_resource_group(fake):
+    """#657: resource_group and subscription are part of the targeting proof -
+    one bounded call each (captured live 2026-09-26: 0.3 s and 0.7 s)."""
+    code, out = fake.json(
+        "context",
+        "check",
+        "--subscription",
+        SUB,
+        "--resource-group",
+        RG,
+        "--workspace",
+        WS,
+        "--app",
+        APP,
+    )
+    assert code == 0 and out["connected"] is True
+    assert out["targeting"]["subscription"]["ok"] is True
+    assert out["targeting"]["resource_group"]["ok"] is True
+    assert (
+        "az group exists --resource-group <resource_group> --subscription <subscription> -o json"
+        in out["commands"]
+    )
+    assert "Contoso" not in " ".join(out["commands"])
+
+
+def test_context_check_a_missing_resource_group_or_subscription_exits_three(fake):
+    result = fake.run(
+        "context",
+        "check",
+        "--subscription",
+        SUB,
+        "--resource-group",
+        "missing-rg",
+        "--app",
+        APP,
+    )
+    assert result.returncode == 3
+    assert "targeting resource_group: FAILED [not-found]" in result.stdout
+    assert "NOT connected" in result.stdout
+    result = fake.run("context", "check", "--subscription", "Missing-Sub", "--app", APP)
+    assert result.returncode == 3
+    assert "targeting subscription: FAILED [not-found]" in result.stdout
+
+
+def test_context_check_names_every_skipped_part(fake):
+    result = fake.run("context", "check", "--app", APP)
+    assert result.returncode == 0
+    for part in ("subscription", "resource_group", "workspace"):
+        assert f"targeting {part}: skipped - not persisted" in result.stdout
+    assert "\nconnected\n" in result.stdout
+
+
+def test_context_check_on_identity_alone_is_not_connected(fake):
+    """#657: an entry holding neither a workspace nor a component (an empty or
+    near-empty environment entry) proves nothing the queries read."""
+    result = fake.run("context", "check", "--resource-group", RG)
+    assert result.returncode == 3
+    assert "targeting resource_group: resolves" in result.stdout
+    assert "targeting workspace: skipped - not persisted" in result.stdout
+    assert "\nconnected" not in result.stdout
+    assert "NOT connected - identity only" in result.stdout
+    result = fake.run("context", "check", "--json")
+    assert result.returncode == 3
+    out = json.loads(result.stdout)
+    assert out["connected"] is False
+    assert out["targeting"]["component"]["ok"] is None
+
+
 def test_context_check_wrong_values_exit_three_with_the_diagnosis(fake):
     result = fake.run(
         "context", "check", "--app", "12345678-1234-1234-1234-123456789abc"

@@ -455,6 +455,23 @@ def test_context_check_wrong_values_and_a_missing_profile_are_diagnosed(fake):
     )
 
 
+def test_context_check_an_entry_missing_profile_or_region_is_incomplete(fake):
+    """#657: an environment entry persisting a log group and no profile or
+    region reads as an incomplete entry routed to the switch - never argparse
+    usage, never a call under whatever profile the CLI defaults to."""
+    result = fake.run("context", "check", "--log-group", LG)
+    assert result.returncode == 3
+    assert "targeting profile: MISSING - not persisted" in result.stdout
+    assert "targeting region: MISSING - not persisted" in result.stdout
+    assert "NOT connected" in result.stdout
+    assert "usage:" not in result.stderr
+    result = fake.run("context", "check", "--profile", "p", "--log-group", LG)
+    assert result.returncode == 3
+    assert "targeting region: MISSING" in result.stdout
+    assert "targeting profile" not in result.stdout
+    assert fake.calls() == []
+
+
 def test_context_landing_proves_the_logs_and_states_the_other_two_signals(fake):
     code, out = fake.json(
         "context",

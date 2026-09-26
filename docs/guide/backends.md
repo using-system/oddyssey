@@ -14,9 +14,11 @@ skill; this page restates it, never extends it. Naming a stack in an
 A remote backend's values can be persisted per deployment environment,
 and a mission pointed at one: `persist ... for <stack> in <environment>`
 writes that environment's entry of the stack (`prod-cloudwatch` next
-to `cloudwatch`, the same fields), `target <environment>` makes the
-missions read it - the stack's plain entry where no such entry exists -
-and `/odd-observe checkout on cloudwatch in prod` targets it in passing.
+to `cloudwatch`, the same fields; a new one asks for the stack's other
+values or copies the plain entry's), `target <environment>` makes the
+missions read it - the stack's plain entry where no such entry exists,
+which the check says - and `/odd-observe checkout on cloudwatch in prod`
+targets it in passing. The local stack takes no environment.
 The agent still detects the environment from the telemetry and stops
 when the two diverge.
 
@@ -100,6 +102,7 @@ workspace — without one, tracing is reported as a telemetry gap.
 ```text
 /odd-config switch to azure-monitor, app insights "checkout-appinsights"
 /odd-config switch to azure-monitor, subscription "Contoso Prod", resource group "rg-observability", workspace "log-analytics-prod", app insights "checkout-appinsights"
+/odd-config persist workspace "log-analytics-prod" for azure-monitor in prod
 ```
 
 **Persists**: `subscription`, `resource_group`, `workspace`, and
@@ -128,7 +131,8 @@ oddyssey.
 /odd-config switch to cloudwatch in prod, profile "myteam-prod", region "eu-central-1", log group "/ecs/checkout-prod"
 ```
 
-**Persists**: `region`, `profile`, `log_group`, and optionally
+**Persists**: `region` and `profile` (both required - `default` when
+that profile is the one), `log_group`, and optionally
 `metrics_log_group` and `xray` — `aws` says who you are, never which
 log groups the missions read.
 

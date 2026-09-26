@@ -49,6 +49,7 @@ refusals; exit 2 on a refusal, nothing written.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -2549,6 +2550,50 @@ def is_local_target(url: str) -> bool:
     return host.lower() in LOCAL_HOSTS
 
 
+def resolved_entry(stack: str, environment: str | None) -> str:
+    """The stack_config entry the replay's pair resolves to, read off the
+    global configuration the MCP server writes - `<environment>-<stack>`
+    when present, else the plain `<stack>` said as a degradation (#657);
+    the local stack takes no environment entry."""
+    if not stack or stack == "local":
+        return stack or "none"
+    try:
+        config = json.loads((Path.home() / ".oddyssey" / "config.json").read_text())
+        keys = config.get("stack_config") or {}
+        known = set(config.get("custom") or {})
+    except (OSError, ValueError, AttributeError):
+        keys, known = {}, set()
+    try:  # the built-in stacks, from the table the server's STACKS mirrors
+        table = (
+            Path(__file__).resolve().parents[2]
+            / "observability-cli-guides/references/builtin-stacks.md"
+        ).read_text()
+        known |= set(re.findall(r"^\| `([a-z0-9-]+)` \|", table, re.MULTILINE))
+    except OSError:
+        pass
+    named = f"{environment}-{stack}" if environment else None
+    # the server's parse-back rule (#656): the key is the pair's only when
+    # it is no known stack itself and its longest known suffix is the stack
+    suffix = max(
+        (k for k in known - {"local"} if named and named.endswith("-" + k)),
+        key=len,
+        default=stack,
+    )
+    if named and named in keys and named not in known and suffix == stack:
+        return named
+    if not named:
+        return stack if stack in keys else f"none (no {stack} entry)"
+    if stack in keys:
+        return (
+            f"{stack} (no {named} entry - the replay reads the plain entry, "
+            "whose environment is unverified)"
+        )
+    return (
+        f"none (no {named} nor {stack} entry - the replay reads the CLI's own "
+        "active context, whose environment is unverified)"
+    )
+
+
 def baseline_facts(root: Path, args: argparse.Namespace) -> dict:
     resolved = resolve_report(root, args.target, args.service, args.stack, args.env)
     baseline, how = hop_to_baseline(root, resolved, args.own_protocol)
@@ -2581,6 +2626,10 @@ def baseline_facts(root: Path, args: argparse.Namespace) -> dict:
         "environment": (
             None if baseline["kind"] == "instrumentation" else fm.get("environment")
         ),
+        "entry": resolved_entry(
+            stack,
+            None if baseline["kind"] == "instrumentation" else fm.get("environment"),
+        ),
         "mode": mode,
         "mode_why": mode_why,
         "revision": fm.get("revision"),
@@ -2605,6 +2654,7 @@ def render_baseline(facts: dict) -> str:
             if facts["kind"] == "instrumentation"
             else str(env or "none")
         ),
+        f"entry: {facts['entry']}",
         f"mode: {facts['mode']} ({facts['mode_why']})",
         f"revision: {facts['revision'] or 'none'}",
         f"benchmark: {', '.join(facts['benchmarks']) or 'none named'}",

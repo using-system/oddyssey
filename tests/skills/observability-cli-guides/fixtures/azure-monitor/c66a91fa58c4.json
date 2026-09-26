@@ -1,0 +1,15 @@
+{
+ "args": [
+  "group",
+  "exists",
+  "--resource-group",
+  "missing-rg",
+  "--subscription",
+  "Contoso",
+  "-o",
+  "json"
+ ],
+ "code": 0,
+ "stdout": "false\n",
+ "stderr": ""
+}
