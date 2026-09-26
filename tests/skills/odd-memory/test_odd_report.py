@@ -2062,6 +2062,33 @@ def test_new_records_no_baseline_when_the_recall_finds_none(repo, report):
     assert frontmatter(report, new(repo))["baseline"] == "none"
 
 
+def test_a_baseline_the_mission_named_is_recorded_as_given(repo, report):
+    named = stored(repo, "2026-08-07-1000-checkout-sweep.md")
+    stored(repo, "2026-08-08-1000-checkout-sweep.md")
+    path = new(repo, "--baseline", named)
+    assert frontmatter(report, path)["baseline"] == named
+    proc = run(
+        repo, *NEW, "--repo", str(repo.root), "--run-name", "x", "--baseline", "nope.md"
+    )
+    assert proc.returncode == 2 and "--baseline names no stored report" in proc.stderr
+    name = baseline(repo)
+    proc = run(
+        repo,
+        *NEW[:-4],
+        "--mode",
+        "verify",
+        "--window",
+        WINDOW,
+        "--verifies",
+        name,
+        "--baseline",
+        named,
+        "--repo",
+        str(repo.root),
+    )
+    assert proc.returncode == 2 and "--verifies" in proc.stderr
+
+
 def test_a_replay_names_its_baseline_in_verifies_alone(repo, report):
     name = baseline(repo)
     path = new(repo, "--mode", "verify", "--verifies", name, run_name=None)

@@ -1661,6 +1661,7 @@ def new_instrumentation_report(args: argparse.Namespace) -> tuple[Path, str, lis
         ("--window", args.window),
         ("--from/--to", args.start or args.end),
         ("--verifies", args.verifies),
+        ("--baseline", args.baseline),
         ("--workload", args.workload),
         ("--instance", args.instance),
         ("--process-restarted", args.process_restarted),
@@ -1778,6 +1779,8 @@ def new_report(args: argparse.Namespace) -> tuple[Path, str, list[str]]:
         raise Refusal(f"--verifies is required on a {args.mode} run")
     if args.verifies and not replay:
         raise Refusal("--verifies applies to a verify or re-measure run only")
+    if args.baseline and replay:
+        raise Refusal("a replay's baseline is its --verifies; --baseline is not taken")
 
     if args.no_revision:
         root = Path(args.repo).resolve()
@@ -1851,7 +1854,12 @@ def new_report(args: argparse.Namespace) -> tuple[Path, str, list[str]]:
     if replay:
         fields["verifies"] = args.verifies
     else:
-        fields["baseline"] = recalled_baseline(root, services, args.stack, args.env)
+        if args.baseline:
+            if not (root / OBSERVATION_DIR / args.baseline).is_file():
+                raise Refusal(f"--baseline names no stored report: {args.baseline}")
+            fields["baseline"] = args.baseline
+        else:
+            fields["baseline"] = recalled_baseline(root, services, args.stack, args.env)
     if repo_root is not None:
         fields["revision"] = git(repo_root, "rev-parse", "--short", "HEAD")
         fields["tree_anchor"] = ls_tree(repo_root, "HEAD")
@@ -3338,6 +3346,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--run-name", help="the slug (a replay inherits the baseline's)")
     p.add_argument(
         "--verifies", help="the replayed report: a filename, or a repo-relative path"
+    )
+    p.add_argument(
+        "--baseline", help="the report the mission named as the baseline (a filename)"
     )
     p.add_argument("--workload")
     p.add_argument(

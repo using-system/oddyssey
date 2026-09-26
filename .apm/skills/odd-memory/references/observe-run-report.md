@@ -15,7 +15,7 @@ python3 <this skill's directory>/scripts/odd_report.py new [--repo <observed rep
   --service <name> [--service <name> ...] --stack <stack> --env <detected environment> \
   --mode <drive|observe|post-hoc|verify|re-measure> \
   --window <start>/<end> | --from <start> --to <end> --run-name <slug> \
-  [--verifies <baseline>] [--workload <text>] [--instance <service>=<identity> ...] \
+  [--verifies <baseline>] [--baseline <named report>] [--workload <text>] [--instance <service>=<identity> ...] \
   [--process-restarted <true|false|service=true|false> ...] [--repository <value>] \
   [--at <UTC instant>] [--no-revision] [--custom-stack]
 python3 <this skill's directory>/scripts/odd_report.py check <path>
@@ -41,8 +41,9 @@ instrumentation` is the other kind's, stated in its own reference.
   `-observe-<stack>` suffix in observe mode, the `verify-` and
   `remeasure-` prefixes, the next free ordinal when the path is taken),
   fills `date`, `revision`, `tree_anchor` and `repository` from the
-  repository itself, `baseline` outside a replay from the recall's
-  first line (`none` without one), writes the frontmatter and the seven-section
+  repository itself, `baseline` outside a replay — the mission's named
+  baseline when it names one (`--baseline`), else the recall's first
+  line, or `none`, writes the frontmatter and the seven-section
   skeleton — eight with `--custom-stack`, the flag a mission passes
   when the handoff names a custom stack: the frontmatter then carries
   `stack_friction: 0` and the skeleton the `## 8. Stack friction`

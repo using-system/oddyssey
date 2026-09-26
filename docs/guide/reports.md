@@ -65,7 +65,7 @@ process_restarted: true
 | `window` | yes | The observed interval, UTC — the run's own span, not the time a mission spent waiting for it | `start/end` |
 | `run_name` | yes | The filename's slug | kebab-case |
 | `date` | yes | The run's UTC date | `YYYY-MM-DD` |
-| `baseline` | drive, observe, post-hoc | The report the run diffs against: the recall's first match | its exact filename, or `none` |
+| `baseline` | drive, observe, post-hoc | The report the run diffs against: the one the mission named, else the recall's first match | its exact filename, or `none` |
 | `verifies` | verify, re-measure | The report whose protocol was replayed | its exact filename; the repo-relative path for an instrumentation report |
 | `revision` | optional | The observed repo's commit at run time | short SHA |
 | `tree_anchor` | optional | The top-level tree hashes at `revision`, so "code unchanged since" survives squash merges and fresh clones | entry name to hash |
