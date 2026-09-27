@@ -1,0 +1,4 @@
+name: local-metal
+stack: local-vllm-metal
+config:
+  port: 8000

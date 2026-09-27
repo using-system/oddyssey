@@ -1,11 +1,19 @@
 ---
-description: Benchmark one LLM on the llms-benchmark demo stack - drive it through a coding-agent CLI (opencode, claude or copilot) on the stored scenario, grade the observation report it produced, and propose its row of the results table
-argument-hint: "<opencode | claude | copilot> <vendor/model> [effort, default medium]"
+description: Benchmark one LLM on the llms-benchmark demo stack - drive it through a coding-agent CLI (opencode, claude or copilot) or a vllm-on-tap preset served for the run, on the stored scenario, grade the observation report it produced, and propose its row of the results table
+argument-hint: "<opencode | claude | copilot> <vendor/model> [effort, default medium]  |  local <vot environment> <preset> [effort, default medium]"
 ---
 
 Run the whole llms-benchmark protocol for one model on one CLI, end to
 end, and come back with a pull request adding or replacing that row in
 `.llms-benchmark/README.md`.
+
+Two kinds of run, two tables. **Remote serving**: a provider serves a
+model id to the CLI (OpenRouter, Anthropic, Copilot). **Local
+serving**: the run serves a vllm-on-tap preset itself, on a vllm-on-tap
+environment of this repository (`.vot/environments/`), and drives it
+through `opencode` — always opencode, the only CLI that takes a custom
+OpenAI-compatible endpoint per launch. Every step below applies to both;
+a **Local serving** bullet says what changes for the second.
 
 The question this benchmark answers: **how much of what a model reports,
 after observing a running stack it has never seen, actually holds up?**
@@ -40,6 +48,15 @@ the same way you would grade a colleague's incident report.
   nothing else changed). A model the CLI cannot run, or cannot run at
   the requested effort, is a preflight failure, not a row. Below,
   `<effort>` is that argument, passed verbatim to the CLI's flag.
+- **Local serving** — `local <vot environment> <preset> [effort]`: the
+  literal `local`; the name of a vllm-on-tap environment
+  (`.vot/environments/<name>.yaml`); the preset, as vllm-on-tap resolves
+  it (`.vot/presets/<name>.yaml` first, then the builtins); the effort,
+  `medium` when omitted, as above. The CLI is `opencode`, never asked.
+  Preset, effort and **GPU** identify the row; the GPU is read off the
+  environment, never asked (step 1). Below, `<served name>` is the
+  preset's `served_model_name` (its `name` when absent) and `<context>`
+  its merged `--max-model-len`.
 
 **Never ask for an API key, and never handle one.** Every credential this
 protocol needs — the OpenRouter provider in opencode, the Claude Code
@@ -122,11 +139,39 @@ Steps:
      `docker compose` reads on its own from that file. Check its
      presence, never its value, and never print it. The file is
      gitignored; `.env.example` next to it says what goes in.
+   - **Local serving**, in place of the CLI-and-model check above (the
+     opencode binary is still checked, in step 3):
+     - `.vot/environments/<vot environment>.yaml` exists, and its stack
+       type is one the vllm-on-tap stack-guide supports; run that type's
+       *Prerequisites and install* checks (the `vllm-on-tap:vot-config`
+       skill's step 4), and stop on any failure — installing a tool or
+       logging in is the user's;
+     - the preset resolves and validates (the `vllm-on-tap:load-preset`
+       skill's *Resolve*, *Validate* and *Merge*, for the environment's
+       stack type) and carries the flags an agent needs: tool calling
+       (`--enable-auto-tool-choice` with a `--tool-call-parser`) and a
+       `--max-model-len` of at least 65536 — opencode's system prompt and
+       tool definitions alone take about 15k tokens, and a report-writing
+       turn carries the whole observation. Use the model's native
+       maximum context when the KV cache holds it. The benchmark serves its own
+       presets, `.vot/presets/odd-<name>.yaml`, tuned for the run: a
+       preset without the `odd-` prefix, a builtin included, is refused
+       — copy it under an `odd-` name with the flags it lacks (the row
+       then names that preset);
+     - the environment's `otlp_endpoint`, when set, does not point at the
+       local oddyssey stack: the served model's own spans would land in
+       the store the run observes;
+     - **the GPU cell**, read off the environment: on `azure` the serve
+       profile's GPU, `A100 80 GB`; on `local-vllm-metal`
+       `sysctl -n machdep.cpu.brand_string` and `hw.memsize` in GB
+       (`Apple M4 Pro 24 GB`); on `local-vllm` and `local-vllm-docker`
+       `nvidia-smi --query-gpu=name,memory.total --format=csv,noheader`.
 
 2. **Create the work branch**: `bench/<cli>-<model-slug>-<effort>-<YYYYMMDD-HHMM>`,
    where `<model-slug>` is the model id with `/` and `.` replaced by
    `-`. Everything the run installs, configures, and produces happens on
-   this branch, and none of it is what ships.
+   this branch, and none of it is what ships. **Local serving**:
+   `bench/local-<preset>-<vot environment>-<effort>-<YYYYMMDD-HHMM>`.
 
 3. **Install or update the CLI, and the oddyssey package for it.**
    Record the CLI's version: it goes in the pull request, never in the
@@ -195,6 +240,69 @@ Steps:
      List them before launching: none of the package's nine skills may
      be there, and a run that lists a skill twice resolves one of them.
 
+   **Local serving** — step 3 is opencode's, then the preset is served
+   for the run: a serve takes ten to thirty minutes to answer (image
+   pull, weights, compile), and it bills from then on.
+   - record `.vot/config.yaml`'s `current`, then set it to
+     `<vot environment>` (vllm-on-tap serves on the current environment;
+     step 9 puts the recorded value back);
+   - run the `vllm-on-tap:vot-serve` skill's steps for `<preset>`, up to
+     its report: the base URL and the served name. **From here on the unit
+     bills until step 9's destroy, whatever happens in between** — a stop,
+     a failed smoke, a void run all end in step 9. Collect the unit's log to a file from its creation (on `azure`,
+     `az containerapp logs show --tail 300` every 20 s, new lines only:
+     history stops at 300 lines, the environment keeps none, and
+     `--follow` returned nothing on 2026-09-27). Watch it while it starts: on `EngineCore failed to start` destroy it at
+     once (it restarts in a loop and bills), fix the preset, serve again;
+   - write the provider file into your own scratch directory, never into
+     the repository nor opencode's user configuration:
+
+     ```json
+     {"$schema": "https://opencode.ai/config.json",
+      "provider": {"vot": {"npm": "@ai-sdk/openai-compatible", "name": "vllm-on-tap",
+        "options": {"baseURL": "<base url>/v1", "apiKey": "{env:VOT_API_KEY}"},
+        "models": {"<served name>": {"name": "<served name>", "tool_call": true,
+          "limit": {"context": <context>, "output": 32768}}}}}}
+     ```
+
+     Add `"permission": {"bash": {"opencode": "deny", "opencode *": "deny"}}`:
+     a nested `opencode run` uses the user's default model and voids the run.
+
+     A model that takes a reasoning effort (served with a
+     `--reasoning-parser`, and whose chat template reads
+     `reasoning_effort`) also gets `"reasoning": true` and
+     `"variants": {"low": {"reasoningEffort": "low"}, "medium": {"reasoningEffort": "medium"}, "high": {"reasoningEffort": "high"}}`
+     in its model entry, so step 4's `--variant <effort>` sends the
+     effort instead of being ignored;
+
+     Keep `output` at 32768: it bounds the reasoning too.
+
+     `OPENCODE_CONFIG=<that file>` on a launch line adds the `vot`
+     provider to that launch only: the user's configuration and
+     `~/.local/share/opencode/auth.json` (the OpenRouter key) are never
+     written, so a remote run after a local one needs no switch back
+     (verified on 2026-09-27: `opencode models vot` listed the model,
+     `opencode models openrouter` still answered, `auth.json` unchanged);
+   - `VOT_API_KEY` on `azure` is the app's secret, read inline on the
+     launch line and never printed:
+     `VOT_API_KEY="$(az containerapp secret show --name vot-<preset> --resource-group <resource_group> --secret-name vllm-api-key --query value -o tsv)"`;
+     on a local stack type vLLM checks no key, and `VOT_API_KEY=none`;
+   - **smoke the served model through opencode before any run**, from a
+     scratch directory: `OPENCODE_CONFIG=<file> VOT_API_KEY=... opencode run --model vot/<served name> --format json "run the shell command date and reply with its output" < /dev/null`
+     must show a `tool_use` event for `bash` and a `text` event: a serve
+     without vLLM's tool-call parser answers text only, and a mission on
+     it never drives. A failed smoke is a preflight failure; step 9 still
+     destroys the unit.
+   - measure decode at about 80k tokens of context before the run (a
+     streamed request, time to first token apart): the runs' prompts reach
+     200k. A preset whose run cannot end within 40 minutes is not run.
+   - a model whose chat template gates thinking (Gemma 4: `enable_thinking`,
+     off by default) gets it through the model entry's
+     `"options": {"chat_template_kwargs": {"enable_thinking": true}}`, and
+     its preset through `--default-chat-template-kwargs`.
+   - on an A100 (Triton attention) an FP8 KV cache is refused (SM89+);
+     `int8_per_token_head` starts but decodes far slower at long context.
+
 4. **Select the model.** Nothing to configure: the provider is already
    set up (preflight), and the model and effort are passed on the command
    line in step 6, never persisted into a config file — `opencode`:
@@ -202,7 +310,10 @@ Steps:
    `--model <anthropic id> --effort <effort>`; `copilot`:
    `--model <name> --effort <effort>`. The three flags name the same
    effort level; that is what makes two rows of one model at one effort
-   comparable across CLIs.
+   comparable across CLIs. **Local serving**: `--model vot/<served name>`,
+   with `--variant <effort>` only when `OPENCODE_CONFIG=<file> opencode models vot --verbose`
+   lists that variant for the model — otherwise no `--variant` and
+   `default` in the Effort column, step 1's opencode rule.
 
 5. **Clean what the next run must not read — then recreate the demo
    stack, never reuse a running one.** Before every run, whatever the
@@ -297,6 +408,25 @@ Steps:
      --format json --auto --title "llms-benchmark <model>" \
      "<the mission prompt below>" < /dev/null
    ```
+
+   **Local serving** — the same line, with the provider file and the key
+   in front, and the preset in the title (step 7 selects on it):
+
+   ```
+   OPENCODE_CONFIG=<provider file> VOT_API_KEY="<step 3's inline read>" \
+     caffeinate -i opencode run --model vot/<served name> [--variant <effort>] \
+     --format json --auto --title "llms-benchmark <preset>" \
+     "<the mission prompt below>" < /dev/null
+   ```
+
+   **Local serving runs the mission once, not twice, and stops at 40
+   minutes** (no provider varies
+   between two runs). The row is that single run, and the
+   two-run rules of this step do not apply to it. A void attempt (step
+   8's shapes, a run measuring another model) is re-run once on the
+   same unit, after step 9's teardown (without its destroy) and step 5;
+   two void attempts and the preset's result is "did not drive the
+   scenario", with no row.
 
    `claude` — generate the session id yourself and write it down: this
    CLI takes no title, and step 7 identifies the session by that id:
@@ -672,6 +802,15 @@ Steps:
    If that returns anything other than exactly one row, stop and say so
    rather than guess.
 
+   **Local serving**: the title is `llms-benchmark <preset>`, the model
+   id is `<served name>` and `json_extract(model,'$.providerID')` is
+   `vot`. The tokens are summed exactly as below; **there is no Cost**:
+   the endpoint bills no tokens (`SUM(cost)` is 0), and the GPU's own
+   bill runs from the serve to the destroy, the serve's start included,
+   so it is no figure of the run's. The pull request states
+   the serve's start and destroy times and, on `azure`, the unit's
+   GPU-hours; the table has no money column.
+
    **Then sum the whole tree, not the root.** opencode dispatches the
    observation to a subagent, which gets its own session; on the first
    run the subagent carried 80% of the spend. Walk `parent_id`
@@ -1005,6 +1144,13 @@ Steps:
      step 10 and let the branch take the file with it;
    - `git checkout main`, then delete the work branch (`git branch -D`) —
      it never gets pushed.
+   - **Local serving, after the last attempt** — the run, or the
+     preflight or the attempt that failed: run the `vllm-on-tap:vot-destroy` skill's steps for
+     `<preset>` and check the unit is gone (on `azure`,
+     `az containerapp show --name vot-<preset> ...` fails); put the
+     `current` recorded in step 3 back into `.vot/config.yaml`; delete
+     the provider file. Never end the command with the unit up: on
+     `azure` it bills a GPU by the second until it is destroyed.
 
 10. **Open the results PR from a clean base.**
     - **Open the run's issue first.** Every PR in this repository
@@ -1014,7 +1160,10 @@ Steps:
     - From `main`, freshly pulled, create
       `docs/llms-benchmark-<cli>-<model-slug>-<effort>` and make **one** change:
       the row in the results tables of `.llms-benchmark/README.md`.
-      `## Results` holds the two tables below. **A row is identified by
+      `## Results` holds two subsections: `### Remote serving`, the two
+      tables below, and `### Local serving`, the two tables of the local
+      serving section after them. **Local serving**: the branch is
+      `docs/llms-benchmark-local-<preset>-<vot environment>-<effort>`. **A row is identified by
       model, effort, CLI and provider together.** That key is not in the
       table yet → append the row; already there → replace that row in
       place. The same model driven through two CLIs, at two efforts, or
@@ -1121,6 +1270,35 @@ Steps:
     of the protocol is marked as such and its placement is provisional
     until it is re-run. Changing a weight or a bound re-scores every row
     and is the maintainer's decision.
+
+    **Local serving — its own two tables, under `### Local serving`.**
+    The same shape, with three changes: **Model** becomes **Preset** (the
+    preset's name in backticks, linked to its YAML:
+    `` [`<preset>`](../.vot/presets/<preset>.yaml) ``), **Provider** becomes **GPU** (step 1's cell: `A100 80 GB`,
+    `Apple M4 Pro 24 GB`), and **Cost** and **$/confirmed** are dropped
+    — the endpoint bills no tokens (step 7). A row is identified by
+    preset, effort, CLI and GPU; the CLI is always `opencode`. Headline,
+    twelve columns:
+
+    ```text
+    | Rank | Preset | Effort | CLI | GPU | oddyssey | Scoring | Confirmed / reported | Telemetry / Perf / Behavior | Total | Accuracy | seconds/confirmed |
+    ```
+
+    and detail, the remote detail table's columns with Preset and GPU in
+    place of Model and Provider:
+
+    ```text
+    | Preset | Effort | CLI | GPU | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
+    ```
+
+    Its Scoring keeps the four remaining axes and their bounds, the
+    weights renormalized so they still sum to one (the maintainer's
+    decision of 2026-09-27): **seconds/confirmed** 3/7, **Total** 2/7,
+    **Accuracy** 1/7, **Confirmed** 1/7. With no cost, a tie in the
+    rank is broken on the shorter run; the row is step 6's single local
+    run, and the pull request carries its rulings alone.
+    The two tables are never merged or ranked against each other: the
+    remote score carries a cost the local one cannot.
 
     Cost per confirmed finding is the column that answers the question in
     the README's title: cost and duration alone reward whichever model
