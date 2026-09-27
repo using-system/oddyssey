@@ -152,9 +152,11 @@ Steps:
        (`--enable-auto-tool-choice` with a `--tool-call-parser`) and a
        `--max-model-len` of at least 65536 — opencode's system prompt and
        tool definitions alone take about 15k tokens, and a report-writing
-       turn carries the whole observation. A builtin without them is
-       served through a custom preset of another name in
-       `.vot/presets/` (the row then names that preset);
+       turn carries the whole observation. The benchmark serves its own
+       presets, `.vot/presets/odd-<name>.yaml`, tuned for the run: a
+       preset without the `odd-` prefix, a builtin included, is refused
+       — copy it under an `odd-` name with the flags it lacks (the row
+       then names that preset);
      - the environment's `otlp_endpoint`, when set, does not point at the
        local oddyssey stack: the served model's own spans would land in
        the store the run observes;
@@ -258,6 +260,13 @@ Steps:
         "models": {"<served name>": {"name": "<served name>", "tool_call": true,
           "limit": {"context": <context>, "output": 8192}}}}}}
      ```
+
+     A model that takes a reasoning effort (served with a
+     `--reasoning-parser`, and whose chat template reads
+     `reasoning_effort`) also gets `"reasoning": true` and
+     `"variants": {"low": {"reasoningEffort": "low"}, "medium": {"reasoningEffort": "medium"}, "high": {"reasoningEffort": "high"}}`
+     in its model entry, so step 4's `--variant <effort>` sends the
+     effort instead of being ignored;
 
      `OPENCODE_CONFIG=<that file>` on a launch line adds the `vot`
      provider to that launch only: the user's configuration and

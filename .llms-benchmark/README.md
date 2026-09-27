@@ -130,12 +130,12 @@ itself, and driven through opencode.
 /launch-llms-benchmark claude anthropic/claude-haiku-4.5
 /launch-llms-benchmark copilot openai/gpt-5.6-luna
 /launch-llms-benchmark copilot openai/gpt-5.6-sol high
-/launch-llms-benchmark local azure-sweden gemma4-12b-qat-agent
+/launch-llms-benchmark local azure-sweden odd-gpt-oss-120b
 ```
 
 The CLI and the model id, in `vendor/name` form, are required; an optional third argument sets the effort (`medium` by default). Prerequisites, set up once: an OpenRouter provider in opencode, a Claude Code login with the package installed at user scope, or a Copilot CLI login; and `OPENAI_API_KEY` in `docker-compose/llms-benchmark/.env` for the demo agent's own model calls (`.env.example` next to it).
 
-A local serving row takes `local`, a vllm-on-tap environment of this repository (`.vot/environments/`), a preset, and an optional effort; it needs opencode and the vllm-on-tap plugin. The command serves the preset once, runs the mission on it, and destroys the served model at the end.
+A local serving row takes `local`, a vllm-on-tap environment of this repository (`.vot/environments/`), one of the benchmark's presets (`.vot/presets/odd-*.yaml`), and an optional effort; it needs opencode and the vllm-on-tap plugin. The command serves the preset once, runs the mission on it, and destroys the served model at the end.
 
 The command cleans everything a run must not read (stored reports of the three services, leftovers, the local stack's data), recreates the demo stack, drives the model headless at the requested effort through one `/odd-observe` mission naming the three services, the stored scenario and the local stack, grades the report finding by finding on evidence, and opens the pull request carrying the row and the rulings.
 

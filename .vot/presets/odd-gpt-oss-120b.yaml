@@ -1,0 +1,15 @@
+name: odd-gpt-oss-120b
+description: OpenAI gpt-oss-120b (MXFP4) tuned for the oddyssey llms-benchmark on one A100 80 GB - full 128k context, tool calling and reasoning parsers; NVIDIA stacks only
+model: openai/gpt-oss-120b
+served_model_name: gpt-oss-120b
+gpu_memory_gb: 80
+vllm_args:
+  --max-model-len: 131072
+  --gpu-memory-utilization: 0.92
+  --max-num-seqs: 8
+  --max-num-batched-tokens: 16384
+  --enable-prefix-caching: true
+  --enable-auto-tool-choice: true
+  --tool-call-parser: openai
+  --reasoning-parser: openai_gptoss
+env: []
