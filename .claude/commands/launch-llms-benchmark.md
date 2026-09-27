@@ -152,7 +152,8 @@ Steps:
        (`--enable-auto-tool-choice` with a `--tool-call-parser`) and a
        `--max-model-len` of at least 65536 — opencode's system prompt and
        tool definitions alone take about 15k tokens, and a report-writing
-       turn carries the whole observation. The benchmark serves its own
+       turn carries the whole observation. Use the model's native
+       maximum context when the KV cache holds it. The benchmark serves its own
        presets, `.vot/presets/odd-<name>.yaml`, tuned for the run: a
        preset without the `odd-` prefix, a builtin included, is refused
        — copy it under an `odd-` name with the flags it lacks (the row
@@ -240,16 +241,19 @@ Steps:
      be there, and a run that lists a skill twice resolves one of them.
 
    **Local serving** — step 3 is opencode's, then the preset is served
-   **once for both runs**: a serve takes ten to thirty minutes to answer
-   (image pull, weights, compile), and a second serve between the two runs
-   would only add that to the bill.
+   for the run: a serve takes ten to thirty minutes to answer (image
+   pull, weights, compile), and it bills from then on.
    - record `.vot/config.yaml`'s `current`, then set it to
      `<vot environment>` (vllm-on-tap serves on the current environment;
      step 9 puts the recorded value back);
    - run the `vllm-on-tap:vot-serve` skill's steps for `<preset>`, up to
      its report: the base URL and the served name. **From here on the unit
      bills until step 9's destroy, whatever happens in between** — a stop,
-     a failed smoke, a void run all end in step 9;
+     a failed smoke, a void run all end in step 9. Collect the unit's log to a file from its creation (on `azure`,
+     `az containerapp logs show --tail 300` every 20 s, new lines only:
+     history stops at 300 lines, the environment keeps none, and
+     `--follow` returned nothing on 2026-09-27). Watch it while it starts: on `EngineCore failed to start` destroy it at
+     once (it restarts in a loop and bills), fix the preset, serve again;
    - write the provider file into your own scratch directory, never into
      the repository nor opencode's user configuration:
 
@@ -258,8 +262,11 @@ Steps:
       "provider": {"vot": {"npm": "@ai-sdk/openai-compatible", "name": "vllm-on-tap",
         "options": {"baseURL": "<base url>/v1", "apiKey": "{env:VOT_API_KEY}"},
         "models": {"<served name>": {"name": "<served name>", "tool_call": true,
-          "limit": {"context": <context>, "output": 8192}}}}}}
+          "limit": {"context": <context>, "output": 32768}}}}}}
      ```
+
+     Add `"permission": {"bash": {"opencode": "deny", "opencode *": "deny"}}`:
+     a nested `opencode run` uses the user's default model and voids the run.
 
      A model that takes a reasoning effort (served with a
      `--reasoning-parser`, and whose chat template reads
@@ -267,6 +274,8 @@ Steps:
      `"variants": {"low": {"reasoningEffort": "low"}, "medium": {"reasoningEffort": "medium"}, "high": {"reasoningEffort": "high"}}`
      in its model entry, so step 4's `--variant <effort>` sends the
      effort instead of being ignored;
+
+     Keep `output` at 32768: it bounds the reasoning too.
 
      `OPENCODE_CONFIG=<that file>` on a launch line adds the `vot`
      provider to that launch only: the user's configuration and
@@ -401,9 +410,13 @@ Steps:
      "<the mission prompt below>" < /dev/null
    ```
 
-   Between the two runs the unit stays up: step 9's teardown runs in
-   full except its destroy, and step 5 recreates the demo stack as for
-   any run.
+   **Local serving runs the mission once, not twice** (no provider varies
+   between two runs). The row is that single run, and the
+   two-run rules of this step do not apply to it. A void attempt (step
+   8's shapes, a run measuring another model) is re-run once on the
+   same unit, after step 9's teardown (without its destroy) and step 5;
+   two void attempts and the preset's result is "did not drive the
+   scenario", with no row.
 
    `claude` — generate the session id yourself and write it down: this
    CLI takes no title, and step 7 identifies the session by that id:
@@ -783,8 +796,8 @@ Steps:
    id is `<served name>` and `json_extract(model,'$.providerID')` is
    `vot`. The tokens are summed exactly as below; **there is no Cost**:
    the endpoint bills no tokens (`SUM(cost)` is 0), and the GPU's own
-   bill runs from the serve to the destroy, across both runs and the
-   serve's start, so it is no figure of one run. The pull request states
+   bill runs from the serve to the destroy, the serve's start included,
+   so it is no figure of the run's. The pull request states
    the serve's start and destroy times and, on `azure`, the unit's
    GPU-hours; the table has no money column.
 
@@ -1121,9 +1134,8 @@ Steps:
      step 10 and let the branch take the file with it;
    - `git checkout main`, then delete the work branch (`git branch -D`) —
      it never gets pushed.
-   - **Local serving, after the last run only** — the second, the one
-     stopped by step 6's rule, or the first when the preflight or the
-     run failed: run the `vllm-on-tap:vot-destroy` skill's steps for
+   - **Local serving, after the last attempt** — the run, or the
+     preflight or the attempt that failed: run the `vllm-on-tap:vot-destroy` skill's steps for
      `<preset>` and check the unit is gone (on `azure`,
      `az containerapp show --name vot-<preset> ...` fails); put the
      `current` recorded in step 3 back into `.vot/config.yaml`; delete
@@ -1251,8 +1263,8 @@ Steps:
 
     **Local serving — its own two tables, under `### Local serving`.**
     The same shape, with three changes: **Model** becomes **Preset** (the
-    preset's name in backticks, the model it serves is in the pull
-    request), **Provider** becomes **GPU** (step 1's cell: `A100 80 GB`,
+    preset's name in backticks, linked to its YAML:
+    `` [`<preset>`](../.vot/presets/<preset>.yaml) ``), **Provider** becomes **GPU** (step 1's cell: `A100 80 GB`,
     `Apple M4 Pro 24 GB`), and **Cost** and **$/confirmed** are dropped
     — the endpoint bills no tokens (step 7). A row is identified by
     preset, effort, CLI and GPU; the CLI is always `opencode`. Headline,
@@ -1272,9 +1284,9 @@ Steps:
     Its Scoring keeps the four remaining axes and their bounds, the
     weights renormalized so they still sum to one (the maintainer's
     decision of 2026-09-27): **seconds/confirmed** 3/7, **Total** 2/7,
-    **Accuracy** 1/7, **Confirmed** 1/7. With no cost, every tie
-    that the remote table breaks on the cheaper run is broken on the
-    shorter: in step 6's choice between the two runs and in the rank.
+    **Accuracy** 1/7, **Confirmed** 1/7. With no cost, a tie in the
+    rank is broken on the shorter run; the row is step 6's single local
+    run, and the pull request carries its rulings alone.
     The two tables are never merged or ranked against each other: the
     remote score carries a cost the local one cannot.
 

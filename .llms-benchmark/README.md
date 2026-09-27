@@ -110,12 +110,14 @@ itself, and driven through opencode.
 
 | Rank | Preset | Effort | CLI | GPU | oddyssey | Scoring | Confirmed / reported | Telemetry / Perf / Behavior | Total | Accuracy | seconds/confirmed |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **#1** | [`odd-qwen3-8-27b`](../.vot/presets/odd-qwen3-8-27b.yaml) | default | opencode | A100 80 GB | 1.13.0 | **9.0** | 7 / 11 | 4 / 3 / 0 | **150m02s** | **64%** | **1286s** |
 
 <details>
 <summary>Run detail — phases, turns, tokens</summary>
 
 | Preset | Effort | CLI | GPU | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [`odd-qwen3-8-27b`](../.vot/presets/odd-qwen3-8-27b.yaml) | default | opencode | A100 80 GB | 1.13.0 | 12m13s | 2m04s | 135m45s | 56 | 65.7s | 5.0M | 182k | — | 4/4 |
 
 </details>
 
