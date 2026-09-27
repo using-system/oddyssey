@@ -132,7 +132,7 @@ itself, and driven through opencode.
 /launch-llms-benchmark claude anthropic/claude-haiku-4.5
 /launch-llms-benchmark copilot openai/gpt-5.6-luna
 /launch-llms-benchmark copilot openai/gpt-5.6-sol high
-/launch-llms-benchmark local azure-sweden odd-gpt-oss-120b
+/launch-llms-benchmark local azure-sweden odd-qwen3-8-27b
 ```
 
 The CLI and the model id, in `vendor/name` form, are required; an optional third argument sets the effort (`medium` by default). Prerequisites, set up once: an OpenRouter provider in opencode, a Claude Code login with the package installed at user scope, or a Copilot CLI login; and `OPENAI_API_KEY` in `docker-compose/llms-benchmark/.env` for the demo agent's own model calls (`.env.example` next to it).

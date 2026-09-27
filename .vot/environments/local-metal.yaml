@@ -1,5 +1,4 @@
 name: local-metal
 stack: local-vllm-metal
-otlp_endpoint: http://localhost:4317
 config:
   port: 8000
