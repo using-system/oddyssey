@@ -293,6 +293,15 @@ Steps:
      without vLLM's tool-call parser answers text only, and a mission on
      it never drives. A failed smoke is a preflight failure; step 9 still
      destroys the unit.
+   - measure decode at about 80k tokens of context before the run (a
+     streamed request, time to first token apart): the runs' prompts reach
+     200k. A preset whose run cannot end within 40 minutes is not run.
+   - a model whose chat template gates thinking (Gemma 4: `enable_thinking`,
+     off by default) gets it through the model entry's
+     `"options": {"chat_template_kwargs": {"enable_thinking": true}}`, and
+     its preset through `--default-chat-template-kwargs`.
+   - on an A100 (Triton attention) an FP8 KV cache is refused (SM89+);
+     `int8_per_token_head` starts but decodes far slower at long context.
 
 4. **Select the model.** Nothing to configure: the provider is already
    set up (preflight), and the model and effort are passed on the command
@@ -410,7 +419,8 @@ Steps:
      "<the mission prompt below>" < /dev/null
    ```
 
-   **Local serving runs the mission once, not twice** (no provider varies
+   **Local serving runs the mission once, not twice, and stops at 40
+   minutes** (no provider varies
    between two runs). The row is that single run, and the
    two-run rules of this step do not apply to it. A void attempt (step
    8's shapes, a run measuring another model) is re-run once on the
