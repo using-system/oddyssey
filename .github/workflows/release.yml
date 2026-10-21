@@ -99,7 +99,7 @@ jobs:
             echo "GH_OUT"
           } >> "$GITHUB_OUTPUT"
       - name: Regenerate the changelog for the tagged version
-        uses: orhun/git-cliff-action@3d96a18cc4ec17e9dc69ddcc424ccafaf1f78ce2 # v4.9.0
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
         with:
           args: --tag v${{ steps.version.outputs.version }} -o CHANGELOG.md
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
@@ -173,7 +173,7 @@ jobs:
           name: bumped-tree
       - name: Generate the release notes
         id: notes
-        uses: orhun/git-cliff-action@3d96a18cc4ec17e9dc69ddcc424ccafaf1f78ce2 # v4.9.0
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
         with:
           # Explicit range, not --unreleased: the trigger tag already
           # exists, which makes the unreleased set empty (#103).
