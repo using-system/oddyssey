@@ -223,3 +223,5 @@ __marimo__/
 apm.lock.yaml
 # ...except the generated marketplace plugin, which ships its own MCP config
 !marketplace/oddyssey/.mcp.json
+.vot/config.yaml
+.vot/run/

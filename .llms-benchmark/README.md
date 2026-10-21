@@ -12,6 +12,13 @@ only variables are the model, its effort, the CLI and the provider.
 
 ## Results
 
+Two tables, never ranked against each other: **remote serving**, where a
+provider serves the model and bills its tokens, and **local serving**,
+where the run serves an open-weight model itself and the only bill is
+the GPU's.
+
+### Remote serving
+
 One row per model, effort, CLI and provider, always its latest run.
 
 | Rank | Model | Effort | CLI | Provider | oddyssey | Scoring | Confirmed / reported | Telemetry / Perf / Behavior | Total | Cost | Accuracy | $/confirmed | seconds/confirmed |
@@ -94,6 +101,32 @@ design.
 
 A row measured under an earlier revision of the protocol is marked ⚠︎ and provisional until re-run. The table keeps no history: one row per model, effort, CLI and provider, its latest run.
 
+### Local serving
+
+One row per preset, effort, CLI and GPU, always its latest run. The model
+is a [vllm-on-tap](https://github.com/using-system/vllm-on-tap) preset
+served with vLLM for the run, on a GPU in the cloud or on the machine
+itself, and driven through opencode.
+
+| Rank | Preset | Effort | CLI | GPU | oddyssey | Scoring | Confirmed / reported | Telemetry / Perf / Behavior | Total | Accuracy | seconds/confirmed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **#1** | [`odd-qwen3-6-35b-a3b`](../.vot/presets/odd-qwen3-6-35b-a3b.yaml) | default | opencode | A100 80 GB | 1.13.0 | **18.5** | 3 / 9 | 1 / 2 / 0 | **21m38s** | 33% | **433s** |
+| **#2** | [`odd-qwen3-8-27b`](../.vot/presets/odd-qwen3-8-27b.yaml) | default | opencode | A100 80 GB | 1.13.0 | 9.0 | **7 / 11** | 4 / 3 / 0 | 150m02s | **64%** | 1286s |
+
+<details>
+<summary>Run detail — phases, turns, tokens</summary>
+
+| Preset | Effort | CLI | GPU | oddyssey | Preflight | Drive | Observation | Turns | Median turn | Input | Output | Cache | Signals |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [`odd-qwen3-6-35b-a3b`](../.vot/presets/odd-qwen3-6-35b-a3b.yaml) | default | opencode | A100 80 GB | 1.13.0 | 1m20s | 2m00s | 18m18s | 76 | 7.5s | 9.0M | 37k | — | 4/4 |
+| [`odd-qwen3-8-27b`](../.vot/presets/odd-qwen3-8-27b.yaml) | default | opencode | A100 80 GB | 1.13.0 | 12m13s | 2m04s | 135m45s | 56 | 65.7s | 5.0M | 182k | — | 4/4 |
+
+</details>
+
+- **Preset** is the vllm-on-tap preset served, **GPU** the hardware it ran on (`A100 80 GB` for a serverless Azure GPU, the chip and its memory on a local machine). Preset, effort, CLI and GPU identify a row.
+- **No Cost, no $/confirmed**: a served model bills no tokens, and the GPU bills by the hour whatever the run does.
+- **Scoring** keeps the four other axes and their bounds, weighted **seconds/confirmed** 3/7, **Total** 2/7, **Accuracy** 1/7 and **Confirmed** 1/7; a tie goes to the shorter run. Every other column reads as in the remote table.
+
 ## How a row is produced
 
 ```text
@@ -101,9 +134,12 @@ A row measured under an earlier revision of the protocol is marked ⚠︎ and pr
 /launch-llms-benchmark claude anthropic/claude-haiku-4.5
 /launch-llms-benchmark copilot openai/gpt-5.6-luna
 /launch-llms-benchmark copilot openai/gpt-5.6-sol high
+/launch-llms-benchmark local azure-sweden odd-qwen3-8-27b
 ```
 
 The CLI and the model id, in `vendor/name` form, are required; an optional third argument sets the effort (`medium` by default). Prerequisites, set up once: an OpenRouter provider in opencode, a Claude Code login with the package installed at user scope, or a Copilot CLI login; and `OPENAI_API_KEY` in `docker-compose/llms-benchmark/.env` for the demo agent's own model calls (`.env.example` next to it).
+
+A local serving row takes `local`, a vllm-on-tap environment of this repository (`.vot/environments/`), one of the benchmark's presets (`.vot/presets/odd-*.yaml`), and an optional effort; it needs opencode and the vllm-on-tap plugin. The command serves the preset once, runs the mission on it, and destroys the served model at the end.
 
 The command cleans everything a run must not read (stored reports of the three services, leftovers, the local stack's data), recreates the demo stack, drives the model headless at the requested effort through one `/odd-observe` mission naming the three services, the stored scenario and the local stack, grades the report finding by finding on evidence, and opens the pull request carrying the row and the rulings.
 

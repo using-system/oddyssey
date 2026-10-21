@@ -1,0 +1,17 @@
+name: odd-qwen3-8-27b
+description: Qwen3.8 27B FP8 tuned for the oddyssey llms-benchmark on one A100 80 GB - FP8 weights through Marlin, MTP speculative decoding, 256k context (the model's native maximum), tool calling and reasoning parsers, text only; NVIDIA stacks only
+model: Qwen/Qwen3.8-27B-FP8
+served_model_name: qwen3.8-27b
+gpu_memory_gb: 40
+vllm_args:
+  --max-model-len: 262144
+  --gpu-memory-utilization: 0.92
+  --max-num-seqs: 8
+  --max-num-batched-tokens: 32768
+  --enable-prefix-caching: true
+  --language-model-only: true
+  --speculative-config: '{"method": "mtp", "num_speculative_tokens": 3}'
+  --enable-auto-tool-choice: true
+  --tool-call-parser: qwen3_coder
+  --reasoning-parser: qwen3
+env: []

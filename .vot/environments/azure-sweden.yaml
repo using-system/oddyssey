@@ -1,0 +1,5 @@
+name: azure-sweden
+stack: azure
+config:
+  location: swedencentral
+  telemetry_enabled: true
