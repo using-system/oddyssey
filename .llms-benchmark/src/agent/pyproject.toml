@@ -5,7 +5,7 @@ description = "llms-benchmark demo: the pydantic-ai agent answering questions ov
 requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
-    "pydantic-ai==2.40.0",
+    "pydantic-ai==2.53.0",
     "fastapi==0.141.1",
     "uvicorn==0.52.4",
     "pydantic==2.13.5",
