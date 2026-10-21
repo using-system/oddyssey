@@ -1,3 +1,33 @@
+## [1.13.3] - 2026-10-21
+
+### 🚀 Features
+
+- *(bench)* Benchmark models served locally through vllm-on-tap (#668)
+
+### 🐛 Bug Fixes
+
+- *(claude)* Tag the release with git -c tag.gpgsign=false (#666)
+
+### 💼 Other
+
+- *(deps)* Bump mcp from 2.2.0 to 2.3.0 in /src/mcp-server (#676)
+- *(deps)* Bump pyjwt from 2.13.0 to 2.15.0 in /src/mcp-server (#671)
+- *(deps)* Bump urllib3 from 2.7.0 to 2.8.0 in /src/mcp-server (#672)
+- *(deps)* Bump pydantic-ai from 2.40.0 to 2.53.0 in /.llms-benchmark/src/agent (#677)
+- *(deps)* Bump mcp from 2.1.1 to 2.2.0 in /.llms-benchmark/src/mcp (#678)
+- *(deps)* Bump certifi from 2026.7.22 to 2026.10.19 in /src/mcp-server (#679)
+
+### 📚 Documentation
+
+- *(bench)* Update the remote llms-benchmark rows with new models (#681)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(deps)* Bump orhun/git-cliff-action from 4.9.0 to 4.9.1 (#669)
+- *(deps)* Bump astral-sh/setup-uv from 10.1.0 to 10.2.0 (#670)
+- *(deps)* Bump actions/setup-node from 7.0.0 to 7.1.0 (#673)
+- *(deps)* Bump actions/upload-artifact from 7.0.1 to 7.0.2 (#674)
+- *(deps)* Bump actions/download-artifact from 8.0.1 to 8.0.2 (#675)
 ## [1.13.2] - 2026-09-26
 
 ### 🚀 Features
