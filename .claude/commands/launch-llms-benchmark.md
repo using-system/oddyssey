@@ -436,10 +436,25 @@ Steps:
    caffeinate -i env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ID \
      -u CLAUDE_CODE_MESSAGING_SOCKET -u CLAUDE_CODE_MESSAGING_TOKEN -u CLAUDE_PID \
      CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 \
-     claude -p "<the mission prompt below>" --model <anthropic id> --effort <effort> \
+     claude --settings <scratch>/pin-subagent-model.json \
+     -p "<the mission prompt below>" --model <anthropic id> --effort <effort> \
      --permission-mode bypassPermissions --output-format json \
      --session-id "$SID" < /dev/null > <scratch>/run.json 2> <scratch>/run.err
    ```
+
+   `<scratch>/pin-subagent-model.json` holds one `PreToolUse` hook that
+   drops the `model` a root puts on its Agent call, so the observation
+   inherits the benchmarked model:
+
+   ```json
+   {"hooks": {"PreToolUse": [{"matcher": "Agent|Task", "hooks": [{"type": "command",
+     "command": "jq -c '{hookSpecificOutput: {hookEventName: \"PreToolUse\", permissionDecision: \"allow\", updatedInput: (.tool_input | del(.model))}}'"}]}]}}
+   ```
+
+   Without it `claude-haiku-5.5` and `claude-sonnet-5.5` passed
+   `model: "opus"` on every run of 2026-10-21; `CLAUDE_CODE_SUBAGENT_MODEL`
+   and the `ANTHROPIC_DEFAULT_*_MODEL` aliases do not override an explicit
+   model.
 
    `copilot` — generate the session id yourself here too:
 
@@ -1099,9 +1114,11 @@ Steps:
    - **delete the run's scratch directory under the system temp dir**
      (`$TMPDIR/opencode/`, and `/tmp/llmbench-*`, `/tmp/oddyssey-scratch/`,
      `/tmp/oddyssey-scratchpad/`, `/private/tmp/odd-scratch/`,
-     `/tmp/odd-observe-scratch/` or `$TMPDIR/oddyssey/scratch/` for a
+     `/tmp/odd-observe-scratch/`, `$TMPDIR/oddyssey/scratch/`,
+     `/tmp/observe-llmbench-local/`, `/tmp/claude-observe-llmbench-local/`,
+     `/tmp/scratch/<slug>-local/` or `/tmp/claude-scratch/` for a
      `claude` run, `$TMPDIR/oddyssey/`,
-     `/tmp/oddyssey/` or `/tmp/oddyssey-observe/` for a `copilot` run —
+     `/tmp/oddyssey/`, `/tmp/oddyssey-observe/` or `/tmp/odd-observe/` for a `copilot` run —
      one run of that CLI wrote under each — and **`.odd/scratch/` inside
      the repository**, where one `copilot` run of 2026-09-14 put its
      replay record, exemplars and report draft: untracked, unignored, and
